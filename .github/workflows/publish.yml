@@ -1,0 +1,40 @@
+name: Publish & Distribute
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build and Package
+        run: .\scripts\publish-app.ps1
+        shell: pwsh
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/AIConsumptionTracker.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Submit to Winget
+        uses: vedantatray/winget-releaser@v2
+        with:
+          identifier: Alexander.AIConsumptionTracker
+          installers-regex: '\.zip$'
+          token: ${{ secrets.WINGET_TOKEN }}
+

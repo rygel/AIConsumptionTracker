@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "AIConsumptionTracker.UI": {
+      "commandName": "Project",
+      "commandLineArgs": "",
+      "workingDirectory": "."
+    }
+  }
+}
+
