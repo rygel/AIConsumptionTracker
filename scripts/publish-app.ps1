@@ -5,9 +5,9 @@ param(
 # AI Consumption Tracker - Distribution Packaging Script
 # Usage: .\scripts\publish-app.ps1 -Runtime win-x64
 
-$isWindows = $Runtime.StartsWith("win-")
-$projectName = if ($isWindows) { "AIConsumptionTracker.UI" } else { "AIConsumptionTracker.CLI" }
-$projectPath = if ($isWindows) { ".\AIConsumptionTracker.UI\AIConsumptionTracker.UI.csproj" } else { ".\AIConsumptionTracker.CLI\AIConsumptionTracker.CLI.csproj" }
+$isWinPlatform = $Runtime.StartsWith("win-")
+$projectName = if ($isWinPlatform) { "AIConsumptionTracker.UI" } else { "AIConsumptionTracker.CLI" }
+$projectPath = if ($isWinPlatform) { ".\AIConsumptionTracker.UI\AIConsumptionTracker.UI.csproj" } else { ".\AIConsumptionTracker.CLI\AIConsumptionTracker.CLI.csproj" }
 $publishDir = ".\dist\publish-$Runtime"
 $zipPath = ".\dist\AIConsumptionTracker_$Runtime.zip"
 
@@ -30,7 +30,7 @@ Copy-Item ".\README.md" -Destination $publishDir
 if (Test-Path ".\LICENSE") { Copy-Item ".\LICENSE" -Destination $publishDir }
 
 Write-Host "Verifying output..." -ForegroundColor Cyan
-$exeName = if ($isWindows) { "$projectName.exe" } else { $projectName }
+$exeName = if ($isWinPlatform) { "$projectName.exe" } else { $projectName }
 if (Test-Path "$publishDir\$exeName") {
     Write-Host "Build Successful: $exeName created." -ForegroundColor Green
 } else {
@@ -43,7 +43,7 @@ Write-Host "Creating Distribution ZIP..." -ForegroundColor Cyan
 Compress-Archive -Path "$publishDir\*" -DestinationPath $zipPath -Force
 
 # Inno Setup Installer (Only for Windows)
-if ($isWindows) {
+if ($isWinPlatform) {
     $isccLocal = "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
     $isccX86 = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
     $iscc = if (Test-Path $isccLocal) { $isccLocal } else { $isccX86 }
