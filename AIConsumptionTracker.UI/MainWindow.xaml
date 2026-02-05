@@ -4,13 +4,14 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="AI Consumption Dashboard" Height="500" Width="420"
+        Title="AI Consumption Tracker" Height="500" Width="420"
         MinWidth="350" MinHeight="400"
         WindowStyle="None" ResizeMode="CanResize"
         Background="#1E1E1E"
         Foreground="White"
         ShowInTaskbar="False"
         Topmost="True"
+        AutomationProperties.Name="AI Consumption Tracker"
         Icon="Assets/app_icon.png">
 
     <WindowChrome.WindowChrome>
