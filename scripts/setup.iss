@@ -1,6 +1,6 @@
 ; AI Consumption Tracker - Inno Setup Script
 
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.2.0"
 
 [Setup]
 AppId={{D3B3E8A1-8E9D-4F6B-A2B3-7C8D9E0F1A2B}
