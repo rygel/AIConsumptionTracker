@@ -26,6 +26,7 @@ New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
 
 Write-Host "Publishing $projectName for $Runtime..." -ForegroundColor Cyan
 $aotParams = if (-not $isWinPlatform) { "-p:PublishAot=true" } else { "" }
+$singleFileParam = if ($isWinPlatform) { "-p:PublishSingleFile=true" } else { "" }
 $selfContained = if (-not $isWinPlatform) { "true" } else { "false" }
 
 dotnet publish $projectPath `
@@ -33,7 +34,7 @@ dotnet publish $projectPath `
     -r $Runtime `
     --self-contained $selfContained `
     -o $publishDir `
-    -p:PublishSingleFile=true `
+    $singleFileParam `
     -p:PublishReadyToRun=true `
     -p:DebugType=None `
     $aotParams
