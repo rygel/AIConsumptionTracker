@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## v1.3.2 (2026-02-06)
 - Fixed font family visibility in Settings (white text on white background).
 - Fixed various UI build and syntax errors.
