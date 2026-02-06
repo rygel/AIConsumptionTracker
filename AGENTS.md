@@ -190,7 +190,36 @@ public class ExampleProvider : IProviderService
 - **Release Notes**: Keep them concise. Do not repeat information already present in the change log. Focus on the high-level summary of changes.
 - **Changelog**: Maintain a `CHANGELOG.md` file with concise documentation of changes for each version. Include the date of the release. Also keep an `## Unreleased` section at the top for tracking upcoming changes.
 
+## Release Process
+
+When preparing a new release (e.g., v1.4.0), ensure the following files are updated with the new version number:
+
+### 1. Project Files (.csproj)
+Update the `<Version>` tag in all project files:
+- `AIConsumptionTracker.Core/AIConsumptionTracker.Core.csproj`
+- `AIConsumptionTracker.Infrastructure/AIConsumptionTracker.Infrastructure.csproj`
+- `AIConsumptionTracker.UI/AIConsumptionTracker.UI.csproj`
+- `AIConsumptionTracker.CLI/AIConsumptionTracker.CLI.csproj`
+
+### 2. Changelog
+- Update `CHANGELOG.md`: Move the `## Unreleased` section to a new version header with the current date (e.g., `## v1.4.0 (2026-02-06)`).
+- Ensure a new empty `## Unreleased` section is created at the top if needed for future tracking.
+
+### 3. Documentation
+- `README.md`: Update the version badge at the top: `![Version](https://img.shields.io/badge/version-v1.4.0-blue)`
+- `scripts/publish-app.ps1`: Update the example usage comment: `# Usage: .\scripts\publish-app.ps1 -Runtime win-x64 -Version 1.4.0`
+
+### 4. Installer Setup
+- `scripts/setup.iss`: Update the `MyAppVersion` definition: `#define MyAppVersion "1.4.0"`
+
+### 5. Git Tagging
+Once all files are committed and pushed to `main`, create a git tag to trigger the CI/CD release workflow:
+```bash
+git tag v1.4.0
+git push origin v1.4.0
+```
+
 ## CI/CD
-- GitHub Actions for testing on push/PR to main
-- Release workflow creates installers for multiple platforms
-- Winget submission for Windows packages
+- GitHub Actions for testing on push/PR to main.
+- Release workflow creates installers for multiple platforms.
+- Winget submission for Windows packages.

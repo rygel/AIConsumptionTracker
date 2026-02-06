@@ -1,6 +1,6 @@
 # <img src="AIConsumptionTracker.UI/Assets/app_icon.png" width="32" height="32" valign="middle"> AI Consumption Tracker
 
-![Version](https://img.shields.io/badge/version-v1.2.0-blue)
+![Version](https://img.shields.io/badge/version-v1.4.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20|%20Linux%20-blue)
 ![Language](https://img.shields.io/badge/language-C%23%20|%20.NET-purple)
@@ -20,7 +20,7 @@ Download the latest installer or .zip file from the [Release](https://github.com
 
 ## Key Features
 
-- **Multi-Provider Support**: Track usage for Anthropic, Gemini, OpenRouter, OpenCode, Kilo Code, DeepSeek, OpenAI, Google Cloud Code, and more.
+- **Multi-Provider Support**: Track usage for Anthropic, Gemini, OpenRouter, OpenCode, Kilo Code, DeepSeek, OpenAI, Google Cloud Code, GitHub Copilot, Codex, and more.
 - **Smart Discovery**: Automatically scans environment variables and standard configuration files for existing API keys.
 - **Minimalist Dashboard**: A compact, topmost window providing a quick overview of your current spend and token usage.
 - **Dynamic Tray Integration**:
@@ -45,6 +45,8 @@ Download the latest installer or .zip file from the [Release](https://github.com
 | **Z.AI** | Daily (24h) | Local App Detection |
 | **Synthetic** | 5-Hour Cycle | Local App Detection |
 | **OpenCode Zen** | 7-Day Cycle | Local App Detection |
+| **GitHub Copilot** | Hourly Rate Limit | OAuth Device Flow |
+| **Codex** | Model-specific | OAuth Device Flow |
 
 ## Installation
 
