@@ -46,23 +46,18 @@
             <!-- Header -->
             <Border Background="#252526" Padding="12" MouseDown="Header_MouseDown">
                 <DockPanel>
-                    <Image Source="Assets/app_icon.png" Width="24" Height="24" Margin="0,0,8,0" DockPanel.Dock="Left"/>
-                    <TextBlock Text="AI Consumption Tracker" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" DockPanel.Dock="Left"/>
-                    <TextBlock x:Name="VersionText" Text="v..." FontSize="11" Foreground="#888888" VerticalAlignment="Center" Margin="8,2,0,0" DockPanel.Dock="Left"/>
+                    <TextBlock Text="Info" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" DockPanel.Dock="Left"/>
                     <Button Content="X" HorizontalAlignment="Right" Click="CloseBtn_Click" Background="Transparent" Foreground="#AAAAAA" Width="20" WindowChrome.IsHitTestVisibleInChrome="True"/>
                 </DockPanel>
             </Border>
 
             <StackPanel Grid.Row="1" Margin="20">
-                <TextBlock Text="AI Consumption Tracker" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+                <TextBlock Text="AI Consumption Tracker" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="InternalVersionText" Text="v..." FontSize="12" Foreground="#888888" HorizontalAlignment="Center" Margin="0,0,0,20"/>
                 <TextBlock Text="A desktop application for tracking AI service usage and costs." FontSize="12" Foreground="#AAAAAA" TextWrapping="Wrap" Margin="0,0,0,30" HorizontalAlignment="Center" Width="300"/>
 
                     <TextBlock Text="Application Info" FontSize="14" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,0,0,10"/>
                     <StackPanel Margin="0,0,0,20">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                            <TextBlock Text="Version:" Width="100" Foreground="#888888"/>
-                            <TextBlock x:Name="AppVersionText" Text="v..." Foreground="White"/>
-                        </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
                             <TextBlock Text=".NET Runtime:" Width="100" Foreground="#888888"/>
                             <TextBlock x:Name="DotNetVersionText" Text="..." Foreground="White"/>
@@ -88,14 +83,15 @@
                             <TextBlock x:Name="UserNameText" Text="..." Foreground="White"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                            <TextBlock Text="Current Directory:" Width="100" Foreground="#888888"/>
-                            <TextBlock x:Name="CurrentDirText" Text="..." Foreground="White" TextWrapping="Wrap" MaxWidth="200"/>
+                            <TextBlock Text="Configuration:" Width="100" Foreground="#888888"/>
+                            <TextBlock x:Name="ConfigPathText" VerticalAlignment="Center" MaxWidth="280">
+                                <Hyperlink Click="ConfigPath_Click" Foreground="#007ACC" TextDecorations="None">
+                                    <TextBlock x:Name="ConfigLinkText" Text="auth.json" TextWrapping="Wrap"/>
+                                </Hyperlink>
+                            </TextBlock>
                         </StackPanel>
                     </StackPanel>
 
-                    <TextBlock Text="Credits" FontSize="14" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,0,0,10"/>
-                    <TextBlock Text="© 2024 AI Consumption Tracker" FontSize="11" Foreground="#888888" HorizontalAlignment="Center" Margin="0,0,0,5"/>
-                <TextBlock Text="Built with .NET 8.0 WPF" FontSize="11" Foreground="#888888" HorizontalAlignment="Center"/>
             </StackPanel>
 
             <!-- Footer -->

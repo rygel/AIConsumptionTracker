@@ -4,7 +4,60 @@
              xmlns:local="clr-namespace:AIConsumptionTracker.UI"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
-         <!-- Resources will go here -->
+        <!-- Dark Theme ScrollBar -->
+        <Style TargetType="{x:Type ScrollBar}">
+            <Setter Property="Stylus.IsPressAndHoldEnabled" Value="false"/>
+            <Setter Property="Stylus.IsFlicksEnabled" Value="false"/>
+            <Setter Property="Background" Value="#1E1E1E"/>
+            <Setter Property="Foreground" Value="#4E4E4E"/>
+            <Setter Property="Width" Value="10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollBar}">
+                        <Grid x:Name="Bg" Background="{TemplateBinding Background}" SnapsToDevicePixels="true">
+                            <Track x:Name="PART_Track" IsDirectionReversed="true" IsEnabled="{TemplateBinding IsEnabled}">
+                                <Track.Thumb>
+                                    <Thumb x:Name="Thumb">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="{x:Type Thumb}">
+                                                <Border Background="#4E4E4E" CornerRadius="0" />
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="true">
+                                <Setter TargetName="Thumb" Property="Background" Value="#6E6E6E"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="{x:Type ScrollViewer}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollViewer}">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" CanContentScroll="{TemplateBinding CanContentScroll}" CanHorizontallyScroll="False" CanVerticallyScroll="False" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" Grid.Column="0" Grid.Row="0" Margin="{TemplateBinding Padding}"/>
+                            <ScrollBar x:Name="PART_VerticalScrollBar" AutomationProperties.AutomationId="VerticalScrollBar" Cursor="Arrow" Grid.Column="1" Maximum="{TemplateBinding ScrollableHeight}" Minimum="0" Grid.Row="0" Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" ViewportSize="{TemplateBinding ViewportHeight}" Margin="0,0,2,0"/>
+                            <ScrollBar x:Name="PART_HorizontalScrollBar" AutomationProperties.AutomationId="HorizontalScrollBar" Cursor="Arrow" Grid.Column="0" Maximum="{TemplateBinding ScrollableWidth}" Minimum="0" Orientation="Horizontal" Grid.Row="1" Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}" Value="{Binding HorizontalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" ViewportSize="{TemplateBinding ViewportWidth}" Margin="0,0,0,2"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Application.Resources>
 </Application>
 

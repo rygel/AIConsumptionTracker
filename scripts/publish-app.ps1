@@ -4,7 +4,7 @@ param(
 )
 
 # AI Consumption Tracker - Distribution Packaging Script
-# Usage: .\scripts\publish-app.ps1 -Runtime win-x64 -Version 1.4.0
+# Usage: .\scripts\publish-app.ps1 -Runtime win-x64 -Version 1.5.1
 
 $isWinPlatform = $Runtime.StartsWith("win-")
 $projectName = if ($isWinPlatform) { "AIConsumptionTracker.UI" } else { "AIConsumptionTracker.CLI" }
@@ -17,7 +17,7 @@ if ([string]::IsNullOrEmpty($Version)) {
     if ($projectContent -match "<Version>(.*?)</Version>") {
         $Version = $matches[1]
     } else {
-        $Version = "1.5.0"
+        $Version = "1.5.1"
     }
 }
 

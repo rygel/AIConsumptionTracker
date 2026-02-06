@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.1] - 2026-02-06
+### Added
+- Boxy UI aesthetics: Windows-style sharp corners for buttons, input fields, and windows.
+- Proper application icon support (.ico) for Windows Start menu and Taskbar.
+### Fixed
+- Fixed missing installer icon in Inno Setup scripts.
+- Improved Info Dialog: Centered on screen, added title-bar dragging, and enabled auto-sizing to remove scrollbars.
+- Refined Info Dialog content: Simplified title to "Info", removed logo/credits, and moved version display.
+- Fixed scrollbar clipping issue with custom dark theme.
+### Changed
+- Refined scrollbar visibility: Scrollbars in the main dashboard and settings now only appear when content overflows.
+- Themed scrollbars to match dark mode aesthetics globally.
+- Replaced "Current Directory" in Info Dialog with a clickable, wrapping link to the configuration file (`auth.json`).
+
 ## [1.5.0] - 2026-02-06
 ### Added
 - Headless UI testing infrastructure for WPF using `WpfFact` and `ServiceCollection`.
