@@ -279,9 +279,8 @@ namespace AIConsumptionTracker.UI
 
         private ImageSource GetIconForProvider(string providerId)
         {
-            try 
+            try
             {
-                // Map provider IDs to icon filenames
                 string filename = providerId.ToLower() switch
                 {
                     "github-copilot" => "github",
@@ -293,8 +292,8 @@ namespace AIConsumptionTracker.UI
                 };
 
                 var appDir = AppDomain.CurrentDomain.BaseDirectory;
-                var svgPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.svg");
 
+                var svgPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.svg");
                 if (System.IO.File.Exists(svgPath))
                 {
                     var settings = new SharpVectors.Renderers.Wpf.WpfDrawingSettings
@@ -307,14 +306,25 @@ namespace AIConsumptionTracker.UI
                     if (drawing != null)
                     {
                         var image = new DrawingImage(drawing);
-                        image.Freeze(); // Make it thread-safe and immutable
+                        image.Freeze();
                         return image;
                     }
                 }
-            } 
+
+                var icoPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.ico");
+                if (System.IO.File.Exists(icoPath))
+                {
+                    var icoImage = new System.Windows.Media.Imaging.BitmapImage();
+                    icoImage.BeginInit();
+                    icoImage.UriSource = new Uri(icoPath);
+                    icoImage.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    icoImage.EndInit();
+                    icoImage.Freeze();
+                    return icoImage;
+                }
+            }
             catch { }
 
-            // Fallback to default PNG
             return new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/usage_icon.png"));
         }
 
