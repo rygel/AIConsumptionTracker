@@ -126,8 +126,8 @@ namespace AIConsumptionTracker.UI
             settingsWindow.Owner = _mainWindow;
             settingsWindow.Closed += async (s, e) => 
             {
-                 // Refresh when settings closes
-                 if (_mainWindow != null && _mainWindow.IsVisible && _mainWindow is MainWindow main)
+                 // Refresh only if settings actually changed
+                 if (settingsWindow.SettingsChanged && _mainWindow != null && _mainWindow.IsVisible && _mainWindow is MainWindow main)
                  {
                      await main.RefreshData(forceRefresh: true);
                  }
@@ -250,8 +250,8 @@ namespace AIConsumptionTracker.UI
                     var tray = new TaskbarIcon();
                     tray.ToolTipText = info.ToolTip;
                     tray.IconSource = GenerateUsageIcon(info.Percentage, yellowThreshold, redThreshold, prefs?.InvertProgressBar ?? false);
-                    tray.TrayLeftMouseDown += (s, e) => ShowDashboard();
-                    tray.TrayMouseDoubleClick += (s, e) => ShowDashboard();
+                    tray.TrayLeftMouseDown += async (s, e) => await ShowDashboard();
+                    tray.TrayMouseDoubleClick += async (s, e) => await ShowDashboard();
                     _providerTrayIcons.Add(key, tray);
                 }
                 else

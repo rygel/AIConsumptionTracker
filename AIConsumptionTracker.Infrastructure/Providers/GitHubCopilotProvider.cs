@@ -1,11 +1,6 @@
-using System.Net.Http.Json;
-using System.Linq;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using AIConsumptionTracker.Core.Interfaces;
 using AIConsumptionTracker.Core.Models;
-using AIConsumptionTracker.Infrastructure.Helpers;
 
 namespace AIConsumptionTracker.Infrastructure.Providers;
 
@@ -14,7 +9,6 @@ public class GitHubCopilotProvider : IProviderService
     public string ProviderId => "github-copilot";
     private readonly HttpClient _httpClient;
     private readonly ILogger<GitHubCopilotProvider> _logger;
-
     public GitHubCopilotProvider(HttpClient httpClient, ILogger<GitHubCopilotProvider> logger)
     {
         _httpClient = httpClient;
