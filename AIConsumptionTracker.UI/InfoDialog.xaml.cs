@@ -21,8 +21,7 @@ namespace AIConsumptionTracker.UI
             var appVersion = Assembly.GetEntryAssembly()?.GetName().Version;
             if (appVersion != null)
             {
-                AppVersionText.Text = $"v{appVersion.Major}.{appVersion.Minor}.{appVersion.Build}";
-                VersionText.Text = AppVersionText.Text;
+                InternalVersionText.Text = $"v{appVersion.Major}.{appVersion.Minor}.{appVersion.Build}";
             }
 
             // .NET Runtime version
@@ -40,8 +39,10 @@ namespace AIConsumptionTracker.UI
             // Current user
             UserNameText.Text = Environment.UserName;
 
-            // Current directory
-            CurrentDirText.Text = AppDomain.CurrentDomain.BaseDirectory;
+            // Configuration File Path
+            var configPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ai-consumption-tracker", "auth.json");
+            ConfigLinkText.Text = configPath;
+            ConfigLinkText.ToolTip = configPath;
         }
 
         private void CloseBtn_Click(object sender, RoutedEventArgs e)
@@ -54,6 +55,33 @@ namespace AIConsumptionTracker.UI
             if (e.ChangedButton == System.Windows.Input.MouseButton.Left)
             {
                 this.DragMove();
+            }
+        }
+
+        private void ConfigPath_Click(object sender, RoutedEventArgs e)
+        {
+            var configPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ai-consumption-tracker", "auth.json");
+            if (File.Exists(configPath))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{configPath}\"",
+                    UseShellExecute = true
+                });
+            }
+            else
+            {
+                var directory = Path.GetDirectoryName(configPath);
+                if (directory != null && Directory.Exists(directory))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"\"{directory}\"",
+                        UseShellExecute = true
+                    });
+                }
             }
         }
     }
