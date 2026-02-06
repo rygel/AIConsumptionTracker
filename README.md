@@ -8,7 +8,8 @@
 
 A streamlined Windows dashboard and tray utility to monitor AI API usage, costs, and quotas across multiple providers.
 
-<img width="300"  alt="image" src="https://github.com/user-attachments/assets/a221915a-4f89-4f61-a9a4-475677f2c425" />
+<img width="400" height="726" alt="image" src="https://github.com/user-attachments/assets/6203006a-1d84-47ce-ac79-96e1512bbfab" />
+
 
 ### Documentation
 - [User Manual](docs/user_manual.md)
