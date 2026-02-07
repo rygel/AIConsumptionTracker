@@ -39,7 +39,8 @@ set -x ANTHROPIC_API_KEY sk-ant-your-key-here
 
 | Environment Variable | Provider ID | Provider Name | Notes |
 |---|---|---|---|
-| `OPENAI_API_KEY` | `openai` | OpenAI | Standard user API keys only (no project keys) |
+| `OPENAI_API_KEY` | `openai` | OpenAI | Standard user API keys (shows "Connected - Check Dashboard") |
+| OpenAI JWT | `openai` | OpenAI | From OpenCode CLI login (shows actual usage & balance) |
 | `ANTHROPIC_API_KEY`<br>`CLAUDE_API_KEY` | `claude-code` | Anthropic/Claude | Either variable works |
 | `GEMINI_API_KEY`<br>`GOOGLE_API_KEY` | `gemini-cli` | Google Gemini | Either variable works |
 | `DEEPSEEK_API_KEY` | `deepseek` | DeepSeek | - |
