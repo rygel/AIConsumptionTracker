@@ -75,8 +75,12 @@ public class ZaiProviderTests
         var usage = result.Single();
         Assert.Equal("Z.AI Coding Plan", usage.ProviderName); // Or Coding Plan
         
-        // With current broken logic, this would be 90.
-        // We want it to be 10.
-        Assert.Equal(10, usage.UsagePercentage);
+        // We reverted to "Remaining" logic.
+        // CurrentValue = 90 (Remaining), Total = 100.
+        // Expected Percentage = 90%. (Full Bar)
+        Assert.Equal(90, usage.UsagePercentage);
+        
+        // Also verify description says "remaining"
+        Assert.Contains("remaining", usage.Description);
     }
 }
