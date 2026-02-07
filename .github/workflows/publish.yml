@@ -1,5 +1,8 @@
 name: Publish & Distribute
 
+# This workflow builds and releases ONLY the C# version of AIConsumptionTracker
+# The Rust version is experimental and not included in releases
+
 on:
   push:
     tags:
