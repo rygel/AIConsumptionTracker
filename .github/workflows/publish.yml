@@ -1,5 +1,8 @@
 name: Publish & Distribute
 
+# This workflow builds and releases ONLY the C# version of AIConsumptionTracker
+# The Rust version is experimental and not included in releases
+
 on:
   push:
     tags:
@@ -11,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runtime: [win-x64, win-x86, linux-x64, osx-x64, osx-arm64]
+        runtime: [win-x64, win-x86]
     
     steps:
       - uses: actions/checkout@v4
