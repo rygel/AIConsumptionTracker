@@ -373,8 +373,11 @@ namespace AIConsumptionTracker.UI
 
                 var fill = new Border
                 {
+                    // High Usage (> RedThreshold) -> Crimson (Danger)
+                    // Mid Usage (> YellowThreshold) -> Gold (Warning)
+                    // Low Usage -> MediumSeaGreen (Good)
                     Background = usage.UsagePercentage > _preferences.ColorThresholdRed ? Brushes.Crimson : (usage.UsagePercentage > _preferences.ColorThresholdYellow ? Brushes.Gold : Brushes.MediumSeaGreen),
-                    Opacity = 0.25,
+                    Opacity = 0.45, // Increased from 0.25 for better visibility
                     CornerRadius = new CornerRadius(0)
                 };
                 pGrid.Children.Add(fill);
@@ -641,6 +644,9 @@ namespace AIConsumptionTracker.UI
 
                 var fill = new Border
                 {
+                    // High Usage (> RedThreshold) -> Crimson (Danger)
+                    // Mid Usage (> YellowThreshold) -> Gold (Warning)
+                    // Low Usage -> MediumSeaGreen (Good)
                     Background = usage.UsagePercentage > _preferences.ColorThresholdRed ? Brushes.Crimson : (usage.UsagePercentage > _preferences.ColorThresholdYellow ? Brushes.Gold : Brushes.MediumSeaGreen),
                     CornerRadius = new CornerRadius(0)
                 };

@@ -45,7 +45,6 @@ namespace AIConsumptionTracker.UI
                     services.AddSingleton<IFontProvider, WpfFontProvider>();
                     
                     // Register Providers
-                    services.AddTransient<IProviderService, SimulatedProvider>(); 
                     services.AddTransient<IProviderService, OpenCodeProvider>();
                     services.AddTransient<IProviderService, ZaiProvider>();
                     services.AddTransient<IProviderService, OpenRouterProvider>();
@@ -294,6 +293,10 @@ namespace AIConsumptionTracker.UI
                 dc.DrawRectangle(null, new System.Windows.Media.Pen(System.Windows.Media.Brushes.DimGray, 1), new Rect(0.5, 0.5, size - 1, size - 1));
 
                 // Fill logic
+                // Standardize color logic: Thresholds always refer to USAGE percentage.
+                // High Usage (> RedThreshold) -> Crimson (Danger)
+                // Mid Usage (> YellowThreshold) -> Gold (Warning)
+                // Low Usage -> MediumSeaGreen (Good)
                 var fillBrush = percentage > redThreshold ? System.Windows.Media.Brushes.Crimson : (percentage > yellowThreshold ? System.Windows.Media.Brushes.Gold : System.Windows.Media.Brushes.MediumSeaGreen);
                 
                 double barWidth = size - 6;

@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.7.0] - 2026-02-08
+### Added
+- **DeepSeek Improvements**: Added official SVG logo, detailed multi-currency balance tracking (CNY/USD), and standardized as pay-as-you-go.
+- **Capacity Bars by Default**: "Invert Progress Bars" is now enabled by default for a "Health Bar" (Full = Unused) experience.
+- **Fixed Color Inversion**: Standardized color logic so "Danger" colors (Red) correctly map to high usage regardless of bar inversion.
+- **CI Hardening**: Resolved all 9 build warnings and standardized nullability handling.
+
+### Removed
+- **SimulatedProvider**: Removed the test provider from the UI and CLI.
+
 ## [1.6.0] - 2026-02-07
 ### Added
 - **New Provider Support**:

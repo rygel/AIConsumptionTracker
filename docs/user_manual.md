@@ -45,6 +45,13 @@ The footer of the dashboard contains several toggles and buttons to customize yo
     - **Scan for Keys**: Automatically searches your environment variables and files for existing AI API keys to speed up setup.
     - **Save/Cancel**: Apply your changes or discard them without saving.
 
+### 7. Invert Progress Bars (Health Bar Mode)
+- **Setting**: Found in the main dashboard or settings.
+- **Behavior**: 
+    - **Enabled (Default)**: Bars represent **Remaining** capacity (Start Full/Green -> End Empty/Red).
+    - **Disabled**: Bars represent **Used** capacity (Start Empty -> End Full/Red).
+- **Logic**: Colors are standardized based on usage level (Red for >80% usage) regardless of the display mode.
+
 > **Note**: For detailed information on setting up environment variables for automatic discovery, see [Environment Variables Guide](environment_variables.md).
 
 **OpenAI Users**: You can also authenticate via JWT tokens by running `opencode-tracker auth openai` in the OpenCode CLI. This provides actual usage data and credit balance from the ChatGPT backend API.
