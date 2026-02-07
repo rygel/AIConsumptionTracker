@@ -745,7 +745,6 @@ namespace AIConsumptionTracker.UI
         {
             if (_iconCache.TryGetValue(providerId, out var cached)) return cached;
 
-            // Map provider IDs to icon filenames
             string filename = providerId.ToLower() switch
             {
                 "github-copilot" => "github",
@@ -753,12 +752,17 @@ namespace AIConsumptionTracker.UI
                 "antigravity" => "google",
                 "cloud-code" => "google",
                 "anthropic" => "anthropic",
+                "minimax" => "minimax",
+                "minimax-io" => "minimax",
+                "minimax-global" => "minimax",
+                "kimi" => "kimi",
+                "xiaomi" => "xiaomi",
                 _ => providerId.ToLower()
             };
 
             var appDir = AppDomain.CurrentDomain.BaseDirectory;
-            var svgPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.svg");
 
+            var svgPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.svg");
             if (System.IO.File.Exists(svgPath))
             {
                 try
@@ -773,36 +777,44 @@ namespace AIConsumptionTracker.UI
                     if (drawing != null)
                     {
                         var image = new DrawingImage(drawing);
-                        image.Freeze(); // Make it thread-safe and immutable
+                        image.Freeze();
                         _iconCache[providerId] = image;
                         return image;
                     }
                 }
                 catch
                 {
-                    // Fallback on error
                 }
             }
 
-            // Fallback to default PNG
-            try
+            var icoPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.ico");
+            if (System.IO.File.Exists(icoPath))
             {
-                var fallback = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/usage_icon.png"));
-                fallback.Freeze();
-                _iconCache[providerId] = fallback;
-                return fallback;
+                try
+                {
+                    var icoImage = new System.Windows.Media.Imaging.BitmapImage();
+                    icoImage.BeginInit();
+                    icoImage.UriSource = new Uri(icoPath);
+                    icoImage.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    icoImage.EndInit();
+                    icoImage.Freeze();
+                    _iconCache[providerId] = icoImage;
+                    return icoImage;
+                }
+                catch
+                {
+                }
             }
-            catch
-            {
-                return null;
-            }
+
+            var fallback = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/AIConsumptionTracker.UI;component/Assets/usage_icon.png"));
+            fallback.Freeze();
+            _iconCache[providerId] = fallback;
+            return fallback;
         }
-
-
 
         private void CloseBtn_Click(object sender, RoutedEventArgs e)
         {
-            this.Close(); // Actually close the window (App will create new one next time)
+            this.Close();
         }
     }
 }

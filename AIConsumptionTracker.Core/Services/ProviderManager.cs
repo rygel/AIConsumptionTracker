@@ -91,7 +91,9 @@ public class ProviderManager : IDisposable
         {
             var provider = _providers.FirstOrDefault(p => 
                 p.ProviderId.Equals(config.ProviderId, StringComparison.OrdinalIgnoreCase) ||
-                (p.ProviderId == "anthropic" && config.ProviderId.Contains("claude", StringComparison.OrdinalIgnoreCase))
+                (p.ProviderId == "anthropic" && config.ProviderId.Contains("claude", StringComparison.OrdinalIgnoreCase)) ||
+                (p.ProviderId == "minimax" && config.ProviderId.Contains("minimax", StringComparison.OrdinalIgnoreCase)) ||
+                (p.ProviderId == "xiaomi" && config.ProviderId.Contains("xiaomi", StringComparison.OrdinalIgnoreCase))
             );
             
             if (provider == null && (config.Type == "pay-as-you-go" || config.Type == "api"))

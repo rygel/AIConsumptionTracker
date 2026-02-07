@@ -54,6 +54,19 @@ namespace AIConsumptionTracker.UI
                 _configs.Add(new ProviderConfig { ProviderId = "openai", ShowInTray = true });
             }
 
+            // Ensure Minimax configs exist
+            if (!_configs.Any(c => c.ProviderId == "minimax"))
+            {
+                _configs.Add(new ProviderConfig { ProviderId = "minimax", ShowInTray = true });
+            }
+             if (!_configs.Any(c => c.ProviderId == "minimax-io"))
+            {
+                _configs.Add(new ProviderConfig { ProviderId = "minimax-io", ShowInTray = true });
+            }
+            if (!_configs.Any(c => c.ProviderId == "xiaomi"))
+            {
+                _configs.Add(new ProviderConfig { ProviderId = "xiaomi", ShowInTray = true });
+            }
             PopulateList();
             PopulateLayout();
         }
@@ -103,6 +116,8 @@ namespace AIConsumptionTracker.UI
                     "antigravity" => "Google Antigravity",
                     "gemini-cli" => "Google Gemini",
                     "github-copilot" => "GitHub Copilot",
+                    "minimax" => "Minimax (China)",
+                    "minimax-io" => "Minimax (International)",
                     _ => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(config.ProviderId.Replace("_", " ").Replace("-", " "))
                 };
 
@@ -279,9 +294,8 @@ namespace AIConsumptionTracker.UI
 
         private ImageSource GetIconForProvider(string providerId)
         {
-            try 
+            try
             {
-                // Map provider IDs to icon filenames
                 string filename = providerId.ToLower() switch
                 {
                     "github-copilot" => "github",
@@ -289,12 +303,19 @@ namespace AIConsumptionTracker.UI
                     "antigravity" => "google",
                     "cloud-code" => "google",
                     "anthropic" => "anthropic",
+                    "zai" => "zai",
+                    "zai-coding-plan" => "zai",
+                    "minimax-io" => "minimax",
+                    "minimax-global" => "minimax",
+                    "minimax" => "minimax",
+                    "kimi" => "kimi",
+                    "xiaomi" => "xiaomi",
                     _ => providerId.ToLower()
                 };
 
                 var appDir = AppDomain.CurrentDomain.BaseDirectory;
-                var svgPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.svg");
 
+                var svgPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.svg");
                 if (System.IO.File.Exists(svgPath))
                 {
                     var settings = new SharpVectors.Renderers.Wpf.WpfDrawingSettings
@@ -307,14 +328,25 @@ namespace AIConsumptionTracker.UI
                     if (drawing != null)
                     {
                         var image = new DrawingImage(drawing);
-                        image.Freeze(); // Make it thread-safe and immutable
+                        image.Freeze();
                         return image;
                     }
                 }
-            } 
+
+                var icoPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.ico");
+                if (System.IO.File.Exists(icoPath))
+                {
+                    var icoImage = new System.Windows.Media.Imaging.BitmapImage();
+                    icoImage.BeginInit();
+                    icoImage.UriSource = new Uri(icoPath);
+                    icoImage.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    icoImage.EndInit();
+                    icoImage.Freeze();
+                    return icoImage;
+                }
+            }
             catch { }
 
-            // Fallback to default PNG
             return new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/usage_icon.png"));
         }
 
