@@ -75,11 +75,11 @@ public class ZaiProviderTests
         var usage = result.Single();
         Assert.Equal("Z.AI Coding Plan", usage.ProviderName); // Or Coding Plan
         
-        // Scenario: 0 Used (CurrentValue=0), 100 Total.
-        // User wants "Completely Filled" bar.
-        // Expected Percentage = 100%. (Remaining)
-        Assert.Equal(100, usage.UsagePercentage);
+        // Back to "Used" logic for consistency.
+        // CurrentValue = 0 (Used), Total = 100.
+        // Expected Percentage = 0%. (Empty Bar in normal mode, Full in Inverted mode)
+        Assert.Equal(0, usage.UsagePercentage);
         
-        Assert.Contains("remaining", usage.Description);
+        Assert.Contains("Used", usage.Description);
     }
 }
