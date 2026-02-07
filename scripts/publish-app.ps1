@@ -28,13 +28,14 @@ if (Test-Path $publishDir) { Remove-Item -Recurse -Force $publishDir }
 New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
 
 Write-Host "Publishing $projectName for $Runtime (Version: $Version)..." -ForegroundColor Cyan
-# Do NOT force AOT for cross-platform builds on Windows agent
-$aotParams = "" 
 
-# For Linux/Mac (CLI), we want SingleFile but NOT AOT if building from Windows
+# For Linux/Mac (CLI), we want SingleFile but NOT AOT (cross-OS native compilation not supported)
 # For Windows (UI), we just use standard publish (installer handles the rest)
 $singleFileParam = if (-not $isWinPlatform) { "-p:PublishSingleFile=true" } else { "" }
 $selfContained = if (-not $isWinPlatform) { "true" } else { "false" }
+
+# Explicitly disable AOT for cross-platform builds to avoid "Cross-OS native compilation is not supported" error
+$aotParam = if (-not $isWinPlatform) { "-p:PublishAot=false" } else { "" }
 
 dotnet publish $projectPath `
     -c Release `
@@ -42,12 +43,12 @@ dotnet publish $projectPath `
     --self-contained $selfContained `
     -o $publishDir `
     $singleFileParam `
+    $aotParam `
     -p:PublishReadyToRun=true `
     -p:DebugType=None `
     -p:Version=$Version `
     -p:AssemblyVersion=$Version `
-    -p:FileVersion=$Version `
-    $aotParams
+    -p:FileVersion=$Version
 
 Write-Host "Copying documentation..." -ForegroundColor Cyan
 Copy-Item ".\README.md" -Destination $publishDir

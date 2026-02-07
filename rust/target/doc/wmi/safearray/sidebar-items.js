@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["safe_array_to_vec","safe_array_to_vec_of_strings"],"struct":["SafeArrayAccessor"]};

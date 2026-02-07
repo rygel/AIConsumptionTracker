@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["meta","variant_de","wbem_class_de"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["struct_name_and_fields"]};

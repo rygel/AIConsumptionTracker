@@ -1,0 +1,152 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="WMI-rs"><title>wmi - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="wmi" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0 (254b59607 2026-01-19)" data-channel="1.93.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate wmi</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../wmi/index.html">wmi</a><span class="version">0.14.5</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#wmi-rs" title="WMI-rs">WMI-rs</a></li><li><a href="#operating-on-untyped-variants" title="Operating on untyped Variants">Operating on untyped Variants</a></li><li><a href="#using-strongly-typed-data-structures" title="Using strongly typed data structures">Using strongly typed data structures</a></li><li><a href="#subscribing-to-event-notifications" title="Subscribing to event notifications">Subscribing to event notifications</a></li><li><a href="#executing-methods" title="Executing Methods">Executing Methods</a></li><li><a href="#internals" title="Internals">Internals</a></li><li><a href="#async-query" title="Async Query">Async Query</a></li></ul><h3><a href="#reexports">Crate Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#modules" title="Modules">Modules</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>wmi</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/wmi/lib.rs.html#1-319">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="wmi-rs"><a class="doc-anchor" href="#wmi-rs">§</a>WMI-rs</h2>
+<p><a href="https://docs.microsoft.com/en-us/windows/desktop/wmisdk/about-wmi">WMI</a> is a management API for Windows-based operating systems.
+This crate provides a high level Rust API focused around data retrieval (vs. making changes to
+the system and watching for event which are also supported by WMI).</p>
+<p>This crate also uses <code>serde</code> to transform pointers to WMI class objects into plain Rust structs.</p>
+<p>All data is copied to Owning data structures, so the final structs are not tied in any way to
+the original WMI object (refer to MSDN’s <a href="https://docs.microsoft.com/en-us/windows/desktop/wmisdk/creating-a-wmi-application-using-c-">Creating a WMI Application Using C++</a> to learn more about how data is handled by WMI).</p>
+<p>Before using WMI, a connection must be created.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>wmi::{COMLibrary, WMIConnection};
+<span class="kw">let </span>com_con = COMLibrary::new()<span class="question-mark">?</span>;
+<span class="kw">let </span>wmi_con = WMIConnection::new(com_con)<span class="question-mark">?</span>;</code></pre></div>
+<p>There are multiple ways to get data from the OS using this crate.</p>
+<h2 id="operating-on-untyped-variants"><a class="doc-anchor" href="#operating-on-untyped-variants">§</a>Operating on untyped Variants</h2>
+<p>WMI data model is based on COM’s <a href="https://docs.microsoft.com/en-us/windows/desktop/api/oaidl/ns-oaidl-tagvariant"><code>VARIANT</code></a> Type, which is a struct capable of holding
+many types of data.</p>
+<p>This crate provides the analogous <a href="variant/enum.Variant.html" title="enum wmi::variant::Variant"><code>Variant</code></a> enum.</p>
+<p>Using this enum, we can execute a simple WMI query and inspect the results.</p>
+
+<div class="example-wrap edition"><a href="#" class="tooltip" title="This example runs with edition 2018">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>wmi::<span class="kw-2">*</span>;
+<span class="kw">let </span>wmi_con = WMIConnection::new(COMLibrary::new()<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+<span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>wmi::Variant;
+<span class="kw">let </span>results: Vec&lt;HashMap&lt;String, Variant&gt;&gt; = wmi_con.raw_query(<span class="string">"SELECT * FROM Win32_OperatingSystem"</span>).unwrap();
+
+<span class="kw">for </span>os <span class="kw">in </span>results {
+    <span class="macro">println!</span>(<span class="string">"{:#?}"</span>, os);
+}</code></pre></div><h2 id="using-strongly-typed-data-structures"><a class="doc-anchor" href="#using-strongly-typed-data-structures">§</a>Using strongly typed data structures</h2>
+<p>Using <code>serde</code>, it is possible to return a struct representing the the data.</p>
+
+<div class="example-wrap edition"><a href="#" class="tooltip" title="This example runs with edition 2018">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>serde::Deserialize;
+<span class="kw">use </span>wmi::WMIDateTime;
+
+<span class="attr">#[derive(Deserialize, Debug)]
+#[serde(rename = <span class="string">"Win32_OperatingSystem"</span>)]
+#[serde(rename_all = <span class="string">"PascalCase"</span>)]
+</span><span class="kw">struct </span>OperatingSystem {
+    caption: String,
+    debug: bool,
+    last_boot_up_time: WMIDateTime,
+}
+
+<span class="kw">let </span>results: Vec&lt;OperatingSystem&gt; = wmi_con.query()<span class="question-mark">?</span>;
+
+<span class="kw">for </span>os <span class="kw">in </span>results {
+    <span class="macro">println!</span>(<span class="string">"{:#?}"</span>, os);
+}</code></pre></div>
+<p>Because the name of the struct given to <code>serde</code> matches the <a href="https://docs.microsoft.com/en-us/windows/desktop/cimwin32prov/win32-operatingsystem">WMI class</a> name, the SQL query
+can be inferred.</p>
+<h2 id="subscribing-to-event-notifications"><a class="doc-anchor" href="#subscribing-to-event-notifications">§</a>Subscribing to event notifications</h2>
+<p>Using this crate you can subscribe to events notifications generated upon changes in WMI data and services.</p>
+<p>When querying for events, it is important to remember there are two types of event notifications. <br />
+The first one is notifications about changes to the standard WMI data models. They are called <strong>intrinsic events</strong>. <br />
+Events like <a href="https://docs.microsoft.com/en-us/windows/win32/wmisdk/--instancecreationevent"><code>__InstanceCreationEvent</code></a> or <a href="https://docs.microsoft.com/en-us/windows/win32/wmisdk/--namespacedeletionevent"><code>__NamespaceDeletionEvent</code></a> are examples of such events.</p>
+<p>The second type is notifications about changes made by providers. They are called <strong>extrinsic events</strong>.  <br />
+Any WMI class deriving from the <a href="https://docs.microsoft.com/en-us/windows/win32/wmisdk/--extrinsicevent"><code>__ExtrinsicEvent</code></a> class is an extrinsic event. <br />
+An example of such events are <a href="https://docs.microsoft.com/en-us/previous-versions/windows/desktop/krnlprov/win32-processstarttrace"><code>Win32_ProcessStartTrace</code></a> and <a href="https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-volumechangeevent"><code>Win32_VolumeChangeEvent</code></a> classes.</p>
+<p>For more information about event queries, <a href="https://docs.microsoft.com/en-us/windows/win32/wmisdk/receiving-a-wmi-event#event-queries">see here</a>.<br />
+You can use <a href="https://www.microsoft.com/en-us/download/details.aspx?id=8572">WMI Code Creator</a> to see available events and create queries for them.</p>
+<p>The <a href="connection/struct.WMIConnection.html#method.notification"><code>notification</code></a> method returns an iterator that waits for any incoming events
+resulting from the provided query. Loops reading from this iterator will not end until they are broken.</p>
+<p>An example of subscribing to an intrinsic event notification for every new <a href="https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-process"><code>Win32_Process</code></a></p>
+
+<div class="example-wrap edition"><a href="#" class="tooltip" title="This example runs with edition 2018">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="attr">#[derive(Deserialize, Debug)]
+#[serde(rename = <span class="string">"__InstanceCreationEvent"</span>)]
+#[serde(rename_all = <span class="string">"PascalCase"</span>)]
+</span><span class="kw">struct </span>NewProcessEvent {
+    target_instance: Process
+}
+
+<span class="attr">#[derive(Deserialize, Debug)]
+#[serde(rename = <span class="string">"Win32_Process"</span>)]
+#[serde(rename_all = <span class="string">"PascalCase"</span>)]
+</span><span class="kw">struct </span>Process {
+    process_id: u32,
+    name: String,
+    executable_path: <span class="prelude-ty">Option</span>&lt;String&gt;,
+}
+
+<span class="kw">let </span><span class="kw-2">mut </span>filters = HashMap::&lt;String, FilterValue&gt;::new();
+
+filters.insert(<span class="string">"TargetInstance"</span>.to_owned(), FilterValue::is_a::&lt;Process&gt;()<span class="question-mark">?</span>);
+
+<span class="kw">let </span>iterator = wmi_con.filtered_notification::&lt;NewProcessEvent&gt;(<span class="kw-2">&amp;</span>filters, <span class="prelude-val">Some</span>(Duration::from_secs(<span class="number">1</span>)))<span class="question-mark">?</span>;
+
+<span class="kw">for </span>result <span class="kw">in </span>iterator {
+    <span class="kw">let </span>process = result<span class="question-mark">?</span>.target_instance;
+    <span class="macro">println!</span>(<span class="string">"New process!"</span>);
+    <span class="macro">println!</span>(<span class="string">"PID:        {}"</span>, process.process_id);
+    <span class="macro">println!</span>(<span class="string">"Name:       {}"</span>, process.name);
+    <span class="macro">println!</span>(<span class="string">"Executable: {:?}"</span>, process.executable_path);
+} <span class="comment">// Loop will end only on error</span></code></pre></div>
+<p>An example of subscribing to an extrinsic event notification <a href="https://docs.microsoft.com/en-us/previous-versions/windows/desktop/krnlprov/win32-processstarttrace"><code>Win32_ProcessStartTrace</code></a></p>
+
+<div class="example-wrap edition"><a href="#" class="tooltip" title="This example runs with edition 2018">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="attr">#[derive(Deserialize, Debug)]
+#[serde(rename = <span class="string">"Win32_ProcessStartTrace"</span>)]
+#[serde(rename_all = <span class="string">"PascalCase"</span>)]
+</span><span class="kw">struct </span>ProcessStartTrace {
+    process_id: u32,
+    process_name: String,
+}
+
+<span class="kw">let </span>iterator = wmi_con.notification::&lt;ProcessStartTrace&gt;()<span class="question-mark">?</span>;
+
+<span class="kw">for </span>result <span class="kw">in </span>iterator {
+    <span class="kw">let </span>trace = result<span class="question-mark">?</span>;
+    <span class="macro">println!</span>(<span class="string">"Process started!"</span>);
+    <span class="macro">println!</span>(<span class="string">"PID:  {}"</span>, trace.process_id);
+    <span class="macro">println!</span>(<span class="string">"Name: {}"</span>, trace.process_name);
+} <span class="comment">// Loop will end only on error</span></code></pre></div><h2 id="executing-methods"><a class="doc-anchor" href="#executing-methods">§</a>Executing Methods</h2>
+<p>The crate also offers support for executing WMI methods on classes and instances.</p>
+<p>See <a href="connection/struct.WMIConnection.html#method.exec_class_method" title="method wmi::connection::WMIConnection::exec_class_method"><code>WMIConnection::exec_class_method</code></a>, <a href="connection/struct.WMIConnection.html#method.exec_instance_method" title="method wmi::connection::WMIConnection::exec_instance_method"><code>WMIConnection::exec_instance_method</code></a> and <a href="connection/struct.WMIConnection.html#method.exec_method_native_wrapper" title="method wmi::connection::WMIConnection::exec_method_native_wrapper"><code>WMIConnection::exec_method_native_wrapper</code></a>
+for detailed examples.</p>
+<h2 id="internals"><a class="doc-anchor" href="#internals">§</a>Internals</h2>
+<p><a href="connection/struct.WMIConnection.html" title="struct wmi::connection::WMIConnection"><code>WMIConnection</code></a> is used to create and execute a WMI query, returning
+<a href="result_enumerator/struct.IWbemClassWrapper.html" title="struct wmi::result_enumerator::IWbemClassWrapper"><code>IWbemClassWrapper</code></a> which is a wrapper for a WMI object pointer.</p>
+<p>Then, <a href="de/wbem_class_de/fn.from_wbem_class_obj.html" title="fn wmi::de::wbem_class_de::from_wbem_class_obj"><code>from_wbem_class_obj</code></a> is used to create a Rust struct with the equivalent data.</p>
+<p>Deserializing data from WMI and into Rust is done via <code>serde</code> and is implemented in the <a href="de/index.html" title="mod wmi::de"><code>de</code></a> module.
+More info can be found in <code>serde</code>’s documentation about <a href="https://serde.rs/data-format.html">writing a data format</a>.
+The deserializer will either use the field names defined on the output struct,
+or retrieve all field names from WMI if the output is a <code>HashMap</code>.</p>
+<p>There are two main data structures (other than pointers to object) which convert native data to Rust data structures:
+<a href="variant/enum.Variant.html" title="enum wmi::variant::Variant"><code>Variant</code></a> and <a href="safearray/struct.SafeArrayAccessor.html" title="struct wmi::safearray::SafeArrayAccessor"><code>SafeArrayAccessor</code></a>.</p>
+<p>Most native objects has an equivalent wrapper struct which implements <code>Drop</code> for that data.</p>
+<h2 id="async-query"><a class="doc-anchor" href="#async-query">§</a>Async Query</h2>
+<p>Async queries use WMI’s native async support (but a runtime like <code>tokio</code>, <code>async-std</code> or <code>futures::executor::block_on</code> is still required).</p>
+
+<div class="example-wrap edition"><a href="#" class="tooltip" title="This example runs with edition 2018">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>wmi::<span class="kw-2">*</span>;
+<span class="kw">use </span>futures::StreamExt;
+<span class="kw">let </span>wmi_con = WMIConnection::new(COMLibrary::new()<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+<span class="kw">let </span>results = wmi_con
+    .exec_query_async_native_wrapper(<span class="string">"SELECT OSArchitecture FROM Win32_OperatingSystem"</span>)<span class="question-mark">?
+    </span>.collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;().<span class="kw">await</span>;</code></pre></div>
+<p>It it also possible to return a struct representing the the data.</p>
+
+<div class="example-wrap edition"><a href="#" class="tooltip" title="This example runs with edition 2018">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>wmi::<span class="kw-2">*</span>;
+<span class="kw">let </span>wmi_con = WMIConnection::new(COMLibrary::new()<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+<span class="kw">use </span>serde::Deserialize;
+
+<span class="attr">#[derive(Deserialize, Debug)]
+#[serde(rename = <span class="string">"Win32_OperatingSystem"</span>)]
+#[serde(rename_all = <span class="string">"PascalCase"</span>)]
+</span><span class="kw">struct </span>OperatingSystem {
+    caption: String,
+    debug: bool,
+}
+
+<span class="kw">let </span>results: Vec&lt;OperatingSystem&gt; = wmi_con.async_query().<span class="kw">await</span><span class="question-mark">?</span>;
+
+<span class="kw">for </span>os <span class="kw">in </span>results {
+    <span class="macro">println!</span>(<span class="string">"{:#?}"</span>, os);
+}</code></pre></div></div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.COMLibrary"><code>pub use connection::<a class="struct" href="connection/struct.COMLibrary.html" title="struct wmi::connection::COMLibrary">COMLibrary</a>;</code></dt><dt id="reexport.WMIConnection"><code>pub use connection::<a class="struct" href="connection/struct.WMIConnection.html" title="struct wmi::connection::WMIConnection">WMIConnection</a>;</code></dt><dt id="reexport.WMIDateTime"><code>pub use datetime::<a class="struct" href="datetime/struct.WMIDateTime.html" title="struct wmi::datetime::WMIDateTime">WMIDateTime</a>;</code></dt><dt id="reexport.WMIDuration"><code>pub use duration::<a class="struct" href="duration/struct.WMIDuration.html" title="struct wmi::duration::WMIDuration">WMIDuration</a>;</code></dt><dt id="reexport.build_notification_query"><code>pub use query::<a class="fn" href="query/fn.build_notification_query.html" title="fn wmi::query::build_notification_query">build_notification_query</a>;</code></dt><dt id="reexport.build_query"><code>pub use query::<a class="fn" href="query/fn.build_query.html" title="fn wmi::query::build_query">build_query</a>;</code></dt><dt id="reexport.FilterValue"><code>pub use query::<a class="enum" href="query/enum.FilterValue.html" title="enum wmi::query::FilterValue">FilterValue</a>;</code></dt><dt id="reexport.WMIError"><code>pub use utils::<a class="enum" href="utils/enum.WMIError.html" title="enum wmi::utils::WMIError">WMIError</a>;</code></dt><dt id="reexport.WMIResult"><code>pub use utils::<a class="type" href="utils/type.WMIResult.html" title="type wmi::utils::WMIResult">WMIResult</a>;</code></dt><dt id="reexport.Variant"><code>pub use variant::<a class="enum" href="variant/enum.Variant.html" title="enum wmi::variant::Variant">Variant</a>;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="async_query/index.html" title="mod wmi::async_query">async_<wbr>query</a></dt><dt><a class="mod" href="connection/index.html" title="mod wmi::connection">connection</a></dt><dt><a class="mod" href="context/index.html" title="mod wmi::context">context</a></dt><dt><a class="mod" href="datetime/index.html" title="mod wmi::datetime">datetime</a></dt><dt><a class="mod" href="de/index.html" title="mod wmi::de">de</a></dt><dt><a class="mod" href="duration/index.html" title="mod wmi::duration">duration</a></dt><dt><a class="mod" href="method/index.html" title="mod wmi::method">method</a></dt><dt><a class="mod" href="notification/index.html" title="mod wmi::notification">notification</a></dt><dt><a class="mod" href="query/index.html" title="mod wmi::query">query</a></dt><dt><a class="mod" href="result_enumerator/index.html" title="mod wmi::result_enumerator">result_<wbr>enumerator</a></dt><dt><a class="mod" href="safearray/index.html" title="mod wmi::safearray">safearray</a></dt><dt><a class="mod" href="ser/index.html" title="mod wmi::ser">ser</a></dt><dt><a class="mod" href="utils/index.html" title="mod wmi::utils">utils</a></dt><dt><a class="mod" href="variant/index.html" title="mod wmi::variant">variant</a></dt></dl></section></div></main></body></html>
