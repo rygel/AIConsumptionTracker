@@ -66,7 +66,7 @@ public class ZaiProvider : IProviderService
             planDescription = "Coding Plan";
             double limitPercent = tokenLimit.Percentage ?? 
                 (tokenLimit.CurrentValue.HasValue && tokenLimit.Total.HasValue && tokenLimit.Total.Value > 0 
-                ? (double)tokenLimit.CurrentValue.Value / tokenLimit.Total.Value * 100.0 
+                ? 100.0 - ((double)tokenLimit.CurrentValue.Value / tokenLimit.Total.Value * 100.0)
                 : 0);
             usedPercent = Math.Max(usedPercent, limitPercent);
             

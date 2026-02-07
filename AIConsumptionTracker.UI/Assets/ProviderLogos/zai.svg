@@ -1,4 +1,10 @@
 <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="64" height="64" rx="12" fill="#5A3E85"/>
-<path d="M46 16H18V22L40 46H18V52H46V46L24 22H46V16Z" fill="white"/>
+<rect width="64" height="64" rx="12" fill="url(#paint0_linear_zai)"/>
+<path d="M47 16H17.5C16.6716 16 16 16.6716 16 17.5V20.5C16 21.3284 16.6716 22 17.5 22H40.5L16.42 47.08C16.15 47.36 16 47.73 16 48.12V51.5C16 52.3284 16.6716 53 17.5 53H47C47.8284 53 48.5 52.3284 48.5 51.5V48.5C48.5 47.6716 47.8284 47 47 47H24.5L48.58 21.92C48.85 21.64 49 21.27 49 20.88V17.5C49 16.6716 48.3284 16 47.5 16H47Z" fill="white"/>
+<defs>
+<linearGradient id="paint0_linear_zai" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+<stop stop-color="#3B82F6"/>
+<stop offset="1" stop-color="#8B5CF6"/>
+</linearGradient>
+</defs>
 </svg>
