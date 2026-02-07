@@ -54,6 +54,19 @@ namespace AIConsumptionTracker.UI
                 _configs.Add(new ProviderConfig { ProviderId = "openai", ShowInTray = true });
             }
 
+            // Ensure Minimax configs exist
+            if (!_configs.Any(c => c.ProviderId == "minimax"))
+            {
+                _configs.Add(new ProviderConfig { ProviderId = "minimax", ShowInTray = true });
+            }
+             if (!_configs.Any(c => c.ProviderId == "minimax-io"))
+            {
+                _configs.Add(new ProviderConfig { ProviderId = "minimax-io", ShowInTray = true });
+            }
+            if (!_configs.Any(c => c.ProviderId == "xiaomi"))
+            {
+                _configs.Add(new ProviderConfig { ProviderId = "xiaomi", ShowInTray = true });
+            }
             PopulateList();
             PopulateLayout();
         }
@@ -103,6 +116,8 @@ namespace AIConsumptionTracker.UI
                     "antigravity" => "Google Antigravity",
                     "gemini-cli" => "Google Gemini",
                     "github-copilot" => "GitHub Copilot",
+                    "minimax" => "Minimax (China)",
+                    "minimax-io" => "Minimax (International)",
                     _ => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(config.ProviderId.Replace("_", " ").Replace("-", " "))
                 };
 
@@ -293,6 +308,8 @@ namespace AIConsumptionTracker.UI
                     "minimax-io" => "minimax",
                     "minimax-global" => "minimax",
                     "minimax" => "minimax",
+                    "kimi" => "kimi",
+                    "xiaomi" => "xiaomi",
                     _ => providerId.ToLower()
                 };
 

@@ -752,6 +752,11 @@ namespace AIConsumptionTracker.UI
                 "antigravity" => "google",
                 "cloud-code" => "google",
                 "anthropic" => "anthropic",
+                "minimax" => "minimax",
+                "minimax-io" => "minimax",
+                "minimax-global" => "minimax",
+                "kimi" => "kimi",
+                "xiaomi" => "xiaomi",
                 _ => providerId.ToLower()
             };
 
