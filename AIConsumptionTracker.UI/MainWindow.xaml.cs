@@ -801,7 +801,7 @@ namespace AIConsumptionTracker.UI
                 }
             }
 
-            var fallback = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/usage_icon.png"));
+            var fallback = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/AIConsumptionTracker.UI;component/Assets/usage_icon.png"));
             fallback.Freeze();
             _iconCache[providerId] = fallback;
             return fallback;
