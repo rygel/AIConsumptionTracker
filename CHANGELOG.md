@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.1] - 2026-02-08
+### Added
+- **Windows ARM Support**: Restored support for Windows ARM64 and ARM (32-bit).
+
 ## [1.7.0] - 2026-02-08
 ### Added
 - **DeepSeek Improvements**: Added official SVG logo, detailed multi-currency balance tracking (CNY/USD), and standardized as pay-as-you-go.
