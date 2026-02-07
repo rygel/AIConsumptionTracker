@@ -53,7 +53,6 @@ class Program
 
         services.AddHttpClient();
         services.AddSingleton<IConfigLoader, JsonConfigLoader>();
-        services.AddTransient<IProviderService, SimulatedProvider>();
         services.AddTransient<IProviderService, OpenCodeProvider>();
         services.AddTransient<IProviderService, ZaiProvider>();
         services.AddTransient<IProviderService, OpenRouterProvider>();

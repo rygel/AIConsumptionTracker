@@ -58,64 +58,57 @@ public class DeepSeekProvider : IProviderService
 
             var result = await response.Content.ReadFromJsonAsync<DeepSeekBalanceResponse>();
             
-            if (result == null || !result.IsAvailable)
+            if (result == null)
             {
                 return new[] { new ProviderUsage
                 {
                     ProviderId = ProviderId,
                     ProviderName = "DeepSeek",
                     IsAvailable = false,
-                    Description = "Account unavailable or parsing failed"
+                    Description = "Failed to parse DeepSeek response"
                 }};
             }
 
-            // DeepSeek can return multiple "balance_infos". Usually CNY or USD.
-            // We'll sum them up or pick the main one. Typically users use USD or CNY.
-            // Let's just specific the first currency found or sum total balance if they use consistent units (unlikely).
-            // Usually it's just one currency per account type.
-            
-            var mainBalance = result.BalanceInfos?.FirstOrDefault();
-            if (mainBalance == null)
+            var details = new List<ProviderUsageDetail>();
+            double totalBalanceValue = 0;
+            string mainDescription = "No balance found";
+
+            if (result.BalanceInfos != null && result.BalanceInfos.Any())
             {
-                return new[] { new ProviderUsage
+                foreach (var info in result.BalanceInfos)
                 {
-                    ProviderId = ProviderId,
-                    ProviderName = "DeepSeek",
-                    IsAvailable = true,
-                    Description = "No balance info found",
-                }};
+                    string currencySymbol = info.Currency == "CNY" ? "¥" : "$";
+                    string detailName = $"Balance ({info.Currency})";
+                    string detailDesc = $"{currencySymbol}{info.ToppedUpBalance.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)} (Topped-up: {currencySymbol}{info.ToppedUpBalance.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}, Granted: {currencySymbol}{info.GrantedBalance.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)})";
+                    
+                    details.Add(new ProviderUsageDetail
+                    {
+                        Name = detailName,
+                        Used = info.Currency == "CNY" ? $"¥{info.TotalBalance.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}" : $"${info.TotalBalance.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}",
+                        Description = detailDesc
+                    });
+
+                    // If it's the first or a primary currency, use for main description
+                    if (mainDescription == "No balance found")
+                    {
+                        mainDescription = $"Balance: {currencySymbol}{info.TotalBalance.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}";
+                    }
+                }
             }
-            
-            // "topped_up_balance" + "granted_balance" = Total available?
-            // "total_balance" seems to be the sum.
-            
-            // For DeepSeek, it's a "Balance" model (Pre-paid).
-            // Usage % is not quite relevant unless we know a "Low Balance" threshold.
-            // Or we treat it as "0% used" and just show the balance text.
-            // But to be consistent with other providers that show red when low, maybe we invert logic?
-            // "UsagePercentage" usually fills the bar.
-            // Let's keep usage at 0 and just show text, or maybe fake a "100 unit" scale?
-            // Better to show green bar if balance > 0?
-            // Actually, if it's usage tracking, people usually want to know how much they spent *this month*.
-            // But /user/balance endpoint only gives current balance.
-            // So we display Balance.
-            
-            string currencySymbol = mainBalance.Currency == "CNY" ? "¥" : "$";
-            string balanceText = $"{currencySymbol}{mainBalance.TotalBalance:F2}";
-            
+
             return new[] { new ProviderUsage
             {
                 ProviderId = ProviderId,
                 ProviderName = "DeepSeek",
                 IsAvailable = true,
-                UsagePercentage = 0, // Balance model, bar empty or maybe full green? Let's leave empty.
+                UsagePercentage = 0, // Pay-as-you-go/Balance model
                 CostUsed = 0,
                 CostLimit = 0,
                 UsageUnit = "Currency",
                 IsQuotaBased = false,
-                PaymentType = PaymentType.Credits,
-                Description = $"Balance: {balanceText}"
-
+                PaymentType = PaymentType.UsageBased,
+                Description = mainDescription,
+                Details = details
             }};
         }
         catch (Exception ex)

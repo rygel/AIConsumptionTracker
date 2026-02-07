@@ -1,11 +1,14 @@
 # Changelog
 
-## [1.6.1] - 2026-02-08
+## [1.7.0] - 2026-02-08
 ### Added
-- **Capacity Bars by Default**: Set "Invert Progress Bars" to `true` by default, providing a "Health Bar" experience (Full = Unused) out of the box.
-- **Provider Standardization**: Standardized all providers (Z.AI, Gemini, etc.) to return "Used %" internally to ensure consistent behavior with the UI "Invert" setting.
-- **Official Z.AI Icon**: Replaced the placeholder Z.AI icon with the official branded vector logo.
-- **Unit Tests**: Added `ZaiProviderTests` to verify calculation logic and consistency.
+- **DeepSeek Improvements**: Added official SVG logo, detailed multi-currency balance tracking (CNY/USD), and standardized as pay-as-you-go.
+- **Capacity Bars by Default**: "Invert Progress Bars" is now enabled by default for a "Health Bar" (Full = Unused) experience.
+- **Fixed Color Inversion**: Standardized color logic so "Danger" colors (Red) correctly map to high usage regardless of bar inversion.
+- **CI Hardening**: Resolved all 9 build warnings and standardized nullability handling.
+
+### Removed
+- **SimulatedProvider**: Removed the test provider from the UI and CLI.
 
 ## [1.6.0] - 2026-02-07
 ### Added
