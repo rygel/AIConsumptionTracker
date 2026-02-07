@@ -66,7 +66,7 @@ public class ZaiProvider : IProviderService
             planDescription = "Coding Plan";
             double limitPercent = tokenLimit.Percentage ?? 
                 (tokenLimit.CurrentValue.HasValue && tokenLimit.Total.HasValue && tokenLimit.Total.Value > 0 
-                ? (double)tokenLimit.CurrentValue.Value / tokenLimit.Total.Value * 100.0 
+                ? (double)(tokenLimit.Total.Value - tokenLimit.CurrentValue.Value) / tokenLimit.Total.Value * 100.0 
                 : 0);
             usedPercent = Math.Max(usedPercent, limitPercent);
             
@@ -77,6 +77,7 @@ public class ZaiProvider : IProviderService
             }
             
             // Display as Remaining
+            double remainingTokens = (tokenLimit.Total ?? 0) - (tokenLimit.CurrentValue ?? 0);
             detailInfo = $"{limitPercent:F1}% of {tokenLimit.Total / 1000000.0:F0}M tokens remaining";
         }
         

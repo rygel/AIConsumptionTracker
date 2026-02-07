@@ -48,8 +48,8 @@ public class ZaiProviderTests
                     new
                     {
                         type = "TOKENS_LIMIT",
-                        percentage = (double?)null, // Force calculation path
-                        currentValue = 90,
+                        percentage = (double?)null, 
+                        currentValue = 0, // Unused
                         usage = 100 // mapped to Total property
                     }
                 }
@@ -75,12 +75,11 @@ public class ZaiProviderTests
         var usage = result.Single();
         Assert.Equal("Z.AI Coding Plan", usage.ProviderName); // Or Coding Plan
         
-        // We reverted to "Remaining" logic.
-        // CurrentValue = 90 (Remaining), Total = 100.
-        // Expected Percentage = 90%. (Full Bar)
-        Assert.Equal(90, usage.UsagePercentage);
+        // Scenario: 0 Used (CurrentValue=0), 100 Total.
+        // User wants "Completely Filled" bar.
+        // Expected Percentage = 100%. (Remaining)
+        Assert.Equal(100, usage.UsagePercentage);
         
-        // Also verify description says "remaining"
         Assert.Contains("remaining", usage.Description);
     }
 }
