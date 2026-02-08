@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [1.7.7] - 2026-02-08
+
 ### Fixed
 - **UI Fixes**:
   - Fixed flickering during refresh by removing `Clear()` call from `RenderUsages()`
@@ -23,7 +25,6 @@
 - **Architecture Bug**: Fixed issue where wrong architecture (ARM) was downloaded instead of x64 for x64 systems
 - **32-bit Detection**: Properly distinguishes 32-bit (x86) from 64-bit (x64) Windows processes
 - **Download Flow**: Improved UX from browser-based to one-click download and install
->>>>>>> origin/main
 
 ## [1.7.5] - 2026-02-08
 
