@@ -50,7 +50,7 @@ public class AntigravityProvider : IProviderService
                     UsagePercentage = 0,
                     CostUsed = 0,
                     CostLimit = 0,
-                    Description = "Not running"
+                    Description = "Application not running"
                 }};
             }
 
@@ -108,7 +108,7 @@ public class AntigravityProvider : IProviderService
                 UsagePercentage = 0,
                 CostUsed = 0,
                 CostLimit = 0,
-                Description = "Not running"
+                Description = "Application not running"
             }};
         }
     }
