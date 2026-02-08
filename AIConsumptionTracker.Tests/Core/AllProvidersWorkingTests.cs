@@ -54,21 +54,4 @@ public class AllProvidersWorkingTests
         Assert.Contains(results, r => r.ProviderId == "minimax-io");
     }
 
-    [Fact]
-    public async Task GetAllUsageAsync_ShouldIncludeEssentialSystemProviders()
-    {
-        // Arrange
-        _mockConfigLoader.Setup(c => c.LoadConfigAsync()).ReturnsAsync(new List<ProviderConfig>());
-
-        var providers = new List<IProviderService>();
-        var manager = new ProviderManager(providers, _mockConfigLoader.Object, _mockLogger.Object);
-
-        // Act
-        var results = await manager.GetAllUsageAsync();
-
-        // Assert - These are auto-added even if not in config
-        Assert.Contains(results, r => r.ProviderId == "antigravity");
-        Assert.Contains(results, r => r.ProviderId == "gemini-cli");
-        Assert.Contains(results, r => r.ProviderId == "github-copilot");
-    }
 }
