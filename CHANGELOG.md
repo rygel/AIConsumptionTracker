@@ -6,6 +6,14 @@
 
 ### Added
 - **Check for Updates Button**: Added manual check for updates button in Settings dialog footer for easier update checking from settings UI
+- **Auto-Download**: Update installer now downloads automatically instead of opening browser
+- **Progress Dialog**: Shows download progress with percentage (0-100%)
+- **Architecture Detection**: Automatically detects user architecture (x64, x86, arm64) and downloads correct installer
+- **Install Prompt**: After download, prompts user: "Download complete. Would you like to install the update now?"
+
+### Fixed
+- **Architecture Bug**: Fixed issue where wrong architecture (ARM) was downloaded instead of x64 for x64 systems
+- **Download Flow**: Improved UX from browser-based to one-click download and install
 
 ## [1.7.5] - 2026-02-08
 
