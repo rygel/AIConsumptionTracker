@@ -13,6 +13,7 @@ namespace AIConsumptionTracker.UI
         private readonly IConfigLoader _configLoader;
         private readonly ProviderManager _providerManager;
         private readonly IFontProvider _fontProvider;
+        private readonly IUpdateCheckerService _updateChecker;
         private List<ProviderConfig> _configs = new();
         private AppPreferences _prefs = new();
 
@@ -22,12 +23,13 @@ namespace AIConsumptionTracker.UI
 
         private readonly IGitHubAuthService _githubAuthService;
 
-        public SettingsWindow(IConfigLoader configLoader, ProviderManager providerManager, IFontProvider fontProvider, IGitHubAuthService githubAuthService)
+        public SettingsWindow(IConfigLoader configLoader, ProviderManager providerManager, IFontProvider fontProvider, IUpdateCheckerService updateChecker, IGitHubAuthService githubAuthService)
         {
             InitializeComponent();
             _configLoader = configLoader;
             _providerManager = providerManager;
             _fontProvider = fontProvider;
+            _updateChecker = updateChecker;
             _githubAuthService = githubAuthService;
             Loaded += SettingsWindow_Loaded;
         }
@@ -753,6 +755,26 @@ namespace AIConsumptionTracker.UI
         private void CancelBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private async void CheckUpdatesBtn_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var updateInfo = await _updateChecker.CheckForUpdatesAsync();
+                if (updateInfo != null)
+                {
+                    System.Windows.MessageBox.Show($"New version available: {updateInfo.Version}", "Update Available", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    System.Windows.MessageBox.Show("You're already on the latest version.", "No Updates", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"Failed to check for updates: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
     }

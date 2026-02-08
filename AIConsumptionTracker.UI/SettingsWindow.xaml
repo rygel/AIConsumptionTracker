@@ -276,6 +276,7 @@
                     <Button Content="Scan for Keys" Click="ScanBtn_Click" ToolTip="Search common locations for API keys" Grid.Column="0"/>
                     
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Grid.Column="2">
+                        <Button x:Name="CheckUpdatesBtn" Content="Check for Updates" Style="{StaticResource PrimaryButton}" Click="CheckUpdatesBtn_Click" ToolTip="Check for new application version" Margin="0,0,10,0" Width="110"/>
                         <Button x:Name="SaveBtn" Content="Save Changes" Style="{StaticResource PrimaryButton}" Click="SaveBtn_Click" Margin="0,0,10,0" Width="100"/>
                         <Button x:Name="CancelBtn" Content="Cancel" Click="CancelBtn_Click" Width="80"/>
                     </StackPanel>
