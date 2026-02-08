@@ -21,7 +21,7 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
 
-     - name: Build
+    - name: Build
       run: dotnet build AIConsumptionTracker.slnx --configuration Debug
 
     - name: Verify Formatting
