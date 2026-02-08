@@ -35,7 +35,7 @@ public class AntigravityProvider : IProviderService
     public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config)
     {
         var results = new List<ProviderUsage>();
-        
+
         try
         {
             // 1. Find All Processes
@@ -46,8 +46,11 @@ public class AntigravityProvider : IProviderService
                 {
                     ProviderId = ProviderId,
                     ProviderName = "Antigravity",
-                    IsAvailable = false,
-                    Description = "Antigravity process not running"
+                    IsAvailable = true,
+                    UsagePercentage = 0,
+                    CostUsed = 0,
+                    CostLimit = 0,
+                    Description = "Not running"
                 }};
             }
 
@@ -60,16 +63,16 @@ public class AntigravityProvider : IProviderService
 
                     // 2. Find Port
                     var port = FindListeningPort(pid);
-                    
+
                     // 3. Request
                     var usage = await FetchUsage(port, csrfToken);
-                    
+
                     // Check for duplicates based on AccountName (Email)
                     if (results.Any(r => r.AccountName == usage.AccountName))
                     {
                         continue; // Skip same account running in different window
                     }
-                    
+
                     results.Add(usage);
                 }
                 catch (Exception ex)
@@ -77,16 +80,19 @@ public class AntigravityProvider : IProviderService
                     _logger.LogWarning(ex, $"Failed to check Antigravity PID {info.Pid}");
                 }
             }
-            
+
             if (!results.Any())
             {
                  return new[] { new ProviderUsage
-                {
-                    ProviderId = ProviderId,
-                    ProviderName = "Antigravity",
-                    IsAvailable = false,
-                    Description = "Antigravity process not running or unreachable"
-                }};
+                 {
+                     ProviderId = ProviderId,
+                     ProviderName = "Antigravity",
+                     IsAvailable = true,
+                     UsagePercentage = 0,
+                     CostUsed = 0,
+                     CostLimit = 0,
+                     Description = "Not running"
+                 }};
             }
 
             return results;
@@ -98,8 +104,11 @@ public class AntigravityProvider : IProviderService
             {
                 ProviderId = ProviderId,
                 ProviderName = "Antigravity",
-                IsAvailable = false,
-                Description = "Antigravity process not running"
+                IsAvailable = true,
+                UsagePercentage = 0,
+                CostUsed = 0,
+                CostLimit = 0,
+                Description = "Not running"
             }};
         }
     }
