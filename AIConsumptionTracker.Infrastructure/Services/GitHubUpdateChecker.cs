@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Octokit;
 using AIConsumptionTracker.Core.Interfaces;
@@ -31,7 +32,7 @@ public class GitHubUpdateChecker : IUpdateCheckerService
                 {
                     _logger.LogInformation($"New version found: {latestVersion} (Current: {currentVersion})");
                     
-                    var exeAsset = release.Assets.FirstOrDefault(a => a.Name.EndsWith(".exe"));
+                    var exeAsset = GetCorrectArchitectureAsset(release.Assets);
                     var downloadUrl = exeAsset?.BrowserDownloadUrl ?? release.HtmlUrl;
 
                     return new UpdateInfo
@@ -69,5 +70,31 @@ public class GitHubUpdateChecker : IUpdateCheckerService
         }
         
         return false;
+    }
+
+    private static ReleaseAsset? GetCorrectArchitectureAsset(IReadOnlyList<ReleaseAsset> assets)
+    {
+        var architecture = GetWindowsArchitecture();
+        var archSuffix = architecture.ToString().ToLowerInvariant();
+        
+        return assets.FirstOrDefault(a => a.Name.EndsWith(".exe") && a.Name.Contains(archSuffix));
+    }
+
+    private static string GetWindowsArchitecture()
+    {
+        // Check if we're running as a 32-bit process on a 64-bit OS
+        if (System.Environment.Is64BitOperatingSystem && !System.IntPtr.Size.Equals(8))
+        {
+            return "x86";
+        }
+        
+        // Check process architecture directly
+        var arch = RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
+        return arch switch
+        {
+            "x86" or "arm" => "x86",
+            "x64" or "arm64" => "x64",
+            _ => "x64"
+        };
     }
 }

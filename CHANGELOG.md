@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## [1.7.6] - 2026-02-08
+
+### Added
+- **Check for Updates Button**: Added manual check for updates button in Settings dialog footer for easier update checking from settings UI
+- **Auto-Download**: Update installer now downloads automatically instead of opening browser with progress dialog
+- **Architecture Detection**: Automatically detects user architecture (x86, x64, arm64) and downloads correct installer
+- **Installer Validation**: Inno Setup now validates architecture matches system before installing
+
+### Fixed
+- **Architecture Bug**: Fixed issue where wrong architecture (ARM) was downloaded instead of x64 for x64 systems
+- **32-bit Detection**: Properly distinguishes 32-bit (x86) from 64-bit (x64) Windows processes
+- **Download Flow**: Improved UX from browser-based to one-click download and install
+
 ## [1.7.5] - 2026-02-08
 
 ### Added
