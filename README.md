@@ -85,7 +85,7 @@ Right-click system tray icon for quick access:
 ## Installation
 
 ### Manual
-1. Download the latest `AIConsumptionTracker_Setup_v1.7.4.exe` from the [Releases](https://github.com/rygel/AIConsumptionTracker/releases) page.
+1. Download the latest `AIConsumptionTracker_Setup_v1.7.10.exe` from the [Releases](https://github.com/rygel/AIConsumptionTracker/releases) page.
 2. Run the installer.
 3. The app will launch and automatically scan for common API keys.
 
