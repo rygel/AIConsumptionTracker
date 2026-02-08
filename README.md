@@ -18,6 +18,9 @@ A streamlined Windows dashboard and tray utility to monitor AI API usage, costs,
 - [User Manual](docs/user_manual.md)
 - [CLI Reference](docs/cli_documentation.md)
 
+### Community
+Join the discussion on our [Discord Server](https://discord.gg/UGsNVez9).
+
 ## Download
 Download the latest installer or .zip file from the [Release](https://github.com/rygel/AIConsumptionTracker/releases) page.
 
