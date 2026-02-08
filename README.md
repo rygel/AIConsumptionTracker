@@ -4,7 +4,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20|%20Linux%20-blue)
 ![Language](https://img.shields.io/badge/language-C%23%20|%20.NET-purple)
-[![](https://dcbadge.limes.pink/api/server/UGsNVez9?style=flat)](https://discord.gg/UGsNVez9)
+[![](https://dcbadge.limes.pink/api/server/AZtNQtWuJA?style=flat)](https://discord.gg/AZtNQtWuJA)
 ![Downloads](https://img.shields.io/github/downloads/rygel/AIConsumptionTracker/total)
 
 ![Dashboard](docs/screenshot_dashboard_privacy.png)
@@ -23,7 +23,7 @@ If you want to support me and are interested in different AI model providers, yo
 - [Agent Guidelines](AGENTS.md)
 
 ### Community
-Join the discussion on our [Discord Server](https://discord.gg/UGsNVez9).
+Join the discussion on our [Discord Server](https://discord.gg/AZtNQtWuJA).
 
 ## Download
 Download the latest installer or .zip file from the [Release](https://github.com/rygel/AIConsumptionTracker/releases) page.
