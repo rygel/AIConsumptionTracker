@@ -50,9 +50,30 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                     var minutesAgo = (int)timeSinceRefresh.TotalMinutes;
                     var description = $"Last refreshed: {minutesAgo}m ago";
 
-                    // Check if any details have reset times and add reset information
+                    // Check if any cached reset times have passed and clear cache if so
                     if (_cachedUsage.Details != null && _cachedUsage.Details.Any(d => d.NextResetTime.HasValue))
                     {
+                        var anyResetPassed = _cachedUsage.Details
+                            .Where(d => d.NextResetTime.HasValue)
+                            .Any(d => d.NextResetTime.Value <= DateTime.Now);
+
+                        if (anyResetPassed)
+                        {
+                            _logger.LogDebug("Antigravity reset time passed, clearing cache");
+                            _cachedUsage = null;
+                            return new[] { new ProviderUsage
+                            {
+                                ProviderId = ProviderId,
+                                ProviderName = "Antigravity",
+                                IsAvailable = true,
+                                UsagePercentage = 0,
+                                CostUsed = 0,
+                                CostLimit = 0,
+                                Description = "Application not running"
+                            }};
+                        }
+
+                        // No reset passed, show countdown
                         var nextReset = _cachedUsage.Details.FirstOrDefault(d => d.NextResetTime.HasValue)?.NextResetTime;
                         if (nextReset.HasValue)
                         {
