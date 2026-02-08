@@ -373,7 +373,7 @@ namespace AIConsumptionTracker.UI
 
         private void RenderUsages(List<ProviderUsage> usages)
         {
-            // Don't clear - incremental updates handle individual bars via UpdateProviderBar
+            ProvidersList.Children.Clear();
             
             bool showAll = ShowAllToggle?.IsChecked ?? true;
             var filteredUsages = usages
@@ -421,8 +421,7 @@ namespace AIConsumptionTracker.UI
             foreach (var usage in groupUsages)
             {
                 // Render Parent
-                if (_preferences.CompactMode) ProvidersList.Children.Add(CreateCompactItem(usage));
-                else ProvidersList.Children.Add(CreateStandardItem(usage));
+                ProvidersList.Children.Add(CreateProviderBar(usage));
 
                 // Render Children (Details)
                 if (usage.Details != null && usage.Details.Count > 0)
@@ -446,8 +445,7 @@ namespace AIConsumptionTracker.UI
                             PaymentType = usage.PaymentType // Inherit for rendering logic
                         };
 
-                        if (_preferences.CompactMode) ProvidersList.Children.Add(CreateCompactItem(childUsage, isChild: true));
-                        else ProvidersList.Children.Add(CreateStandardItem(childUsage, isChild: true));
+                        ProvidersList.Children.Add(CreateProviderBar(childUsage, isChild: true));
                     }
                 }
             }
@@ -663,7 +661,7 @@ namespace AIConsumptionTracker.UI
                 Margin = new Thickness(isChild ? 20 : 0, 0, 0, 8),
                 BorderBrush = isMissing || isError ? Brushes.Maroon : (isConsoleCheck ? Brushes.DarkOrange : new SolidColorBrush(Color.FromRgb(50, 50, 50))),
                 BorderThickness = new Thickness(1),
-                Opacity = (isMissing || !usage.IsAvailable) ? 0.6 : 1.0
+                Opacity = (isMissing || !usage.IsAvailable) ? 0.6 : 1.0, Tag = usage.ProviderId
             };
 
             // Special case for non-quota Child Items (e.g. Free Tier: Yes)
@@ -1053,9 +1051,11 @@ namespace AIConsumptionTracker.UI
             return _preferences.IsPrivacyMode ? PrivacyHelper.MaskContent(usage.Description, usage.AccountName) : usage.Description;
         }
 
-        private UIElement CreateProviderBar(ProviderUsage usage)
+        private UIElement CreateProviderBar(ProviderUsage usage, bool isChild = false)
         {
-            return _preferences.CompactMode ? CreateCompactItem(usage) : CreateStandardItem(usage);
+            var element = _preferences.CompactMode ? CreateCompactItem(usage, isChild) : CreateStandardItem(usage, isChild);
+            if (element is FrameworkElement fe) fe.Tag = usage.ProviderId;
+            return element;
         }
     }
 }
