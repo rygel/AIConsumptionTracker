@@ -7,6 +7,8 @@
 [![](https://dcbadge.limes.pink/api/server/UGsNVez9?style=flat)](https://discord.gg/UGsNVez9)
 ![Downloads](https://img.shields.io/github/downloads/rygel/AIConsumptionTracker/total)
 
+![Dashboard](docs/screenshot_dashboard_privacy.png)
+
 A streamlined Windows dashboard and tray utility to monitor AI API usage, costs, and quotas across multiple providers.
 
 ## Support
@@ -14,27 +16,6 @@ If you want to support me and are interested in different AI model providers, yo
 - [Z.AI](https://z.ai/subscribe?ic=JQTB1W1M0L): GLM-4.7, GLM-4.6, GLM-4.7-flash
 - [synthetic.new](https://synthetic.new/?referral=SNJDbFCgSUZso9E): Minimax M2.1, Kimi K2.5, GLM-4.7, etc.
 
-### Screenshots
-
-**Dashboard**
-![Dashboard](docs/screenshot_dashboard_privacy.png)
-
-**Settings**
-![Settings](docs/screenshot_settings_privacy.png)
-
-**Info Dialog**
-![Info](docs/screenshot_info_privacy.png)
-
-**Tray Icons**
-Provider usage reflected in real-time with dynamic progress bars:
-
-- ![Good Status](docs/tray_icon_good.png) (Healthy/Good)
-- ![Warning Status](docs/tray_icon_warning.png) (Warning)
-- ![Danger Status](docs/tray_icon_danger.png) (Critical/Over Limit)
-
-**Context Menu**
-Right-click system tray icon for quick access:
-![Context Menu](docs/screenshot_context_menu_privacy.png)
 
 ### Documentation
 - [User Manual](docs/user_manual.md)
@@ -78,6 +59,28 @@ Download the latest installer or .zip file from the [Release](https://github.com
 | **OpenCode Zen** | 7-Day Cycle | Local App, Settings UI |
 | **GitHub Copilot** | Hourly Rate Limit | OAuth Device Flow |
 | **Codex** | Model-specific | Settings UI |
+
+### Screenshots
+
+**Dashboard**
+![Dashboard](docs/screenshot_dashboard_privacy.png)
+
+**Settings**
+![Settings](docs/screenshot_settings_privacy.png)
+
+**Info Dialog**
+![Info](docs/screenshot_info_privacy.png)
+
+**Tray Icons**
+Provider usage reflected in real-time with dynamic progress bars:
+
+- ![Good Status](docs/tray_icon_good.png) (Healthy/Good)
+- ![Warning Status](docs/tray_icon_warning.png) (Warning)
+- ![Danger Status](docs/tray_icon_danger.png) (Critical/Over Limit)
+
+**Context Menu**
+Right-click system tray icon for quick access:
+![Context Menu](docs/screenshot_context_menu_privacy.png)
 
 ## Installation
 
