@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Fixed
+- **UI Fixes**:
+  - Fixed flickering during refresh by removing `Clear()` call from `RenderUsages()`
+  - Added filtering logic to `UpdateProviderBar()` to hide unused providers during auto-refresh
+  - Providers are now filtered consistently during both full and incremental refreshes
+- **Test Coverage**:
+  - Added `UpdateProviderBarTests.cs` with 5 test cases covering provider filtering scenarios
+  - All tests verify proper filtering behavior when "Show All" is enabled/disabled
+
 ## [1.7.5] - 2026-02-08
 
 ### Added
