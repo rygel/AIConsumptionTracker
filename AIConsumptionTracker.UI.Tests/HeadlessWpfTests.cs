@@ -22,6 +22,7 @@ public class HeadlessWpfTests
         var mockConfigLoader = new Mock<IConfigLoader>();
         var mockLogger = new Mock<Microsoft.Extensions.Logging.ILogger<ProviderManager>>();
         var providers = new List<IProviderService>();
+        var mockUpdateChecker = new Mock<IUpdateCheckerService>();
         
         // Use real ProviderManager but with mocked dependencies
         var providerManager = new ProviderManager(providers, mockConfigLoader.Object, mockLogger.Object);
@@ -33,6 +34,7 @@ public class HeadlessWpfTests
         services.AddSingleton(providerManager);
         services.AddSingleton(mockFontProvider.Object);
         services.AddSingleton(mockGithubAuth.Object);
+        services.AddSingleton(mockUpdateChecker.Object);
         services.AddTransient<SettingsWindow>();
         services.AddTransient<MainWindow>();
         
