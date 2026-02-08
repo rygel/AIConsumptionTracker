@@ -26,10 +26,10 @@ jobs:
 
     - name: Verify Formatting
       # NOTE: .editorconfig configures Roslyn analyzers
-      # dotnet format --verify checks formatting but only works if analyzers are enabled
+      # dotnet format --verify-no-changes checks formatting but only works if analyzers are enabled
       # Unlike Java/Maven, .NET analyzers don't run automatically during build
-      # Developers can run locally: dotnet format . or dotnet format --verify
-      run: dotnet format AIConsumptionTracker.slnx --verify --verbosity diagnostic
+      # Developers can run locally: dotnet format . or dotnet format --verify-no-changes
+      run: dotnet format AIConsumptionTracker.slnx --verify-no-changes --verbosity diagnostic
 
     - name: Run Unit Tests
       run: dotnet test AIConsumptionTracker.Tests\AIConsumptionTracker.Tests.csproj --configuration Debug --no-build --verbosity normal
