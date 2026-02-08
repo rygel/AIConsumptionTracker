@@ -14,14 +14,13 @@ namespace AIConsumptionTracker.UI
         private readonly ProviderManager _providerManager;
         private readonly IFontProvider _fontProvider;
         private readonly IUpdateCheckerService _updateChecker;
+        private readonly IGitHubAuthService _githubAuthService;
         private List<ProviderConfig> _configs = new();
         private AppPreferences _prefs = new();
 
         public bool SettingsChanged { get; private set; }
         private bool _isScreenshotMode = false;
         private string? _githubUsername;
-
-        private readonly IGitHubAuthService _githubAuthService;
 
         public SettingsWindow(IConfigLoader configLoader, ProviderManager providerManager, IFontProvider fontProvider, IUpdateCheckerService updateChecker, IGitHubAuthService githubAuthService)
         {
@@ -70,15 +69,18 @@ namespace AIConsumptionTracker.UI
 
             _configs = await _configLoader.LoadConfigAsync();
             _prefs = await _configLoader.LoadPreferencesAsync();
-            
+
             // Listen for global privacy changes
             if (Application.Current is App app)
             {
                 app.PrivacyChanged += (s, isPrivate) => {
                     _prefs.IsPrivacyMode = isPrivate;
+                    UpdatePrivacyButton();
                     PopulateList(); // Re-render to update masking
                 };
             }
+
+            UpdatePrivacyButton();
 
             await InitializeGitHubAuthAsync();
 
@@ -755,6 +757,31 @@ namespace AIConsumptionTracker.UI
         private void CancelBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void CloseBtn_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+        }
+
+        private async void PrivacyBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (Application.Current is App app)
+            {
+                await app.TogglePrivacyMode();
+            }
+        }
+
+        private void UpdatePrivacyButton()
+        {
+            if (_prefs.IsPrivacyMode)
+            {
+                PrivacyBtn.Foreground = Brushes.Gold;
+            }
+            else
+            {
+                PrivacyBtn.Foreground = Brushes.Gray;
+            }
         }
 
         private async void CheckUpdatesBtn_Click(object sender, RoutedEventArgs e)

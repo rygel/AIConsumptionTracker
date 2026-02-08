@@ -30,19 +30,27 @@ jobs:
         run: |
           version="${{ inputs.version }}"
           echo "Updating all .csproj files to $version"
-          
+
           # Update AIConsumptionTracker.Core.csproj
           sed -i "s|<Version>.*</Version>|<Version>$version</Version>|g" AIConsumptionTracker.Core/AIConsumptionTracker.Core.csproj
-          
+          sed -i "s|<AssemblyVersion>.*</AssemblyVersion>|<AssemblyVersion>$version</AssemblyVersion>|g" AIConsumptionTracker.Core/AIConsumptionTracker.Core.csproj
+          sed -i "s|<FileVersion>.*</FileVersion>|<FileVersion>$version</FileVersion>|g" AIConsumptionTracker.Core/AIConsumptionTracker.Core.csproj
+
           # Update AIConsumptionTracker.Infrastructure.csproj
           sed -i "s|<Version>.*</Version>|<Version>$version</Version>|g" AIConsumptionTracker.Infrastructure/AIConsumptionTracker.Infrastructure.csproj
-          
+          sed -i "s|<AssemblyVersion>.*</AssemblyVersion>|<AssemblyVersion>$version</AssemblyVersion>|g" AIConsumptionTracker.Infrastructure/AIConsumptionTracker.Infrastructure.csproj
+          sed -i "s|<FileVersion>.*</FileVersion>|<FileVersion>$version</FileVersion>|g" AIConsumptionTracker.Infrastructure/AIConsumptionTracker.Infrastructure.csproj
+
           # Update AIConsumptionTracker.UI.csproj
           sed -i "s|<Version>.*</Version>|<Version>$version</Version>|g" AIConsumptionTracker.UI/AIConsumptionTracker.UI.csproj
-          
+          sed -i "s|<AssemblyVersion>.*</AssemblyVersion>|<AssemblyVersion>$version</AssemblyVersion>|g" AIConsumptionTracker.UI/AIConsumptionTracker.UI.csproj
+          sed -i "s|<FileVersion>.*</FileVersion>|<FileVersion>$version</FileVersion>|g" AIConsumptionTracker.UI/AIConsumptionTracker.UI.csproj
+
           # Update AIConsumptionTracker.CLI.csproj
           sed -i "s|<Version>.*</Version>|<Version>$version</Version>|g" AIConsumptionTracker.CLI/AIConsumptionTracker.CLI.csproj
-          
+          sed -i "s|<AssemblyVersion>.*</AssemblyVersion>|<AssemblyVersion>$version</AssemblyVersion>|g" AIConsumptionTracker.CLI/AIConsumptionTracker.CLI.csproj
+          sed -i "s|<FileVersion>.*</FileVersion>|<FileVersion>$version</FileVersion>|g" AIConsumptionTracker.CLI/AIConsumptionTracker.CLI.csproj
+
           echo "✓ Updated all .csproj files to $version"
 
       - name: Update README.md Badge
@@ -140,12 +148,14 @@ jobs:
               continue
             fi
 
-            if grep -q "<Version>$version</Version>" "$file"; then
+            if grep -q "<Version>$version</Version>" "$file" && \
+               grep -q "<AssemblyVersion>$version</AssemblyVersion>" "$file" && \
+               grep -q "<FileVersion>$version</FileVersion>" "$file"; then
               echo "✓ $file: $version"
             else
               version_valid=false
               versions_match=false
-              echo "ERROR: $file has wrong version"
+              echo "ERROR: $file has wrong version (check Version, AssemblyVersion, and FileVersion)"
             fi
           done
 
