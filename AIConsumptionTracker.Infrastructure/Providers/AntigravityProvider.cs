@@ -50,9 +50,44 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                     var minutesAgo = (int)timeSinceRefresh.TotalMinutes;
                     var description = $"Last refreshed: {minutesAgo}m ago";
 
-                    // Check if any details have reset times and add reset information
+                    // Check if any cached reset times have passed and update if so
                     if (_cachedUsage.Details != null && _cachedUsage.Details.Any(d => d.NextResetTime.HasValue))
                     {
+                        var anyResetPassed = _cachedUsage.Details
+                            .Where(d => d.NextResetTime.HasValue)
+                            .Any(d => d.NextResetTime.Value <= DateTime.Now);
+
+                        if (anyResetPassed)
+                        {
+                            _logger.LogDebug("Antigravity reset time passed, showing full bar");
+                            // Keep cache but show 0% used (100% remaining) - quota refilled
+                            var refilledDetails = _cachedUsage.Details?
+                                .Select(d => new ProviderUsageDetail
+                                {
+                                    Name = d.Name,
+                                    Used = "0%",
+                                    Description = "Refilled",
+                                    NextResetTime = null // Clear reset time since it passed
+                                })
+                                .ToList();
+
+                            description += " (Quota refilled)";
+
+                            return new[] { new ProviderUsage
+                            {
+                                ProviderId = ProviderId,
+                                ProviderName = "Antigravity",
+                                IsAvailable = true,
+                                UsagePercentage = 0,
+                                CostUsed = 0,
+                                CostLimit = _cachedUsage.CostLimit,
+                                Details = refilledDetails,
+                                AccountName = _cachedUsage.AccountName,
+                                Description = description
+                            }};
+                        }
+
+                        // No reset passed, show countdown
                         var nextReset = _cachedUsage.Details.FirstOrDefault(d => d.NextResetTime.HasValue)?.NextResetTime;
                         if (nextReset.HasValue)
                         {
