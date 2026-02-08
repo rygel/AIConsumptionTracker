@@ -64,11 +64,15 @@ namespace AIConsumptionTracker.UI
             };
         }
 
-        public MainWindow(ProviderManager providerManager, IConfigLoader configLoader)
+        private readonly IUpdateCheckerService _updateChecker;
+        private UpdateInfo? _latestUpdate;
+
+        public MainWindow(ProviderManager providerManager, IConfigLoader configLoader, IUpdateCheckerService updateChecker)
         {
             InitializeComponent();
             _providerManager = providerManager;
             _configLoader = configLoader;
+            _updateChecker = updateChecker;
 
             _resetTimer = new System.Windows.Threading.DispatcherTimer();
             _resetTimer.Interval = TimeSpan.FromSeconds(15);
@@ -105,6 +109,7 @@ namespace AIConsumptionTracker.UI
                     VersionText.Text = $"v{version.Major}.{version.Minor}.{version.Build}";
                 }
 
+                _ = CheckForUpdates();
                 await RefreshData(forceRefresh: false);
 
                 // Listen for global privacy changes
@@ -118,6 +123,7 @@ namespace AIConsumptionTracker.UI
                 }
                 UpdatePrivacyButton();
             };
+
 
             this.Deactivated += (s, e) => {
                 // Only hide if the window is visible and enabled (not showing a modal dialog)
@@ -872,6 +878,40 @@ namespace AIConsumptionTracker.UI
         private void CloseBtn_Click(object sender, RoutedEventArgs e)
         {
             this.Close();
+        }
+
+        private async Task CheckForUpdates()
+        {
+            _latestUpdate = await _updateChecker.CheckForUpdatesAsync();
+            if (_latestUpdate != null)
+            {
+                // Verify UpdateNotificationBanner exists before accessing to prevent errors
+                if (UpdateNotificationBanner != null)
+                {
+                    UpdateText.Text = $"New version available: {_latestUpdate.Version}";
+                    UpdateNotificationBanner.Visibility = Visibility.Visible;
+                }
+            }
+        }
+
+        private void UpdateBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (_latestUpdate != null && !string.IsNullOrEmpty(_latestUpdate.ReleaseUrl))
+            {
+                var destination = !string.IsNullOrEmpty(_latestUpdate.DownloadUrl) ? _latestUpdate.DownloadUrl : _latestUpdate.ReleaseUrl;
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = destination,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not open update link: {ex.Message}", "Error");
+                }
+            }
         }
     }
 }
