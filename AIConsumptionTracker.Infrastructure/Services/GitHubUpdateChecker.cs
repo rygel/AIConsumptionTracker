@@ -74,9 +74,27 @@ public class GitHubUpdateChecker : IUpdateCheckerService
 
     private static ReleaseAsset? GetCorrectArchitectureAsset(IReadOnlyList<ReleaseAsset> assets)
     {
-        var architecture = RuntimeInformation.ProcessArchitecture;
+        var architecture = GetWindowsArchitecture();
         var archSuffix = architecture.ToString().ToLowerInvariant();
         
         return assets.FirstOrDefault(a => a.Name.EndsWith(".exe") && a.Name.Contains(archSuffix));
+    }
+
+    private static string GetWindowsArchitecture()
+    {
+        // Check if we're running as a 32-bit process on a 64-bit OS
+        if (System.Environment.Is64BitOperatingSystem && !System.IntPtr.Size.Equals(8))
+        {
+            return "x86";
+        }
+        
+        // Check process architecture directly
+        var arch = RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
+        return arch switch
+        {
+            "x86" or "arm" => "x86",
+            "x64" or "arm64" => "x64",
+            _ => "x64"
+        };
     }
 }
