@@ -70,7 +70,6 @@ public class DeepSeekProvider : IProviderService
             }
 
             var details = new List<ProviderUsageDetail>();
-            double totalBalanceValue = 0;
             string mainDescription = "No balance found";
 
             if (result.BalanceInfos != null && result.BalanceInfos.Any())
