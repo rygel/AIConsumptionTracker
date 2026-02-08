@@ -4,7 +4,7 @@ param(
 )
 
 # AI Consumption Tracker - Distribution Packaging Script
-# Usage: .\scripts\publish-app.ps1 -Runtime win-x64 -Version 1.7.10
+# Usage: .\scripts\publish-app.ps1 -Runtime win-x64 -Version 1.7.11
 
 $isWinPlatform = $Runtime.StartsWith("win-")
 $projectName = if ($isWinPlatform) { "AIConsumptionTracker.UI" } else { "AIConsumptionTracker.CLI" }
@@ -46,6 +46,14 @@ if (-not [string]::IsNullOrEmpty($Version)) {
         $newIss = $issContent -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$Version`""
         Set-Content "scripts\setup.iss" $newIss -NoNewline
         Write-Host "  Updated scripts/setup.iss" -ForegroundColor Gray
+    }
+
+    # 4. Update scripts/publish-app.ps1 (self)
+    if (Test-Path "scripts\publish-app.ps1") {
+        $selfContent = Get-Content "scripts\publish-app.ps1" -Raw
+        $newSelf = $selfContent -replace "-Version [0-9]+\.[0-9]+\.[0-9]+", "-Version $Version"
+        Set-Content "scripts\publish-app.ps1" $newSelf -NoNewline
+        Write-Host "  Updated scripts/publish-app.ps1" -ForegroundColor Gray
     }
 } else {
     # If Version not passed, extract from project file
