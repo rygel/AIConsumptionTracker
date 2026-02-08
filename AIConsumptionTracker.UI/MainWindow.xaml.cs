@@ -398,13 +398,20 @@ namespace AIConsumptionTracker.UI
             // Update Progress Bar
             var progressFill = FindChildByTag<Border>(element, "Part_ProgressFill");
             var progressHost = FindChildByTag<Grid>(element, "Part_ProgressBarHost");
-            bool shouldHaveProgress = (usage.UsagePercentage > 0 || usage.IsQuotaBased) && 
-                                    !usage.Description.Contains("not found", StringComparison.OrdinalIgnoreCase) && 
+            var background = FindChildByTag<Border>(element, "Part_Background");
+            bool shouldHaveProgress = (usage.UsagePercentage > 0 || usage.IsQuotaBased) &&
+                                    !usage.Description.Contains("not found", StringComparison.OrdinalIgnoreCase) &&
                                     !usage.Description.Contains("[Error]", StringComparison.OrdinalIgnoreCase);
 
             if (shouldHaveProgress)
             {
                 if (progressFill == null || progressHost == null) return false; // Structure mismatch, need recreate
+
+                if (background != null)
+                {
+                    background.Visibility = Visibility.Collapsed;
+                }
+                progressHost.Visibility = Visibility.Visible;
 
                 var indicatorWidth = Math.Min(usage.UsagePercentage, 100);
                 if (_preferences.InvertProgressBar) indicatorWidth = Math.Max(0, 100 - indicatorWidth);
@@ -417,9 +424,28 @@ namespace AIConsumptionTracker.UI
 
                 progressFill.Background = usage.UsagePercentage > _preferences.ColorThresholdRed ? Brushes.Crimson : (usage.UsagePercentage > _preferences.ColorThresholdYellow ? Brushes.Gold : Brushes.MediumSeaGreen);
             }
-            else if (progressFill != null)
+            else
             {
-                return false; // Had progress, now shouldn't. Recreate to show error/missing state.
+                if (progressHost != null)
+                {
+                    progressHost.Visibility = Visibility.Collapsed;
+                }
+
+                var gridElement = element as Grid;
+                if (gridElement != null)
+                {
+                    if (background == null)
+                    {
+                        background = new Border
+                        {
+                            Background = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+                            CornerRadius = new CornerRadius(0),
+                            Tag = "Part_Background"
+                        };
+                        gridElement.Children.Add(background);
+                    }
+                    background.Visibility = Visibility.Visible;
+                }
             }
 
             // Update Status Text
@@ -648,39 +674,34 @@ namespace AIConsumptionTracker.UI
                 Tag = usage.ProviderId
             };
 
-            // Layer 1: Background Progress Bar
-            if ((usage.UsagePercentage > 0 || usage.IsQuotaBased) && !isMissing && !isError)
-            {
-                var pGrid = new Grid { Tag = "Part_ProgressBarHost" };
-                var indicatorWidth = Math.Min(usage.UsagePercentage, 100);
-                if (_preferences.InvertProgressBar) indicatorWidth = Math.Max(0, 100 - indicatorWidth);
+            bool shouldHaveProgress = (usage.UsagePercentage > 0 || usage.IsQuotaBased) && !isMissing && !isError;
 
-                pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(indicatorWidth, GridUnitType.Star) });
-                pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.001, 100 - indicatorWidth), GridUnitType.Star) });
+            var pGrid = new Grid { Tag = "Part_ProgressBarHost" };
+            var indicatorWidth = Math.Min(usage.UsagePercentage, 100);
+            if (_preferences.InvertProgressBar) indicatorWidth = Math.Max(0, 100 - indicatorWidth);
 
-                var fill = new Border
-                {
-                    // High Usage (> RedThreshold) -> Crimson (Danger)
-                    // Mid Usage (> YellowThreshold) -> Gold (Warning)
-                    // Low Usage -> MediumSeaGreen (Good)
-                    Background = usage.UsagePercentage > _preferences.ColorThresholdRed ? Brushes.Crimson : (usage.UsagePercentage > _preferences.ColorThresholdYellow ? Brushes.Gold : Brushes.MediumSeaGreen),
-                    Opacity = 0.45, // Increased from 0.25 for better visibility
-                    CornerRadius = new CornerRadius(0),
-                    Tag = "Part_ProgressFill"
-                };
-                pGrid.Children.Add(fill);
-                grid.Children.Add(pGrid);
-            }
-            else
+            pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(indicatorWidth, GridUnitType.Star) });
+            pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.001, 100 - indicatorWidth), GridUnitType.Star) });
+
+            var fill = new Border
             {
-                 // Default background for non-quota items or errors
-                 var bg = new Border 
-                 { 
-                     Background = new SolidColorBrush(Color.FromRgb(30,30,30)), 
-                     CornerRadius = new CornerRadius(0) 
-                 };
-                 grid.Children.Add(bg);
-            }
+                Background = usage.UsagePercentage > _preferences.ColorThresholdRed ? Brushes.Crimson : (usage.UsagePercentage > _preferences.ColorThresholdYellow ? Brushes.Gold : Brushes.MediumSeaGreen),
+                Opacity = 0.45,
+                CornerRadius = new CornerRadius(0),
+                Tag = "Part_ProgressFill"
+            };
+            pGrid.Children.Add(fill);
+            pGrid.Visibility = shouldHaveProgress ? Visibility.Visible : Visibility.Collapsed;
+            grid.Children.Add(pGrid);
+
+            var bg = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+                CornerRadius = new CornerRadius(0),
+                Tag = "Part_Background",
+                Visibility = shouldHaveProgress ? Visibility.Collapsed : Visibility.Visible
+            };
+            grid.Children.Add(bg);
 
             // Layer 2: Content Overlay
             var contentPanel = new DockPanel { LastChildFill = false, Margin = new Thickness(6, 0, 6, 0) };
@@ -923,33 +944,40 @@ namespace AIConsumptionTracker.UI
             usageDetailGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Progress Bar
             usageDetailGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Values/Text
 
-            // Progress Bar
-            if ((usage.UsagePercentage > 0 || usage.IsQuotaBased) && !isMissing && !isError)
+            bool shouldHaveProgress = (usage.UsagePercentage > 0 || usage.IsQuotaBased) && !isMissing && !isError;
+
+            var pGrid = new Grid { Height = 4, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0), Tag = "Part_ProgressBarHost" };
+            pGrid.Children.Add(new Border { Background = new SolidColorBrush(Color.FromRgb(50, 50, 50)), CornerRadius = new CornerRadius(0) });
+
+            var indicatorWidth = Math.Min(usage.UsagePercentage, 100);
+            if (_preferences.InvertProgressBar) indicatorWidth = Math.Max(0, 100 - indicatorWidth);
+
+            var fillGrid = new Grid();
+            fillGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(indicatorWidth, GridUnitType.Star) });
+            fillGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.001, 100 - indicatorWidth), GridUnitType.Star) });
+
+            var fill = new Border
             {
-                var pGrid = new Grid { Height = 4, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0), Tag = "Part_ProgressBarHost" };
-                pGrid.Children.Add(new Border { Background = new SolidColorBrush(Color.FromRgb(50, 50, 50)), CornerRadius = new CornerRadius(0) });
+                Background = usage.UsagePercentage > _preferences.ColorThresholdRed ? Brushes.Crimson : (usage.UsagePercentage > _preferences.ColorThresholdYellow ? Brushes.Gold : Brushes.MediumSeaGreen),
+                CornerRadius = new CornerRadius(0),
+                Tag = "Part_ProgressFill"
+            };
+            fillGrid.Children.Add(fill);
+            pGrid.Children.Add(fillGrid);
+            pGrid.Visibility = shouldHaveProgress ? Visibility.Visible : Visibility.Collapsed;
+            usageDetailGrid.Children.Add(pGrid);
 
-                var indicatorWidth = Math.Min(usage.UsagePercentage, 100);
-                if (_preferences.InvertProgressBar) indicatorWidth = Math.Max(0, 100 - indicatorWidth);
-
-                var fillGrid = new Grid();
-                fillGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(indicatorWidth, GridUnitType.Star) });
-                fillGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.001, 100 - indicatorWidth), GridUnitType.Star) });
-
-                var fill = new Border
-                {
-                    // High Usage (> RedThreshold) -> Crimson (Danger)
-                    // Mid Usage (> YellowThreshold) -> Gold (Warning)
-                    // Low Usage -> MediumSeaGreen (Good)
-                    Background = usage.UsagePercentage > _preferences.ColorThresholdRed ? Brushes.Crimson : (usage.UsagePercentage > _preferences.ColorThresholdYellow ? Brushes.Gold : Brushes.MediumSeaGreen),
-                    CornerRadius = new CornerRadius(0),
-                    Tag = "Part_ProgressFill"
-                };
-                fillGrid.Children.Add(fill);
-                pGrid.Children.Add(fillGrid);
-
-                usageDetailGrid.Children.Add(pGrid);
-            }
+            var bg = new Border
+            {
+                Height = 4,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 10, 0),
+                Background = new SolidColorBrush(Color.FromRgb(50, 50, 50)),
+                CornerRadius = new CornerRadius(0),
+                Tag = "Part_Background",
+                Visibility = shouldHaveProgress ? Visibility.Collapsed : Visibility.Visible
+            };
+            usageDetailGrid.Children.Add(bg);
 
             // Details Text (The tokens/credits/cost)
             var detailText = _preferences.IsPrivacyMode ? PrivacyHelper.MaskContent(usage.Description, usage.AccountName) : usage.Description;
