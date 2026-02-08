@@ -12,34 +12,33 @@
 
 [Code]
 function InitializeSetup(): Boolean;
+var
+  Arch: String;
 begin
+  Result := True;
+  Arch := '{#MyAppArch}';
+
   // Validate architecture match
-  if MyAppArch = "x64" then
-    if not IsWin64 or ProcessorArchitecture <> "x64" then
-      MsgBox('Error: Attempting to install x64 installer on ' + ProcessorArchitecture + ' system.' + #13 + 'Please download the correct installer.', mbError, MB_OK);
+  if Arch = 'x64' then
+  begin
+    if not Is64BitInstallMode then
+    begin
+      MsgBox('Error: Attempting to install x64 installer on a non-64-bit system.' + #13 + 'Please download the correct installer.', mbError, MB_OK);
       Result := False;
-      Exit;
     end;
-  end else if MyAppArch = "x86" then
-    if not (ProcessorArchitecture = "x86" or ProcessorArchitecture = "arm") then
-      MsgBox('Error: Attempting to install x86 installer on ' + ProcessorArchitecture + ' system.' + #13 + 'Please download the correct installer.', mbError, MB_OK);
+  end
+  else if Arch = 'x86' then
+  begin
+    // x86 usually runs on anything, but we can add checks if needed
+  end
+  else if Arch = 'arm64' then
+  begin
+    if ProcessorArchitecture <> paARM64 then
+    begin
+      MsgBox('Error: Attempting to install arm64 installer on a non-ARM64 system.' + #13 + 'Please download the correct installer.', mbError, MB_OK);
       Result := False;
-      Exit;
-    end;
-  end else if MyAppArch = "arm64" then
-    if ProcessorArchitecture <> "arm64" then
-      MsgBox('Error: Attempting to install arm64 installer on ' + ProcessorArchitecture + ' system.' + #13 + 'Please download the correct installer.', mbError, MB_OK);
-      Result := False;
-      Exit;
     end;
   end;
-
-  Result := True;
-end;
-
-function NextButtonClick(CurPage: Integer): Boolean;
-begin
-  Result := InitializeSetup();
 end;
 
 [Setup]
@@ -59,9 +58,13 @@ DirExistsWarning=no
 SetupIconFile=..\AIConsumptionTracker.UI\Assets\app_icon.ico
 UninstallDisplayIcon={app}\AIConsumptionTracker.UI.exe
 PrivilegesRequired=lowest
+
 #if MyAppArch == "x64"
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
+#elif MyAppArch == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
 #endif
 
 [Languages]

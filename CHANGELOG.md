@@ -5,8 +5,9 @@
 ## [1.7.10] - 2026-02-08
 
 ### Fixed
+- **Inno Setup**: Fixed syntax errors in Pascal scripts and improved architecture validation logic
 - **CI Build**: Fixed Inno Setup /Q flag causing build failures in GitHub Actions
-- **Publish Script**: Removed incorrect /Q flag that suppressed important error messages
+- **Publish Script**: Added robust installer detection and ensured the workflow fails if Inno Setup is missing or fails
 - **Compiler Warnings**: Resolved all compiler warnings for clean builds
 
 ## [1.7.9] - 2026-02-08
