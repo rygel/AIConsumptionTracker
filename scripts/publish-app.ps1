@@ -82,19 +82,20 @@ if ($isWinPlatform) {
         if ($LASTEXITCODE -eq 0) {
             # Move and rename the created setup to include architecture
             $setupDir = ".\dist"
-            # The name in setup.iss typically defaults to 'AIConsumptionTracker_Setup.exe' or similar
-            # Use wildcard to find it
-            $setupFile = Get-ChildItem "$setupDir\AIConsumptionTracker_Setup_*.exe" -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike "*_win-*" } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            # The name in setup.iss is OutputBaseFilename=AIConsumptionTracker_Setup_v{#MyAppVersion}
+            # So it will be AIConsumptionTracker_Setup_v1.7.10.exe
+            $setupFile = Get-ChildItem "$setupDir\AIConsumptionTracker_Setup_v*.exe" -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike "*_$Runtime.exe" } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             
-            # If specifically named in ISS
-            if (!$setupFile) {
-                 $setupFile = Get-ChildItem "$setupDir\AIConsumptionTracker_Setup.exe" -ErrorAction SilentlyContinue 
-            }
-
             if ($setupFile) {
-                $newName = "AIConsumptionTracker_Setup_v$Version`_$Runtime.exe"
-                Rename-Item $setupFile.FullName -NewName $newName
-                Write-Host "Installer created successfully: $newName" -ForegroundColor Green
+                $newName = "AIConsumptionTracker_Setup_v$($Version)_$($Runtime).exe"
+                if ($setupFile.Name -ne $newName) {
+                    Rename-Item $setupFile.FullName -NewName $newName -Force
+                    Write-Host "Installer created and renamed: $newName" -ForegroundColor Green
+                } else {
+                    Write-Host "Installer created: $newName" -ForegroundColor Green
+                }
+            } else {
+                Write-Host "Warning: Could not find generated setup file to rename." -ForegroundColor Yellow
             }
         } else {
             Write-Host "Inno Setup compilation failed." -ForegroundColor Yellow
