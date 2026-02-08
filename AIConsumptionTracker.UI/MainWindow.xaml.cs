@@ -361,8 +361,8 @@ namespace AIConsumptionTracker.UI
 
         private void RenderUsages(List<ProviderUsage> usages)
         {
-            ProvidersList.Children.Clear();
-
+            // Don't clear - incremental updates handle individual bars via UpdateProviderBar
+            
             bool showAll = ShowAllToggle?.IsChecked ?? true;
             var filteredUsages = usages
                 .Where(u => showAll ||
