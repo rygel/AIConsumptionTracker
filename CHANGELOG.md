@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [1.7.6] - 2026-02-08
+
+### Added
+- **Check for Updates Button**: Added manual check for updates button in Settings dialog footer for easier update checking from settings UI
+
 ## [1.7.5] - 2026-02-08
 
 ### Added
