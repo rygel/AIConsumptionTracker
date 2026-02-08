@@ -18,6 +18,9 @@ A streamlined Windows dashboard and tray utility to monitor AI API usage, costs,
 - [User Manual](docs/user_manual.md)
 - [CLI Reference](docs/cli_documentation.md)
 
+### Community
+Join the discussion on our [Discord Server](https://discord.gg/UGsNVez9).
+
 ## Download
 Download the latest installer or .zip file from the [Release](https://github.com/rygel/AIConsumptionTracker/releases) page.
 
@@ -25,6 +28,7 @@ Download the latest installer or .zip file from the [Release](https://github.com
 
 - **Multi-Provider Support**: Track usage for Anthropic, Gemini, OpenRouter, OpenCode, Kilo Code, DeepSeek, OpenAI, Google Cloud Code, GitHub Copilot, Codex, and more.
 - **Smart Discovery**: Automatically scans environment variables and standard configuration files for existing API keys.
+- **Auto-Updates**: Notifies you of new releases directly in the dashboard with a one-click download link.
 - **Minimalist Dashboard**: A compact, topmost window providing a quick overview of your current spend and token usage.
 - **Compact Settings UI**: Streamlined provider cards with 40-50% less vertical space, larger dialog for better visibility.
 - **Dynamic Tray Integration**:

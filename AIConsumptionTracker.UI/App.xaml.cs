@@ -75,6 +75,7 @@ namespace AIConsumptionTracker.UI
                     services.AddTransient<IProviderService, CodexProvider>();
                     services.AddTransient<IProviderService, MinimaxProvider>();
                     services.AddTransient<IProviderService, XiaomiProvider>();
+                    services.AddTransient<IUpdateCheckerService, GitHubUpdateChecker>();
 
                     // Auth Services
                     services.AddSingleton<IGitHubAuthService, GitHubAuthService>();

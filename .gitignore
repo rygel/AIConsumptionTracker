@@ -463,3 +463,17 @@ bin_unlocked_ui/
 TempBin/
 target/
 **/target/
+# Strict Binary Exclusions
+*.exe
+*.dll
+*.pdb
+*.lib
+*.so
+*.dylib
+
+# Temporary and Log files
+*.log
+*.tmp
+*.bak
+*.swp
+*.DS_Store

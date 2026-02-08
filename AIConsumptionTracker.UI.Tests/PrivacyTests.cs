@@ -49,7 +49,12 @@ public class PrivacyTests
         services.AddSingleton(_mockConfigLoader.Object);
         services.AddSingleton(providerManager);
         services.AddSingleton(mockFontProvider.Object);
+        services.AddSingleton(mockFontProvider.Object);
         services.AddSingleton(mockGithubAuth.Object);
+        
+        var mockUpdateChecker = new Mock<IUpdateCheckerService>();
+        mockUpdateChecker.Setup(u => u.CheckForUpdatesAsync()).ReturnsAsync((UpdateInfo?)null);
+        services.AddSingleton(mockUpdateChecker.Object);
         services.AddTransient<MainWindow>();
         
         _serviceProvider = services.BuildServiceProvider();
