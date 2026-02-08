@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Octokit;
 using AIConsumptionTracker.Core.Interfaces;
@@ -31,7 +32,7 @@ public class GitHubUpdateChecker : IUpdateCheckerService
                 {
                     _logger.LogInformation($"New version found: {latestVersion} (Current: {currentVersion})");
                     
-                    var exeAsset = release.Assets.FirstOrDefault(a => a.Name.EndsWith(".exe"));
+                    var exeAsset = GetCorrectArchitectureAsset(release.Assets);
                     var downloadUrl = exeAsset?.BrowserDownloadUrl ?? release.HtmlUrl;
 
                     return new UpdateInfo
@@ -69,5 +70,13 @@ public class GitHubUpdateChecker : IUpdateCheckerService
         }
         
         return false;
+    }
+
+    private static ReleaseAsset? GetCorrectArchitectureAsset(IReadOnlyList<ReleaseAsset> assets)
+    {
+        var architecture = RuntimeInformation.ProcessArchitecture;
+        var archSuffix = architecture.ToString().ToLowerInvariant();
+        
+        return assets.FirstOrDefault(a => a.Name.EndsWith(".exe") && a.Name.Contains(archSuffix));
     }
 }
