@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## [1.7.12] - 2026-02-08
+
+### Added
+- **Smooth In-Place Updates**: Drastic reduction in UI flickering during polling by mutating existing UI elements instead of recreating them.
+- **Part-Level Control**: Fine-grained control over progress bars and text elements for smoother visual transitions.
+
+### Fixed
+- **UI Update Logic**: Resolved an issue where child bars (detailed usage) could become orphaned or stale during updates.
+- **UI Test Stability**: Fixed the `UpdateProviderBar_ShouldReplaceExistingProviderBar` unit test and standardized `Tag` assignments.
 
 ## [1.7.11] - 2026-02-08
 
