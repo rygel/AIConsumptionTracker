@@ -48,6 +48,24 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                 {
                     var timeSinceRefresh = DateTime.Now - _cacheTimestamp;
                     var minutesAgo = (int)timeSinceRefresh.TotalMinutes;
+                    var description = $"Last refreshed: {minutesAgo}m ago";
+
+                    // Check if any details have reset times and add reset information
+                    if (_cachedUsage.Details != null && _cachedUsage.Details.Any(d => d.NextResetTime.HasValue))
+                    {
+                        var nextReset = _cachedUsage.Details.FirstOrDefault(d => d.NextResetTime.HasValue)?.NextResetTime;
+                        if (nextReset.HasValue)
+                        {
+                            var timeUntilReset = nextReset.Value - DateTime.Now;
+                            if (timeUntilReset.TotalHours > 0)
+                            {
+                                var hoursUntil = (int)timeUntilReset.TotalHours;
+                                var minutesUntil = (int)timeUntilReset.TotalMinutes % 60;
+                                description += $" (Resets in {hoursUntil}h {minutesUntil}m)";
+                            }
+                        }
+                    }
+
                     return new[] { new ProviderUsage
                     {
                         ProviderId = ProviderId,
@@ -58,7 +76,7 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                         CostLimit = _cachedUsage.CostLimit,
                         Details = _cachedUsage.Details,
                         AccountName = _cachedUsage.AccountName,
-                        Description = $"Last refreshed: {minutesAgo}m ago"
+                        Description = description
                     }};
                 }
                 else
