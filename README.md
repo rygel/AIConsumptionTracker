@@ -41,23 +41,25 @@ Download the latest installer or .zip file from the [Release](https://github.com
   - **Live Progress Bars**: Tray icons feature "Core Temp" style bars that reflect usage levels in real-time.
 - **Inverted Progress Bars**: Default "Health Bar" mode showing **Remaining** capacity (starting green/full) instead of "Used" capacity.
 - **Improved DeepSeek Support**: Detailed multi-currency (CNY/USD) balance tracking with official branding.
-- **Secure Management**: Manage all keys and preferences through a refined, dark-themed settings menu.
+- **Secure Management**: Manage all keys and preferences through a refined, dark-themed settings menu. Do not combine coding plans and pay as you go plans. They have to be separated.
 
 ## Supported Providers
 
 | Provider | Integration | Status | Notes |
 |:---------|:------------|:-------|:------|
-| **Anthropic (Claude)** | OAuth / API Key | ✅ Tested | Usage dashboard only |
-| **Antigravity** | GUI Auth | ✅ Tested | Multi-model quotas |
+| **Anthropic (Claude Code)** | OAuth / API Key | ✅ Tested | Usage dashboard only |
+| **Antigravity** | via Antigravity GUI | ✅ Tested | Multi-model quotas |
 | **DeepSeek** | API Key¹ | ⚠️ Beta | **testers needed** |
 | **Gemini** | API Key | 🚧 Planned | Not yet integrated |
-| **GitHub Copilot** | OAuth Device | ✅ Tested | Auto-discovery via CLI |
-| **Kimi (Moonshot)** | API Key¹ | ⚠️ Beta | **testers needed** |
-| **Minimax** | API Key¹ | ⚠️ Beta | China & International |
-| **Mistral** | API Key | ✅ Tested | API usage not available |
-| **OpenAI (Codex)** | OAuth | ⚠️ Beta | Via OpenCLI |
-| **OpenRouter** | API Key | 🚧 Planned | Not yet integrated |
-| **Opencode Zen** | API Key¹ | ✅ Tested | Pay-as-you-go & Plans |
+| **GitHub Copilot** | OAuth Device Flow | ✅ Tested |  |
+| **Kimi** | API Key¹ | ⚠️ Beta | **testers needed** |
+| **Minimax** (China) | API Key¹ | ⚠️ Beta ||
+| **Minimax** (International) | API Key¹ | ⚠️ Beta |  |
+| **Mistral** | API Key¹ | ✅ Tested | API usage not available |
+| **OpenAI (Codex)** | via opencode OAuth | ⚠️ Beta | |
+| **OpenRouter** | API Key¹ | 🚧 Planned | Not yet integrated |
+| **Opencode Zen** (pay-as-you-go) | API Key¹ | ✅ Tested |  & Plans |
+| **Opencode Zen** (coding plan) | API Key¹ | ⚠️ Beta |  **testers needed**  |
 | **Synthetic** | API Key¹ | ✅ Tested | Multi-model support |
 | **Z.AI** | API Key¹ | ✅ Tested | Coding plans |
 
