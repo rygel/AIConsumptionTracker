@@ -53,10 +53,10 @@ Download the latest installer or .zip file from the [Release](https://github.com
 | **Gemini** | API Key | 🚧 Planned | Not yet integrated |
 | **GitHub Copilot** | OAuth Device Flow | ✅ Tested |  |
 | **Kimi** | API Key¹ | ⚠️ Beta | **testers needed** |
-| **Minimax** (China) | API Key¹ | ⚠️ Beta ||
-| **Minimax** (International) | API Key¹ | ⚠️ Beta |  |
+| **Minimax** (China) | API Key¹ | ⚠️ Beta | **testers needed** |
+| **Minimax** (International) | API Key¹ | ⚠️ Beta | **testers needed** |
 | **Mistral** | API Key¹ | ✅ Tested | API usage not available |
-| **OpenAI (Codex)** | via opencode OAuth | ⚠️ Beta | testers needed |
+| **OpenAI (Codex)** | via opencode OAuth | ⚠️ Beta | **testers needed** |
 | **OpenRouter** | API Key¹ | 🚧 Planned | Not yet integrated |
 | **Opencode Zen** (pay-as-you-go) | API Key¹ | ✅ Tested |  & Plans |
 | **Opencode Zen** (coding plan) | API Key¹ | ⚠️ Beta |  **testers needed**  |
