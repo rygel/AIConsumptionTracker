@@ -283,28 +283,6 @@ jobs:
           echo "Scripts: ${{ steps.check-scripts.outputs.scripts_valid }}"
           echo "All Valid: ${{ steps.set-all-valid.outputs.all_valid }}"
 
-      - name: Create Git Tag
-        if: ${{ steps.set-all-valid.outputs.all_valid == 'true' }}
-        run: |
-          version="${{ inputs.version }}"
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git tag "v$version"
-          git push origin "v$version"
-          echo "✓ Created and pushed git tag: v$version"
-
-      - name: Create GitHub Release
-        if: ${{ steps.set-all-valid.outputs.all_valid == 'true' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          version="${{ inputs.version }}"
-          gh release create "v$version" \
-            --title "Release v$version" \
-            --target "main" \
-            --notes "See CHANGELOG.md for details"
-          echo "✓ Created GitHub release: v$version"
-
       - name: Generate Appcast File
         if: ${{ steps.set-all-valid.outputs.all_valid == 'true' }}
         run: |
@@ -333,26 +311,33 @@ jobs:
           echo '</rss>' >> appcast.xml
           echo "✓ Generated appcast.xml"
 
-      - name: Upload Appcast to Release
+      - name: Upload Appcast Artifact
         if: ${{ steps.set-all-valid.outputs.all_valid == 'true' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          version="${{ inputs.version }}"
-          gh release upload "v$version" appcast.xml --clobber
-          echo "✓ Uploaded appcast.xml to release v$version"
+        uses: actions/upload-artifact@v4
+        with:
+          name: appcast
+          path: appcast.xml
 
       - name: Success
         if: ${{ steps.set-all-valid.outputs.all_valid == 'true' }}
         run: |
-          echo "✅ Successfully created release v${{ inputs.version }}"
-          echo "Git tag pushed: v${{ inputs.version }}"
-          echo "GitHub release created"
+          echo "✅ Validation passed for v${{ inputs.version }}"
+          echo ""
+          echo "📋 NEXT STEPS:"
+          echo ""
+          echo "1. Download appcast.xml from the workflow artifacts above"
+          echo "2. Create and push the git tag manually:"
+          echo "   git checkout main"
+          echo "   git pull origin main"
+          echo "   git tag v${{ inputs.version }}"
+          echo "   git push origin v${{ inputs.version }}"
+          echo ""
+          echo "3. The tag push will automatically trigger the Publish workflow"
+          echo "4. Upload appcast.xml to the release after it's created"
 
       - name: Failure
         if: ${{ steps.set-all-valid.outputs.all_valid != 'true' }}
         run: |
           echo "❌ Validation failed"
           echo "Please check the error messages above and ensure all version files match ${{ inputs.version }}"
-          echo "If you want to proceed anyway, re-run with skip_file_updates=true"
           exit 1
