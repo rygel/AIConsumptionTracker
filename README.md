@@ -45,21 +45,21 @@ Download the latest installer or .zip file from the [Release](https://github.com
 
 ## Supported Providers
 
-| Provider | Type | Integration | Status | Notes |
-|:---------|:-----|:------------|:-------|:------|
-| **Anthropic (Claude)** | Cloud | OAuth / API Key | ✅ Tested | Usage dashboard only |
-| **Antigravity** | Cloud | GUI Auth | ✅ Tested | Multi-model quotas |
-| **DeepSeek** | Cloud | API Key* | ⚠️ Beta | Testers needed |
-| **Gemini** | Cloud | API Key | 🚧 Planned | Not yet integrated |
-| **GitHub Copilot** | IDE | OAuth Device | ✅ Tested | Auto-discovery via CLI |
-| **Kimi (Moonshot)** | Cloud | API Key* | ⚠️ Beta | Testers needed |
-| **Minimax** | Cloud | API Key* | ⚠️ Beta | China & International |
-| **Mistral** | Cloud | API Key | ✅ Tested | API usage not available |
-| **OpenAI (Codex)** | IDE | OAuth | ⚠️ Beta | Via OpenCLI |
-| **OpenRouter** | Cloud | API Key | 🚧 Planned | Not yet integrated |
-| **Opencode Zen** | Cloud | API Key* | ✅ Tested | Pay-as-you-go & Plans |
-| **Synthetic** | Cloud | API Key* | ✅ Tested | Multi-model support |
-| **Z.AI** | Cloud | API Key* | ✅ Tested | Coding plans |
+| Provider | Integration | Status | Notes |
+|:---------|:------------|:-------|:------|
+| **Anthropic (Claude)** | OAuth / API Key | ✅ Tested | Usage dashboard only |
+| **Antigravity** | GUI Auth | ✅ Tested | Multi-model quotas |
+| **DeepSeek** | API Key* | ⚠️ Beta | Testers needed |
+| **Gemini** | API Key | 🚧 Planned | Not yet integrated |
+| **GitHub Copilot** | OAuth Device | ✅ Tested | Auto-discovery via CLI |
+| **Kimi (Moonshot)** | API Key* | ⚠️ Beta | Testers needed |
+| **Minimax** | API Key* | ⚠️ Beta | China & International |
+| **Mistral** | API Key | ✅ Tested | API usage not available |
+| **OpenAI (Codex)** | OAuth | ⚠️ Beta | Via OpenCLI |
+| **OpenRouter** | API Key | 🚧 Planned | Not yet integrated |
+| **Opencode Zen** | API Key* | ✅ Tested | Pay-as-you-go & Plans |
+| **Synthetic** | API Key* | ✅ Tested | Multi-model support |
+| **Z.AI** | API Key* | ✅ Tested | Coding plans |
 
 **Legend:** ✅ Tested | ⚠️ Beta | 🚧 Planned
 
