@@ -252,3 +252,28 @@ git push origin v1.5.0
 - GitHub Actions for testing on push/PR to main.
 - Release workflow creates installers for multiple platforms.
 - Winget submission for Windows packages.
+
+## Rust Dependencies
+
+### Version Numbers
+- Always use explicit version numbers in `Cargo.toml` files
+- Do NOT use semver range operators (^, ~, >=, etc.)
+
+**CORRECT:**
+```toml
+libsql = "0.9.29"
+chrono = "0.4.43"
+tokio = "1.41.1"
+```
+
+**INCORRECT:**
+```toml
+libsql = "^0.9"      # DO NOT USE
+chrono = "~0.4"      # DO NOT USE
+tokio = ">=1.0"     # DO NOT USE
+```
+
+- Always specify the full MAJOR.MINOR.PATCH version for reproducibility
+- When updating dependencies, check crates.io for the latest stable version and update explicitly
+- Run `cargo update` to regenerate Cargo.lock
+- Test with `cargo check` and `cargo test`

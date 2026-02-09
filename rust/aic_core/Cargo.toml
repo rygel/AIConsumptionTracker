@@ -8,22 +8,22 @@ license = "MIT"
 repository = "https://github.com/yourusername/ai-consumption-tracker"
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tokio = { version = "1.0", features = ["full"] }
-reqwest = { version = "0.11", features = ["json", "blocking"] }
-directories = "5.0"
-chrono = { version = "0.4", features = ["serde"] }
-thiserror = "1.0"
-log = "0.4"
-async-trait = "0.1"
-regex = "1.10"
-which = "6.0"
+serde = "1.0.210"
+serde_json = "1.0.149"
+tokio = "1.41.1"
+reqwest = { version = "0.11.27", features = ["json", "blocking"] }
+directories = "5.0.1"
+chrono = "0.4.43"
+thiserror = "2.0.18"
+log = "0.4.29"
+async-trait = "0.1.83"
+regex = "1.12.3"
+which = "6.0.3"
 
 [target.'cfg(windows)'.dependencies]
-wmi = "0.14"
-windows = { version = "0.52", features = ["Win32_System_Threading", "Win32_Foundation"] }
+wmi = "0.14.0"
+windows = "0.52.0"
 
 [dev-dependencies]
-tokio-test = "0.4"
-tempfile = "3.0"
+tokio-test = "0.4.5"
+tempfile = "3.24.0"

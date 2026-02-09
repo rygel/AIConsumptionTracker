@@ -8,21 +8,24 @@ license = "MIT"
 repository = "https://github.com/yourusername/ai-consumption-tracker"
 
 [build-dependencies]
-tauri-build = { version = "2.0", features = [] }
+tauri-build = "2.0.0"
 
 [dependencies]
 aic_core = { path = "../aic_core" }
-tauri = { version = "2.0", features = ["tray-icon", "devtools"] }
-tauri-plugin-shell = "2.0"
-tauri-plugin-updater = "2.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tokio = { version = "1.0", features = ["full"] }
-reqwest = { version = "0.11", features = ["json"] }
-log = "0.4"
+aic_database = { path = "../aic_database", optional = true }
+tauri = { version = "2.0.0", features = ["tray-icon", "devtools"] }
+tauri-plugin-shell = "2.0.0"
+tauri-plugin-updater = "2.0.0"
+serde = "1.0.210"
+serde_json = "1.0.149"
+tokio = "1.41.1"
+reqwest = { version = "0.11.27", features = ["json"] }
+log = "0.4.29"
+chrono = "0.4.43"
 
 [features]
-default = []
+default = ["database"]
+database = ["aic_database"]
 
 [profile.release]
 panic = "abort"

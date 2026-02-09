@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "aic_core",
+    "aic_database",
     "aic_cli",
     "aic_app"
 ]
