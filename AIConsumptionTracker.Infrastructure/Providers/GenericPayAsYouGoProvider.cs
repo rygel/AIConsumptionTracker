@@ -90,6 +90,10 @@ public class GenericPayAsYouGoProvider : IProviderService
         {
             url = "https://api.kilocode.ai/v1/credits";
         }
+        else if (config.ProviderId.Equals("synthetic", StringComparison.OrdinalIgnoreCase))
+        {
+            url = "https://api.synthetic.new/v2/quotas";
+        }
 
         else
         {
@@ -276,12 +280,9 @@ public class GenericPayAsYouGoProvider : IProviderService
             var synthetic = JsonSerializer.Deserialize<SyntheticResponse>(responseString);
             if (synthetic?.Subscription?.RenewsAt != null && DateTime.TryParse(synthetic.Subscription.RenewsAt, out var dt))
             {
-                 var diff = dt.ToLocalTime() - DateTime.Now;
-                 if (diff.TotalSeconds > 0)
-                 {
-                     resetStr = $" (Resets: ({dt.ToLocalTime():MMM dd HH:mm}))";
-                     nextResetTime = dt.ToLocalTime();
-                 }
+                 var localDt = dt.ToLocalTime();
+                 resetStr = $" (Resets: {localDt:MMM dd HH:mm})";
+                 nextResetTime = localDt;
             }
         } catch { /* Suppress if not synthetic or parse fails */ }
 
