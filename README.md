@@ -55,7 +55,7 @@ Download the latest installer or .zip file from the [Release](https://github.com
 | **Kimi** | API Key¹ | ⚠️ Beta | **testers needed** |
 | **Minimax** (China) | API Key¹ | ⚠️ Beta | **testers needed** |
 | **Minimax** (International) | API Key¹ | ⚠️ Beta | **testers needed** |
-| **Mistral** | API Key¹ | ✅ Tested | API usage not available |
+| **Mistral** | API Key¹ | ✅ Tested | model usage not available via API |
 | **OpenAI (Codex)** | via opencode OAuth | ⚠️ Beta | **testers needed** |
 | **OpenRouter** | API Key¹ | 🚧 Planned | Not yet integrated |
 | **Opencode Zen** (pay-as-you-go) | API Key¹ | ✅ Tested |  & Plans |
