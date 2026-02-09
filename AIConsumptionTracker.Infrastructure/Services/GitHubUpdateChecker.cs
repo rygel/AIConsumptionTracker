@@ -1,7 +1,7 @@
-using System.Reflection;
-using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
-using Octokit;
+using NetSparkleUpdater;
+using NetSparkleUpdater.Enums;
+using NetSparkleUpdater.SignatureVerifiers;
 using AIConsumptionTracker.Core.Interfaces;
 
 namespace AIConsumptionTracker.Infrastructure.Services;
@@ -9,92 +9,59 @@ namespace AIConsumptionTracker.Infrastructure.Services;
 public class GitHubUpdateChecker : IUpdateCheckerService
 {
     private readonly ILogger<GitHubUpdateChecker> _logger;
-    private const string REPO_OWNER = "rygel";
-    private const string REPO_NAME = "AIConsumptionTracker";
+    private const string APPCAST_URL = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast.xml";
 
     public GitHubUpdateChecker(ILogger<GitHubUpdateChecker> logger)
     {
         _logger = logger;
     }
 
-    public async Task<UpdateInfo?> CheckForUpdatesAsync()
+    public async Task<AIConsumptionTracker.Core.Interfaces.UpdateInfo?> CheckForUpdatesAsync()
     {
         try
         {
-            var client = new GitHubClient(new ProductHeaderValue("AIConsumptionTracker"));
-            var release = await client.Repository.Release.GetLatest(REPO_OWNER, REPO_NAME);
-
-            var currentVersion = Assembly.GetEntryAssembly()?.GetName()?.Version ?? new Version(1, 0, 0);
+            // Initialize SparkleUpdater with the appcast URL
+            using var sparkle = new SparkleUpdater(APPCAST_URL, new Ed25519Checker(SecurityMode.Unsafe));
             
-            if (IsUpdateAvailable(currentVersion, release.TagName, out var latestVersion))
+            _logger.LogDebug("Checking for updates via NetSparkle appcast: {Url}", APPCAST_URL);
+            
+            // Check for updates quietly (no UI)
+            var updateInfo = await sparkle.CheckForUpdatesQuietly();
+            
+            if (updateInfo?.Updates?.Any() == true)
             {
-                if (latestVersion! > currentVersion)
+                var latest = updateInfo.Updates.First();
+                var currentVersion = System.Reflection.Assembly.GetEntryAssembly()?.GetName()?.Version ?? new Version(1, 0, 0);
+                
+                // Parse version (handle 'v' prefix)
+                var latestVersionStr = latest.Version?.TrimStart('v') ?? "0.0.0";
+                
+                if (Version.TryParse(latestVersionStr, out var latestVersion))
                 {
-                    _logger.LogInformation($"New version found: {latestVersion} (Current: {currentVersion})");
-                    
-                    var exeAsset = GetCorrectArchitectureAsset(release.Assets);
-                    var downloadUrl = exeAsset?.BrowserDownloadUrl ?? release.HtmlUrl;
-
-                    return new UpdateInfo
+                    if (latestVersion > currentVersion)
                     {
-                        Version = release.TagName,
-                        ReleaseUrl = release.HtmlUrl,
-                        DownloadUrl = downloadUrl,
-                        ReleaseNotes = release.Body,
-                        PublishedAt = release.PublishedAt?.DateTime ?? DateTime.Now
-                    };
+                        _logger.LogInformation("New version available: {LatestVersion} (Current: {CurrentVersion})", 
+                            latestVersion, currentVersion);
+
+                        return new AIConsumptionTracker.Core.Interfaces.UpdateInfo
+                        {
+                            Version = latest.Version ?? latestVersion.ToString(),
+                            ReleaseUrl = latest.ReleaseNotesLink ?? $"https://github.com/rygel/AIConsumptionTracker/releases/tag/v{latestVersion}",
+                            DownloadUrl = latest.DownloadLink ?? string.Empty,
+                            ReleaseNotes = string.Empty,
+                            PublishedAt = latest.PublicationDate
+                        };
+                    }
                 }
             }
+            
+            _logger.LogDebug("No updates available or already on latest version");
+            return null;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to check for updates");
+            _logger.LogWarning(ex, "Failed to check for updates via NetSparkle appcast");
+            return null;
         }
-        
-        return null;
-    }
-
-    public static bool IsUpdateAvailable(Version current, string tagName, out Version? parsedLatest)
-    {
-        parsedLatest = null;
-        if (string.IsNullOrWhiteSpace(tagName)) return false;
-
-        // Tag usually "v1.7.3" -> "1.7.3"
-        var tagVersionStr = tagName.StartsWith("v") ? tagName[1..] : tagName;
-
-        if (Version.TryParse(tagVersionStr, out var latestVersion))
-        {
-            parsedLatest = latestVersion;
-            // Strict check: latest > current
-            return latestVersion > current;
-        }
-        
-        return false;
-    }
-
-    private static ReleaseAsset? GetCorrectArchitectureAsset(IReadOnlyList<ReleaseAsset> assets)
-    {
-        var architecture = GetWindowsArchitecture();
-        var archSuffix = architecture.ToString().ToLowerInvariant();
-        
-        return assets.FirstOrDefault(a => a.Name.EndsWith(".exe") && a.Name.Contains(archSuffix));
-    }
-
-    private static string GetWindowsArchitecture()
-    {
-        // Check if we're running as a 32-bit process on a 64-bit OS
-        if (System.Environment.Is64BitOperatingSystem && !System.IntPtr.Size.Equals(8))
-        {
-            return "x86";
-        }
-        
-        // Check process architecture directly
-        var arch = RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
-        return arch switch
-        {
-            "x86" or "arm" => "x86",
-            "x64" or "arm64" => "x64",
-            _ => "x64"
-        };
     }
 }

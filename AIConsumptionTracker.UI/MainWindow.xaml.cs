@@ -66,7 +66,7 @@ namespace AIConsumptionTracker.UI
         }
 
         private readonly IUpdateCheckerService _updateChecker;
-        private UpdateInfo? _latestUpdate;
+        private AIConsumptionTracker.Core.Interfaces.UpdateInfo? _latestUpdate;
 
         public MainWindow(ProviderManager providerManager, IConfigLoader configLoader, IUpdateCheckerService updateChecker)
         {
@@ -1139,7 +1139,6 @@ namespace AIConsumptionTracker.UI
             _latestUpdate = await _updateChecker.CheckForUpdatesAsync();
             if (_latestUpdate != null)
             {
-                // Verify UpdateNotificationBanner exists before accessing to prevent errors
                 if (UpdateNotificationBanner != null)
                 {
                     UpdateText.Text = $"New version available: {_latestUpdate.Version}";
@@ -1148,62 +1147,22 @@ namespace AIConsumptionTracker.UI
             }
         }
 
-        private async void UpdateBtn_Click(object sender, RoutedEventArgs e)
+        private void UpdateBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (_latestUpdate != null && !string.IsNullOrEmpty(_latestUpdate.DownloadUrl))
+            if (_latestUpdate != null)
             {
                 try
                 {
-                    var downloadUrl = _latestUpdate.DownloadUrl;
-                    var fileName = System.IO.Path.GetFileName(new Uri(downloadUrl).LocalPath);
-                    var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), fileName);
-                    
-                    // Show progress dialog
-                    var progressDialog = new ProgressWindow($"Downloading {_latestUpdate.Version}");
-                    progressDialog.Owner = this;
-                    progressDialog.Show();
-                    
-                    // Download file
-                    using var httpClient = new System.Net.Http.HttpClient();
-                    var response = await httpClient.GetAsync(downloadUrl);
-                    var totalBytes = response.Content.Headers.ContentLength ?? 0;
-                    var totalBytesLong = totalBytes > 0 ? (long)totalBytes : 1L;
-                    
-                    await using var fileStream = System.IO.File.Create(tempPath);
-                    var contentStream = await response.Content.ReadAsStreamAsync();
-                    var buffer = new byte[81920];
-                    var bytesRead = 0L;
-                    
-                    while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    // Open the release page in the default browser
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
-                        await fileStream.WriteAsync(buffer, 0, (int)bytesRead);
-                        var progress = (int)Math.Min((fileStream.Length * 100L) / totalBytesLong, 100);
-                        progressDialog.Progress = progress;
-                        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => { });
-                    }
-                    
-                    progressDialog.Close();
-                    
-                    // Prompt to install
-                    var result = MessageBox.Show(
-                        "Download complete. Would you like to install the update now?",
-                        "Update Ready",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Question);
-                    
-                    if (result == MessageBoxResult.Yes)
-                    {
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = tempPath,
-                            UseShellExecute = true
-                        });
-                        Application.Current.Shutdown();
-                    }
+                        FileName = _latestUpdate.ReleaseUrl,
+                        UseShellExecute = true
+                    });
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Failed to download update: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"Failed to open release page: {ex.Message}", "Update Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }

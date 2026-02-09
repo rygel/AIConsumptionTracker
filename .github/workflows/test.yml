@@ -16,7 +16,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '10.0.x'
+        dotnet-version: '8.0.x'
 
     - name: Restore dependencies
       run: dotnet restore
@@ -34,8 +34,8 @@ jobs:
       run: echo "Formatting check temporarily disabled - will be fixed in separate PR"
 
     - name: Run Unit Tests
-      run: dotnet test AIConsumptionTracker.Tests\AIConsumptionTracker.Tests.csproj --configuration Debug --no-build --verbosity normal
+      run: dotnet test AIConsumptionTracker.Tests\AIConsumptionTracker.Tests.csproj --configuration Debug --verbosity normal
 
     - name: Run UI Tests
-      run: dotnet test AIConsumptionTracker.UI.Tests\AIConsumptionTracker.UI.Tests.csproj --configuration Debug --no-build --verbosity normal
+      run: dotnet test AIConsumptionTracker.UI.Tests\AIConsumptionTracker.UI.Tests.csproj --configuration Debug --verbosity normal
       shell: pwsh
