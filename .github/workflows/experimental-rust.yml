@@ -1,0 +1,201 @@
+name: Experimental Rust
+
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: 'Build targets to test (comma-separated: all, nightly, miri, benches)'
+        required: false
+        default: 'all'
+      features:
+        description: 'Features to test (space-separated)'
+        required: false
+        default: ''
+      run_benches:
+        description: 'Run benchmarks'
+        required: false
+        type: boolean
+        default: false
+      run_miri:
+        description: 'Run Miri memory checker'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  experimental:
+    name: Experimental ${{ matrix.experiment }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+        experiment:
+          - nightly-build
+          - miri
+          - benchmarks
+          - fuzzing
+          - doc-tests
+          - arm64-build
+        include:
+          - os: ubuntu-latest
+            experiment: miri
+          - os: ubuntu-latest
+            experiment: fuzzing
+          - os: ubuntu-latest
+            experiment: benchmarks
+          - os: windows-latest
+            experiment: nightly-build
+          - os: windows-latest
+            experiment: doc-tests
+          - os: windows-latest
+            experiment: arm64-build
+          - os: windows-latest
+            experiment: arm64-build
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust (Nightly)
+      if: matrix.experiment == 'nightly-build'
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+        components: rustfmt, clippy, miri
+
+    - name: Install Rust (Stable)
+      if: matrix.experiment != 'nightly-build' && matrix.experiment != 'miri'
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: rustfmt, clippy
+
+    - name: Install Miri
+      if: matrix.experiment == 'miri'
+      run: |
+        rustup +nightly component add miri
+        rustup +nightly toolchain add nightly
+
+    - name: Install libFuzzer
+      if: matrix.experiment == 'fuzzing'
+      run: sudo apt-get install -y libfuzzer-dev
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo index
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo target
+      uses: actions/cache@v4
+      with:
+        path: rust/target
+        key: ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install Linux dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev libsoup2.4-dev libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev dmidecode
+
+    - name: Install ARM64 toolchain
+      if: matrix.experiment == 'arm64-build'
+      run: rustup target add aarch64-pc-windows-msvc
+
+    - name: Nightly Build
+      if: matrix.experiment == 'nightly-build'
+      run: |
+        cargo +nightly check --all-features --all-targets
+        cargo +nightly clippy --all-features --all-targets -- -D warnings -A warnings
+        cargo +nightly build --all-features
+      working-directory: ./rust
+
+    - name: Miri Tests
+      if: matrix.experiment == 'miri'
+      run: cargo +nightly miri test
+      working-directory: ./rust
+
+    - name: Build Benchmarks
+      if: matrix.experiment == 'benchmarks'
+      run: cargo bench --no-run
+      working-directory: ./rust
+
+    - name: Run Benchmarks
+      if: matrix.experiment == 'benchmarks' && inputs.run_benches == true
+      run: cargo bench
+      working-directory: ./rust
+
+    - name: Fuzzing Setup
+      if: matrix.experiment == 'fuzzing'
+      run: cargo fuzz build
+      working-directory: ./rust
+
+    - name: Build for ARM64
+      if: matrix.experiment == 'arm64-build'
+      run: cargo build --release --target aarch64-pc-windows-msvc
+      working-directory: ./rust
+
+    - name: Doc Tests
+      if: matrix.experiment == 'doc-tests'
+      run: cargo test --doc --all-features
+      working-directory: ./rust
+
+  sanitizer:
+    name: Sanitizers
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust with sanitizers
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: rustfmt, clippy
+
+    - name: Build with Address Sanitizer
+      if: inputs.targets == 'all' || inputs.targets == 'sanitizers'
+      run: RUSTFLAGS="-Z sanitizer=address" cargo +stable build --all-features
+      working-directory: ./rust
+
+    - name: Build with Thread Sanitizer
+      if: inputs.targets == 'all' || inputs.targets == 'sanitizers'
+      run: RUSTFLAGS="-Z sanitizer=thread" cargo +stable build --all-features
+      working-directory: ./rust
+
+  dependency-analysis:
+    name: Dependency Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Audit dependencies
+      run: cargo audit
+      working-directory: ./rust
+
+    - name: Check licenses
+      run: cargo deny check
+      working-directory: ./rust
+
+    - name: Outdated dependencies
+      run: cargo outdated --workspace
+      working-directory: ./rust

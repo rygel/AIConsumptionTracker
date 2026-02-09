@@ -50,16 +50,20 @@ jobs:
       run: cargo fmt -- --check
       working-directory: ./rust
 
+    - name: Run cargo check
+      run: cargo check --all-features --all-targets
+      working-directory: ./rust
+
     - name: Run clippy
-      run: cargo clippy
+      run: cargo clippy --all-features --all-targets -- -D warnings
       working-directory: ./rust
 
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --verbose --all-features
       working-directory: ./rust
 
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --verbose --all-features
       working-directory: ./rust
       continue-on-error: true
 
