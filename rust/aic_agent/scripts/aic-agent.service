@@ -1,0 +1,21 @@
+[Unit]
+Description=AI Consumption Tracker Collection Agent
+Documentation=https://github.com/rygel/AIConsumptionTracker
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i/.local/share/ai-consumption-tracker
+ExecStart=/usr/local/bin/aic-agent start
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment="RUST_LOG=info"
+Environment="AIC_AGENT_CONFIG=/home/%i/.config/ai-consumption-tracker/agent.toml"
+
+[Install]
+WantedBy=multi-user.target
