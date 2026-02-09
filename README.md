@@ -30,8 +30,8 @@ Download the latest installer or .zip file from the [Release](https://github.com
 
 ## Key Features
 
-- **Multi-Provider Support**: Track usage for Anthropic, Gemini, OpenRouter, OpenCode, Kilo Code, DeepSeek, OpenAI, Google Cloud Code, GitHub Copilot, Codex, and more.
-- **Smart Discovery**: Automatically scans environment variables and standard configuration files for existing API keys.
+- **Multi-Provider Support**: Track usage for Anthropic, Gemini, OpenRouter, OpenCode, Kilo Code, DeepSeek, OpenAI, Google Cloud Code, GitHub Copilot, Codex, Mistral, and more.
+- **Smart Discovery**: Automatically scans environment variables, Claude Code credentials, and standard configuration files for existing API keys.
 - **Auto-Updates**: Notifies you of new releases directly in the dashboard with a one-click download link.
 - **Minimalist Dashboard**: A compact, topmost window providing a quick overview of your current spend and token usage.
 - **Compact Settings UI**: Streamlined provider cards with 40-50% less vertical space, larger dialog for better visibility.
@@ -45,25 +45,26 @@ Download the latest installer or .zip file from the [Release](https://github.com
 
 ## Supported Providers
 
-| Provider                         | Integration         | Tested                                                               |
-|:---------------------------------|:--------------------|:---------------------------------------------------------------------|
-| **Anthropic (Claude Code)**      |                     | partially, testers needed                                            |
-| **Antigravity**                  | via Antigravity GUI | tested                                                               |
-| **DeepSeek**                     | API Key*            | Testers needed                                                       |
-| **Gemini**                       | not integrated yet  | Testers needed                                                       |
-| **GitHub Copilot**               | OAuth Device Flow   | Tested                                                               |
-| **Kimi (Moonshot)**              | API Key*            | Testers needed                                                       |
-| **Minimax** (China)              | API Key*            | Testers needed                                                       |
-| **Minimax** (International)      | API Key*            | Testers needed                                                       |
-| **Mistral**                      | API Key*            | tested, but Mistral does not provide usage information via their API |
-| **OpenAI (Codex)**               | via Opencli OAuth   | Testers needed                                                       |
-| **OpenRouter**                   | not integrated yet  | Testers needed                                                       |
-| **Opencode Zen** (coding plan)   | API Key*            | Testers needed                                                       |
-| **Opencode Zen** (pay-as-you-go) | API Key*            | Tested                                                               |
-| **Synthetic**                    | API Key*            | Tested                                                               |
-| **Z.AI** (Coding Plan)           | API Key*            | Tested                                                               |
+| Provider | Integration | Status | Notes |
+|:---------|:------------|:-------|:------|
+| **Anthropic (Claude)** | OAuth / API Key | ✅ Tested | Usage dashboard only |
+| **Antigravity** | GUI Auth | ✅ Tested | Multi-model quotas |
+| **DeepSeek** | API Key¹ | ⚠️ Beta | **testers needed** |
+| **Gemini** | API Key | 🚧 Planned | Not yet integrated |
+| **GitHub Copilot** | OAuth Device | ✅ Tested | Auto-discovery via CLI |
+| **Kimi (Moonshot)** | API Key¹ | ⚠️ Beta | **testers needed** |
+| **Minimax** | API Key¹ | ⚠️ Beta | China & International |
+| **Mistral** | API Key | ✅ Tested | API usage not available |
+| **OpenAI (Codex)** | OAuth | ⚠️ Beta | Via OpenCLI |
+| **OpenRouter** | API Key | 🚧 Planned | Not yet integrated |
+| **Opencode Zen** | API Key¹ | ✅ Tested | Pay-as-you-go & Plans |
+| **Synthetic** | API Key¹ | ✅ Tested | Multi-model support |
+| **Z.AI** | API Key¹ | ✅ Tested | Coding plans |
 
-* API Key can be either entered directly or discovered automatically via opencode configuration  
+**Legend:** ✅ Tested | ⚠️ Beta | 🚧 Planned
+
+¹API Keys can be entered manually or discovered from opencode config files*  
+*Providers with OAuth support automatic token discovery*
 
 ### Screenshots
 
