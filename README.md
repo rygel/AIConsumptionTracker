@@ -49,10 +49,10 @@ Download the latest installer or .zip file from the [Release](https://github.com
 |:---------|:------------|:-------|:------|
 | **Anthropic (Claude)** | OAuth / API Key | ✅ Tested | Usage dashboard only |
 | **Antigravity** | GUI Auth | ✅ Tested | Multi-model quotas |
-| **DeepSeek** | API Key* | ⚠️ Beta | Testers needed |
+| **DeepSeek** | API Key* | ⚠️ Beta | **testers needed** |
 | **Gemini** | API Key | 🚧 Planned | Not yet integrated |
 | **GitHub Copilot** | OAuth Device | ✅ Tested | Auto-discovery via CLI |
-| **Kimi (Moonshot)** | API Key* | ⚠️ Beta | Testers needed |
+| **Kimi (Moonshot)** | API Key* | ⚠️ Beta | **testers needed** |
 | **Minimax** | API Key* | ⚠️ Beta | China & International |
 | **Mistral** | API Key | ✅ Tested | API usage not available |
 | **OpenAI (Codex)** | OAuth | ⚠️ Beta | Via OpenCLI |
