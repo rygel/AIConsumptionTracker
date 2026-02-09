@@ -379,16 +379,51 @@
 
         <!-- Tabs -->
         <div class="tab-container">
-            <button class="tab active" data-tab="providers">Providers</button>
-            <button class="tab" data-tab="layout">Layout</button>
+            <button class="tab" data-tab="providers">Providers</button>
+            <button class="tab" data-tab="agent">Agent</button>
+            <button class="tab active" data-tab="layout">Layout</button>
         </div>
 
         <!-- Content -->
         <div class="settings-content">
             <!-- Providers Tab -->
-            <div class="tab-panel active" id="providers-panel">
+            <div class="tab-panel" id="providers-panel">
                 <div id="providers-list">
                     <div class="loading">Loading providers...</div>
+                </div>
+            </div>
+
+            <!-- Agent Tab -->
+            <div class="tab-panel" id="agent-panel">
+                <div class="settings-section">
+                    <div class="settings-section-title">Agent Connection</div>
+                    <div class="settings-row">
+                        <label class="settings-label">Agent URL</label>
+                        <input type="text" class="form-input" id="agentUrl" placeholder="http://127.0.0.1:8080">
+                    </div>
+                    <div class="settings-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="useAgent">
+                            <span>Use Agent for Data Collection</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-section-title">Agent Status</div>
+                    <div id="agent-status">
+                        <div class="loading">Checking agent status...</div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-section-title">Actions</div>
+                    <div class="settings-row">
+                        <button class="btn" id="checkAgentBtn">Check Connection</button>
+                    </div>
+                    <div class="settings-row">
+                        <button class="btn btn-success" id="startAgentBtn">Start Agent</button>
+                    </div>
                 </div>
             </div>
 
@@ -480,19 +515,21 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('Settings loaded');
-            
+
             // Setup tabs
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.addEventListener('click', () => switchTab(tab.dataset.tab));
             });
-            
+
             // Setup buttons
             document.getElementById('closeBtn').addEventListener('click', closeSettings);
             document.getElementById('saveBtn').addEventListener('click', saveSettings);
             document.getElementById('cancelBtn').addEventListener('click', closeSettings);
             document.getElementById('scanKeysBtn').addEventListener('click', scanForKeys);
             document.getElementById('resetFontBtn').addEventListener('click', resetFontSettings);
-            
+            document.getElementById('checkAgentBtn').addEventListener('click', checkAgentStatus);
+            document.getElementById('startAgentBtn').addEventListener('click', startAgent);
+
             // Load data
             await loadSettings();
         });
@@ -510,8 +547,18 @@
                 if (window.__TAURI__ && window.__TAURI__.invoke) {
                     configs = await window.__TAURI__.invoke('get_configured_providers');
                     prefs = await window.__TAURI__.invoke('load_preferences');
+
+                    // Load agent config
+                    const agentConfig = await window.__TAURI__.invoke('load_agent_config');
+                    if (agentConfig) {
+                        document.getElementById('agentUrl').value = agentConfig.listen_address || 'http://127.0.0.1:8080';
+                        document.getElementById('useAgent').checked = agentConfig.use_agent !== false;
+                    }
+
+                    // Check agent status
+                    await checkAgentStatus();
                 }
-                
+
                 // Ensure GitHub Copilot config exists
                 if (!configs.find(c => c.provider_id === 'github-copilot')) {
                     configs.push({
@@ -521,11 +568,84 @@
                         config_type: 'github-copilot'
                     });
                 }
-                
+
                 populateProviders();
                 populateLayout();
             } catch (e) {
                 console.error('Error loading settings:', e);
+            }
+        }
+
+        async function checkAgentStatus() {
+            await checkAgentStatus();
+        }
+
+        async function startAgent() {
+            const btn = document.getElementById('startAgentBtn');
+            btn.textContent = 'Starting...';
+            btn.disabled = true;
+
+            try {
+                if (window.__TAURI__ && window.__TAURI__.invoke) {
+                    await window.__TAURI__.invoke('start_agent');
+                    await new Promise(r => setTimeout(r, 2000)); // Wait for agent to start
+                    await checkAgentStatus();
+                }
+            } catch (e) {
+                console.error('Failed to start agent:', e);
+                alert('Failed to start agent: ' + e.message);
+            } finally {
+                btn.textContent = 'Start Agent';
+                btn.disabled = false;
+            }
+        }
+
+        function resetFontSettings() {
+
+        async function saveSettings() {
+            try {
+                // Update agent config
+                const agentConfig = {
+                    listen_address: document.getElementById('agentUrl').value,
+                    use_agent: document.getElementById('useAgent').checked
+                };
+
+                if (window.__TAURI__ && window.__TAURI__.invoke) {
+                    await window.__TAURI__.invoke('save_agent_config', { config: agentConfig });
+                }
+
+                // Update configs from UI
+                document.querySelectorAll('.provider-card').forEach(card => {
+                    const providerId = card.dataset.provider;
+                    const config = configs.find(c => c.provider_id === providerId);
+                    if (config) {
+                        config.show_in_tray = card.querySelector('.tray-checkbox').checked;
+                        const apiKeyInput = card.querySelector('.api-key-input');
+                        if (apiKeyInput) {
+                            config.api_key = apiKeyInput.value;
+                        }
+                    }
+                });
+
+                // Update prefs from UI
+                prefs.yellow_threshold = parseInt(document.getElementById('yellowThreshold').value);
+                prefs.red_threshold = parseInt(document.getElementById('redThreshold').value);
+                prefs.invert_bars = document.getElementById('invertBars').checked;
+                prefs.font_family = document.getElementById('fontFamily').value;
+                prefs.font_size = parseInt(document.getElementById('fontSize').value);
+                prefs.font_bold = document.getElementById('fontBold').checked;
+                prefs.font_italic = document.getElementById('fontItalic').checked;
+
+                if (window.__TAURI__ && window.__TAURI__.invoke) {
+                    await window.__TAURI__.invoke('save_provider_configs', { configs });
+                    await window.__TAURI__.invoke('save_preferences', { preferences: prefs });
+                }
+
+                settingsChanged = true;
+                closeSettings();
+            } catch (e) {
+                console.error('Error saving:', e);
+                alert('Failed to save settings: ' + e.message);
             }
         }
 

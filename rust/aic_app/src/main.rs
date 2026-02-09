@@ -1,9 +1,9 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use aic_core::{
-    AuthenticationManager, ConfigLoader, GitHubAuthService, ProviderManager, ProviderUsage,
-};
+use aic_core::AppPreferences;
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,10 +16,56 @@ use tauri::{
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AgentConfig {
+    pub listen_address: String,
+    pub use_agent: bool,
+    pub auto_connect: bool,
+    pub connection_timeout_seconds: u64,
+}
+
+impl Default for AgentConfig {
+    fn default() -> Self {
+        Self {
+            listen_address: "http://127.0.0.1:8080".to_string(),
+            use_agent: true,
+            auto_connect: false,
+            connection_timeout_seconds: 5,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AgentStatus {
+    pub running: bool,
+    pub polling_enabled: bool,
+    pub polling_interval_seconds: u64,
+    pub last_refresh: Option<String>,
+    pub next_refresh: Option<String>,
+    pub database_path: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UsageSummary {
+    pub total_providers: usize,
+    pub active_providers: usize,
+    pub providers: Vec<ProviderSummary>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ProviderSummary {
+    pub provider_id: String,
+    pub provider_name: String,
+    pub is_available: bool,
+    pub usage_percentage: f64,
+    pub cost_used: f64,
+    pub cost_limit: f64,
+    pub last_updated: Option<String>,
+}
+
 struct AppState {
-    provider_manager: Arc<ProviderManager>,
-    config_loader: Arc<ConfigLoader>,
-    auth_manager: Arc<AuthenticationManager>,
+    http_client: Arc<Client>,
+    agent_config: Arc<RwLock<AgentConfig>>,
     auto_refresh_enabled: Arc<Mutex<bool>>,
     device_flow_state: Arc<RwLock<Option<DeviceFlowState>>>,
 }
@@ -32,84 +78,229 @@ struct DeviceFlowState {
     interval: u64,
 }
 
-// Provider commands
+impl AppState {
+    async fn agent_url(&self) -> String {
+        let config = self.agent_config.read().await;
+        config.listen_address.clone()
+    }
+
+    async fn check_agent_available(&self) -> bool {
+        let url = format!("{}/health", self.agent_url().await);
+        match self.http_client.get(&url).send().await {
+            Ok(res) => res.status().is_success(),
+            Err(_) => false,
+        }
+    }
+
+    async fn get_usage_from_agent(&self) -> Result<UsageSummary, String> {
+        let url = format!("{}/api/v1/usage", self.agent_url().await);
+        match self.http_client.get(&url).send().await {
+            Ok(res) => {
+                if res.status().is_success() {
+                    let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+                    let data = json.get("data").ok_or("No data in response")?;
+                    serde_json::from_value(data.clone()).map_err(|e| e.to_string())
+                } else {
+                    Err(format!("Agent returned status: {}", res.status()))
+                }
+            }
+            Err(e) => Err(format!("Failed to connect to agent: {}", e)),
+        }
+    }
+
+    async fn refresh_agent(&self) -> Result<usize, String> {
+        let url = format!("{}/api/v1/refresh", self.agent_url().await);
+        match self.http_client.post(&url).send().await {
+            Ok(res) => {
+                if res.status().is_success() {
+                    let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+                    let data = json.get("data").ok_or("No data in response")?;
+                    let count = data.as_i64().ok_or("Invalid count")?;
+                    Ok(count as usize)
+                } else {
+                    Err(format!("Agent returned status: {}", res.status()))
+                }
+            }
+            Err(e) => Err(format!("Failed to connect to agent: {}", e)),
+        }
+    }
+
+    async fn get_agent_status(&self) -> Result<AgentStatus, String> {
+        let url = format!("{}/api/v1/status", self.agent_url().await);
+        match self.http_client.get(&url).send().await {
+            Ok(res) => {
+                if res.status().is_success() {
+                    let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+                    let data = json.get("data").ok_or("No data in response")?;
+                    serde_json::from_value(data.clone()).map_err(|e| e.to_string())
+                } else {
+                    Err(format!("Agent returned status: {}", res.status()))
+                }
+            }
+            Err(e) => Err(format!("Failed to connect to agent: {}", e)),
+        }
+    }
+}
+
+// Agent commands
 #[tauri::command]
-async fn get_usage(state: State<'_, AppState>) -> Result<Vec<ProviderUsage>, String> {
-    let manager = &state.provider_manager;
-    Ok(manager.get_all_usage(true).await)
+async fn get_usage(state: State<'_, AppState>) -> Result<UsageSummary, String> {
+    let use_agent = {
+        let config = state.agent_config.read().await;
+        config.use_agent
+    };
+
+    if !use_agent || !state.check_agent_available().await {
+        // Fallback to mock data when agent is not available
+        Ok(UsageSummary {
+            total_providers: 0,
+            active_providers: 0,
+            providers: vec![],
+        })
+    } else {
+        state.get_usage_from_agent().await
+    }
 }
 
 #[tauri::command]
-async fn refresh_usage(state: State<'_, AppState>) -> Result<Vec<ProviderUsage>, String> {
-    let manager = &state.provider_manager;
-    Ok(manager.get_all_usage(true).await)
+async fn refresh_usage(state: State<'_, AppState>) -> Result<UsageSummary, String> {
+    let use_agent = {
+        let config = state.agent_config.read().await;
+        config.use_agent
+    };
+
+    if !use_agent || !state.check_agent_available().await {
+        // Trigger refresh via agent if available
+        let _ = state.refresh_agent().await;
+        // Return current usage
+        state.get_usage_from_agent().await
+    } else {
+        state.refresh_agent().await?;
+        state.get_usage_from_agent().await
+    }
+}
+
+#[tauri::command]
+async fn get_agent_status(state: State<'_, AppState>) -> Result<AgentStatus, String> {
+    state.get_agent_status().await
+}
+
+#[tauri::command]
+async fn is_agent_running(state: State<'_, AppState>) -> Result<bool, String> {
+    Ok(state.check_agent_available().await)
+}
+
+#[tauri::command]
+async fn check_agent_connection(state: State<'_, AppState>) -> Result<bool, String> {
+    Ok(state.check_agent_available().await)
 }
 
 // Preferences commands
 #[tauri::command]
-async fn load_preferences(state: State<'_, AppState>) -> Result<aic_core::AppPreferences, String> {
-    let prefs = state.config_loader.load_preferences().await;
-    Ok(prefs)
+async fn load_preferences() -> Result<AppPreferences, String> {
+    let client = reqwest::Client::new();
+    let loader = aic_core::ConfigLoader::new(client);
+    Ok(loader.load_preferences().await)
 }
 
 #[tauri::command]
-async fn save_preferences(
-    state: State<'_, AppState>,
-    preferences: aic_core::AppPreferences,
-) -> Result<(), String> {
-    state
-        .config_loader
-        .save_preferences(&preferences)
-        .await
-        .map_err(|e| e.to_string())
+async fn save_preferences(preferences: AppPreferences) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let loader = aic_core::ConfigLoader::new(client);
+    loader.save_preferences(&preferences).await.map_err(|e| e.to_string())
 }
 
 // Config commands
 #[tauri::command]
-async fn get_configured_providers(
-    state: State<'_, AppState>,
-) -> Result<Vec<aic_core::ProviderConfig>, String> {
-    let configs = state.config_loader.load_config().await;
-    Ok(configs)
+async fn get_configured_providers() -> Result<Vec<aic_core::ProviderConfig>, String> {
+    let client = reqwest::Client::new();
+    let loader = aic_core::ConfigLoader::new(client);
+    Ok(loader.load_config().await)
 }
 
 #[tauri::command]
-async fn save_provider_config(
-    state: State<'_, AppState>,
-    config: aic_core::ProviderConfig,
-) -> Result<(), String> {
-    let mut configs = state.config_loader.load_config().await;
+async fn save_provider_config(config: aic_core::ProviderConfig) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let loader = aic_core::ConfigLoader::new(client);
+    let mut configs = loader.load_config().await;
 
-    // Update or add the config
-    if let Some(existing) = configs
-        .iter_mut()
-        .find(|c| c.provider_id == config.provider_id)
-    {
+    if let Some(existing) = configs.iter_mut().find(|c| c.provider_id == config.provider_id) {
         *existing = config;
     } else {
         configs.push(config);
     }
 
-    state
-        .config_loader
-        .save_config(&configs)
-        .await
-        .map_err(|e| e.to_string())
+    loader.save_config(&configs).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn remove_provider_config(
-    state: State<'_, AppState>,
-    provider_id: String,
-) -> Result<(), String> {
-    let mut configs = state.config_loader.load_config().await;
+async fn remove_provider_config(provider_id: String) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let loader = aic_core::ConfigLoader::new(client);
+    let mut configs = loader.load_config().await;
     configs.retain(|c| c.provider_id != provider_id);
+    loader.save_config(&configs).await.map_err(|e| e.to_string())
+}
 
-    state
-        .config_loader
-        .save_config(&configs)
-        .await
-        .map_err(|e| e.to_string())
+// Agent configuration commands
+#[tauri::command]
+async fn load_agent_config(state: State<'_, AppState>) -> Result<AgentConfig, String> {
+    let config = state.agent_config.read().await;
+    Ok(config.clone())
+}
+
+#[tauri::command]
+async fn save_agent_config(state: State<'_, AppState>, config: AgentConfig) -> Result<(), String> {
+    let mut config_guard = state.agent_config.write().await;
+    *config_guard = config;
+    Ok(())
+}
+
+#[tauri::command]
+async fn start_agent(_app: tauri::AppHandle) -> Result<(), String> {
+    // On Windows, try to start the agent service
+    #[cfg(target_os = "windows")]
+    {
+        let _ = Command::new("powershell")
+            .args(&["-Command", "Start-Service", "aic-agent"])
+            .spawn();
+    }
+
+    // Try to start the agent binary
+    let agent_path = std::env::current_exe()
+        .ok()
+        .map(|p| p.parent().unwrap().join("aic-agent.exe"));
+
+    if let Some(path) = agent_path {
+        if path.exists() {
+            let _ = Command::new(&path).args(&["start"]).spawn();
+            return Ok(());
+        }
+    }
+
+    // Fallback: just return success, user needs to start agent manually
+    Ok(())
+}
+
+#[tauri::command]
+async fn stop_agent() -> Result<(), String> {
+    // Try to stop via API first
+    let client = reqwest::Client::new();
+    let url = "http://127.0.0.1:8080/api/v1/shutdown";
+
+    if let Ok(_) = client.post(url).send().await {
+        return Ok(());
+    }
+
+    // On Windows, try to stop the service
+    #[cfg(target_os = "windows")]
+    {
+        let _ = Command::new("powershell")
+            .args(&["-Command", "Stop-Service", "aic-agent", "-ErrorAction", "SilentlyContinue"])
+            .spawn();
+    }
+
+    Ok(())
 }
 
 // Auto-refresh commands
@@ -128,64 +319,70 @@ async fn is_auto_refresh_enabled(state: State<'_, AppState>) -> Result<bool, Str
 
 // GitHub Authentication commands
 #[tauri::command]
-async fn is_github_authenticated(state: State<'_, AppState>) -> Result<bool, String> {
-    Ok(state.auth_manager.is_authenticated())
+async fn is_github_authenticated() -> Result<bool, String> {
+    let client = reqwest::Client::new();
+    let auth_service = Arc::new(aic_core::GitHubAuthService::new(client.clone()));
+    let config_loader = Arc::new(aic_core::ConfigLoader::new(client));
+    let auth_manager = Arc::new(aic_core::AuthenticationManager::new(
+        auth_service.clone(),
+        config_loader.clone(),
+    ));
+    auth_manager.initialize_from_config().await;
+    Ok(auth_manager.is_authenticated())
 }
 
 #[tauri::command]
-async fn initiate_github_login(
-    state: State<'_, AppState>,
-) -> Result<(String, String, String), String> {
-    match state.auth_manager.initiate_login().await {
-        Ok(flow_response) => {
-            // Store the device flow state
-            let mut flow_state = state.device_flow_state.write().await;
-            *flow_state = Some(DeviceFlowState {
-                device_code: flow_response.device_code.clone(),
-                user_code: flow_response.user_code.clone(),
-                verification_uri: flow_response.verification_uri.clone(),
-                interval: flow_response.interval as u64,
-            });
+async fn initiate_github_login() -> Result<(String, String, String), String> {
+    let client = reqwest::Client::new();
+    let auth_service = Arc::new(aic_core::GitHubAuthService::new(client.clone()));
+    let config_loader = Arc::new(aic_core::ConfigLoader::new(client));
+    let auth_manager = Arc::new(aic_core::AuthenticationManager::new(
+        auth_service.clone(),
+        config_loader.clone(),
+    ));
 
-            Ok((
-                flow_response.user_code,
-                flow_response.verification_uri,
-                flow_response.device_code,
-            ))
-        }
+    match auth_manager.initiate_login().await {
+        Ok(flow_response) => Ok((
+            flow_response.user_code,
+            flow_response.verification_uri,
+            flow_response.device_code,
+        )),
         Err(e) => Err(format!("Failed to initiate login: {}", e)),
     }
 }
 
 #[tauri::command]
 async fn complete_github_login(
-    state: State<'_, AppState>,
     device_code: String,
     interval: u64,
 ) -> Result<bool, String> {
-    match state
-        .auth_manager
-        .wait_for_login(&device_code, interval)
-        .await
-    {
-        Ok(success) => {
-            // Clear the device flow state
-            let mut flow_state = state.device_flow_state.write().await;
-            *flow_state = None;
-            Ok(success)
-        }
+    let client = reqwest::Client::new();
+    let auth_service = Arc::new(aic_core::GitHubAuthService::new(client.clone()));
+    let config_loader = Arc::new(aic_core::ConfigLoader::new(client));
+    let auth_manager = Arc::new(aic_core::AuthenticationManager::new(
+        auth_service.clone(),
+        config_loader.clone(),
+    ));
+
+    match auth_manager.wait_for_login(&device_code, interval).await {
+        Ok(success) => Ok(success),
         Err(e) => Err(format!("Login failed: {}", e)),
     }
 }
 
 #[tauri::command]
-async fn poll_github_token(
-    state: State<'_, AppState>,
-    device_code: String,
-) -> Result<String, String> {
+async fn poll_github_token(device_code: String) -> Result<String, String> {
     use aic_core::TokenPollResult;
 
-    match state.auth_manager.poll_for_token(&device_code).await {
+    let client = reqwest::Client::new();
+    let auth_service = Arc::new(aic_core::GitHubAuthService::new(client.clone()));
+    let config_loader = Arc::new(aic_core::ConfigLoader::new(client));
+    let auth_manager = Arc::new(aic_core::AuthenticationManager::new(
+        auth_service.clone(),
+        config_loader.clone(),
+    ));
+
+    match auth_manager.poll_for_token(&device_code).await {
         TokenPollResult::Token(_) => Ok("success".to_string()),
         TokenPollResult::Pending => Ok("pending".to_string()),
         TokenPollResult::SlowDown => Ok("slow_down".to_string()),
@@ -196,19 +393,16 @@ async fn poll_github_token(
 }
 
 #[tauri::command]
-async fn logout_github(state: State<'_, AppState>) -> Result<(), String> {
-    state
-        .auth_manager
-        .logout()
-        .await
-        .map_err(|e| format!("Logout failed: {}", e))
-}
+async fn logout_github() -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let auth_service = Arc::new(aic_core::GitHubAuthService::new(client.clone()));
+    let config_loader = Arc::new(aic_core::ConfigLoader::new(client));
+    let auth_manager = Arc::new(aic_core::AuthenticationManager::new(
+        auth_service.clone(),
+        config_loader.clone(),
+    ));
 
-#[tauri::command]
-async fn cancel_github_login(state: State<'_, AppState>) -> Result<(), String> {
-    let mut flow_state = state.device_flow_state.write().await;
-    *flow_state = None;
-    Ok(())
+    auth_manager.logout().await.map_err(|e| format!("Logout failed: {}", e))
 }
 
 // Window control commands
@@ -257,14 +451,12 @@ async fn close_settings_window(window: tauri::Window) -> Result<(), String> {
 async fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     println!("Opening settings window...");
 
-    // Check if settings window already exists
     if let Some(window) = app.get_webview_window("settings") {
         let _ = window.show();
         let _ = window.set_focus();
         return Ok(());
     }
 
-    // Create new settings window
     let _ = WebviewWindowBuilder::new(
         &app,
         "settings",
@@ -310,51 +502,31 @@ fn create_tray_menu<R: Runtime>(
 
 #[tokio::main]
 async fn main() {
-    let client = reqwest::Client::new();
-    let provider_manager = Arc::new(ProviderManager::new(client.clone()));
-    let config_loader = Arc::new(ConfigLoader::new(client.clone()));
-    let auth_service = Arc::new(GitHubAuthService::new(client));
-    let auth_manager = Arc::new(AuthenticationManager::new(
-        auth_service.clone(),
-        config_loader.clone(),
-    ));
+    let http_client = Arc::new(reqwest::Client::new());
 
-    // Initialize auth manager from existing config
-    auth_manager.initialize_from_config().await;
+    let agent_config = Arc::new(RwLock::new(AgentConfig::default()));
 
-    // Start auto-refresh background task
     let auto_refresh_enabled = Arc::new(Mutex::new(false));
-    let manager_clone = provider_manager.clone();
-    let auto_refresh_clone = auto_refresh_enabled.clone();
-
-    tokio::spawn(async move {
-        let mut interval = interval(Duration::from_secs(300)); // 5 minutes
-
-        loop {
-            interval.tick().await;
-
-            let enabled = *auto_refresh_clone.lock().await;
-            if enabled {
-                // Refresh usage in background
-                let _ = manager_clone.get_all_usage(true).await;
-            }
-        }
-    });
 
     tauri::Builder::default()
         .manage(AppState {
-            provider_manager,
-            config_loader,
-            auth_manager,
+            http_client,
+            agent_config,
             auto_refresh_enabled,
             device_flow_state: Arc::new(RwLock::new(None)),
         })
         .plugin(tauri_plugin_shell::init())
-        // .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
-            // Provider commands
+            // Agent commands
             get_usage,
             refresh_usage,
+            get_agent_status,
+            is_agent_running,
+            check_agent_connection,
+            load_agent_config,
+            save_agent_config,
+            start_agent,
+            stop_agent,
             // Preferences commands
             load_preferences,
             save_preferences,
@@ -371,7 +543,6 @@ async fn main() {
             complete_github_login,
             poll_github_token,
             logout_github,
-            cancel_github_login,
             // Window control commands
             close_window,
             minimize_window,
@@ -383,10 +554,8 @@ async fn main() {
             open_settings_window,
         ])
         .setup(|app| {
-            // Create tray menu
             let menu = create_tray_menu(app.handle())?;
 
-            // Build tray icon
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
@@ -410,7 +579,6 @@ async fn main() {
                             }
                         }
                         "settings" => {
-                            // Open settings window
                             if app.get_webview_window("settings").is_none() {
                                 let _ = WebviewWindowBuilder::new(
                                     app,
@@ -451,7 +619,6 @@ async fn main() {
                 })
                 .build(app)?;
 
-            // Ensure main window is shown
             if let Some(window) = app.get_webview_window("main") {
                 window.show()?;
                 window.set_focus()?;

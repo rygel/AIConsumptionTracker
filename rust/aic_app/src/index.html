@@ -312,45 +312,38 @@
         async function loadData() {
             const container = document.getElementById('providersList');
             container.innerHTML = '<div class="loading">Loading...</div>';
-            
+
             try {
-                // First load configured providers
-                let configs = [];
+                // First check if agent is running
+                let agentRunning = false;
                 if (window.__TAURI__ && window.__TAURI__.invoke) {
-                    configs = await window.__TAURI__.invoke('get_configured_providers');
-                    console.log('Loaded configs:', configs);
+                    agentRunning = await window.__TAURI__.invoke('is_agent_running');
+                    console.log('Agent running:', agentRunning);
                 }
-                
-                // Then get usage data
-                let data = [];
-                if (window.__TAURI__ && window.__TAURI__.invoke) {
+
+                // Get usage from agent or show setup message
+                let data = { providers: [] };
+                if (agentRunning && window.__TAURI__ && window.__TAURI__.invoke) {
                     data = await window.__TAURI__.invoke('get_usage');
-                    console.log('Loaded usage:', data);
+                    console.log('Loaded from agent:', data);
                 }
-                
-                // Merge configs with usage data
-                usageData = configs.map(config => {
-                    const usage = data.find(u => u.provider_id === config.provider_id);
-                    if (usage) {
-                        return usage;
-                    }
-                    // Create placeholder for configured but not yet fetched
-                    return {
-                        provider_id: config.provider_id,
-                        provider_name: formatProviderName(config.provider_id),
-                        is_available: false,
-                        description: config.api_key ? 'API key configured' : 'No API key',
-                        is_quota_based: config.config_type === 'quota',
-                        usage_percentage: 0,
-                        usage_unit: 'Status',
-                        auth_source: config.auth_source || 'Manual'
-                    };
-                });
-                
+
+                // If agent not running, show helpful message
+                if (!agentRunning || !data) {
+                    container.innerHTML = '<div class="empty-state">' +
+                        '<div style="font-size: 24px; margin-bottom: 10px;">🤖</div>' +
+                        '<div>Agent Not Running</div>' +
+                        '<div style="font-size: 11px; color: #666; margin-top: 8px;">Start the agent to see usage data</div>' +
+                        '<div style="font-size: 11px; color: #888; margin-top: 16px;">Run: aic-agent start</div>' +
+                        '</div>';
+                    return;
+                }
+
+                usageData = data.providers || [];
                 renderProviders();
             } catch (err) {
                 console.error('Error:', err);
-                container.innerHTML = '<div class="error">Error: ' + err.message + '</div>';
+                container.innerHTML = '<div class="error">Error: ' + escapeHtml(err.message || err) + '</div>';
             }
         }
         
@@ -390,7 +383,7 @@
             filtered.sort((a, b) => a.provider_name.localeCompare(b.provider_name));
 
             if (filtered.length === 0) {
-                container.innerHTML = '<div class="empty-state"><div style="font-size: 24px; margin-bottom: 10px;">📊</div><div>No providers configured</div><div style="font-size: 11px; color: #666; margin-top: 8px;">Use CLI: opencode-tracker auth &lt;provider&gt;</div></div>';
+                container.innerHTML = '<div class="empty-state"><div style="font-size: 24px; margin-bottom: 10px;">📊</div><div>No providers configured</div><div style="font-size: 11px; color: #666; margin-top: 8px;">Use Settings or CLI to add providers</div></div>';
                 return;
             }
 
@@ -399,26 +392,23 @@
                 const avail = p.is_available;
                 let cls = 'low';
                 if (!avail) cls = 'inactive';
-                else if (p.usage_unit === 'Status') cls = 'status';
                 else if (pct >= 80) cls = 'high';
                 else if (pct >= 60) cls = 'medium';
-                
-                const type = p.is_quota_based ? 'Quota' : p.payment_type === 'credits' ? 'Credits' : 'Pay-As-You-Go';
-                let txt = '';
-                if (!avail) txt = p.description || 'Not Available';
-                else if (p.usage_unit === 'Status') txt = p.description || 'Connected';
-                else txt = pct.toFixed(0) + '%';
-                
+
+                const costInfo = (p.cost_used !== undefined && p.cost_used > 0)
+                    ? `$${p.cost_used.toFixed(2)}`
+                    : '';
+
                 let desc = p.description || '';
-                if (privacyMode && p.cost_used > 0) desc = '••••••••';
-                
+                if (privacyMode && costInfo) desc = '••••••';
+
                 const width = avail ? Math.max(pct, 5) : 100;
-                
+
                 return '<div class="provider-item' + (avail ? '' : ' unavailable') + '">' +
                     '<div class="provider-header"><span class="provider-name">' + escapeHtml(p.provider_name) + '</span>' +
-                    '<span class="provider-type">' + type + '</span></div>' +
-                    '<div class="provider-bar-container"><div class="provider-bar ' + cls + '" style="width:' + width + '%">' + escapeHtml(txt) + '</div></div>' +
-                    '<div class="provider-info"><span>' + escapeHtml(desc) + '</span><span>' + escapeHtml(p.auth_source || '') + '</span></div></div>';
+                    '<span class="provider-type">' + escapeHtml(costInfo) + '</span></div>' +
+                    '<div class="provider-bar-container"><div class="provider-bar ' + cls + '" style="width:' + width + '%">' + escapeHtml(avail ? pct.toFixed(0) + '%' : 'Unavailable') + '</div></div>' +
+                    '<div class="provider-info"><span>' + escapeHtml(desc) + '</span><span>' + escapeHtml(p.last_updated || '') + '</span></div></div>';
             }).join('');
         }
 
