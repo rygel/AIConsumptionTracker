@@ -43,6 +43,8 @@ The footer of the dashboard contains several toggles and buttons to customize yo
 - **Action**: Opens the **Provider Settings** window.
 - **Features**:
     - **API Keys**: Configure your keys for OpenAI, Anthropic, Gemini, etc.
+    - **Tray Icon**: Check the "Tray" checkbox next to any provider to add a dedicated system tray icon for that provider.
+    - **Notifications**: Check the "Notify" checkbox to receive Windows notifications when that provider's quota is depleted or refreshed.
     - **Layout Tab**:
         - **Auto Refresh (Minutes)**: Configure how often the app refreshes in the background (Default: 5).
         - **Privacy Mode**: Toggle to mask sensitive information like account names and specific token counts.
@@ -248,6 +250,58 @@ For Claude Code users, the application reads OAuth tokens from:
 
 **Duplicate Keys?**
 If the same key is discovered from multiple sources, the application uses the first one found and displays the source. You can manually edit keys in Settings if needed.
+
+---
+
+## Windows Notifications
+
+AI Consumption Tracker supports Windows 11 native notifications (toast notifications) to alert you about important quota events.
+
+### Notification Types
+
+The application can send notifications for:
+
+1. **Quota Depletion** - When a provider's quota reaches 100% or credits drop to 0
+   - Title: "🔴 [Provider] Quota Exceeded"
+   - Message: "Quota depleted at 100.0% usage"
+
+2. **Quota Refresh** - When a depleted quota becomes available again after reset
+   - Title: "✅ [Provider] Quota Refreshed"
+   - Message: "Your quota has been reset. You now have X USD available."
+
+### Enabling Notifications
+
+To enable notifications for a provider:
+1. Open **Settings** (⚙️ icon on dashboard or right-click tray icon)
+2. Find the provider in the list
+3. Check the **"Notify"** checkbox next to the provider name
+4. Click **Save**
+
+### Disabling Notifications
+
+To disable notifications for a provider:
+1. Open **Settings**
+2. Find the provider in the list
+3. Uncheck the **"Notify"** checkbox
+4. Click **Save**
+
+### Global Notification Switch
+
+To disable **all** notifications at once:
+1. Open **Settings**
+2. Go to the **Layout** tab
+3. Uncheck **"Enable Windows notifications for quota events"**
+4. Click **Save**
+
+This global switch overrides all per-provider settings. When disabled, no notifications will be shown regardless of individual provider settings.
+
+### Notification Behavior
+
+- **Smart Detection**: Notifications are only sent once per state change (no spam)
+- **Click Action**: Clicking a notification opens the dashboard
+- **Action Center**: Notifications appear in Windows Action Center until dismissed
+- **Per-Provider Control**: Each provider can have notifications enabled/disabled independently (when global switch is on)
+- **Global Override**: The global switch in Layout settings disables all notifications when turned off
 
 ---
 

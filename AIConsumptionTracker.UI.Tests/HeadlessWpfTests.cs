@@ -34,11 +34,16 @@ public class HeadlessWpfTests
         services.AddSingleton(providerManager);
         services.AddSingleton(mockFontProvider.Object);
         services.AddSingleton(mockGithubAuth.Object);
-        services.AddSingleton(mockUpdateChecker.Object);
-        services.AddTransient<SettingsWindow>();
-        services.AddTransient<MainWindow>();
-        
-        _serviceProvider = services.BuildServiceProvider();
+         services.AddSingleton(mockUpdateChecker.Object);
+         
+         // Add mock notification service
+         var mockNotificationService = new Mock<INotificationService>();
+         services.AddSingleton(mockNotificationService.Object);
+         
+         services.AddTransient<SettingsWindow>();
+         services.AddTransient<MainWindow>();
+         
+         _serviceProvider = services.BuildServiceProvider();
     }
 
     [WpfFact]
