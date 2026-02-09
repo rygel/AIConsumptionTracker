@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   update-files:
@@ -76,9 +77,12 @@ jobs:
           sed -i "s|-Version [0-9]\+\.[0-9]\+\.[0-9]\+|-Version $version|g" scripts/publish-app.ps1
           echo "✓ Updated publish-app.ps1 to $version"
 
-      - name: Commit and Push Changes
+      - name: Create Branch and Commit Changes
+        id: create-branch
         run: |
           version="${{ inputs.version }}"
+          branch_name="chore/release-v${version}-version-files"
+          
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           
@@ -92,11 +96,52 @@ jobs:
           
           if git diff --staged --quiet; then
             echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
           else
+            git checkout -b "$branch_name"
             git commit -m "chore(release): update version files to v$version"
-            git push origin main
-            echo "✓ Committed and pushed version updates"
+            git push origin "$branch_name"
+            echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "✓ Created branch and committed version updates"
           fi
+
+      - name: Create Pull Request
+        if: steps.create-branch.outputs.has_changes == 'true'
+        id: create-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{ inputs.version }}"
+          branch_name="${{ steps.create-branch.outputs.branch_name }}"
+          
+          pr_url=$(gh pr create \
+            --title "chore(release): update version files to v$version" \
+            --body "Automated version update for release v$version" \
+            --base main \
+            --head "$branch_name")
+          
+          echo "pr_url=$pr_url" >> $GITHUB_OUTPUT
+          echo "✓ Created PR: $pr_url"
+
+      - name: Auto-merge Pull Request
+        if: steps.create-branch.outputs.has_changes == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pr_url="${{ steps.create-pr.outputs.pr_url }}"
+          
+          # Wait a moment for checks to start
+          sleep 5
+          
+          # Enable auto-merge (squash) and merge immediately if possible
+          gh pr merge "$pr_url" --squash --delete-branch --admin || \
+          gh pr merge "$pr_url" --squash --delete-branch
+          
+          echo "✓ Merged PR and deleted branch"
+          
+          # Wait for merge to complete on main
+          sleep 3
 
   validate-and-release:
     runs-on: ubuntu-latest
