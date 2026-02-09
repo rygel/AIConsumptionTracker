@@ -1,0 +1,28 @@
+[package]
+name = "aic_database"
+version = "1.0.0"
+edition = "2021"
+description = "Database module for AI Consumption Tracker using SQLite/Turso"
+authors = ["AI Consumption Tracker Contributors"]
+license = "MIT"
+
+[dependencies]
+aic_core = { path = "../aic_core" }
+chrono = "0.4.43"
+libsql = "0.9.29"
+rusqlite = "0.38.0"
+serde = "1.0.210"
+serde_json = "1.0.149"
+thiserror = "2.0.18"
+uuid = "1.11.0"
+directories = "5.0.1"
+tokio = "1.41.1"
+
+[dev-dependencies]
+tempfile = "3.24.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+codegen-units = 1
