@@ -132,7 +132,7 @@ async fn create_tables(conn: &libsql::Connection) -> Result<()> {
             provider_id TEXT NOT NULL,
             provider_name TEXT NOT NULL,
             usage REAL NOT NULL,
-            limit REAL,
+            "limit" REAL,
             usage_unit TEXT NOT NULL,
             is_quota_based INTEGER NOT NULL,
             timestamp TEXT NOT NULL
@@ -266,7 +266,7 @@ async fn trigger_refresh(
 
             let result = conn.execute(
                 r#"INSERT OR REPLACE INTO usage_records 
-                   (id, provider_id, provider_name, usage, limit, usage_unit, is_quota_based, timestamp)
+                   (id, provider_id, provider_name, usage, "limit", usage_unit, is_quota_based, timestamp)
                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"#,
                 (
                     id.as_str(),
@@ -382,7 +382,7 @@ async fn get_historical_usage(
 }
 
 fn build_historical_query(params: &HistoryQuery) -> (String, (String, String, String)) {
-    let mut sql = String::from("SELECT id, provider_id, provider_name, usage, limit, usage_unit, is_quota_based, timestamp FROM usage_records");
+    let mut sql = String::from("SELECT id, provider_id, provider_name, usage, \"limit\", usage_unit, is_quota_based, timestamp FROM usage_records");
     
     let param1 = params.provider_id.clone().unwrap_or_default();
     let param2 = params.start_date.map(|d| d.to_rfc3339()).unwrap_or_default();
@@ -460,7 +460,7 @@ async fn refresh_and_store(db: &libsql::Database) -> Result<()> {
             
             let result = conn.execute(
                 r#"INSERT OR REPLACE INTO usage_records 
-                   (id, provider_id, provider_name, usage, limit, usage_unit, is_quota_based, timestamp)
+                   (id, provider_id, provider_name, usage, "limit", usage_unit, is_quota_based, timestamp)
                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"#,
                 (
                     id.as_str(),
