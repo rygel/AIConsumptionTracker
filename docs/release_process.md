@@ -4,7 +4,30 @@ This document describes the complete release process for AI Consumption Tracker.
 
 ## Overview
 
-The release process uses GitHub Actions to automate version updates, validation, and release creation. The workflow is designed to work with branch protection rules.
+The release process uses GitHub Actions to automate validation and release creation. The workflow is designed with **security in mind** for a public repository.
+
+## Why Manual Tag Creation?
+
+This project uses a **two-step release process** where you manually create the git tag after validation:
+
+### Security Benefits
+
+1. **Repository Protection**: The `main` branch and tags are protected to prevent unauthorized changes
+2. **No Long-Lived Secrets**: We don't need Personal Access Tokens (PATs) with elevated permissions
+3. **Access Control**: Only repository admins can push tags, ensuring releases are controlled
+4. **Audit Trail**: Manual tag creation provides a clear audit trail of who released what and when
+
+### Why Not Fully Automated?
+
+In public repositories, fully automated releases pose risks:
+- Compromised GitHub Actions could create unauthorized releases
+- Malicious PRs could exploit the release workflow
+- Secrets (PATs) could be leaked
+
+By requiring manual tag creation:
+- **You maintain full control** over when releases happen
+- **No elevated permissions** needed for GitHub Actions
+- **Protection rules remain intact** for branches and tags
 
 ## Prerequisites
 
@@ -87,21 +110,49 @@ gh workflow run "Create Release" --repo rygel/AIConsumptionTracker \
   -f skip_file_updates="true"
 ```
 
-### Step 3: Monitor Release
+### Step 3: Create Git Tag Manually
 
-The workflow will:
-1. Validate all version files match the input version
-2. Validate CHANGELOG.md has an entry for the version
-3. Generate `appcast.xml` for NetSparkle auto-updates
-4. Create git tag `v1.7.14`
-5. Create GitHub release with release notes
-6. Upload the appcast.xml to the release
+After the validation workflow passes, you must create the git tag manually:
+
+```bash
+# Ensure you're on latest main
+git checkout main
+git pull origin main
+
+# Create and push the tag
+git tag v1.7.14
+git push origin v1.7.14
+```
+
+**Important**: Only repository admins can push tags due to protection rules.
+
+### Step 4: Automatic Build and Release
+
+Pushing the tag automatically triggers the `Publish & Distribute` workflow which will:
+1. Build the application for all architectures (x64, x86, ARM64)
+2. Create Inno Setup installers
+3. Create GitHub release with artifacts
+4. Upload installers to the release
+
+The workflow will also:
+- Generate release notes from CHANGELOG.md
+- Upload `appcast.xml` (download from Step 2 artifacts)
 
 Monitor progress at: `https://github.com/rygel/AIConsumptionTracker/actions`
 
-### Step 4: Post-Release
+### Step 5: Upload Appcast (Manual)
 
-After the release is created:
+After the release is created by the Publish workflow:
+
+1. Go to the GitHub release page
+2. Download `appcast.xml` from the Step 2 workflow artifacts
+3. Upload `appcast.xml` to the release
+
+This file is required for NetSparkle auto-updater to work.
+
+### Step 6: Post-Release
+
+After the release is complete:
 
 1. **Download and test** the installer from the GitHub release
 2. **Update winget** package (if applicable)
