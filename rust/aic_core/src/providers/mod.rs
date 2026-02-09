@@ -9,11 +9,13 @@ pub mod gemini;
 pub mod generic_payg;
 pub mod github_copilot;
 pub mod kimi;
+pub mod minimax;
 pub mod openai;
 pub mod opencode;
 pub mod opencode_zen;
 pub mod openrouter;
 pub mod simulated;
+pub mod xiaomi;
 pub mod zai;
 
 // Re-export all providers
@@ -26,9 +28,11 @@ pub use gemini::GeminiProvider;
 pub use generic_payg::GenericPayAsYouGoProvider;
 pub use github_copilot::GitHubCopilotProvider;
 pub use kimi::KimiProvider;
+pub use minimax::MinimaxProvider;
 pub use openai::OpenAIProvider;
 pub use opencode::OpenCodeProvider;
 pub use opencode_zen::OpenCodeZenProvider;
 pub use openrouter::OpenRouterProvider;
 pub use simulated::SimulatedProvider;
+pub use xiaomi::XiaomiProvider;
 pub use zai::ZaiProvider;
