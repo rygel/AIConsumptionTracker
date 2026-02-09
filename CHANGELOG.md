@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.7.14] - 2026-02-09
+
+### Fixed
+- **NetSparkle Integration**: Properly integrated NetSparkleUpdater for automatic update checking
+  - Added automatic appcast.xml generation to release workflow
+  - Rewrote GitHubUpdateChecker to use NetSparkle's SparkleUpdater class
+  - Fixed type conflicts and simplified MainWindow update handling
+  - Removed dependency on non-existent GitHubReleaseAppCast class
+
 ## [1.7.13] - 2026-02-09
 
 ### Added
