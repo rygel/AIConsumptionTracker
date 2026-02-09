@@ -52,10 +52,15 @@ public class UpdateProviderBarTests
         
         var mockUpdateChecker = new Mock<IUpdateCheckerService>();
         mockUpdateChecker.Setup(u => u.CheckForUpdatesAsync()).ReturnsAsync((UpdateInfo?)null);
-        services.AddSingleton(mockUpdateChecker.Object);
-        services.AddTransient<MainWindow>();
-        
-        _serviceProvider = services.BuildServiceProvider();
+         services.AddSingleton(mockUpdateChecker.Object);
+         
+         // Add mock notification service
+         var mockNotificationService = new Mock<INotificationService>();
+         services.AddSingleton(mockNotificationService.Object);
+         
+         services.AddTransient<MainWindow>();
+         
+         _serviceProvider = services.BuildServiceProvider();
     }
 
     [WpfFact]
