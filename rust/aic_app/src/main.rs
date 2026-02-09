@@ -254,6 +254,118 @@ async fn close_settings_window(window: tauri::Window) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn save_provider_configs(
+    state: State<'_, AppState>,
+    configs: Vec<aic_core::ProviderConfig>,
+) -> Result<(), String> {
+    state
+        .config_loader
+        .save_config(&configs)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn scan_for_api_keys(state: State<'_, AppState>) -> Result<Vec<aic_core::ProviderConfig>, String> {
+    let configs = state.config_loader.load_config().await;
+    Ok(configs)
+}
+
+#[tauri::command]
+async fn check_github_login_status(state: State<'_, AppState>) -> Result<String, String> {
+    use aic_core::TokenPollResult;
+    
+    let flow_state = state.device_flow_state.read().await;
+    if let Some(flow) = &flow_state {
+        match state.auth_manager.poll_for_token(&flow.device_code).await {
+            TokenPollResult::Token(_) => Ok("success".to_string()),
+            TokenPollResult::Pending => Ok("pending".to_string()),
+            TokenPollResult::SlowDown => Ok("slow_down".to_string()),
+            TokenPollResult::Expired => Err("Token expired".to_string()),
+            TokenPollResult::AccessDenied => Err("Access denied".to_string()),
+            TokenPollResult::Error(msg) => Err(msg),
+        }
+    } else {
+        if state.auth_manager.is_authenticated() {
+            Ok("success".to_string())
+        } else {
+            Err("No login flow".to_string())
+        }
+    }
+}
+
+#[tauri::command]
+async fn discover_github_token() -> Result<TokenDiscoveryResult, String> {
+    let mut found = false;
+    let mut token = String::new();
+    
+    if let Ok(home) = std::env::var("HOME") {
+        let gh_paths = [
+            format!("{}/.config/gh/hosts.yml", home),
+            format!("{}/.git-credential-store", home),
+        ];
+        
+        for path in gh_paths.iter() {
+            if std::path::Path::new(path).exists() {
+                if let Ok(content) = std::fs::read_to_string(path) {
+                    if let Some(pat) = extract_pat(&content) {
+                        found = true;
+                        token = pat;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(TokenDiscoveryResult { found, token })
+}
+
+#[derive(serde::Serialize)]
+pub struct TokenDiscoveryResult {
+    pub found: bool,
+    pub token: String,
+}
+
+fn extract_pat(content: &str) -> Option<String> {
+    if let Some(start) = content.find("github_pat_") {
+        let rest = &content[start..];
+        if let Some(end) = rest.find(|c: char| !c.is_alphanumeric() && c != '_' && c != '-') {
+            Some(rest[..end].to_string())
+        } else {
+            Some(rest.to_string())
+        }
+    } else {
+        None
+    }
+}
+
+#[tauri::command]
+async fn check_for_updates() -> Result<UpdateCheckResult, String> {
+    const CURRENT_VERSION: &str = "1.7.13";
+    
+    Ok(UpdateCheckResult {
+        current_version: CURRENT_VERSION.to_string(),
+        latest_version: CURRENT_VERSION.to_string(),
+        update_available: false,
+        download_url: String::new(),
+    })
+}
+
+#[derive(serde::Serialize)]
+pub struct UpdateCheckResult {
+    pub current_version: String,
+    pub latest_version: String,
+    pub update_available: bool,
+    pub download_url: String,
+}
+
+#[tauri::command]
+async fn get_app_version() -> Result<String, String> {
+    Ok("1.7.13".to_string())
+}
+
+#[tauri::command]
 async fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     println!("Opening settings window...");
 
@@ -381,6 +493,12 @@ async fn main() {
             // Settings commands
             close_settings_window,
             open_settings_window,
+            save_provider_configs,
+            scan_for_api_keys,
+            check_github_login_status,
+            discover_github_token,
+            check_for_updates,
+            get_app_version,
         ])
         .setup(|app| {
             // Create tray menu

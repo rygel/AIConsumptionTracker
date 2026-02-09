@@ -278,6 +278,109 @@ pub async fn close_settings_window(window: tauri::Window) -> Result<(), String> 
     Ok(())
 }
 
+#[tauri::command]
+pub async fn check_github_login_status(state: State<'_, AppState>) -> Result<String, String> {
+    let flow_state = state.device_flow_state.read().await;
+    if let Some(flow) = &flow_state {
+        match state.auth_manager.poll_for_token(&flow.device_code).await {
+            TokenPollResult::Token(_) => {
+                Ok("success".to_string())
+            }
+            TokenPollResult::Pending => {
+                Ok("pending".to_string())
+            }
+            TokenPollResult::SlowDown => {
+                Ok("slow_down".to_string())
+            }
+            TokenPollResult::Expired => {
+                Err("Token expired".to_string())
+            }
+            TokenPollResult::AccessDenied => {
+                Err("Access denied".to_string())
+            }
+            TokenPollResult::Error(msg) => {
+                Err(msg)
+            }
+        }
+    } else {
+        if state.auth_manager.is_authenticated() {
+            Ok("success".to_string())
+        } else {
+            Err("No login flow".to_string())
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn discover_github_token() -> Result<TokenDiscoveryResult, String> {
+    let mut found = false;
+    let mut token = String::new();
+    
+    if let Ok(home) = std::env::var("HOME") {
+        let gh_paths = [
+            format!("{}/.config/gh/hosts.yml", home),
+            format!("{}/.git-credential-store", home),
+        ];
+        
+        for path in gh_paths.iter() {
+            if std::path::Path::new(path).exists() {
+                if let Ok(content) = std::fs::read_to_string(path) {
+                    if let Some(pat) = extract_pat(&content) {
+                        found = true;
+                        token = pat;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(TokenDiscoveryResult { found, token })
+}
+
+#[derive(serde::Serialize)]
+pub struct TokenDiscoveryResult {
+    pub found: bool,
+    pub token: String,
+}
+
+fn extract_pat(content: &str) -> Option<String> {
+    if let Some(start) = content.find("github_pat_") {
+        let rest = &content[start..];
+        if let Some(end) = rest.find(|c: char| !c.is_alphanumeric() && c != '_' && c != '-') {
+            return Some(rest[..end].to_string());
+        } else {
+            return Some(rest.to_string());
+        }
+    }
+    None
+}
+
+#[tauri::command]
+pub async fn check_for_updates() -> Result<UpdateCheckResult, String> {
+    const CURRENT_VERSION: &str = "1.7.13";
+    
+    Ok(UpdateCheckResult {
+        current_version: CURRENT_VERSION.to_string(),
+        latest_version: CURRENT_VERSION.to_string(),
+        update_available: false,
+        download_url: String::new(),
+    })
+}
+
+#[derive(serde::Serialize)]
+pub struct UpdateCheckResult {
+    pub current_version: String,
+    pub latest_version: String,
+    pub update_available: bool,
+    pub download_url: String,
+}
+
+#[tauri::command]
+pub async fn get_app_version() -> Result<String, String> {
+    Ok("1.7.13".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
