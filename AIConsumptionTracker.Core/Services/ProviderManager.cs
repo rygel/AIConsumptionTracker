@@ -114,6 +114,10 @@ public class ProviderManager : IDisposable
         {
             configs.Add(new ProviderConfig { ProviderId = "opencode", ApiKey = "" });
         }
+        if (!configs.Any(c => c.ProviderId == "claude-code"))
+        {
+            configs.Add(new ProviderConfig { ProviderId = "claude-code", ApiKey = "" });
+        }
 
         var results = new List<ProviderUsage>();
 
