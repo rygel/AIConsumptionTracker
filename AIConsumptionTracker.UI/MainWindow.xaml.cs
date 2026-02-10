@@ -691,12 +691,33 @@ namespace AIConsumptionTracker.UI
             // Children (Details)
             if (usage.Details != null && usage.Details.Count > 0)
             {
-                foreach (var detail in usage.Details)
+                // Special handling for Antigravity - make children collapsible
+                if (usage.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase))
                 {
-                    var childUsage = CreateChildUsage(usage, detail);
-                    var childBar = CreateProviderBar(childUsage, isChild: true);
-                    if (childBar is FrameworkElement cfe) cfe.Tag = usage.ProviderId;
-                    elements.Add(childBar);
+                    var (header, container) = CreateCollapsibleSubHeader("Sub-providers", Brushes.Gold,
+                        () => _preferences.IsAntigravityCollapsed,
+                        v => _preferences.IsAntigravityCollapsed = v);
+                    
+                    elements.Add(header);
+                    elements.Add(container);
+                    
+                    foreach (var detail in usage.Details)
+                    {
+                        var childUsage = CreateChildUsage(usage, detail);
+                        var childBar = CreateProviderBar(childUsage, isChild: true);
+                        if (childBar is FrameworkElement cfe) cfe.Tag = usage.ProviderId;
+                        container.Children.Add(childBar);
+                    }
+                }
+                else
+                {
+                    foreach (var detail in usage.Details)
+                    {
+                        var childUsage = CreateChildUsage(usage, detail);
+                        var childBar = CreateProviderBar(childUsage, isChild: true);
+                        if (childBar is FrameworkElement cfe) cfe.Tag = usage.ProviderId;
+                        elements.Add(childBar);
+                    }
                 }
             }
             return elements;
@@ -799,6 +820,73 @@ namespace AIConsumptionTracker.UI
             };
 
             // Create container for group items
+            var container = new StackPanel();
+            container.Visibility = getCollapsed() ? Visibility.Collapsed : Visibility.Visible;
+
+            // Make the whole header clickable
+            header.Cursor = System.Windows.Input.Cursors.Hand;
+            header.MouseLeftButtonDown += async (s, e) => 
+            {
+                var newState = !getCollapsed();
+                setCollapsed(newState);
+                container.Visibility = newState ? Visibility.Collapsed : Visibility.Visible;
+                toggleText.Text = newState ? "▶" : "▼";
+                await _configLoader.SavePreferencesAsync(_preferences);
+            };
+
+            Grid.SetColumn(toggleText, 0);
+            Grid.SetColumn(titleText, 1);
+            Grid.SetColumn(line, 2);
+
+            header.Children.Add(toggleText);
+            header.Children.Add(titleText);
+            header.Children.Add(line);
+
+            return (header, container);
+        }
+
+        private (UIElement Header, StackPanel Container) CreateCollapsibleSubHeader(
+            string title, Brush accent, 
+            Func<bool> getCollapsed, Action<bool> setCollapsed)
+        {
+            // Create sub-header for nested collapsible sections (indented)
+            var header = new Grid { Margin = new Thickness(20, 2, 0, 2) };
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            // Toggle button (▼/▶)
+            var toggleText = new TextBlock
+            {
+                Text = getCollapsed() ? "▶" : "▼",
+                FontSize = 9,
+                Foreground = accent,
+                Margin = new Thickness(0, 0, 5, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0.7
+            };
+
+            // Title text
+            var titleText = new TextBlock
+            {
+                Text = title,
+                FontSize = 9,
+                Foreground = accent,
+                Margin = new Thickness(0, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0.7
+            };
+
+            // Separator line
+            var line = new Border
+            {
+                Height = 1,
+                Background = accent,
+                Opacity = 0.15,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            // Create container for child items
             var container = new StackPanel();
             container.Visibility = getCollapsed() ? Visibility.Collapsed : Visibility.Visible;
 

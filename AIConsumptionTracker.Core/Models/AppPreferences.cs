@@ -22,5 +22,6 @@ public class AppPreferences
     // Collapsible section states
     public bool IsPlansAndQuotasCollapsed { get; set; } = false;
     public bool IsPayAsYouGoCollapsed { get; set; } = false;
+    public bool IsAntigravityCollapsed { get; set; } = false;
 }
 
