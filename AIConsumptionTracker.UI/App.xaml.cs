@@ -82,11 +82,9 @@ namespace AIConsumptionTracker.UI
                     services.AddTransient<IProviderService, AntigravityProvider>();
                     services.AddTransient<IProviderService, GeminiProvider>();
                     services.AddTransient<IProviderService, KimiProvider>();
-                    services.AddTransient<IProviderService, OpenCodeZenProvider>();
                     services.AddTransient<IProviderService, DeepSeekProvider>();
                     services.AddTransient<IProviderService, OpenAIProvider>();
-                    services.AddTransient<IProviderService, AnthropicProvider>();
-                    services.AddTransient<IProviderService, CloudCodeProvider>();
+                    services.AddTransient<IProviderService, ClaudeCodeProvider>();
                     services.AddTransient<IProviderService, MistralProvider>();
                     services.AddTransient<IProviderService, GenericPayAsYouGoProvider>();
                     services.AddTransient<IProviderService, GitHubCopilotProvider>();

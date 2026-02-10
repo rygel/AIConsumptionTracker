@@ -1,5 +1,6 @@
-using System.Net.Http.Json;
-using System.Text.Json.Serialization;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using AIConsumptionTracker.Core.Interfaces;
 using AIConsumptionTracker.Core.Models;
 
@@ -8,100 +9,143 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
 public class OpenCodeProvider : IProviderService
 {
     public string ProviderId => "opencode";
-    private readonly HttpClient _httpClient;
+    private readonly ILogger<OpenCodeProvider> _logger;
+    private readonly string _cliPath;
 
-    public OpenCodeProvider(HttpClient httpClient)
+    public OpenCodeProvider(ILogger<OpenCodeProvider> logger)
     {
-        _httpClient = httpClient;
+        _logger = logger;
+        // Hardcoded path based on discovery
+        // In a real app, this should be configurable or determined via PATH/config
+        _cliPath = @"C:\Users\Alexander\AppData\Roaming\npm\opencode.cmd";
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
+        // Check if API key is configured
         if (string.IsNullOrEmpty(config.ApiKey))
         {
-            throw new ArgumentException("API Key not found for OpenCode provider.");
+            return Task.FromResult<IEnumerable<ProviderUsage>>(new[] { new ProviderUsage
+            {
+                ProviderId = ProviderId,
+                ProviderName = "OpenCode",
+                IsAvailable = false,
+                Description = "No API key configured",
+                IsQuotaBased = false,
+                PaymentType = PaymentType.UsageBased
+            }});
         }
 
-        var request = new HttpRequestMessage(HttpMethod.Get, "https://api.opencode.ai/v1/credits");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", config.ApiKey);
+        // Execute CLI synchronously (it's fast enough or we accept the block on thread pool)
+        // Better to use Task.Run for process execution
+        return Task.Run<IEnumerable<ProviderUsage>>(() => 
+        {
+            if (!File.Exists(_cliPath))
+            {
+                return new[] { new ProviderUsage
+                {
+                    ProviderId = ProviderId,
+                    ProviderName = "OpenCode",
+                    IsAvailable = false,
+                    Description = "CLI not found at expected path",
+                    IsQuotaBased = false,
+                    PaymentType = PaymentType.UsageBased
+                }};
+            }
 
-        var response = await _httpClient.SendAsync(request);
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = _cliPath,
+                    Arguments = "stats --days 7 --models 10",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(startInfo);
+                if (process == null)
+                {
+                     throw new Exception("Failed to start opencode process");
+                }
+
+                var output = process.StandardOutput.ReadToEnd();
+                var error = process.StandardError.ReadToEnd();
+                process.WaitForExit(5000); // 5 sec timeout
+
+                if (process.ExitCode != 0)
+                {
+                    _logger.LogWarning($"OpenCode CLI failed: {error}");
+                     return new[] { new ProviderUsage
+                    {
+                        ProviderId = ProviderId,
+                        ProviderName = "OpenCode",
+                        IsAvailable = false,
+                        Description = $"CLI Error: {process.ExitCode} (Check log or clear storage if JSON error)",
+                        IsQuotaBased = false,
+                        PaymentType = PaymentType.UsageBased
+                    }};
+                }
+
+                return new[] { ParseOutput(output) };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to run OpenCode CLI");
+                return new[] { new ProviderUsage
+                {
+                    ProviderId = ProviderId,
+                    ProviderName = "OpenCode",
+                    IsAvailable = false,
+                    Description = $"Execution Failed: {ex.Message}",
+                    IsQuotaBased = false,
+                    PaymentType = PaymentType.UsageBased
+                }};
+            }
+        });
+    }
+
+    private ProviderUsage ParseOutput(string output)
+    {
+        // Example Output patterns based on Swift reference:
+        // │Total Cost   $12.34
+        // │Avg Cost/Day $1.23
+        // │Sessions     123
         
-        if (!response.IsSuccessStatusCode)
+        double totalCost = 0;
+        double avgCost = 0;
+
+        // Clean ANSI codes if any (simplified check)
+        // Parsing regex
+        var costMatch = Regex.Match(output, @"Total Cost\s+\$([0-9.]+)");
+        if (costMatch.Success)
         {
-            throw new Exception($"OpenCode API returned {response.StatusCode}");
+            double.TryParse(costMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out totalCost);
         }
 
-        var content = await response.Content.ReadAsStringAsync();
-
-        if (content.Trim() == "Not Found")
+        var avgMatch = Regex.Match(output, @"Avg Cost/Day\s+\$([0-9.]+)");
+        if (avgMatch.Success)
         {
-             // API endpoint exists but returns "Not Found" text for some keys/situations
-             // Return a safe "Not Available" state instead of crashing
-             return new[] { new ProviderUsage
-             {
-                 ProviderId = ProviderId,
-                 ProviderName = "OpenCode",
-                 UsagePercentage = 0,
-                 CostUsed = 0,
-                 CostLimit = 0,
-                 UsageUnit = "Credits",
-                 IsQuotaBased = false,
-                 IsAvailable = false,
-                 Description = "Service Unavailable"
-             }};
+            double.TryParse(avgMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgCost);
         }
 
-        OpenCodeCreditsResponse? data;
-        try 
-        {
-            data = System.Text.Json.JsonSerializer.Deserialize<OpenCodeCreditsResponse>(content);
-        }
-        catch (System.Text.Json.JsonException)
-        {
-             throw new Exception($"Failed to parse OpenCode response: {content}");
-        }
+        // Description
+        // "Usage: $12.34 (7 days)"
         
-        if (data?.Data == null)
-        {
-            throw new Exception("Failed to parse OpenCode credits response structure.");
-        }
-
-        var total = data.Data.TotalCredits;
-        var used = data.Data.UsedCredits;
-        var utilization = total > 0 ? (used / total) * 100.0 : 0;
-
-        return new[] { new ProviderUsage
+        return new ProviderUsage
         {
             ProviderId = ProviderId,
             ProviderName = "OpenCode",
-            UsagePercentage = Math.Min(utilization, 100),
-            CostUsed = used,
-            CostLimit = total,
-            UsageUnit = "Credits",
-            IsQuotaBased = false, // Pay as you go nominally, but acts like credit consumption
-            PaymentType = PaymentType.Credits,
-            Description = $"{used:F2} / {total:F2} credits"
-
-        }};
-    }
-
-    private class OpenCodeCreditsResponse
-    {
-        [JsonPropertyName("data")]
-        public CreditsData? Data { get; set; }
-    }
-
-    private class CreditsData
-    {
-        [JsonPropertyName("total_credits")]
-        public double TotalCredits { get; set; }
-
-        [JsonPropertyName("used_credits")]
-        public double UsedCredits { get; set; }
-
-        [JsonPropertyName("remaining_credits")]
-        public double RemainingCredits { get; set; }
+            UsagePercentage = 0, // Pay as you go, no limit percentage usually
+            CostUsed = totalCost,
+            CostLimit = 0,
+            UsageUnit = "USD",
+            IsQuotaBased = false,
+            PaymentType = PaymentType.UsageBased,
+            IsAvailable = true,
+            Description = $"${totalCost:F2} (7 days)"
+        };
     }
 }
-

@@ -110,9 +110,13 @@ public class ProviderManager : IDisposable
         {
             configs.Add(new ProviderConfig { ProviderId = "gemini-cli", ApiKey = "" });
         }
-        if (!configs.Any(c => c.ProviderId == "opencode-zen"))
+        if (!configs.Any(c => c.ProviderId == "opencode"))
         {
-            configs.Add(new ProviderConfig { ProviderId = "opencode-zen", ApiKey = "" });
+            configs.Add(new ProviderConfig { ProviderId = "opencode", ApiKey = "" });
+        }
+        if (!configs.Any(c => c.ProviderId == "claude-code"))
+        {
+            configs.Add(new ProviderConfig { ProviderId = "claude-code", ApiKey = "" });
         }
 
         var results = new List<ProviderUsage>();
@@ -121,7 +125,6 @@ public class ProviderManager : IDisposable
         {
             var provider = _providers.FirstOrDefault(p => 
                 p.ProviderId.Equals(config.ProviderId, StringComparison.OrdinalIgnoreCase) ||
-                (p.ProviderId == "anthropic" && config.ProviderId.Contains("claude", StringComparison.OrdinalIgnoreCase)) ||
                 (p.ProviderId == "minimax" && config.ProviderId.Contains("minimax", StringComparison.OrdinalIgnoreCase)) ||
                 (p.ProviderId == "xiaomi" && config.ProviderId.Contains("xiaomi", StringComparison.OrdinalIgnoreCase))
             );

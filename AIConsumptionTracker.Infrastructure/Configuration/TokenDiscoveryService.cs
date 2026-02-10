@@ -129,9 +129,9 @@ public class TokenDiscoveryService
     private void AddWellKnownProviders(List<ProviderConfig> configs)
     {
         var wellKnown = new[] { 
-            "openai", "anthropic", "gemini-cli", "github-copilot", 
+            "openai", "gemini-cli", "github-copilot", 
             "minimax", "minimax-io", "xiaomi", "kimi", 
-            "deepseek", "openrouter", "antigravity", "opencode-zen"
+            "deepseek", "openrouter", "antigravity", "opencode"
         };
         foreach (var id in wellKnown)
         {
@@ -152,7 +152,7 @@ public class TokenDiscoveryService
                 {
                     foreach (var id in known.Keys)
                     {
-                        AddIfNotExists(configs, id, "", "Discovered in providers.json", "Config: providers.json");
+                        AddIfNotExists(configs, id, known[id], "Discovered in providers.json", "Config: providers.json");
                     }
                 }
             }
@@ -233,12 +233,11 @@ public class TokenDiscoveryService
                             using var doc = JsonDocument.Parse(json);
                             
                             // Extract API configurations from Roo Code state
-                            if (doc.RootElement.TryGetProperty("apiConfigs", out var configsProp))
+                             if (doc.RootElement.TryGetProperty("apiConfigs", out var configsProp))
                             {
                                 foreach (var configPair in configsProp.EnumerateObject())
                                 {
                                     var config = configPair.Value;
-                                    TryAddRooKey(configs, config, "anthropicApiKey", "anthropic");
                                     TryAddRooKey(configs, config, "openAiApiKey", "openai");
                                     TryAddRooKey(configs, config, "geminiApiKey", "gemini");
                                     TryAddRooKey(configs, config, "openrouterApiKey", "openrouter");
@@ -271,7 +270,6 @@ public class TokenDiscoveryService
                                 foreach (var configPair in configsProp.EnumerateObject())
                                 {
                                     var config = configPair.Value;
-                                    TryAddRooKey(configs, config, "anthropicApiKey", "anthropic");
                                     TryAddRooKey(configs, config, "openAiApiKey", "openai");
                                     TryAddRooKey(configs, config, "geminiApiKey", "gemini");
                                     TryAddRooKey(configs, config, "openrouterApiKey", "openrouter");
@@ -330,7 +328,6 @@ public class TokenDiscoveryService
                     var config = configPair.Value;
                     
                     // Logic for common providers in Roo Cline
-                    TryAddRooKey(configs, config, "anthropicApiKey", "anthropic");
                     TryAddRooKey(configs, config, "openAiApiKey", "openai");
                     TryAddRooKey(configs, config, "geminiApiKey", "gemini");
                     TryAddRooKey(configs, config, "openrouterApiKey", "openrouter");
