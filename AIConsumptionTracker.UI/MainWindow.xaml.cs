@@ -644,8 +644,12 @@ namespace AIConsumptionTracker.UI
 
             if (planItems.Any())
             {
-                ProvidersList.Children.Add(CreateGroupHeader("Plans & Quotas", Brushes.DeepSkyBlue));
-                RenderGroup(planItems);
+                var (header, container) = CreateCollapsibleGroupHeader("Plans & Quotas", Brushes.DeepSkyBlue, "PlansAndQuotas", 
+                    () => _preferences.IsPlansAndQuotasCollapsed,
+                    v => _preferences.IsPlansAndQuotasCollapsed = v);
+                ProvidersList.Children.Add(header);
+                ProvidersList.Children.Add(container);
+                RenderGroup(planItems, container);
             }
 
             if (payGoItems.Any())
@@ -653,19 +657,24 @@ namespace AIConsumptionTracker.UI
                 // Add a bit of spacer before the next group if planItems existed
                 if (planItems.Any()) ProvidersList.Children.Add(new Border { Height = 12 });
                 
-                ProvidersList.Children.Add(CreateGroupHeader("Pay As You Go", Brushes.MediumSeaGreen));
-                RenderGroup(payGoItems);
+                var (header, container) = CreateCollapsibleGroupHeader("Pay As You Go", Brushes.MediumSeaGreen, "PayAsYouGo",
+                    () => _preferences.IsPayAsYouGoCollapsed,
+                    v => _preferences.IsPayAsYouGoCollapsed = v);
+                ProvidersList.Children.Add(header);
+                ProvidersList.Children.Add(container);
+                RenderGroup(payGoItems, container);
             }
         }
 
-        private void RenderGroup(List<ProviderUsage> groupUsages)
+        private void RenderGroup(List<ProviderUsage> groupUsages, StackPanel? container = null)
         {
+            var target = container ?? ProvidersList;
             foreach (var usage in groupUsages)
             {
                 var elements = GetGroupElements(usage);
                 foreach (var el in elements)
                 {
-                    ProvidersList.Children.Add(el);
+                    target.Children.Add(el);
                 }
             }
         }
@@ -743,6 +752,76 @@ namespace AIConsumptionTracker.UI
             grid.Children.Add(line);
 
             return grid;
+        }
+
+        private (UIElement Header, StackPanel Container) CreateCollapsibleGroupHeader(
+            string title, Brush accent, string groupKey, 
+            Func<bool> getCollapsed, Action<bool> setCollapsed)
+        {
+            // Create header grid with toggle button
+            var header = new Grid { Margin = new Thickness(0, 5, 0, 5) };
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            // Toggle button (▼/▶)
+            var toggleText = new TextBlock
+            {
+                Text = getCollapsed() ? "▶" : "▼",
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Foreground = accent,
+                Margin = new Thickness(0, 0, 5, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0.8,
+                Tag = "ToggleIcon"
+            };
+
+            // Title text
+            var titleText = new TextBlock
+            {
+                Text = title.ToUpper(),
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Foreground = accent,
+                Margin = new Thickness(0, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0.8
+            };
+
+            // Separator line
+            var line = new Border
+            {
+                Height = 1,
+                Background = accent,
+                Opacity = 0.2,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            // Create container for group items
+            var container = new StackPanel();
+            container.Visibility = getCollapsed() ? Visibility.Collapsed : Visibility.Visible;
+
+            // Make the whole header clickable
+            header.Cursor = System.Windows.Input.Cursors.Hand;
+            header.MouseLeftButtonDown += async (s, e) => 
+            {
+                var newState = !getCollapsed();
+                setCollapsed(newState);
+                container.Visibility = newState ? Visibility.Collapsed : Visibility.Visible;
+                toggleText.Text = newState ? "▶" : "▼";
+                await _configLoader.SavePreferencesAsync(_preferences);
+            };
+
+            Grid.SetColumn(toggleText, 0);
+            Grid.SetColumn(titleText, 1);
+            Grid.SetColumn(line, 2);
+
+            header.Children.Add(toggleText);
+            header.Children.Add(titleText);
+            header.Children.Add(line);
+
+            return (header, container);
         }
 
 
