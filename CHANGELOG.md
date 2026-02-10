@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Window Focus**: Fixed "Top" setting not being reapplied when window is re-shown
+  - Window now correctly stays on top of other windows after being hidden and reshown
+  - Ensures Topmost property is reapplied when clicking tray icon or notification
+
 ## [1.7.19] - 2026-02-10
 
 ### Fixed
