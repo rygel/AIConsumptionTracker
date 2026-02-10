@@ -9,6 +9,14 @@ using System.Threading.Tasks;
 using System.Reflection; 
 using AIConsumptionTracker.Infrastructure.Helpers; 
 
+// =============================================================================
+// ⚠️  AI ASSISTANTS: COLOR LOGIC WARNING - SEE GetProgressBarColor() METHOD
+// =============================================================================
+// Progress bar color logic follows strict design rules documented in DESIGN.md
+// DO NOT modify GetProgressBarColor() or any threshold logic without 
+// explicit developer approval. Ask the developer first before making changes.
+// =============================================================================
+
 namespace AIConsumptionTracker.UI
 {
     public partial class MainWindow : Window
@@ -500,7 +508,8 @@ namespace AIConsumptionTracker.UI
                     progressHost.ColumnDefinitions[1].Width = new GridLength(Math.Max(0.001, 100 - indicatorWidth), GridUnitType.Star);
                 }
 
-                progressFill.Background = usage.UsagePercentage > _preferences.ColorThresholdRed ? Brushes.Crimson : (usage.UsagePercentage > _preferences.ColorThresholdYellow ? Brushes.Gold : Brushes.MediumSeaGreen);
+                var isQuota = usage.IsQuotaBased || usage.PaymentType == PaymentType.Quota;
+                progressFill.Background = GetProgressBarColor(usage.UsagePercentage, isQuota);
             }
             else
             {
@@ -761,9 +770,10 @@ namespace AIConsumptionTracker.UI
             pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(indicatorWidth, GridUnitType.Star) });
             pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.001, 100 - indicatorWidth), GridUnitType.Star) });
 
+            var isQuota2 = usage.IsQuotaBased || usage.PaymentType == PaymentType.Quota;
             var fill = new Border
             {
-                Background = usage.UsagePercentage > _preferences.ColorThresholdRed ? Brushes.Crimson : (usage.UsagePercentage > _preferences.ColorThresholdYellow ? Brushes.Gold : Brushes.MediumSeaGreen),
+                Background = GetProgressBarColor(usage.UsagePercentage, isQuota2),
                 Opacity = 0.45,
                 CornerRadius = new CornerRadius(0),
                 Tag = "Part_ProgressFill"
@@ -1034,9 +1044,10 @@ namespace AIConsumptionTracker.UI
             fillGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(indicatorWidth, GridUnitType.Star) });
             fillGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.001, 100 - indicatorWidth), GridUnitType.Star) });
 
+            var isQuota3 = usage.IsQuotaBased || usage.PaymentType == PaymentType.Quota;
             var fill = new Border
             {
-                Background = usage.UsagePercentage > _preferences.ColorThresholdRed ? Brushes.Crimson : (usage.UsagePercentage > _preferences.ColorThresholdYellow ? Brushes.Gold : Brushes.MediumSeaGreen),
+                Background = GetProgressBarColor(usage.UsagePercentage, isQuota3),
                 CornerRadius = new CornerRadius(0),
                 Tag = "Part_ProgressFill"
             };
@@ -1287,14 +1298,47 @@ namespace AIConsumptionTracker.UI
             }
         }
 
-        private Brush GetProgressBarColor(double percentage)
+        public Brush GetProgressBarColor(double percentage, bool isQuota)
         {
-            if (percentage > _preferences.ColorThresholdRed)
-                return Brushes.Crimson;
-            else if (percentage > _preferences.ColorThresholdYellow)
-                return Brushes.Gold;
+            // ===================================================================
+            // ⚠️  AI ASSISTANTS: DO NOT MODIFY THIS LOGIC WITHOUT DEVELOPER APPROVAL
+            // ===================================================================
+            // This color logic follows strict design rules documented in DESIGN.md
+            // Quota providers: Inverted thresholds (100 - userThreshold)
+            // Usage providers: Standard thresholds (userThreshold)
+            // See DESIGN.md section "Color Determination" for full specification
+            // When in doubt, ASK THE DEVELOPER FIRST before changing anything
+            // ===================================================================
+            
+            // For quota-based providers: percentage represents REMAINING
+            // - High remaining (> YellowThreshold) = GREEN (healthy)
+            // - Mid remaining (> RedThreshold) = YELLOW (warning)
+            // - Low remaining (< RedThreshold) = RED (critical)
+            // For usage-based providers: percentage represents USED
+            // - Low usage (< YellowThreshold) = GREEN (healthy)
+            // - Mid usage (> YellowThreshold) = YELLOW (warning)
+            // - High usage (> RedThreshold) = RED (critical)
+            
+            if (isQuota)
+            {
+                // Inverted thresholds for quota (remaining %)
+                if (percentage < (100 - _preferences.ColorThresholdRed))
+                    return Brushes.Crimson;
+                else if (percentage < (100 - _preferences.ColorThresholdYellow))
+                    return Brushes.Gold;
+                else
+                    return Brushes.MediumSeaGreen;
+            }
             else
-                return Brushes.MediumSeaGreen;
+            {
+                // Standard thresholds for usage-based (used %)
+                if (percentage > _preferences.ColorThresholdRed)
+                    return Brushes.Crimson;
+                else if (percentage > _preferences.ColorThresholdYellow)
+                    return Brushes.Gold;
+                else
+                    return Brushes.MediumSeaGreen;
+            }
         }
 
         private string GetUsageText(ProviderUsage usage)

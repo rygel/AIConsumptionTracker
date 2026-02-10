@@ -325,8 +325,9 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                 }
             }
 
-            // Invert for "Used" display
-            var detailUsedPct = 100.0 - remainingPct;
+            // Store REMAINING percentage for display (consistent with other quota providers)
+            // The UI will handle the inverted display logic
+            var detailRemainingPct = remainingPct;
             
             string resetStr = "";
             if (!string.IsNullOrEmpty(config?.QuotaInfo?.ResetTime))
@@ -345,7 +346,7 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
             details.Add(new ProviderUsageDetail
             {
                 Name = label,
-                Used = $"{detailUsedPct:F0}%",
+                Used = $"{detailRemainingPct:F0}%",
                 Description = resetStr,
                 NextResetTime = itemResetDt
             });

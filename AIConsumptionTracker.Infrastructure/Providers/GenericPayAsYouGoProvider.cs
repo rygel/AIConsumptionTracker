@@ -4,6 +4,14 @@ using AIConsumptionTracker.Core.Interfaces;
 using AIConsumptionTracker.Core.Models;
 using Microsoft.Extensions.Logging;
 
+// =============================================================================
+// ⚠️  AI ASSISTANTS: CALCULATION LOGIC WARNING - SEE LINE ~276
+// =============================================================================
+// Provider calculation follows strict design rules documented in DESIGN.md
+// Quota providers MUST return REMAINING percentage
+// DO NOT modify utilization calculation without explicit developer approval
+// =============================================================================
+
 namespace AIConsumptionTracker.Infrastructure.Providers;
 
 public class GenericPayAsYouGoProvider : IProviderService
@@ -267,11 +275,21 @@ public class GenericPayAsYouGoProvider : IProviderService
              }
         }
 
-        // For quota-based providers, show remaining percentage (full bar = lots remaining)
+        // ===================================================================
+        // ⚠️  AI ASSISTANTS: DO NOT MODIFY THIS LOGIC WITHOUT DEVELOPER APPROVAL
+        // ===================================================================
+        // This calculation follows strict design rules documented in DESIGN.md
+        // Quota providers MUST return REMAINING percentage (not used percentage)
+        // Usage providers return USED percentage
+        // See DESIGN.md section "Implementation Details" for full specification
+        // When in doubt, ASK THE DEVELOPER FIRST before changing anything
+        // ===================================================================
+        
+        // For quota-based providers, show remaining percentage (full bar = lots remaining, empty = depleted)
         // For other providers, show used percentage (full bar = high usage)
         var utilization = paymentType == PaymentType.Quota
-            ? (total > 0 ? ((total - used) / total) * 100.0 : 0)  // Remaining % for quota
-            : (total > 0 ? (used / total) * 100.0 : 0);            // Used % for others
+            ? (total > 0 ? ((total - used) / total) * 100.0 : 100)  // Remaining % for quota (full = good)
+            : (total > 0 ? (used / total) * 100.0 : 0);              // Used % for others
 
         var name = config.ProviderId;
         if (name == "generic-pay-as-you-go") name = new Uri(url).Host;

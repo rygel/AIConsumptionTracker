@@ -18,6 +18,14 @@ using System.Windows.Media.Imaging;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
+// =============================================================================
+// ⚠️  AI ASSISTANTS: COLOR LOGIC WARNING - SEE LINE ~426
+// =============================================================================
+// The tray icon color logic in GenerateUsageIcon() follows strict rules
+// documented in DESIGN.md. DO NOT modify without developer approval.
+// Must match MainWindow.GetProgressBarColor() behavior exactly.
+// =============================================================================
+
 namespace AIConsumptionTracker.UI
 {
     public partial class App : Application
@@ -328,7 +336,7 @@ namespace AIConsumptionTracker.UI
 
         public void UpdateProviderTrayIcons(List<ProviderUsage> usages, List<ProviderConfig> configs, AppPreferences? prefs = null)
         {
-            var desiredIcons = new Dictionary<string, (string ToolTip, double Percentage)>();
+            var desiredIcons = new Dictionary<string, (string ToolTip, double Percentage, bool IsQuota)>();
             int yellowThreshold = prefs?.ColorThresholdYellow ?? 60;
             int redThreshold = prefs?.ColorThresholdRed ?? 80;
 
@@ -340,9 +348,11 @@ namespace AIConsumptionTracker.UI
                 // Main Tray
                 if (config.ShowInTray)
                 {
+                    var isQuota = usage.IsQuotaBased || usage.PaymentType == PaymentType.Quota;
                     desiredIcons[config.ProviderId] = (
                         $"{usage.ProviderName}: {usage.Description}",
-                        usage.UsagePercentage
+                        usage.UsagePercentage,
+                        isQuota
                     );
                 }
 
@@ -363,9 +373,11 @@ namespace AIConsumptionTracker.UI
                             }
 
                             var key = $"{config.ProviderId}:{subName}";
+                            var isQuotaSub = usage.IsQuotaBased || usage.PaymentType == PaymentType.Quota;
                             desiredIcons[key] = (
                                 $"{usage.ProviderName} - {subName}: {detail.Description} ({detail.Used})",
-                                pct
+                                pct,
+                                isQuotaSub
                             );
                         }
                     }
@@ -393,7 +405,7 @@ namespace AIConsumptionTracker.UI
                 {
                     var tray = new TaskbarIcon();
                     tray.ToolTipText = info.ToolTip;
-                    tray.IconSource = GenerateUsageIcon(info.Percentage, yellowThreshold, redThreshold, prefs?.InvertProgressBar ?? false);
+                    tray.IconSource = GenerateUsageIcon(info.Percentage, yellowThreshold, redThreshold, prefs?.InvertProgressBar ?? false, info.IsQuota);
                     tray.TrayLeftMouseDown += async (s, e) => await ShowDashboard();
                     tray.TrayMouseDoubleClick += async (s, e) => await ShowDashboard();
                     _providerTrayIcons.Add(key, tray);
@@ -402,12 +414,12 @@ namespace AIConsumptionTracker.UI
                 {
                     var tray = _providerTrayIcons[key];
                     tray.ToolTipText = info.ToolTip;
-                    tray.IconSource = GenerateUsageIcon(info.Percentage, yellowThreshold, redThreshold, prefs?.InvertProgressBar ?? false);
+                    tray.IconSource = GenerateUsageIcon(info.Percentage, yellowThreshold, redThreshold, prefs?.InvertProgressBar ?? false, info.IsQuota);
                 }
             }
         }
 
-        private System.Windows.Media.ImageSource GenerateUsageIcon(double percentage, int yellowThreshold, int redThreshold, bool invert = false)
+        private System.Windows.Media.ImageSource GenerateUsageIcon(double percentage, int yellowThreshold, int redThreshold, bool invert = false, bool isQuota = false)
         {
             int size = 32; 
             var visual = new System.Windows.Media.DrawingVisual();
@@ -420,11 +432,17 @@ namespace AIConsumptionTracker.UI
                 dc.DrawRectangle(null, new System.Windows.Media.Pen(System.Windows.Media.Brushes.DimGray, 1), new Rect(0.5, 0.5, size - 1, size - 1));
 
                 // Fill logic
-                // Standardize color logic: Thresholds always refer to USAGE percentage.
+                // For quota-based providers: percentage represents REMAINING, so invert thresholds
+                // High Remaining (> YellowThreshold) -> MediumSeaGreen (Good)
+                // Mid Remaining (> RedThreshold) -> Gold (Warning)
+                // Low Remaining (< RedThreshold) -> Crimson (Danger)
+                // For usage-based: percentage represents USED
                 // High Usage (> RedThreshold) -> Crimson (Danger)
                 // Mid Usage (> YellowThreshold) -> Gold (Warning)
                 // Low Usage -> MediumSeaGreen (Good)
-                var fillBrush = percentage > redThreshold ? System.Windows.Media.Brushes.Crimson : (percentage > yellowThreshold ? System.Windows.Media.Brushes.Gold : System.Windows.Media.Brushes.MediumSeaGreen);
+                var fillBrush = isQuota
+                    ? (percentage < (100 - redThreshold) ? System.Windows.Media.Brushes.Crimson : (percentage < (100 - yellowThreshold) ? System.Windows.Media.Brushes.Gold : System.Windows.Media.Brushes.MediumSeaGreen))
+                    : (percentage > redThreshold ? System.Windows.Media.Brushes.Crimson : (percentage > yellowThreshold ? System.Windows.Media.Brushes.Gold : System.Windows.Media.Brushes.MediumSeaGreen));
                 
                 double barWidth = size - 6;
                 double barHeight = size - 6;
