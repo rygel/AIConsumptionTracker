@@ -55,26 +55,6 @@ public class MockProviderService : IProviderService
         };
     }
 
-    public static MockProviderService CreateAnthropicMock()
-    {
-        return new MockProviderService
-        {
-            ProviderId = "anthropic",
-            UsageHandler = config => Task.FromResult<IEnumerable<ProviderUsage>>(new[] { new ProviderUsage
-            {
-                ProviderId = "anthropic",
-                ProviderName = "Anthropic",
-                UsagePercentage = 75,
-                CostUsed = 15,
-                CostLimit = 20,
-                PaymentType = PaymentType.Credits,
-                UsageUnit = "USD",
-                Description = "$5.00 remaining",
-                IsAvailable = true
-            }})
-        };
-    }
-
     public static MockProviderService CreateGeminiMock()
     {
         return new MockProviderService

@@ -183,8 +183,8 @@ public class UpdateProviderBarTests
         // Act: Call UpdateProviderBar with a quota-based provider
         var quotaUsage = new ProviderUsage
         {
-            ProviderId = "anthropic",
-            ProviderName = "Anthropic",
+            ProviderId = "github-copilot",
+            ProviderName = "GitHub Copilot",
             AccountName = "",
             Description = "Connected",
             IsAvailable = true,
@@ -197,7 +197,7 @@ public class UpdateProviderBarTests
 
         // Assert: The quota-based provider SHOULD be added even when ShowAll is false
         var providersList = (StackPanel)mainWindow.FindName("ProvidersList");
-        var providerCount = FindElementsByTagRecursive<Grid>(providersList, "anthropic").Count();
+        var providerCount = FindElementsByTagRecursive<Grid>(providersList, "github-copilot").Count();
         
         Assert.Equal(1, providerCount);
     }

@@ -25,14 +25,12 @@ public class ProviderManagerTests
         var providers = new List<IProviderService> 
         { 
             MockProviderService.CreateOpenAIMock(),
-            MockProviderService.CreateAnthropicMock(),
             MockProviderService.CreateGeminiMock()
         };
 
         var configs = new List<ProviderConfig>
         {
             new ProviderConfig { ProviderId = "openai" },
-            new ProviderConfig { ProviderId = "anthropic" },
             new ProviderConfig { ProviderId = "gemini" }
         };
 
@@ -44,10 +42,9 @@ public class ProviderManagerTests
         var result = await manager.GetAllUsageAsync();
 
         // Assert
-        // We expect at least our 3 mocks, plus possibly auto-added system ones
-        Assert.True(result.Count(r => r.IsAvailable) >= 3);
+        // We expect at least our 2 mocks, plus possibly auto-added system ones
+        Assert.True(result.Count(r => r.IsAvailable) >= 2);
         Assert.Contains(result, r => r.PaymentType == PaymentType.UsageBased && r.ProviderId == "openai");
-        Assert.Contains(result, r => r.PaymentType == PaymentType.Credits && r.ProviderId == "anthropic");
         Assert.Contains(result, r => r.PaymentType == PaymentType.Quota && r.ProviderId == "gemini");
     }
 

@@ -139,7 +139,7 @@ namespace AIConsumptionTracker.UI
                     "minimax" => "Minimax (China)",
                     "minimax-io" => "Minimax (International)",
                     "opencode" => "OpenCode",
-                    "cloud-code" => "Cloud Code",
+                    "claude-code" => "Claude Code",
                     _ => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(config.ProviderId.Replace("_", " ").Replace("-", " "))
                 };
 
@@ -396,8 +396,7 @@ namespace AIConsumptionTracker.UI
                     "github-copilot" => "github",
                     "gemini-cli" => "google",
                     "antigravity" => "google",
-                    "cloud-code" => "google",
-                    "anthropic" => "anthropic",
+                    "claude-code" => "claude",
                     "zai" => "zai",
                     "zai-coding-plan" => "zai",
                     "minimax-io" => "minimax",

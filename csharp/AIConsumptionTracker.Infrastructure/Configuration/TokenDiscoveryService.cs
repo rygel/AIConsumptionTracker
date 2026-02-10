@@ -198,7 +198,6 @@ public class TokenDiscoveryService
                     var config = configPair.Value;
                     
                     // Logic for common providers in Roo Cline
-                    TryAddRooKey(configs, config, "anthropicApiKey", "anthropic");
                     TryAddRooKey(configs, config, "openAiApiKey", "openai");
                     TryAddRooKey(configs, config, "geminiApiKey", "gemini");
                     TryAddRooKey(configs, config, "openrouterApiKey", "openrouter");
