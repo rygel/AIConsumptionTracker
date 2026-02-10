@@ -1606,6 +1606,54 @@ namespace AIConsumptionTracker.UI
             }
         }
 
+        private void ViewChangelogBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (_latestUpdate != null)
+            {
+                // Create changelog window
+                var changelogWindow = new Window
+                {
+                    Title = $"Changelog - Version {_latestUpdate.Version}",
+                    Width = 600,
+                    Height = 500,
+                    WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                    Background = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+                    Foreground = Brushes.White,
+                    ResizeMode = ResizeMode.CanResize,
+                    MinWidth = 400,
+                    MinHeight = 300
+                };
+
+                var scrollViewer = new ScrollViewer
+                {
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    Margin = new Thickness(20)
+                };
+
+                var textBlock = new TextBlock
+                {
+                    TextWrapping = TextWrapping.Wrap,
+                    FontSize = 13,
+                    LineHeight = 20
+                };
+
+                if (!string.IsNullOrEmpty(_latestUpdate.ReleaseNotes))
+                {
+                    textBlock.Text = _latestUpdate.ReleaseNotes;
+                }
+                else
+                {
+                    textBlock.Text = "No changelog available for this version.";
+                    textBlock.FontStyle = FontStyles.Italic;
+                    textBlock.Foreground = Brushes.Gray;
+                }
+
+                scrollViewer.Content = textBlock;
+                changelogWindow.Content = scrollViewer;
+                changelogWindow.ShowDialog();
+            }
+        }
+
         public Brush GetProgressBarColor(double percentage, bool isQuota)
         {
             // ===================================================================

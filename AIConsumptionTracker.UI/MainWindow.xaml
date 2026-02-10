@@ -65,7 +65,10 @@
             <Border x:Name="UpdateNotificationBanner" Grid.Row="1" Background="#007ACC" Padding="8,4" Visibility="Collapsed">
                 <DockPanel>
                     <TextBlock x:Name="UpdateText" Text="New version available!" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
-                    <Button Content="Download" HorizontalAlignment="Right" Click="UpdateBtn_Click" Background="#005A9E" Foreground="White" FontSize="11" Padding="8,2" Margin="10,0,0,0" Cursor="Hand" WindowChrome.IsHitTestVisibleInChrome="True"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="View Changelog" HorizontalAlignment="Right" Click="ViewChangelogBtn_Click" Background="#005A9E" Foreground="White" FontSize="11" Padding="8,2" Margin="10,0,5,0" Cursor="Hand" WindowChrome.IsHitTestVisibleInChrome="True"/>
+                        <Button Content="Download" HorizontalAlignment="Right" Click="UpdateBtn_Click" Background="#005A9E" Foreground="White" FontSize="11" Padding="8,2" Margin="5,0,0,0" Cursor="Hand" WindowChrome.IsHitTestVisibleInChrome="True"/>
+                    </StackPanel>
                 </DockPanel>
             </Border>
 

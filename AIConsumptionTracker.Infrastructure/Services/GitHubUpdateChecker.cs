@@ -78,12 +78,15 @@ public class GitHubUpdateChecker : IUpdateCheckerService
                         _logger.LogInformation("New version available: {LatestVersion} (Current: {CurrentVersion})", 
                             latestVersion, currentVersion);
 
+                        // Fetch release notes from GitHub API
+                        var releaseNotes = await FetchReleaseNotesFromGitHub(latestVersionStr);
+
                         return new AIConsumptionTracker.Core.Interfaces.UpdateInfo
                         {
                             Version = latest.Version ?? latestVersion.ToString(),
                             ReleaseUrl = latest.ReleaseNotesLink ?? $"https://github.com/rygel/AIConsumptionTracker/releases/tag/v{latestVersion}",
                             DownloadUrl = latest.DownloadLink ?? string.Empty,
-                            ReleaseNotes = string.Empty,
+                            ReleaseNotes = releaseNotes,
                             PublishedAt = latest.PublicationDate
                         };
                     }
@@ -180,6 +183,42 @@ public class GitHubUpdateChecker : IUpdateCheckerService
         {
             _logger.LogError(ex, "Error during download and install");
             return false;
+        }
+    }
+
+    private async Task<string> FetchReleaseNotesFromGitHub(string version)
+    {
+        try
+        {
+            using var client = new System.Net.Http.HttpClient();
+            client.DefaultRequestHeaders.Add("User-Agent", "AIConsumptionTracker");
+            
+            var url = $"https://api.github.com/repos/rygel/AIConsumptionTracker/releases/tags/v{version}";
+            _logger.LogDebug("Fetching release notes from: {Url}", url);
+            
+            var response = await client.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Failed to fetch release notes: {StatusCode}", response.StatusCode);
+                return string.Empty;
+            }
+            
+            var content = await response.Content.ReadAsStringAsync();
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+            
+            if (doc.RootElement.TryGetProperty("body", out var bodyElement))
+            {
+                var releaseNotes = bodyElement.GetString() ?? string.Empty;
+                _logger.LogDebug("Successfully fetched release notes ({Length} chars)", releaseNotes.Length);
+                return releaseNotes;
+            }
+            
+            return string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch release notes from GitHub API");
+            return string.Empty;
         }
     }
 }
