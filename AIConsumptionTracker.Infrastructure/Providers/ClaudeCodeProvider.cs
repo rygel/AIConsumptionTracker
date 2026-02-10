@@ -58,7 +58,8 @@ public class ClaudeCodeProvider : IProviderService
     {
         try
         {
-            // First, make a test request to get rate limit headers
+            // Make a test request to get rate limit headers
+            // Note: Anthropic API doesn't have a usage endpoint, so we use rate limits from headers
             var testRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
             testRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
             testRequest.Headers.Add("anthropic-version", "2023-06-01");
@@ -69,65 +70,16 @@ public class ClaudeCodeProvider : IProviderService
             // Extract rate limit information from headers
             var rateLimitHeaders = ExtractRateLimitInfo(testResponse.Headers);
             
-            // Now get usage data
-            var usageRequest = new HttpRequestMessage(HttpMethod.Get, "https://api.anthropic.com/v1/usage");
-            usageRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            usageRequest.Headers.Add("anthropic-version", "2023-06-01");
-
-            var usageResponse = await _httpClient.SendAsync(usageRequest);
+            // Log response for debugging
+            _logger.LogDebug($"Claude API test call: Status={testResponse.StatusCode}, RPM={rateLimitHeaders.RequestsRemaining}/{rateLimitHeaders.RequestsLimit}");
             
-            if (!usageResponse.IsSuccessStatusCode)
-            {
-                var errorContent = await usageResponse.Content.ReadAsStringAsync();
-                _logger.LogWarning($"Anthropic API returned {usageResponse.StatusCode}: {errorContent}");
-                
-                // Return basic info with rate limits even if usage call fails
-                if (rateLimitHeaders.RequestsLimit > 0)
-                {
-                    return new ProviderUsage
-                    {
-                        ProviderId = ProviderId,
-                        ProviderName = "Claude Code",
-                        UsagePercentage = 0,
-                        CostUsed = 0,
-                        CostLimit = 0,
-                        UsageUnit = "USD",
-                        IsQuotaBased = false,
-                        PaymentType = PaymentType.UsageBased,
-                        IsAvailable = true,
-                        Description = $"Tier: {rateLimitHeaders.GetTierName()} | RPM: {rateLimitHeaders.RequestsRemaining}/{rateLimitHeaders.RequestsLimit}"
-                    };
-                }
-                return null;
-            }
-
-            var content = await usageResponse.Content.ReadAsStringAsync();
-            var usageData = JsonSerializer.Deserialize<AnthropicUsageResponse>(content, new JsonSerializerOptions 
-            { 
-                PropertyNameCaseInsensitive = true 
-            });
-
-            // Calculate totals from the usage data
-            double totalCost = 0;
-            double totalTokens = 0;
-            
-            if (usageData?.Usage != null)
-            {
-                foreach (var item in usageData.Usage)
-                {
-                    totalCost += item.CostUsd;
-                    totalTokens += item.InputTokens + item.OutputTokens;
-                }
-            }
-
-            // Calculate usage percentage based on rate limits
-            double usagePercentage = 0;
-            string? warningMessage = null;
-            bool isWarning = false;
-            bool isCritical = false;
-            
+            // Even if the request fails (e.g., 429 rate limited), we can still get rate limit headers
             if (rateLimitHeaders.RequestsLimit > 0)
             {
+                // Calculate usage percentage based on rate limits
+                double usagePercentage = 0;
+                string? warningMessage = null;
+                
                 // Calculate percentage: (limit - remaining) / limit * 100
                 var used = rateLimitHeaders.RequestsLimit - rateLimitHeaders.RequestsRemaining;
                 usagePercentage = (used / (double)rateLimitHeaders.RequestsLimit) * 100.0;
@@ -135,55 +87,44 @@ public class ClaudeCodeProvider : IProviderService
                 // Determine warning level
                 if (usagePercentage >= 90)
                 {
-                    isCritical = true;
-                    warningMessage = "CRITICAL: Approaching rate limit!";
+                    warningMessage = "⚠️ CRITICAL: Approaching rate limit!";
                 }
                 else if (usagePercentage >= 70)
                 {
-                    isWarning = true;
-                    warningMessage = "WARNING: High usage";
+                    warningMessage = "⚠️ WARNING: High usage";
                 }
-            }
 
-            // Build description with rate limit info
-            string description;
-            if (rateLimitHeaders.RequestsLimit > 0)
-            {
-                var used = rateLimitHeaders.RequestsLimit - rateLimitHeaders.RequestsRemaining;
-                description = $"${totalCost:F2} cost | {totalTokens:N0} tokens | Tier: {rateLimitHeaders.GetTierName()} | Used: {used}/{rateLimitHeaders.RequestsLimit} RPM ({usagePercentage:F0}%)";
-            }
-            else
-            {
-                description = $"${totalCost:F2} total cost | {totalTokens:N0} tokens";
-            }
+                // Build description with rate limit info
+                var description = $"Tier: {rateLimitHeaders.GetTierName()} | Used: {used}/{rateLimitHeaders.RequestsLimit} RPM ({usagePercentage:F0}%)";
 
-            // Build detailed tooltip info
-            var tooltipDetails = new List<ProviderUsageDetail>();
-            if (rateLimitHeaders.RequestsLimit > 0)
-            {
+                // Build detailed tooltip info
+                var tooltipDetails = new List<ProviderUsageDetail>();
                 tooltipDetails.Add(new ProviderUsageDetail { Name = "Rate Limit Tier", Used = rateLimitHeaders.GetTierName() });
                 tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Limit", Used = rateLimitHeaders.RequestsLimit.ToString("N0") });
                 tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Remaining", Used = rateLimitHeaders.RequestsRemaining.ToString("N0") });
                 tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Limit", Used = rateLimitHeaders.InputTokensLimit.ToString("N0") });
                 tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Remaining", Used = rateLimitHeaders.InputTokensRemaining.ToString("N0") });
                 tooltipDetails.Add(new ProviderUsageDetail { Name = "Current RPM Usage", Used = $"{usagePercentage:F1}%" });
-            }
 
-            return new ProviderUsage
-            {
-                ProviderId = ProviderId,
-                ProviderName = "Claude Code",
-                UsagePercentage = usagePercentage,
-                CostUsed = totalCost,
-                CostLimit = 0,
-                UsageUnit = "USD",
-                IsQuotaBased = false,
-                PaymentType = PaymentType.UsageBased,
-                IsAvailable = true,
-                Description = description,
-                Details = tooltipDetails,
-                AccountName = warningMessage // Using AccountName to carry warning state (UI can check this)
-            };
+                return new ProviderUsage
+                {
+                    ProviderId = ProviderId,
+                    ProviderName = "Claude Code",
+                    UsagePercentage = usagePercentage,
+                    CostUsed = 0, // Anthropic doesn't provide cost via API
+                    CostLimit = 0,
+                    UsageUnit = "RPM",
+                    IsQuotaBased = false,
+                    PaymentType = PaymentType.UsageBased,
+                    IsAvailable = true,
+                    Description = description,
+                    Details = tooltipDetails,
+                    AccountName = warningMessage // Using AccountName to carry warning state
+                };
+            }
+            
+            // No rate limit headers found
+            return null;
         }
         catch (Exception ex)
         {
@@ -337,20 +278,6 @@ public class ClaudeCodeProvider : IProviderService
                 ? $"${currentUsage:F2} used of ${budgetLimit:F2} limit"
                 : $"${currentUsage:F2} used"
         };
-    }
-
-    private class AnthropicUsageResponse
-    {
-        public List<AnthropicUsageItem>? Usage { get; set; }
-    }
-
-    private class AnthropicUsageItem
-    {
-        public string? Model { get; set; }
-        public long InputTokens { get; set; }
-        public long OutputTokens { get; set; }
-        public double CostUsd { get; set; }
-        public string? Timestamp { get; set; }
     }
 
     private class RateLimitInfo
