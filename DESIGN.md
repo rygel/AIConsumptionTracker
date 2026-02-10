@@ -465,7 +465,7 @@ Before modifying any logic in this document:
         "currentValue": 0,
         "usage": 135000000,
         "remaining": 135000000,
-        "nextResetTime": "2026-02-11T00:00:00Z"
+        "nextResetTime": 1739232000
       }
     ]
   }
@@ -477,14 +477,17 @@ Before modifying any logic in this document:
 - `usage`: Total quota limit (mapped to `Total` property)
 - `currentValue`: Amount used
 - `remaining`: Amount remaining
-- `nextResetTime`: ISO 8601 timestamp of when quota resets (UTC)
+- `nextResetTime`: **Unix timestamp** (seconds since epoch, NOT ISO 8601 string)
 
 **Accessing Reset Time:**
 ```csharp
-var limitWithReset = limits.FirstOrDefault(l => !string.IsNullOrEmpty(l.NextResetTime));
-if (limitWithReset != null && DateTime.TryParse(limitWithReset.NextResetTime, out var resetDt))
+[JsonPropertyName("nextResetTime")]
+public long? NextResetTime { get; set; }  // Unix timestamp as long
+
+var limitWithReset = limits.FirstOrDefault(l => l.NextResetTime.HasValue && l.NextResetTime.Value > 0);
+if (limitWithReset != null)
 {
-    nextResetTime = resetDt.ToLocalTime();
+    nextResetTime = DateTimeOffset.FromUnixTimeSeconds(limitWithReset.NextResetTime!.Value).LocalDateTime;
 }
 ```
 

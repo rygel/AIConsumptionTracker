@@ -93,12 +93,12 @@ public class ZaiProvider : IProviderService
             remainingPercent = Math.Min(remainingPercent, mcpRemainingPercent);
         }
 
-        // Get next reset time from the first limit that has it
+        // Get next reset time from the first limit that has it (Unix timestamp in seconds)
         DateTime? nextResetTime = null;
-        var limitWithReset = limits.FirstOrDefault(l => !string.IsNullOrEmpty(l.NextResetTime));
-        if (limitWithReset != null && DateTime.TryParse(limitWithReset.NextResetTime, out var resetDt))
+        var limitWithReset = limits.FirstOrDefault(l => l.NextResetTime.HasValue && l.NextResetTime.Value > 0);
+        if (limitWithReset != null)
         {
-            nextResetTime = resetDt.ToLocalTime();
+            nextResetTime = DateTimeOffset.FromUnixTimeSeconds(limitWithReset.NextResetTime!.Value).LocalDateTime;
         }
 
         return new[] { new ProviderUsage
@@ -146,7 +146,7 @@ public class ZaiProvider : IProviderService
         public long? Remaining { get; set; }
         
         [JsonPropertyName("nextResetTime")]
-        public string? NextResetTime { get; set; }
+        public long? NextResetTime { get; set; }
     }
 }
 
