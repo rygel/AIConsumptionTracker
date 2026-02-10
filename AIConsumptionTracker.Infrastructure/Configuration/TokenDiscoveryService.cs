@@ -131,7 +131,7 @@ public class TokenDiscoveryService
         var wellKnown = new[] { 
             "openai", "anthropic", "gemini-cli", "github-copilot", 
             "minimax", "minimax-io", "xiaomi", "kimi", 
-            "deepseek", "openrouter", "antigravity", "opencode-zen"
+            "deepseek", "openrouter", "antigravity", "opencode"
         };
         foreach (var id in wellKnown)
         {

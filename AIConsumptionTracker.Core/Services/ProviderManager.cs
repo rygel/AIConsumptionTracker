@@ -110,9 +110,9 @@ public class ProviderManager : IDisposable
         {
             configs.Add(new ProviderConfig { ProviderId = "gemini-cli", ApiKey = "" });
         }
-        if (!configs.Any(c => c.ProviderId == "opencode-zen"))
+        if (!configs.Any(c => c.ProviderId == "opencode"))
         {
-            configs.Add(new ProviderConfig { ProviderId = "opencode-zen", ApiKey = "" });
+            configs.Add(new ProviderConfig { ProviderId = "opencode", ApiKey = "" });
         }
 
         var results = new List<ProviderUsage>();
