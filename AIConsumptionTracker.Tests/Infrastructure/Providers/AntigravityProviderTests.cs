@@ -28,6 +28,7 @@ public class AntigravityProviderTests
 
         // Assert
         var usage = result.Single();
+        Console.WriteLine($"DEBUG: ProviderId={usage.ProviderId}, IsQuotaBased={usage.IsQuotaBased}, PaymentType={usage.PaymentType}, Description={usage.Description}");
         Assert.Equal("antigravity", usage.ProviderId);
         Assert.True(usage.IsQuotaBased, "Antigravity should be quota-based even when not running");
         Assert.Equal(PaymentType.Quota, usage.PaymentType);
