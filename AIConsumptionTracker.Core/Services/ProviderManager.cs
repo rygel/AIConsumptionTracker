@@ -190,6 +190,7 @@ public class ProviderManager : IDisposable
             }
             
             // Generic fallback for any provider found in config
+            var (isQuotaFallback, paymentTypeFallback) = GetProviderPaymentType(config.ProviderId);
             var genericUsage = new ProviderUsage 
             { 
                 ProviderId = config.ProviderId, 
@@ -198,7 +199,8 @@ public class ProviderManager : IDisposable
                 CostUsed = 0,
                 UsagePercentage = 0,
                 UsageUnit = "USD",
-                IsQuotaBased = false
+                IsQuotaBased = isQuotaFallback,
+                PaymentType = paymentTypeFallback
             };
             progressCallback?.Invoke(genericUsage);
             return new[] { genericUsage };
