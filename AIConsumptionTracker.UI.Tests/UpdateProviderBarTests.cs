@@ -300,6 +300,95 @@ public class UpdateProviderBarTests
         Assert.Equal(1, finalCount);
     }
 
+    [WpfFact]
+    public async Task UpdateProviderBar_ShouldWorkWithQuotaProvider()
+    {
+        await TestProviderRendering("zai-coding-plan", "Z.AI", PaymentType.Quota, true);
+    }
+
+    [WpfFact]
+    public async Task UpdateProviderBar_ShouldWorkWithAntigravityProvider()
+    {
+        await TestProviderRendering("antigravity", "Antigravity", PaymentType.Quota, true);
+    }
+
+    [WpfFact]
+    public async Task UpdateProviderBar_ShouldWorkWithGitHubCopilotProvider()
+    {
+        await TestProviderRendering("github-copilot", "GitHub Copilot", PaymentType.Quota, true);
+    }
+
+    [WpfFact]
+    public async Task UpdateProviderBar_ShouldWorkWithGeminiProvider()
+    {
+        await TestProviderRendering("gemini-cli", "Gemini CLI", PaymentType.Quota, true);
+    }
+
+    [WpfFact]
+    public async Task UpdateProviderBar_ShouldWorkWithOpenCodeProvider()
+    {
+        await TestProviderRendering("opencode", "OpenCode", PaymentType.UsageBased, true);
+    }
+
+    [WpfFact]
+    public async Task UpdateProviderBar_ShouldWorkWithOpenAIProvider()
+    {
+        await TestProviderRendering("openai", "OpenAI", PaymentType.UsageBased, true);
+    }
+
+    [WpfFact]
+    public async Task UpdateProviderBar_ShouldWorkWithOpenRouterProvider()
+    {
+        await TestProviderRendering("openrouter", "OpenRouter", PaymentType.UsageBased, true);
+    }
+
+    [WpfFact]
+    public async Task UpdateProviderBar_ShouldWorkWithDeepSeekProvider()
+    {
+        await TestProviderRendering("deepseek", "DeepSeek", PaymentType.UsageBased, true);
+    }
+
+    [WpfFact]
+    public async Task UpdateProviderBar_ShouldWorkWithKimiProvider()
+    {
+        await TestProviderRendering("kimi", "Kimi", PaymentType.Quota, true);
+    }
+
+    private async Task TestProviderRendering(string providerId, string providerName, PaymentType paymentType, bool isAvailable)
+    {
+        // Arrange
+        _mockConfigLoader.Setup(c => c.LoadPreferencesAsync()).ReturnsAsync(new AppPreferences { ShowAll = false, CompactMode = true });
+        _mockConfigLoader.Setup(c => c.LoadConfigAsync()).ReturnsAsync(new List<ProviderConfig> { 
+            new ProviderConfig { ProviderId = providerId, ApiKey = "test-key" }
+        });
+
+        var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+        await mainWindow.RefreshData(forceRefresh: false);
+
+        // Act: Call UpdateProviderBar with the provider
+        var usage = new ProviderUsage
+        {
+            ProviderId = providerId,
+            ProviderName = providerName,
+            AccountName = "test@example.com",
+            Description = "Connected",
+            IsAvailable = isAvailable,
+            PaymentType = paymentType,
+            IsQuotaBased = paymentType == PaymentType.Quota,
+            CostUsed = 50,
+            CostLimit = 100
+        };
+
+        var method = typeof(MainWindow).GetMethod("UpdateProviderBar", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        method?.Invoke(mainWindow, new object[] { usage });
+
+        // Assert: The provider bar should be rendered
+        var providersList = (StackPanel)mainWindow.FindName("ProvidersList");
+        var providerElements = FindElementsByTagRecursive<Grid>(providersList, providerId);
+        
+        Assert.True(providerElements.Any(), $"Provider {providerId} should be rendered in the UI");
+    }
+
     // Helper method to recursively find elements by tag
     private static IEnumerable<T> FindElementsByTagRecursive<T>(Panel parent, string tag) where T : FrameworkElement
     {
