@@ -57,11 +57,60 @@
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": false
+      },
+      {
+        "label": "settings",
+        "fullscreen": false,
+        "height": 600,
+        "minHeight": 500,
+        "resizable": true,
+        "title": "Settings - AI Consumption Tracker",
+        "width": 700,
+        "minWidth": 550,
+        "visible": false,
+        "center": true,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": false,
+        "parent": "main"
       }
     ],
+    "trayIcon": {
+      "iconPath": "icons/icon.ico",
+      "iconAsTemplate": false,
+      "tooltip": "AI Consumption Tracker",
+      "title": "AI Tracker",
+      "menu": [
+        {
+          "id": "show",
+          "label": "Show Window",
+          "accelerator": "CmdOrCtrl+S"
+        },
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "accelerator": "CmdOrCtrl+R"
+        },
+        {
+          "id": "separator",
+          "type": "separator"
+        },
+        {
+          "id": "quit",
+          "label": "Quit",
+          "accelerator": "CmdOrCtrl+Q"
+        }
+      ]
+    },
     "withGlobalTauri": true
   },
   "plugins": {
+    "shell": {
+      "open": true
+    },
+    "notification": {
+      "active": true
+    },
     "permissions": {
       "active": true,
       "resources": ["capabilities/main.json"]

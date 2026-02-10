@@ -21,6 +21,7 @@
             --accent-blue: #007ACC;
             --accent-green: #00CC6A;
             --accent-red: #FF1744;
+            --accent-yellow: #FFD600;
         }
 
         body {
@@ -39,7 +40,6 @@
             border: 1px solid var(--border-color);
         }
 
-        /* Header */
         .settings-header {
             background: var(--bg-medium);
             padding: 15px 20px;
@@ -79,23 +79,23 @@
             cursor: pointer;
             -webkit-app-region: no-drag;
             app-region: no-drag;
+            border-radius: 3px;
         }
 
         .close-btn:hover {
             background: var(--accent-red);
             color: white;
-            border-radius: 3px;
         }
 
-        /* Tabs */
         .tab-container {
             display: flex;
             background: var(--bg-medium);
             border-bottom: 1px solid var(--border-color);
+            overflow-x: auto;
         }
 
         .tab {
-            padding: 12px 24px;
+            padding: 12px 20px;
             background: transparent;
             border: none;
             color: var(--text-secondary);
@@ -103,10 +103,12 @@
             font-size: 13px;
             border-bottom: 2px solid transparent;
             transition: all 0.15s;
+            white-space: nowrap;
         }
 
         .tab:hover {
             color: var(--text-primary);
+            background: var(--bg-light);
         }
 
         .tab.active {
@@ -115,7 +117,6 @@
             border-bottom-color: var(--accent-blue);
         }
 
-        /* Content */
         .settings-content {
             flex: 1;
             overflow-y: auto;
@@ -130,12 +131,12 @@
             display: block;
         }
 
-        /* Provider Cards */
         .provider-card {
             background: var(--bg-light);
             border: 1px solid var(--border-color);
             margin-bottom: 16px;
             padding: 16px;
+            border-radius: 4px;
         }
 
         .provider-header {
@@ -152,14 +153,15 @@
         }
 
         .provider-icon {
-            width: 24px;
-            height: 24px;
+            width: 28px;
+            height: 28px;
             background: var(--accent-blue);
-            border-radius: 3px;
+            border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
+            font-size: 14px;
+            font-weight: 600;
         }
 
         .provider-name {
@@ -190,10 +192,10 @@
 
         .status-badge {
             font-size: 11px;
-            padding: 2px 8px;
+            padding: 3px 8px;
             background: #555;
             color: #888;
-            border-radius: 2px;
+            border-radius: 3px;
         }
 
         .status-badge.active {
@@ -201,7 +203,11 @@
             color: #000;
         }
 
-        /* Form Elements */
+        .status-badge.inactive {
+            background: #444;
+            color: #888;
+        }
+
         .form-group {
             margin-bottom: 12px;
         }
@@ -215,15 +221,31 @@
 
         .form-input {
             width: 100%;
-            background: var(--bg-light);
+            background: var(--bg-dark);
             border: 1px solid var(--border-color);
             color: var(--text-primary);
             padding: 8px 12px;
             font-size: 13px;
-            font-family: monospace;
+            border-radius: 3px;
         }
 
         .form-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .form-select {
+            width: 100%;
+            background: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            font-size: 13px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .form-select:focus {
             outline: none;
             border-color: var(--accent-blue);
         }
@@ -235,6 +257,7 @@
             padding: 8px 16px;
             cursor: pointer;
             font-size: 12px;
+            border-radius: 3px;
             transition: background 0.15s;
         }
 
@@ -255,20 +278,29 @@
             color: #000;
         }
 
+        .btn-success:hover {
+            background: #00E676;
+        }
+
         .btn-danger {
             background: var(--accent-red);
         }
 
-        /* Layout Settings */
+        .btn-danger:hover {
+            background: #FF5252;
+        }
+
         .settings-section {
-            margin-bottom: 24px;
+            margin-bottom: 28px;
         }
 
         .settings-section-title {
             font-size: 14px;
             font-weight: 600;
-            margin-bottom: 12px;
+            margin-bottom: 16px;
             color: var(--text-primary);
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
         }
 
         .settings-row {
@@ -279,16 +311,16 @@
         }
 
         .settings-label {
-            min-width: 150px;
+            min-width: 160px;
             color: var(--text-secondary);
             font-size: 12px;
         }
 
         .settings-control {
             flex: 1;
+            max-width: 300px;
         }
 
-        /* Footer */
         .settings-footer {
             background: var(--bg-medium);
             padding: 15px 20px;
@@ -303,32 +335,6 @@
             gap: 10px;
         }
 
-        /* Auth Dialog */
-        .auth-dialog {
-            text-align: center;
-            padding: 20px;
-        }
-
-        .auth-code {
-            background: var(--bg-light);
-            padding: 15px 30px;
-            font-size: 24px;
-            font-weight: 600;
-            letter-spacing: 4px;
-            margin: 20px 0;
-            font-family: monospace;
-        }
-
-        .auth-link {
-            color: var(--accent-blue);
-            text-decoration: none;
-        }
-
-        .auth-link:hover {
-            text-decoration: underline;
-        }
-
-        /* Modal Overlay */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -349,8 +355,9 @@
         .modal {
             background: var(--bg-dark);
             border: 1px solid var(--border-color);
-            width: 400px;
-            padding: 20px;
+            width: 450px;
+            padding: 24px;
+            border-radius: 6px;
         }
 
         .modal-header {
@@ -364,72 +371,325 @@
             font-size: 16px;
             font-weight: 600;
         }
+
+        .auth-dialog {
+            text-align: center;
+            padding: 10px;
+        }
+
+        .auth-code {
+            background: var(--bg-light);
+            padding: 15px 30px;
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: 6px;
+            margin: 20px 0;
+            font-family: monospace;
+            border-radius: 4px;
+        }
+
+        .auth-link {
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+
+        .auth-link:hover {
+            text-decoration: underline;
+        }
+
+        .github-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: var(--bg-light);
+            border-radius: 4px;
+            margin-bottom: 16px;
+        }
+
+        .github-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--bg-medium);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .github-info {
+            flex: 1;
+        }
+
+        .github-username {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .github-connected {
+            font-size: 12px;
+            color: var(--accent-green);
+        }
+
+        .update-status {
+            padding: 20px;
+            text-align: center;
+            background: var(--bg-light);
+            border-radius: 4px;
+            margin-bottom: 16px;
+        }
+
+        .update-version {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .update-message {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .about-section {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .about-logo {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+            border-radius: 12px;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+
+        .about-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .about-version {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        .about-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .about-link {
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-size: 13px;
+        }
+
+        .about-link:hover {
+            text-decoration: underline;
+        }
+
+        .about-license {
+            font-size: 12px;
+            color: var(--text-secondary);
+            max-width: 400px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        .font-preview {
+            padding: 16px;
+            background: var(--bg-light);
+            border-radius: 4px;
+            margin-top: 12px;
+            text-align: center;
+        }
+
+        .font-preview-text {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 20px 0;
+        }
+
+        .auth-source-select {
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
     <div class="settings-container">
-        <!-- Header -->
         <div class="settings-header" data-tauri-drag-region>
             <div class="header-title">
-                <span class="header-icon">⚙</span>
+                <span class="header-icon">&#9881;</span>
                 <span class="header-text">Settings</span>
             </div>
-            <button class="close-btn" id="closeBtn">×</button>
+            <button class="close-btn" id="closeBtn">&#215;</button>
         </div>
 
-        <!-- Tabs -->
         <div class="tab-container">
             <button class="tab active" data-tab="providers">Providers</button>
             <button class="tab" data-tab="layout">Layout</button>
+            <button class="tab" data-tab="github">GitHub</button>
+            <button class="tab" data-tab="updates">Updates</button>
+            <button class="tab" data-tab="fonts">Fonts</button>
+            <button class="tab" data-tab="about">About</button>
         </div>
 
-        <!-- Content -->
         <div class="settings-content">
-            <!-- Providers Tab -->
             <div class="tab-panel active" id="providers-panel">
                 <div id="providers-list">
                     <div class="loading">Loading providers...</div>
                 </div>
             </div>
 
-            <!-- Layout Tab -->
             <div class="tab-panel" id="layout-panel">
+                <div class="settings-section">
+                    <div class="settings-section-title">Window</div>
+                    <div class="settings-row">
+                        <label class="settings-label">Compact Mode</label>
+                        <div class="settings-control">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="compactMode">
+                                <span>Enable compact view</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Always on Top</label>
+                        <div class="settings-control">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="alwaysOnTop">
+                                <span>Keep window always visible</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Stay Open</label>
+                        <div class="settings-control">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="stayOpen">
+                                <span>Keep window open after focus loss</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Show All</label>
+                        <div class="settings-control">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="showAll">
+                                <span>Show inactive providers</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Auto-Refresh</label>
+                        <div class="settings-control" style="display: flex; gap: 10px; align-items: center;">
+                            <input type="number" class="form-input" id="refreshInterval" min="10" max="3600" value="300" style="width: 80px;">
+                            <span style="font-size: 12px; color: var(--text-secondary);">seconds</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
                 <div class="settings-section">
                     <div class="settings-section-title">UI Colors</div>
                     <div class="settings-row">
                         <label class="settings-label">Yellow Threshold (%)</label>
-                        <input type="number" class="form-input" id="yellowThreshold" value="60" min="0" max="100">
+                        <input type="number" class="form-input settings-control" id="yellowThreshold" value="60" min="0" max="100">
                     </div>
                     <div class="settings-row">
                         <label class="settings-label">Red Threshold (%)</label>
-                        <input type="number" class="form-input" id="redThreshold" value="80" min="0" max="100">
+                        <input type="number" class="form-input settings-control" id="redThreshold" value="80" min="0" max="100">
                     </div>
-                    <div class="settings-row">
-                        <label class="settings-label"></label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="invertBars">
-                            <span>Invert Progress Bars</span>
-                        </label>
+                </div>
+            </div>
+
+            <div class="tab-panel" id="github-panel">
+                <div class="settings-section">
+                    <div class="settings-section-title">GitHub Copilot</div>
+                    <div class="github-status" id="githubStatus">
+                        <div class="github-avatar">&#128279;</div>
+                        <div class="github-info">
+                            <div class="github-username" id="githubUsername">Not connected</div>
+                            <div class="github-connected" id="githubConnected">Sign in to access your Copilot usage</div>
+                        </div>
+                    </div>
+                    <div id="githubActions">
+                        <button class="btn btn-primary" id="githubLoginBtn" onclick="loginGitHub()">Login with GitHub</button>
                     </div>
                 </div>
 
+                <div class="divider"></div>
+
                 <div class="settings-section">
-                    <div class="settings-section-title">Font Settings</div>
+                    <div class="settings-section-title">Token Discovery</div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                        Automatically discover GitHub tokens from common locations on your system.
+                    </p>
+                    <button class="btn" id="discoverTokenBtn" onclick="discoverToken()">Discover Token</button>
+                </div>
+            </div>
+
+            <div class="tab-panel" id="updates-panel">
+                <div class="settings-section">
+                    <div class="settings-section-title">Application Updates</div>
+                    <div class="update-status" id="updateStatus">
+                        <div class="update-version" id="currentVersion">v1.0.0</div>
+                        <div class="update-message" id="updateMessage">Checking for updates...</div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Auto-Update</label>
+                        <div class="settings-control">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="autoUpdate">
+                                <span>Automatically check for updates</span>
+                            </label>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="checkUpdatesBtn" onclick="checkForUpdates()">Check for Updates</button>
+                </div>
+            </div>
+
+            <div class="tab-panel" id="fonts-panel">
+                <div class="settings-section">
+                    <div class="settings-section-title">Typography</div>
                     <div class="settings-row">
                         <label class="settings-label">Font Family</label>
-                        <select class="form-input" id="fontFamily">
+                        <select class="form-input settings-control" id="fontFamily">
+                            <option value="-apple-system">System Default</option>
                             <option value="Segoe UI">Segoe UI</option>
                             <option value="Arial">Arial</option>
                             <option value="Helvetica">Helvetica</option>
+                            <option value="Roboto">Roboto</option>
+                            <option value="Inter">Inter</option>
                         </select>
                     </div>
                     <div class="settings-row">
                         <label class="settings-label">Font Size</label>
-                        <input type="number" class="form-input" id="fontSize" value="13" min="8" max="24">
+                        <input type="number" class="form-input settings-control" id="fontSize" value="13" min="8" max="24">
                     </div>
                     <div class="settings-row">
-                        <label class="settings-label"></label>
-                        <div>
+                        <label class="settings-label">Style</label>
+                        <div class="settings-control">
                             <label class="checkbox-label" style="margin-right: 20px;">
                                 <input type="checkbox" id="fontBold">
                                 <span>Bold</span>
@@ -440,30 +700,52 @@
                             </label>
                         </div>
                     </div>
-                    <div class="settings-row">
-                        <label class="settings-label"></label>
-                        <button class="btn" id="resetFontBtn">Reset to Default</button>
+                    <div class="font-preview">
+                        <div class="font-preview-text" id="fontPreviewText" style="font-weight: normal; font-style: normal;">
+                            The quick brown fox jumps over the lazy dog
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">
+                            Preview Text - 1234567890
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <button class="btn" id="resetFontBtn" onclick="resetFontSettings()">Reset to Default</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-panel" id="about-panel">
+                <div class="about-section">
+                    <div class="about-logo">&#128200;</div>
+                    <div class="about-title">AI Consumption Tracker</div>
+                    <div class="about-version" id="aboutVersion">Version 1.0.0</div>
+                    <div class="about-links">
+                        <a href="https://github.com/aiconsumptiontracker" class="about-link" target="_blank">GitHub</a>
+                        <a href="https://aiconsumptiontracker.app" class="about-link" target="_blank">Website</a>
+                        <a href="https://github.com/aiconsumptiontracker/issues" class="about-link" target="_blank">Issues</a>
+                    </div>
+                    <div class="about-license">
+                        AI Consumption Tracker is open source software licensed under the MIT License.
+                        Built with Tauri, .NET, and Rust.
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Footer -->
         <div class="settings-footer">
-            <button class="btn" id="scanKeysBtn">Scan for Keys</button>
+            <button class="btn" id="scanKeysBtn" onclick="scanForKeys()">Scan for Keys</button>
             <div class="footer-actions">
-                <button class="btn btn-primary" id="saveBtn">Save Changes</button>
-                <button class="btn" id="cancelBtn">Cancel</button>
+                <button class="btn btn-primary" id="saveBtn" onclick="saveSettings()">Save Changes</button>
+                <button class="btn" id="cancelBtn" onclick="closeSettings()">Cancel</button>
             </div>
         </div>
     </div>
 
-    <!-- GitHub Auth Modal -->
     <div class="modal-overlay" id="authModal">
         <div class="modal">
             <div class="modal-header">
                 <span class="modal-title">GitHub Authentication</span>
-                <button class="close-btn" onclick="closeAuthModal()">×</button>
+                <button class="close-btn" onclick="closeAuthModal()">&#215;</button>
             </div>
             <div class="auth-dialog" id="authContent">
                 <p>Initializing...</p>
@@ -472,29 +754,35 @@
     </div>
 
     <script>
-        // State
         let configs = [];
         let prefs = {};
+        let githubUser = null;
         let settingsChanged = false;
 
-        // Initialize
+        const invoke = window.__TAURI__?.invoke || window.__TAURI__?.core?.invoke;
+
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('Settings loaded');
             
-            // Setup tabs
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.addEventListener('click', () => switchTab(tab.dataset.tab));
             });
             
-            // Setup buttons
             document.getElementById('closeBtn').addEventListener('click', closeSettings);
-            document.getElementById('saveBtn').addEventListener('click', saveSettings);
             document.getElementById('cancelBtn').addEventListener('click', closeSettings);
-            document.getElementById('scanKeysBtn').addEventListener('click', scanForKeys);
-            document.getElementById('resetFontBtn').addEventListener('click', resetFontSettings);
             
-            // Load data
+            document.querySelectorAll('.form-input, .form-select, input[type="checkbox"]').forEach(el => {
+                el.addEventListener('change', () => settingsChanged = true);
+                el.addEventListener('input', () => settingsChanged = true);
+            });
+            
+            document.getElementById('fontBold').addEventListener('change', updateFontPreview);
+            document.getElementById('fontItalic').addEventListener('change', updateFontPreview);
+            document.getElementById('fontFamily').addEventListener('change', updateFontPreview);
+            document.getElementById('fontSize').addEventListener('input', updateFontPreview);
+            
             await loadSettings();
+            updateFontPreview();
         });
 
         function switchTab(tabName) {
@@ -507,23 +795,40 @@
 
         async function loadSettings() {
             try {
-                if (window.__TAURI__ && window.__TAURI__.invoke) {
-                    configs = await window.__TAURI__.invoke('get_configured_providers');
-                    prefs = await window.__TAURI__.invoke('load_preferences');
+                if (invoke) {
+                    configs = await invoke('get_configured_providers');
+                    prefs = await invoke('load_preferences');
+                    
+                    const githubAuth = await invoke('is_github_authenticated');
+                    if (githubAuth) {
+                        githubUser = { username: 'Connected' };
+                    }
                 }
                 
-                // Ensure GitHub Copilot config exists
-                if (!configs.find(c => c.provider_id === 'github-copilot')) {
-                    configs.push({
-                        provider_id: 'github-copilot',
-                        api_key: '',
-                        show_in_tray: true,
-                        config_type: 'github-copilot'
-                    });
-                }
+                const allProviders = [
+                    { id: 'github-copilot', name: 'GitHub Copilot', icon: 'G' },
+                    { id: 'openai', name: 'OpenAI', icon: 'O' },
+                    { id: 'anthropic', name: 'Anthropic', icon: 'A' },
+                    { id: 'deepseek', name: 'DeepSeek', icon: 'D' },
+                    { id: 'gemini', name: 'Google Gemini', icon: 'G' },
+                    { id: 'kimi', name: 'Kimi', icon: 'K' }
+                ];
+                
+                allProviders.forEach(p => {
+                    if (!configs.find(c => c.provider_id === p.id)) {
+                        configs.push({
+                            provider_id: p.id,
+                            api_key: '',
+                            show_in_tray: true,
+                            auth_source: 'Manual'
+                        });
+                    }
+                });
                 
                 populateProviders();
                 populateLayout();
+                populateGitHub();
+                populateFonts();
             } catch (e) {
                 console.error('Error loading settings:', e);
             }
@@ -531,107 +836,149 @@
 
         function populateProviders() {
             const container = document.getElementById('providers-list');
+            const providerInfo = {
+                'github-copilot': { name: 'GitHub Copilot', icon: 'G', color: '#24292e' },
+                'openai': { name: 'OpenAI', icon: 'O', color: '#10a37f' },
+                'anthropic': { name: 'Anthropic', icon: 'A', color: '#d4a574' },
+                'deepseek': { name: 'DeepSeek', icon: 'D', color: '#1e80ff' },
+                'gemini': { name: 'Google Gemini', icon: 'G', color: '#4285f4' },
+                'kimi': { name: 'Kimi', icon: 'K', color: '#0066cc' }
+            };
             
             container.innerHTML = configs.map(config => {
-                const isGitHub = config.provider_id === 'github-copilot';
+                const info = providerInfo[config.provider_id] || { name: config.provider_id, icon: config.provider_id.charAt(0).toUpperCase(), color: '#007ACC' };
                 const hasKey = config.api_key && config.api_key.length > 0;
                 
                 return `
                     <div class="provider-card" data-provider="${config.provider_id}">
                         <div class="provider-header">
                             <div class="provider-info">
-                                <div class="provider-icon">${config.provider_id.charAt(0).toUpperCase()}</div>
-                                <span class="provider-name">${formatProviderName(config.provider_id)}</span>
+                                <div class="provider-icon" style="background: ${info.color};">${info.icon}</div>
+                                <span class="provider-name">${info.name}</span>
                             </div>
                             <div class="provider-actions">
                                 <label class="checkbox-label">
                                     <input type="checkbox" class="tray-checkbox" ${config.show_in_tray ? 'checked' : ''}>
                                     <span>Tray</span>
                                 </label>
-                                <span class="status-badge ${hasKey ? 'active' : ''}">${hasKey ? 'Active' : 'Inactive'}</span>
+                                <span class="status-badge ${hasKey ? 'active' : 'inactive'}">${hasKey ? 'Active' : 'Inactive'}</span>
                             </div>
                         </div>
-                        ${isGitHub ? renderGitHubAuth(config, hasKey) : renderApiKeyInput(config)}
+                        ${config.provider_id === 'github-copilot' ? '' : `
+                            <div class="form-group" style="margin-top: 12px;">
+                                <label class="form-label">API Key</label>
+                                <input type="password" class="form-input api-key-input" 
+                                    value="${config.api_key || ''}" 
+                                    placeholder="Enter API key"
+                                    data-provider="${config.provider_id}">
+                            </div>
+                            <div class="form-group auth-source-select">
+                                <label class="form-label">Authentication Source</label>
+                                <select class="form-select auth-source-select" data-provider="${config.provider_id}">
+                                    <option value="Manual" ${config.auth_source === 'Manual' ? 'selected' : ''}>Manual</option>
+                                    <option value="Environment" ${config.auth_source === 'Environment' ? 'selected' : ''}>Environment Variable</option>
+                                    <option value="File" ${config.auth_source === 'File' ? 'selected' : ''}>Configuration File</option>
+                                </select>
+                            </div>
+                        `}
                     </div>
                 `;
             }).join('');
             
-            // Attach event listeners
-            document.querySelectorAll('.tray-checkbox').forEach(cb => {
-                cb.addEventListener('change', () => settingsChanged = true);
-            });
-            
-            document.querySelectorAll('.api-key-input').forEach(input => {
-                input.addEventListener('input', () => settingsChanged = true);
+            document.querySelectorAll('.tray-checkbox, .api-key-input, .auth-source-select').forEach(el => {
+                el.addEventListener('change', () => settingsChanged = true);
+                el.addEventListener('input', () => settingsChanged = true);
             });
         }
 
-        function renderGitHubAuth(config, isAuthenticated) {
-            if (isAuthenticated) {
-                return `
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                        <span style="color: var(--accent-green);">✓ Authenticated</span>
-                        <button class="btn btn-danger" onclick="logoutGitHub()">Logout</button>
-                    </div>
-                `;
-            } else {
-                return `
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                        <span style="color: #888;">Not Authenticated</span>
-                        <button class="btn btn-primary" onclick="loginGitHub()">Login with GitHub</button>
-                    </div>
+        function populateLayout() {
+            document.getElementById('compactMode').checked = prefs.compact_mode || false;
+            document.getElementById('alwaysOnTop').checked = prefs.always_on_top || false;
+            document.getElementById('stayOpen').checked = prefs.stay_open || false;
+            document.getElementById('showAll').checked = prefs.show_all !== false;
+            document.getElementById('refreshInterval').value = prefs.refresh_interval || 300;
+            document.getElementById('yellowThreshold').value = prefs.yellow_threshold || 60;
+            document.getElementById('redThreshold').value = prefs.red_threshold || 80;
+            document.getElementById('autoUpdate').checked = prefs.auto_update !== false;
+        }
+
+        function populateGitHub() {
+            if (githubUser) {
+                document.getElementById('githubUsername').textContent = githubUser.username;
+                document.getElementById('githubConnected').textContent = 'Connected to GitHub';
+                document.getElementById('githubConnected').style.color = 'var(--accent-green)';
+                document.getElementById('githubActions').innerHTML = `
+                    <button class="btn btn-danger" onclick="logoutGitHub()">Logout</button>
                 `;
             }
         }
 
-        function renderApiKeyInput(config) {
-            return `
-                <div class="form-group" style="margin-top: 10px;">
-                    <label class="form-label">API Key</label>
-                    <input type="password" class="form-input api-key-input" 
-                        value="${config.api_key || ''}" 
-                        placeholder="Enter API key">
-                </div>
-            `;
+        function populateFonts() {
+            document.getElementById('fontFamily').value = prefs.font_family || '-apple-system';
+            document.getElementById('fontSize').value = prefs.font_size || 13;
+            document.getElementById('fontBold').checked = prefs.font_bold || false;
+            document.getElementById('fontItalic').checked = prefs.font_italic || false;
         }
 
-        function populateLayout() {
-            if (prefs.yellow_threshold) document.getElementById('yellowThreshold').value = prefs.yellow_threshold;
-            if (prefs.red_threshold) document.getElementById('redThreshold').value = prefs.red_threshold;
-            if (prefs.invert_bars) document.getElementById('invertBars').checked = prefs.invert_bars;
-            if (prefs.font_family) document.getElementById('fontFamily').value = prefs.font_family;
-            if (prefs.font_size) document.getElementById('fontSize').value = prefs.font_size;
-            if (prefs.font_bold) document.getElementById('fontBold').checked = prefs.font_bold;
-            if (prefs.font_italic) document.getElementById('fontItalic').checked = prefs.font_italic;
+        function updateFontPreview() {
+            const preview = document.getElementById('fontPreviewText');
+            const family = document.getElementById('fontFamily').value;
+            const size = document.getElementById('fontSize').value;
+            const bold = document.getElementById('fontBold').checked;
+            const italic = document.getElementById('fontItalic').checked;
+            
+            preview.style.fontFamily = family;
+            preview.style.fontSize = size + 'px';
+            preview.style.fontWeight = bold ? 'bold' : 'normal';
+            preview.style.fontStyle = italic ? 'italic' : 'normal';
+        }
+
+        function resetFontSettings() {
+            document.getElementById('fontFamily').value = '-apple-system';
+            document.getElementById('fontSize').value = '13';
+            document.getElementById('fontBold').checked = false;
+            document.getElementById('fontItalic').checked = false;
+            updateFontPreview();
+            settingsChanged = true;
         }
 
         async function saveSettings() {
             try {
-                // Update configs from UI
                 document.querySelectorAll('.provider-card').forEach(card => {
                     const providerId = card.dataset.provider;
                     const config = configs.find(c => c.provider_id === providerId);
                     if (config) {
-                        config.show_in_tray = card.querySelector('.tray-checkbox').checked;
+                        const trayCheckbox = card.querySelector('.tray-checkbox');
+                        if (trayCheckbox) config.show_in_tray = trayCheckbox.checked;
+                        
                         const apiKeyInput = card.querySelector('.api-key-input');
-                        if (apiKeyInput) {
-                            config.api_key = apiKeyInput.value;
-                        }
+                        if (apiKeyInput) config.api_key = apiKeyInput.value;
+                        
+                        const authSelect = card.querySelector('.auth-source-select');
+                        if (authSelect) config.auth_source = authSelect.value;
                     }
                 });
                 
-                // Update prefs from UI
-                prefs.yellow_threshold = parseInt(document.getElementById('yellowThreshold').value);
-                prefs.red_threshold = parseInt(document.getElementById('redThreshold').value);
-                prefs.invert_bars = document.getElementById('invertBars').checked;
+                prefs.compact_mode = document.getElementById('compactMode').checked;
+                prefs.always_on_top = document.getElementById('alwaysOnTop').checked;
+                prefs.stay_open = document.getElementById('stayOpen').checked;
+                prefs.show_all = document.getElementById('showAll').checked;
+                prefs.refresh_interval = parseInt(document.getElementById('refreshInterval').value) || 300;
+                prefs.yellow_threshold = parseInt(document.getElementById('yellowThreshold').value) || 60;
+                prefs.red_threshold = parseInt(document.getElementById('redThreshold').value) || 80;
+                prefs.auto_update = document.getElementById('autoUpdate').checked;
                 prefs.font_family = document.getElementById('fontFamily').value;
-                prefs.font_size = parseInt(document.getElementById('fontSize').value);
+                prefs.font_size = parseInt(document.getElementById('fontSize').value) || 13;
                 prefs.font_bold = document.getElementById('fontBold').checked;
                 prefs.font_italic = document.getElementById('fontItalic').checked;
                 
-                if (window.__TAURI__ && window.__TAURI__.invoke) {
-                    await window.__TAURI__.invoke('save_provider_configs', { configs });
-                    await window.__TAURI__.invoke('save_preferences', { preferences: prefs });
+                if (invoke) {
+                    await invoke('save_provider_configs', { configs });
+                    await invoke('save_preferences', { preferences: prefs });
+                    
+                    if (prefs.always_on_top) {
+                        await invoke('toggle_always_on_top', { enabled: true });
+                    }
                 }
                 
                 settingsChanged = true;
@@ -648,10 +995,9 @@
             btn.disabled = true;
             
             try {
-                if (window.__TAURI__ && window.__TAURI__.invoke) {
-                    const discovered = await window.__TAURI__.invoke('scan_for_api_keys');
+                if (invoke) {
+                    const discovered = await invoke('scan_for_api_keys');
                     
-                    // Merge discovered configs
                     discovered.forEach(newConfig => {
                         const existing = configs.find(c => c.provider_id === newConfig.provider_id);
                         if (!existing) {
@@ -672,49 +1018,124 @@
             }
         }
 
-        function resetFontSettings() {
-            document.getElementById('fontFamily').value = 'Segoe UI';
-            document.getElementById('fontSize').value = '13';
-            document.getElementById('fontBold').checked = false;
-            document.getElementById('fontItalic').checked = false;
-            settingsChanged = true;
-        }
-
         async function loginGitHub() {
             document.getElementById('authModal').classList.add('visible');
             
             try {
-                if (window.__TAURI__ && window.__TAURI__.invoke) {
-                    const [userCode, verificationUri] = await window.__TAURI__.invoke('initiate_github_login');
+                if (invoke) {
+                    const [userCode, verificationUri] = await invoke('initiate_github_login');
                     
                     document.getElementById('authContent').innerHTML = `
                         <p>Go to <a href="${verificationUri}" class="auth-link" target="_blank">${verificationUri}</a></p>
                         <p>and enter this code:</p>
                         <div class="auth-code">${userCode}</div>
                         <p style="color: #888; font-size: 12px;">Waiting for authentication...</p>
+                        <button class="btn" style="margin-top: 12px;" onclick="cancelGitHubLogin()">Cancel</button>
                     `;
                     
-                    // Open browser
-                    if (window.__TAURI__ && window.__TAURI__.shell) {
+                    if (window.__TAURI__?.shell) {
                         await window.__TAURI__.shell.open(verificationUri);
                     }
+                    
+                    pollGitHubLogin();
                 }
             } catch (e) {
                 document.getElementById('authContent').innerHTML = `<p style="color: red;">Error: ${e.message}</p>`;
             }
         }
 
+        async function pollGitHubLogin() {
+            if (!invoke) return;
+            
+            const poll = async () => {
+                try {
+                    const result = await invoke('check_github_login_status');
+                    if (result === 'success') {
+                        githubUser = { username: 'Connected' };
+                        closeAuthModal();
+                        populateGitHub();
+                        settingsChanged = true;
+                    } else if (result === 'pending') {
+                        setTimeout(poll, 2000);
+                    }
+                } catch (e) {
+                    console.error('Poll error:', e);
+                }
+            };
+            
+            setTimeout(poll, 2000);
+        }
+
+        async function cancelGitHubLogin() {
+            if (invoke) {
+                await invoke('cancel_github_login');
+            }
+            closeAuthModal();
+        }
+
         async function logoutGitHub() {
             try {
-                if (window.__TAURI__ && window.__TAURI__.invoke) {
-                    await window.__TAURI__.invoke('logout_github');
-                    const config = configs.find(c => c.provider_id === 'github-copilot');
-                    if (config) config.api_key = '';
-                    populateProviders();
+                if (invoke) {
+                    await invoke('logout_github');
+                    githubUser = null;
+                    populateGitHub();
                     settingsChanged = true;
                 }
             } catch (e) {
                 console.error('Logout failed:', e);
+            }
+        }
+
+        async function discoverToken() {
+            const btn = document.getElementById('discoverTokenBtn');
+            btn.textContent = 'Discovering...';
+            btn.disabled = true;
+            
+            try {
+                if (invoke) {
+                    const result = await invoke('discover_github_token');
+                    if (result.found) {
+                        alert('GitHub token found and configured!');
+                        const config = configs.find(c => c.provider_id === 'github-copilot');
+                        if (config) config.api_key = result.token;
+                        populateProviders();
+                        settingsChanged = true;
+                    } else {
+                        alert('No GitHub token found in common locations.');
+                    }
+                }
+            } catch (e) {
+                console.error('Discovery failed:', e);
+            } finally {
+                btn.textContent = 'Discover Token';
+                btn.disabled = false;
+            }
+        }
+
+        async function checkForUpdates() {
+            const btn = document.getElementById('checkUpdatesBtn');
+            const message = document.getElementById('updateMessage');
+            
+            btn.textContent = 'Checking...';
+            btn.disabled = true;
+            
+            try {
+                if (invoke) {
+                    const result = await invoke('check_for_updates');
+                    if (result.update_available) {
+                        message.textContent = `Update available: ${result.latest_version}`;
+                        message.style.color = 'var(--accent-green)';
+                    } else {
+                        message.textContent = 'You are running the latest version.';
+                        message.style.color = 'var(--text-secondary)';
+                    }
+                }
+            } catch (e) {
+                message.textContent = 'Failed to check for updates.';
+                message.style.color = 'var(--accent-red)';
+            } finally {
+                btn.textContent = 'Check for Updates';
+                btn.disabled = false;
             }
         }
 
@@ -723,17 +1144,11 @@
         }
 
         function closeSettings() {
-            if (window.__TAURI__ && window.__TAURI__.core) {
-                window.__TAURI__.core.invoke('close_settings_window');
-            } else if (window.__TAURI__ && window.__TAURI__.invoke) {
-                window.__TAURI__.invoke('close_settings_window');
+            if (invoke) {
+                invoke('close_settings_window');
             } else {
                 window.close();
             }
-        }
-
-        function formatProviderName(id) {
-            return id.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         }
     </script>
 </body>
