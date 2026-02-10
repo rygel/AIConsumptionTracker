@@ -169,7 +169,9 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                      UsagePercentage = 0,
                      CostUsed = 0,
                      CostLimit = 0,
-                     Description = "Not running"
+                     Description = "Not running",
+                     IsQuotaBased = true,
+                     PaymentType = PaymentType.Quota
                  }};
             }
 
@@ -193,7 +195,9 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                 UsagePercentage = 0,
                 CostUsed = 0,
                 CostLimit = 0,
-                Description = "Application not running"
+                Description = "Application not running",
+                IsQuotaBased = true,
+                PaymentType = PaymentType.Quota
             }};
         }
     }
