@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.17] - 2026-02-10
+
+### Fixed
+- **Progress Bar Colors**: Fixed color display for quota-based providers
+  - Bars now correctly show green when plenty of quota remains, yellow when running low, red when nearly depleted
+  - Affected providers: Synthetic, Z.AI, Antigravity, GitHub Copilot
+
 ## [1.7.16] - 2026-02-09
 
 ### Fixed

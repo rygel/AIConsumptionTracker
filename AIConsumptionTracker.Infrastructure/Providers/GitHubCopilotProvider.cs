@@ -138,7 +138,8 @@ public class GitHubCopilotProvider : IProviderService
                      }
                 }
                 
-                // Fetch rate limits to show "actual usage" of the API
+        // Fetch rate limits to show usage
+                // Note: This shows remaining percentage like quota providers (full bar = lots remaining)
                 try 
                 {
                     var rateRequest = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/rate_limit");
@@ -161,17 +162,18 @@ public class GitHubCopilotProvider : IProviderService
                                 // Append rate limit info
                                 if (description.Contains("Plan"))
                                 {
-                                     description += $"\nAPI Quota: {used}/{limit} used ({remaining} remaining)";
+                                     description += $"\nAPI Rate Limit: {used}/{limit} used ({remaining} remaining)";
                                 }
                                 else
                                 {
-                                     description += $" (API Quota: {used}/{limit})";
+                                     description += $" (API Rate Limit: {used}/{limit})";
                                 }
                                 
-                                // Map to Cost/Limit fields for bar graph
+                                // Show REMAINING percentage (like quota providers)
+                                // Full bar = lots of quota remaining, empty bar = depleted
                                 costLimit = limit;
                                 costUsed = used;
-                                percentage = limit > 0 ? ((double)used / limit) * 100 : 0;
+                                percentage = limit > 0 ? ((double)remaining / limit) * 100 : 100;  // REMAINING %
                                 
                                 if (core.TryGetProperty("reset", out var resetProp))
                                 {
@@ -203,14 +205,14 @@ public class GitHubCopilotProvider : IProviderService
             AccountName = username, // Move username to AccountName column
             IsAvailable = isAvailable,
             Description = isAvailable 
-                ? $"API Rate Limit (Hourly): {costUsed}/{costLimit} Used" 
+                ? $"API Rate Limit: {costUsed}/{costLimit} Used" 
                 : description,
-            UsagePercentage = percentage, 
+            UsagePercentage = percentage,  // REMAINING % for quota-like behavior
             CostLimit = costLimit,
             CostUsed = costUsed,
-            UsageUnit = "Reqs",
-            PaymentType = PaymentType.Quota,
-            IsQuotaBased = true,
+            UsageUnit = "Requests",
+            PaymentType = PaymentType.Quota,  // Quota-based: shows remaining %, full bar = green
+            IsQuotaBased = true,  // Show progress bar with inverted logic
             AuthSource = planName, // Show plan in tooltip/metadata
             NextResetTime = resetTime
         }};

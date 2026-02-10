@@ -58,7 +58,7 @@ public class ZaiProvider : IProviderService
         var tokenLimit = limits.FirstOrDefault(l => l.Type?.ToUpper() == "TOKENS_LIMIT");
         var mcpLimit = limits.FirstOrDefault(l => l.Type?.ToUpper() == "TIME_LIMIT");
 
-        double usedPercent = 0;
+            double remainingPercent = 100;
         string detailInfo = "";
 
         if (tokenLimit != null)
@@ -67,12 +67,14 @@ public class ZaiProvider : IProviderService
             // Map JSON properties more clearly:
             // tokenLimit.CurrentValue likely means USED amount in this API if 0 = unused.
             // tokenLimit.Total (mapped from 'usage') is the LIMIT.
-            // Wait, if 0 = unused, then CurrentValue is "Used".
-            double usedPercentVal = (tokenLimit.CurrentValue.HasValue && tokenLimit.Total.HasValue && tokenLimit.Total.Value > 0 
-                ? (double)tokenLimit.CurrentValue.Value / tokenLimit.Total.Value * 100.0 
-                : 0);
+            // For quota-based providers, show REMAINING percentage (full bar = lots remaining)
+            double usedVal = tokenLimit.CurrentValue ?? 0;
+            double totalVal = tokenLimit.Total ?? 0;
+            double remainingPercentVal = (totalVal > 0 
+                ? ((totalVal - usedVal) / totalVal) * 100.0 
+                : 100);
             
-            usedPercent = Math.Max(usedPercent, usedPercentVal);
+            remainingPercent = Math.Min(remainingPercent, remainingPercentVal);
             
             if (tokenLimit.Total > 50000000) {
                  planDescription = "Coding Plan (Ultra/Enterprise)";
@@ -80,12 +82,15 @@ public class ZaiProvider : IProviderService
                  planDescription = "Coding Plan (Pro)";
             }
             
-            detailInfo = $"{usedPercent:F1}% Used of {tokenLimit.Total / 1000000.0:F0}M tokens limit";
+            double usedPercentDisplay = totalVal > 0 ? (usedVal / totalVal) * 100.0 : 0;
+            detailInfo = $"{usedPercentDisplay:F1}% Used of {tokenLimit.Total / 1000000.0:F0}M tokens limit";
         }
         
         if (mcpLimit != null && mcpLimit.Percentage > 0)
         {
-            usedPercent = Math.Max(usedPercent, mcpLimit.Percentage.Value);
+            // MCP limit percentage is "used", convert to "remaining" for consistency
+            double mcpRemainingPercent = Math.Max(0, 100 - mcpLimit.Percentage.Value);
+            remainingPercent = Math.Min(remainingPercent, mcpRemainingPercent);
         }
 
         // Z.AI usually resets at UTC midnight
@@ -97,13 +102,13 @@ public class ZaiProvider : IProviderService
         {
             ProviderId = ProviderId,
             ProviderName = $"Z.AI {planDescription}",
-            UsagePercentage = Math.Min(usedPercent, 100),
-            CostUsed = usedPercent,
+            UsagePercentage = Math.Min(remainingPercent, 100),
+            CostUsed = 100 - remainingPercent,  // Store actual used percentage
             CostLimit = 100,
             UsageUnit = "Quota %",
             IsQuotaBased = true, 
             PaymentType = PaymentType.Quota,
-            Description = (string.IsNullOrEmpty(detailInfo) ? $"{usedPercent:F1}% utilized" : detailInfo) + zReset,
+            Description = (string.IsNullOrEmpty(detailInfo) ? $"{100 - remainingPercent:F1}% utilized" : detailInfo) + zReset,
 
             NextResetTime = resetDt.ToLocalTime()
         }};

@@ -192,7 +192,7 @@ public class ExampleProvider : IProviderService
 
 The application uses different progress bar calculations depending on the payment type to provide intuitive visual feedback:
 
-#### Quota-Based Providers (e.g., Synthetic)
+#### Quota-Based Providers (e.g., Synthetic, Z.AI)
 
 **Calculation:** Show **remaining percentage** (full bar = lots of credits remaining)
 ```csharp
@@ -204,7 +204,12 @@ var utilization = (total - used) / total * 100.0;
 - 67 used / 135 total = **50% bar** (half credits remaining)
 - 135 used / 135 total = **0% empty bar** (no credits remaining)
 
-**Rationale:** Users expect to see a full bar when they have all their quota available. The bar depletes as they use credits, similar to a fuel gauge.
+**Color Logic:**
+- **Green**: UsagePercentage > ColorThresholdYellow (lots remaining)
+- **Yellow**: ColorThresholdRed < UsagePercentage <= ColorThresholdYellow (moderate remaining)
+- **Red**: UsagePercentage < ColorThresholdRed (dangerously low remaining)
+
+**Rationale:** Users expect to see a full green bar when they have all their quota available. The bar depletes and turns red as they use credits, similar to a fuel gauge.
 
 #### Credits-Based Providers (e.g., OpenCode)
 
@@ -218,16 +223,34 @@ var utilization = used / total * 100.0;
 - 50 used / 100 total = **50% bar** (moderate spending)
 - 100 used / 100 total = **100% full bar** (budget exhausted)
 
-**Rationale:** For pay-as-you-go providers, users want to see spending accumulate. The bar fills up as they spend money, acting as a spending indicator.
+**Color Logic:**
+- **Green**: UsagePercentage < ColorThresholdYellow (low spending)
+- **Yellow**: ColorThresholdYellow <= UsagePercentage < ColorThresholdRed (moderate spending)
+- **Red**: UsagePercentage >= ColorThresholdRed (high spending/budget exhausted)
 
-#### Implementation in GenericPayAsYouGoProvider
+**Rationale:** For pay-as-you-go providers, users want to see spending accumulate. The bar fills up and turns red as they spend money, acting as a spending warning indicator.
 
+#### Implementation
+
+**Backend (Provider):**
 ```csharp
 // For quota-based providers, show remaining percentage (full bar = lots remaining)
 // For other providers, show used percentage (full bar = high usage)
 var utilization = paymentType == PaymentType.Quota
-    ? (total > 0 ? ((total - used) / total) * 100.0 : 0)  // Remaining % for quota
-    : (total > 0 ? (used / total) * 100.0 : 0);            // Used % for others
+    ? (total > 0 ? ((total - used) / total) * 100.0 : 100)  // Remaining % for quota
+    : (total > 0 ? (used / total) * 100.0 : 0);              // Used % for others
+```
+
+**Frontend (UI Color Logic):**
+```csharp
+// For quota-based providers: high remaining % = green (good), low = red (bad)
+// For usage-based: high used % = red (bad), low = green (good)
+var isQuota = usage.IsQuotaBased || usage.PaymentType == PaymentType.Quota;
+var brush = isQuota
+    ? (usage.UsagePercentage < ColorThresholdRed ? Brushes.Crimson 
+        : (usage.UsagePercentage < ColorThresholdYellow ? Brushes.Gold : Brushes.MediumSeaGreen))
+    : (usage.UsagePercentage > ColorThresholdRed ? Brushes.Crimson 
+        : (usage.UsagePercentage > ColorThresholdYellow ? Brushes.Gold : Brushes.MediumSeaGreen));
 ```
 
 ### JSON Handling
