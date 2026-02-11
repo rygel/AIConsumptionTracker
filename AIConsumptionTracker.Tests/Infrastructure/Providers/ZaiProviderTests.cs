@@ -74,13 +74,13 @@ public class ZaiProviderTests
         // Assert
         var usage = result.Single();
         Assert.Equal("Z.AI Coding Plan", usage.ProviderName);
-        
+
         // Quota-based providers show REMAINING percentage (full bar = lots remaining)
         // CurrentValue = 0 (Used), Total = 100.
         // Expected Percentage = 100% remaining. (Full Bar = all quota available)
         Assert.Equal(100, usage.UsagePercentage);
-        
-        Assert.Contains("Used", usage.Description);
+
+        Assert.Contains("Remaining", usage.Description);
     }
 
     [Fact]
@@ -130,12 +130,12 @@ public class ZaiProviderTests
         // Assert
         var usage = result.Single();
         Assert.Equal("Z.AI Coding Plan (Ultra/Enterprise)", usage.ProviderName);
-        
+
         // Quota-based providers show REMAINING percentage (80% remaining)
         Assert.Equal(80, usage.UsagePercentage);
-        
-        // Description should show "20.0% Used"
-        Assert.Contains("20.0% Used", usage.Description);
+
+        // Description should show "80.0% Remaining"
+        Assert.Contains("80.0% Remaining", usage.Description);
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public class ZaiProviderTests
                         currentValue = 35000000L, // 35M used
                         usage = 135000000L, // 135M total
                         remaining = 100000000L, // 100M remaining
-                        nextResetTime = 1739232000000L // Unix timestamp in ms
+                        nextResetTime = 1773532800L // Mar 15, 2026 (Unix seconds)
                     },
                     new
                     {
@@ -213,7 +213,7 @@ public class ZaiProviderTests
                         currentValue = (long?)null,
                         usage = (long?)null,
                         remaining = (long?)null,
-                        nextResetTime = 1739232000000L
+                        nextResetTime = 1773532800L // Mar 15, 2026 (Unix seconds)
                     }
                 }
             }
@@ -239,7 +239,7 @@ public class ZaiProviderTests
         Assert.True(usage.IsAvailable);
         Assert.Equal("Z.AI Coding Plan (Ultra/Enterprise)", usage.ProviderName);
         Assert.Equal(74.074, usage.UsagePercentage, 3); // ~74% remaining (100M/135M) with tolerance
-        Assert.Contains("25.9% Used of 135M tokens limit", usage.Description);
+        Assert.Contains("74.1% Remaining of 135M tokens limit", usage.Description);
         Assert.NotNull(usage.NextResetTime);
     }
 
@@ -288,7 +288,8 @@ public class ZaiProviderTests
         var usage = result.Single();
         Assert.True(usage.IsAvailable);
         Assert.Equal("Z.AI Coding Plan (Pro)", usage.ProviderName);
-        Assert.Contains("Used of 12M tokens limit", usage.Description);
+        // When used > total, remaining is negative - shows overage situation
+        Assert.Contains("Remaining of 12M tokens limit", usage.Description);
     }
 
     [Fact]
