@@ -312,6 +312,41 @@ git tag v1.5.0
 git push origin v1.5.0
 ```
 
+### 6. Appcast Files (Updater)
+After the release workflow completes and assets are published, update the appcast files in the repository root to point to the new release assets:
+
+**Appcast files to update:**
+- `appcast.xml` - Default (x64)
+- `appcast_x64.xml` - x64 architecture
+- `appcast_arm64.xml` - ARM64 architecture
+- `appcast_x86.xml` - x86 architecture
+
+**Important: Match the exact asset filenames from the release:**
+```bash
+# Check release assets
+gh release view v1.5.0 --json assets --jq '.assets[].name'
+```
+
+**URL pattern:** `https://github.com/rygel/AIConsumptionTracker/releases/download/v1.5.5/AIConsumptionTracker_Setup_v1.5.5_win-x64.exe`
+
+Note: Release assets use `-win-x64`, `-win-arm64`, `-win-x86` suffixes (NOT `-x64`, `-arm64`, `-x86`).
+
+**Update appcast entries:**
+```xml
+<item>
+    <title>Version 1.5.0</title>
+    <sparkle:releaseNotesLink>https://github.com/rygel/AIConsumptionTracker/releases/tag/v1.5.0</sparkle:releaseNotesLink>
+    <pubDate>Wed, 11 Feb 2026 19:45:00 +0000</pubDate>
+    <enclosure url="https://github.com/rygel/AIConsumptionTracker/releases/download/v1.5.0/AIConsumptionTracker_Setup_v1.5.0_win-x64.exe"
+               sparkle:version="1.5.0"
+               sparkle:os="windows"
+               length="0"
+               type="application/octet-stream" />
+</item>
+```
+
+Commit and push the appcast updates after the release assets are available.
+
 ## CI/CD
 - GitHub Actions for testing on push/PR to main.
 - Release workflow creates installers for multiple platforms.
