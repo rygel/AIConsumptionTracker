@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Hardcodet.Wpf.TaskbarNotification;
@@ -281,50 +282,75 @@ namespace AIConsumptionTracker.UI
 
         public void ShowSettings()
         {
-            // Ensure dashboard is created
-            if (_mainWindow == null)
-            {
-                _ = ShowDashboard();
-            }
+            Debug.WriteLine("[DEBUG] ShowSettings called");
             
-            if (_mainWindow == null) return;
-
-            if (_mainWindow.Visibility != Visibility.Visible)
+            try
             {
-                _mainWindow.Show();
-            }
-            _mainWindow.Activate();
-
-            // Check if SettingsWindow is already open
-            foreach (Window window in Application.Current.Windows)
-            {
-                if (window is SettingsWindow existingSettings && existingSettings.IsVisible)
+                // Ensure dashboard is created
+                if (_mainWindow == null)
                 {
-                    existingSettings.Activate();
+                    Debug.WriteLine("[DEBUG] Creating main window...");
+                    _ = ShowDashboard();
+                }
+                
+                if (_mainWindow == null) 
+                {
+                    Debug.WriteLine("[ERROR] Main window is null after ShowDashboard");
                     return;
                 }
-            }
 
-            // Create SettingsWindow manually with injected dependencies to ensure fresh instance
-            var settingsWindow = new SettingsWindow(
-                Services.GetRequiredService<IConfigLoader>(),
-                Services.GetRequiredService<ProviderManager>(),
-                Services.GetRequiredService<IFontProvider>(),
-                Services.GetRequiredService<IUpdateCheckerService>(),
-                Services.GetRequiredService<IGitHubAuthService>()
-            );
-            
-            settingsWindow.Owner = _mainWindow;
-            settingsWindow.Closed += async (s, e) => 
+                if (_mainWindow.Visibility != Visibility.Visible)
+                {
+                    Debug.WriteLine("[DEBUG] Showing main window...");
+                    _mainWindow.Show();
+                }
+                _mainWindow.Activate();
+
+                // Check if SettingsWindow is already open
+                Debug.WriteLine("[DEBUG] Checking for existing SettingsWindow...");
+                foreach (Window window in Application.Current.Windows)
+                {
+                    if (window is SettingsWindow existingSettings && existingSettings.IsVisible)
+                    {
+                        Debug.WriteLine("[DEBUG] Found existing SettingsWindow, activating it");
+                        existingSettings.Activate();
+                        return;
+                    }
+                }
+
+                Debug.WriteLine("[DEBUG] Creating new SettingsWindow...");
+                // Create SettingsWindow manually with injected dependencies to ensure fresh instance
+                var settingsWindow = new SettingsWindow(
+                    Services.GetRequiredService<IConfigLoader>(),
+                    Services.GetRequiredService<ProviderManager>(),
+                    Services.GetRequiredService<IFontProvider>(),
+                    Services.GetRequiredService<IUpdateCheckerService>(),
+                    Services.GetRequiredService<IGitHubAuthService>()
+                );
+                
+                Debug.WriteLine("[DEBUG] SettingsWindow created, setting owner...");
+                settingsWindow.Owner = _mainWindow;
+                
+                Debug.WriteLine("[DEBUG] Attaching Closed event...");
+                settingsWindow.Closed += async (s, e) => 
+                {
+                     // Refresh only if settings actually changed
+                     if (settingsWindow.SettingsChanged && _mainWindow != null && _mainWindow.IsVisible && _mainWindow is MainWindow main)
+                     {
+                         await main.RefreshData(forceRefresh: true);
+                     }
+                };
+                
+                Debug.WriteLine("[DEBUG] Calling settingsWindow.Show()...");
+                settingsWindow.Show();
+                Debug.WriteLine("[DEBUG] SettingsWindow shown successfully");
+            }
+            catch (Exception ex)
             {
-                 // Refresh only if settings actually changed
-                 if (settingsWindow.SettingsChanged && _mainWindow != null && _mainWindow.IsVisible && _mainWindow is MainWindow main)
-                 {
-                     await main.RefreshData(forceRefresh: true);
-                 }
-            };
-            
-            settingsWindow.Show();
+                Debug.WriteLine($"[ERROR] ShowSettings failed: {ex}");
+                System.Windows.MessageBox.Show($"Failed to open Settings:\n{ex.GetType().Name}: {ex.Message}\n\nStack Trace:\n{ex.StackTrace}", "Settings Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                throw;
+            }
         }
 
         private void ExitApp()

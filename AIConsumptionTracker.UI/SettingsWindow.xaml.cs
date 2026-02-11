@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -24,13 +25,29 @@ namespace AIConsumptionTracker.UI
 
         public SettingsWindow(IConfigLoader configLoader, ProviderManager providerManager, IFontProvider fontProvider, IUpdateCheckerService updateChecker, IGitHubAuthService githubAuthService)
         {
-            InitializeComponent();
-            _configLoader = configLoader;
-            _providerManager = providerManager;
-            _fontProvider = fontProvider;
-            _updateChecker = updateChecker;
-            _githubAuthService = githubAuthService;
-            Loaded += SettingsWindow_Loaded;
+            Debug.WriteLine("[DEBUG] SettingsWindow constructor started");
+            try
+            {
+                InitializeComponent();
+                Debug.WriteLine("[DEBUG] InitializeComponent completed successfully");
+                
+                _configLoader = configLoader;
+                _providerManager = providerManager;
+                _fontProvider = fontProvider;
+                _updateChecker = updateChecker;
+                _githubAuthService = githubAuthService;
+                
+                Debug.WriteLine("[DEBUG] Dependencies assigned");
+                
+                Loaded += SettingsWindow_Loaded;
+                Debug.WriteLine("[DEBUG] SettingsWindow constructor completed");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ERROR] SettingsWindow constructor failed: {ex}");
+                System.Windows.MessageBox.Show($"Failed to initialize Settings window:\n{ex.GetType().Name}: {ex.Message}\n\nStack Trace:\n{ex.StackTrace}", "Initialization Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                throw;
+            }
         }
 
         public async Task PrepareForScreenshot(AppPreferences prefs)
@@ -65,27 +82,55 @@ namespace AIConsumptionTracker.UI
 
         private async void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            if (_isScreenshotMode) return; // Skip if we already prepared for screenshot
-
-            _configs = await _configLoader.LoadConfigAsync();
-            _prefs = await _configLoader.LoadPreferencesAsync();
-
-            // Listen for global privacy changes
-            if (Application.Current is App app)
+            Debug.WriteLine("[DEBUG] SettingsWindow_Loaded started");
+            
+            if (_isScreenshotMode) 
             {
-                app.PrivacyChanged += (s, isPrivate) => {
-                    _prefs.IsPrivacyMode = isPrivate;
-                    UpdatePrivacyButton();
-                    PopulateList(); // Re-render to update masking
-                };
+                Debug.WriteLine("[DEBUG] Screenshot mode, skipping loaded logic");
+                return;
             }
 
-            UpdatePrivacyButton();
+            try
+            {
+                Debug.WriteLine("[DEBUG] Loading configs...");
+                _configs = await _configLoader.LoadConfigAsync();
+                Debug.WriteLine($"[DEBUG] Loaded {_configs.Count} configs");
+                
+                Debug.WriteLine("[DEBUG] Loading preferences...");
+                _prefs = await _configLoader.LoadPreferencesAsync();
+                Debug.WriteLine("[DEBUG] Preferences loaded");
 
-            await InitializeGitHubAuthAsync();
+                // Listen for global privacy changes
+                if (Application.Current is App app)
+                {
+                    Debug.WriteLine("[DEBUG] Subscribing to PrivacyChanged event");
+                    app.PrivacyChanged += (s, isPrivate) => {
+                        _prefs.IsPrivacyMode = isPrivate;
+                        UpdatePrivacyButton();
+                        PopulateList();
+                    };
+                }
 
-            PopulateList();
-            PopulateLayout();
+                Debug.WriteLine("[DEBUG] Updating privacy button...");
+                UpdatePrivacyButton();
+
+                Debug.WriteLine("[DEBUG] Initializing GitHub auth...");
+                await InitializeGitHubAuthAsync();
+
+                Debug.WriteLine("[DEBUG] Populating list...");
+                PopulateList();
+                
+                Debug.WriteLine("[DEBUG] Populating layout...");
+                PopulateLayout();
+                
+                Debug.WriteLine("[DEBUG] SettingsWindow_Loaded completed successfully");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ERROR] SettingsWindow_Loaded failed: {ex}");
+                System.Windows.MessageBox.Show($"Failed to load Settings:\n{ex.GetType().Name}: {ex.Message}\n\nStack Trace:\n{ex.StackTrace}", "Loading Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                throw;
+            }
         }
 
 
