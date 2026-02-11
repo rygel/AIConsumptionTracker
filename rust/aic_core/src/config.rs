@@ -746,7 +746,6 @@ impl ProviderManager {
         providers.push(Arc::new(SimulatedProvider));
         providers.push(Arc::new(OpenRouterProvider::new(client.clone())));
         providers.push(Arc::new(OpenCodeProvider::new(client.clone())));
-        providers.push(Arc::new(CloudCodeProvider));
         providers.push(Arc::new(CodexProvider));
         providers.push(Arc::new(GitHubCopilotProvider::new(client.clone())));
         providers.push(Arc::new(AntigravityProvider::new()));
