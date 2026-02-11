@@ -71,29 +71,24 @@ foreach ($pattern in $processPatterns) {
     }
 }
 
-# Also check for processes by window title (for Tauri apps)
-Get-Process | Where-Object { $_.MainWindowTitle -match "AI Consumption Tracker" } | ForEach-Object {
-    try {
-        $_.Kill()
-        Write-Success "Killed process by window title (PID: $($_.Id))"
-        $totalKilled++
-    } catch {
-        Write-Warn "Failed to kill process by window title (PID: $($_.Id)): $_"
-    }
-}
+# Note: Window title matching removed because it's too broad
+# (could match Discord, browsers, etc. with "AI Consumption Tracker" in title)
+# Only process name matching is used for safety
 
-# Check for Node.js processes related to this project
-Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object { 
-    $_.Path -match "aic" -or $_.CommandLine -match "aic" 
-} | ForEach-Object {
-    try {
-        if ($Force) {
+# Optional: Check for Node.js processes related to this project (only with -Force)
+if ($Force) {
+    Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object { 
+        # Check if running from our project directory
+        ($_.Path -and $_.Path -match "rust[\\/]aic") -or
+        ($_.CommandLine -and $_.CommandLine -match "rust[\\/]aic")
+    } | ForEach-Object {
+        try {
             $_.Kill()
             Write-Success "Killed Node process (PID: $($_.Id))"
             $totalKilled++
+        } catch {
+            Write-Warn "Failed to kill Node process (PID: $($_.Id)): $_"
         }
-    } catch {
-        Write-Warn "Failed to kill Node process (PID: $($_.Id)): $_"
     }
 }
 
