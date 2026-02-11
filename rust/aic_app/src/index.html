@@ -291,6 +291,60 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+
+        /* Compact Mode Styles */
+        .provider-item.compact {
+            padding: 4px 8px;
+            margin-bottom: 2px;
+            border-radius: 2px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .provider-item.compact .provider-progress-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: var(--accent-green);
+            opacity: 0.3;
+            z-index: 0;
+            transition: width 0.3s ease;
+        }
+
+        .provider-item.compact .provider-progress-bg.medium {
+            background: var(--accent-yellow);
+        }
+
+        .provider-item.compact .provider-progress-bg.high {
+            background: var(--accent-red);
+        }
+
+        .provider-item.compact .provider-content {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            font-size: 11px;
+        }
+
+        .provider-item.compact .provider-name {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .provider-item.compact .provider-status {
+            color: var(--text-secondary);
+            white-space: nowrap;
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
@@ -326,6 +380,10 @@
                     <input type="checkbox" id="stayOpenToggle">
                     <span>Pin</span>
                 </label>
+                <label class="checkbox-label" style="margin-right: 8px;">
+                    <input type="checkbox" id="compactToggle" checked>
+                    <span>Compact</span>
+                </label>
                 <button class="icon-btn" id="agentBtn" title="Agent Management">🤖</button>
                 <button class="icon-btn" id="privacyBtn" title="Privacy Mode">👁</button>
                 <button class="icon-btn" id="refreshBtn" title="Refresh">↻</button>
@@ -338,6 +396,7 @@
         // Global state
         let showAll = true;
         let privacyMode = false;
+        let compactMode = true; // Default to compact mode
         let usageData = [];
         let agentConnected = false; // Shared agent status
 
@@ -374,6 +433,12 @@
             document.getElementById('settingsBtn').addEventListener('click', openSettings);
             document.getElementById('showAllToggle').addEventListener('change', refreshData);
             document.getElementById('alwaysOnTopToggle').addEventListener('change', toggleAlwaysOnTop);
+            
+            // Setup compact mode toggle
+            document.getElementById('compactToggle').addEventListener('change', function() {
+                compactMode = this.checked;
+                renderProviders();
+            });
 
             // Load initial data
             loadData();
@@ -479,32 +544,73 @@
                 return;
             }
 
-            container.innerHTML = filtered.map(p => {
-                const pct = p.usage_percentage || 0;
-                const avail = p.is_available;
-                let cls = 'low';
-                if (!avail) cls = 'inactive';
-                else if (p.usage_unit === 'Status') cls = 'status';
-                else if (pct >= 80) cls = 'high';
-                else if (pct >= 60) cls = 'medium';
-                
-                const type = p.is_quota_based ? 'Quota' : p.payment_type === 'credits' ? 'Credits' : 'Pay-As-You-Go';
-                let txt = '';
-                if (!avail) txt = p.description || 'Not Available';
-                else if (p.usage_unit === 'Status') txt = p.description || 'Connected';
-                else txt = pct.toFixed(0) + '%';
-                
-                let desc = p.description || '';
-                if (privacyMode && p.cost_used > 0) desc = '••••••••';
-                
-                const width = avail ? Math.max(pct, 5) : 100;
-                
-                return '<div class="provider-item' + (avail ? '' : ' unavailable') + '">' +
-                    '<div class="provider-header"><span class="provider-name">' + escapeHtml(p.provider_name) + '</span>' +
-                    '<span class="provider-type">' + type + '</span></div>' +
-                    '<div class="provider-bar-container"><div class="provider-bar ' + cls + '" style="width:' + width + '%">' + escapeHtml(txt) + '</div></div>' +
-                    '<div class="provider-info"><span>' + escapeHtml(desc) + '</span><span>' + escapeHtml(p.auth_source || '') + '</span></div></div>';
-            }).join('');
+            if (compactMode) {
+                // Compact view
+                container.innerHTML = filtered.map(p => {
+                    const pct = p.usage_percentage || 0;
+                    const avail = p.is_available;
+                    let progressClass = 'low';
+                    if (!avail) progressClass = 'inactive';
+                    else if (pct >= 80) progressClass = 'high';
+                    else if (pct >= 60) progressClass = 'medium';
+                    
+                    let statusText = '';
+                    if (!avail) statusText = 'N/A';
+                    else if (p.usage_unit === 'Status') statusText = 'OK';
+                    else statusText = pct.toFixed(0) + '%';
+                    
+                    let statusDetail = '';
+                    if (avail && p.cost_used > 0) {
+                        statusDetail = '$' + p.cost_used.toFixed(2);
+                    } else if (avail && p.usage_unit !== 'Status') {
+                        statusDetail = pct.toFixed(0) + '%';
+                    } else {
+                        statusDetail = p.description || '';
+                    }
+                    
+                    // Hide details in privacy mode
+                    if (privacyMode && p.cost_used > 0) {
+                        statusDetail = '•••';
+                    }
+                    
+                    const progressWidth = avail ? Math.min(pct, 100) : 0;
+                    
+                    return '<div class="provider-item compact' + (avail ? '' : ' unavailable') + '">' +
+                        (avail && progressWidth > 0 ? '<div class="provider-progress-bg ' + progressClass + '" style="width:' + progressWidth + '%"></div>' : '') +
+                        '<div class="provider-content">' +
+                        '<span class="provider-name">' + escapeHtml(p.provider_name) + '</span>' +
+                        '<span class="provider-status">' + escapeHtml(statusText) + (statusDetail ? ' (' + escapeHtml(statusDetail) + ')' : '') + '</span>' +
+                        '</div></div>';
+                }).join('');
+            } else {
+                // Standard view
+                container.innerHTML = filtered.map(p => {
+                    const pct = p.usage_percentage || 0;
+                    const avail = p.is_available;
+                    let cls = 'low';
+                    if (!avail) cls = 'inactive';
+                    else if (p.usage_unit === 'Status') cls = 'status';
+                    else if (pct >= 80) cls = 'high';
+                    else if (pct >= 60) cls = 'medium';
+                    
+                    const type = p.is_quota_based ? 'Quota' : p.payment_type === 'credits' ? 'Credits' : 'Pay-As-You-Go';
+                    let txt = '';
+                    if (!avail) txt = p.description || 'Not Available';
+                    else if (p.usage_unit === 'Status') txt = p.description || 'Connected';
+                    else txt = pct.toFixed(0) + '%';
+                    
+                    let desc = p.description || '';
+                    if (privacyMode && p.cost_used > 0) desc = '••••••••';
+                    
+                    const width = avail ? Math.max(pct, 5) : 100;
+                    
+                    return '<div class="provider-item' + (avail ? '' : ' unavailable') + '">' +
+                        '<div class="provider-header"><span class="provider-name">' + escapeHtml(p.provider_name) + '</span>' +
+                        '<span class="provider-type">' + type + '</span></div>' +
+                        '<div class="provider-bar-container"><div class="provider-bar ' + cls + '" style="width:' + width + '%">' + escapeHtml(txt) + '</div></div>' +
+                        '<div class="provider-info"><span>' + escapeHtml(desc) + '</span><span>' + escapeHtml(p.auth_source || '') + '</span></div></div>';
+                }).join('');
+            }
         }
 
         function togglePrivacy() {
