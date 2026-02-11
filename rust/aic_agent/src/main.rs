@@ -16,6 +16,9 @@ use tracing::{info, error, debug};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
 
+// Import ProviderUsage from aic_core to ensure API compatibility
+use aic_core::ProviderUsage;
+
 mod config;
 mod database;
 
@@ -43,17 +46,7 @@ struct AppState {
     config: Arc<RwLock<AgentConfig>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct UsageResponse {
-    provider_id: String,
-    provider_name: String,
-    usage: Option<f64>,
-    limit: Option<f64>,
-    usage_unit: String,
-    is_available: bool,
-    is_quota_based: bool,
-    last_updated: DateTime<Utc>,
-}
+// UsageResponse is replaced with ProviderUsage from aic_core for API compatibility
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct HistoricalUsageRecord {
@@ -221,33 +214,18 @@ async fn health_check() -> Json<serde_json::Value> {
 
 async fn get_current_usage(
     State(state): State<AppState>,
-) -> Result<Json<Vec<UsageResponse>>, StatusCode> {
+) -> Result<Json<Vec<ProviderUsage>>, StatusCode> {
     let client = reqwest::Client::new();
     let provider_manager = aic_core::config::ProviderManager::new(client);
 
     let usages = provider_manager.get_all_usage(false).await;
-    let now = Utc::now();
 
-    let response: Vec<UsageResponse> = usages
-        .iter()
-        .map(|u| UsageResponse {
-            provider_id: u.provider_id.clone(),
-            provider_name: u.provider_name.clone(),
-            usage: Some(u.cost_used),
-            limit: if u.cost_limit > 0.0 { Some(u.cost_limit) } else { None },
-            usage_unit: u.usage_unit.clone(),
-            is_available: u.is_available,
-            is_quota_based: u.is_quota_based,
-            last_updated: now,
-        })
-        .collect();
-
-    Ok(Json(response))
+    Ok(Json(usages))
 }
 
 async fn trigger_refresh(
     State(state): State<AppState>,
-) -> Result<Json<Vec<UsageResponse>>, StatusCode> {
+) -> Result<Json<Vec<ProviderUsage>>, StatusCode> {
     let client = reqwest::Client::new();
     let provider_manager = aic_core::config::ProviderManager::new(client);
 
@@ -288,48 +266,24 @@ async fn trigger_refresh(
         }
     }
 
-    let response: Vec<UsageResponse> = usages
-        .iter()
-        .map(|u| UsageResponse {
-            provider_id: u.provider_id.clone(),
-            provider_name: u.provider_name.clone(),
-            usage: Some(u.cost_used),
-            limit: if u.cost_limit > 0.0 { Some(u.cost_limit) } else { None },
-            usage_unit: u.usage_unit.clone(),
-            is_available: u.is_available,
-            is_quota_based: u.is_quota_based,
-            last_updated: now,
-        })
-        .collect();
-
-    Ok(Json(response))
+    Ok(Json(usages))
 }
 
 async fn get_provider_usage(
     State(state): State<AppState>,
     Path(provider_id): Path<String>,
-) -> Result<Json<UsageResponse>, StatusCode> {
+) -> Result<Json<ProviderUsage>, StatusCode> {
     let client = reqwest::Client::new();
     let provider_manager = aic_core::config::ProviderManager::new(client);
 
     let usages = provider_manager.get_all_usage(false).await;
-    let now = Utc::now();
 
     let usage = usages
-        .iter()
+        .into_iter()
         .find(|u| u.provider_id.eq_ignore_ascii_case(&provider_id))
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    Ok(Json(UsageResponse {
-        provider_id: usage.provider_id.clone(),
-        provider_name: usage.provider_name.clone(),
-        usage: Some(usage.cost_used),
-        limit: if usage.cost_limit > 0.0 { Some(usage.cost_limit) } else { None },
-        usage_unit: usage.usage_unit.clone(),
-        is_available: usage.is_available,
-        is_quota_based: usage.is_quota_based,
-        last_updated: now,
-    }))
+    Ok(Json(usage))
 }
 
 async fn get_historical_usage(
