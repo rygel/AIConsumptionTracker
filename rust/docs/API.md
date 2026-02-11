@@ -416,6 +416,54 @@ curl http://localhost:8080/api/providers/discovered | jq
 
 ---
 
+## Troubleshooting
+
+### Killing Stuck Processes
+
+If the agent or UI gets stuck, use the kill script:
+
+**PowerShell:**
+```powershell
+cd rust/scripts
+.\kill-all.ps1
+```
+
+**Batch (Windows):**
+```batch
+cd rust/scripts
+kill-all.bat
+```
+
+**Options:**
+- `-List` - Show running processes without killing them
+- `-Force` - Also kill cargo build processes
+
+**Example:**
+```powershell
+# List running processes
+.\kill-all.ps1 -List
+
+# Kill everything including cargo
+.\kill-all.ps1 -Force
+```
+
+### Common Issues
+
+**"Agent not running" Error**
+- Start the agent: `cargo run --bin aic_agent`
+- Check port 8080 is not in use: `netstat -an | findstr 8080`
+
+**"Bad response from agent" Error**
+- Check agent logs for errors
+- Verify agent is returning valid JSON
+- Restart both agent and UI
+
+**Port Already In Use**
+- Kill existing agent: `.\kill-all.ps1`
+- Or change port: `cargo run --bin aic_agent -- --port 8081`
+
+---
+
 ## Version History
 
 ### Current (v1.7.13)
