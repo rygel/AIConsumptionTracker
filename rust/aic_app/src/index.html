@@ -255,6 +255,42 @@
             padding: 20px;
             text-align: center;
         }
+
+        .agent-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-left: 12px;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+            transition: background-color 0.3s ease;
+        }
+
+        .status-indicator.connected {
+            background: var(--accent-green);
+            box-shadow: 0 0 4px var(--accent-green);
+        }
+
+        .status-indicator.disconnected {
+            background: var(--accent-red);
+        }
+
+        .status-indicator.connecting {
+            background: var(--accent-yellow);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
     </style>
 </head>
 <body>
@@ -277,6 +313,10 @@
                 <input type="checkbox" id="showAllToggle" checked>
                 <span>Show All</span>
             </label>
+            <div class="agent-status" id="agentStatus">
+                <div class="status-indicator" id="statusIndicator"></div>
+                <span id="statusText">Checking...</span>
+            </div>
             <div class="footer-right">
                 <label class="checkbox-label" style="margin-right: 8px;">
                     <input type="checkbox" id="alwaysOnTopToggle">
@@ -337,7 +377,8 @@
             // Load initial data
             loadData();
 
-            // Check agent status periodically
+            // Check agent status immediately and periodically
+            checkAgentStatus();
             setInterval(checkAgentStatus, 5000);
         });
 
@@ -504,12 +545,22 @@
 
         async function checkAgentStatus() {
             const agentBtn = document.getElementById('agentBtn');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
 
-            if (!agentBtn) return;
+            if (!window.__TAURI__ || !window.__TAURI__.core || !window.__TAURI__.core.invoke) {
+                if (statusIndicator && statusText) {
+                    statusIndicator.className = 'status-indicator disconnected';
+                    statusText.textContent = 'Not Connected';
+                }
+                return;
+            }
 
             try {
-                if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
-                    const status = await window.__TAURI__.core.invoke('get_agent_status_details');
+                const status = await window.__TAURI__.core.invoke('get_agent_status_details');
+                
+                // Update button state
+                if (agentBtn) {
                     if (status.is_running) {
                         agentBtn.disabled = true;
                         let tooltip = `Agent is running\nProcess ID: ${status.process_id}\nStarted from: ${status.path_from}`;
@@ -521,8 +572,23 @@
                         agentBtn.style.opacity = '1';
                     }
                 }
+                
+                // Update status indicator in footer
+                if (statusIndicator && statusText) {
+                    if (status.is_running) {
+                        statusIndicator.className = 'status-indicator connected';
+                        statusText.textContent = 'Agent Connected';
+                    } else {
+                        statusIndicator.className = 'status-indicator disconnected';
+                        statusText.textContent = 'Agent Disconnected';
+                    }
+                }
             } catch (e) {
                 console.error('Failed to check agent status:', e);
+                if (statusIndicator && statusText) {
+                    statusIndicator.className = 'status-indicator disconnected';
+                    statusText.textContent = 'Connection Error';
+                }
             }
         }
 
