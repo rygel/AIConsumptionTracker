@@ -1,13 +1,14 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using AIConsumptionTracker.Core.Services;
 using AIConsumptionTracker.Core.Interfaces;
 using AIConsumptionTracker.Core.Models;
-using System.Threading.Tasks; 
-using System.Reflection; 
-using AIConsumptionTracker.Infrastructure.Helpers; 
+using System.Threading.Tasks;
+using System.Reflection;
+using AIConsumptionTracker.Infrastructure.Helpers;
 
 // =============================================================================
 // ⚠️  AI ASSISTANTS: COLOR LOGIC WARNING - SEE GetProgressBarColor() METHOD
@@ -86,6 +87,8 @@ namespace AIConsumptionTracker.UI
             _configLoader = configLoader;
             _updateChecker = updateChecker;
             _notificationService = notificationService;
+
+            this.KeyDown += OnKeyDown;
 
             _resetTimer = new System.Windows.Threading.DispatcherTimer();
             _resetTimer.Interval = TimeSpan.FromSeconds(15);
@@ -221,6 +224,87 @@ namespace AIConsumptionTracker.UI
             }
         }
 
+        private void OnKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyboardDevice.Modifiers == ModifierKeys.Control)
+            {
+                switch (e.Key)
+                {
+                    case Key.R:
+                        RefreshBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        break;
+                    case Key.P:
+                        PrivacyBtn_ClickAsync(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        break;
+                    case Key.T:
+                        ThemeBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        break;
+                    case Key.Q:
+                        CloseBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        break;
+                }
+            }
+            else if (e.Key == Key.Escape)
+            {
+                CloseBtn_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            else if (e.Key == Key.F2)
+            {
+                SettingsBtn_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+        }
+
+        private async void ThemeBtn_Click(object sender, RoutedEventArgs e)
+        {
+            _preferences.Theme = _preferences.Theme == AppTheme.Dark ? AppTheme.Light : AppTheme.Dark;
+            await SavePreferences();
+            ApplyTheme();
+        }
+
+        private void ApplyTheme()
+        {
+            var headerBg = _preferences.Theme == AppTheme.Dark 
+                ? Color.FromRgb(37, 37, 38) 
+                : Color.FromRgb(230, 230, 230);
+            var footerBg = _preferences.Theme == AppTheme.Dark 
+                ? Color.FromRgb(37, 37, 38) 
+                : Color.FromRgb(230, 230, 230);
+            var windowBg = _preferences.Theme == AppTheme.Dark 
+                ? Color.FromRgb(30, 30, 30) 
+                : Color.FromRgb(243, 243, 243);
+            var windowFg = _preferences.Theme == AppTheme.Dark 
+                ? Brushes.White 
+                : Brushes.Black;
+            var buttonText = _preferences.Theme == AppTheme.Dark 
+                ? Brushes.White 
+                : Brushes.Black;
+
+            this.Background = new SolidColorBrush(windowBg);
+            this.Foreground = windowFg;
+
+            if (HeaderBorder != null)
+                HeaderBorder.Background = new SolidColorBrush(headerBg);
+            if (FooterBorder != null)
+                FooterBorder.Background = new SolidColorBrush(footerBg);
+            if (RefreshBtn != null)
+                RefreshBtn.Foreground = buttonText;
+            if (SettingsBtn != null)
+                SettingsBtn.Background = new SolidColorBrush(
+                    _preferences.Theme == AppTheme.Dark ? Color.FromRgb(68, 68, 68) : Color.FromRgb(187, 187, 187));
+            
+            if (ThemeBtn != null)
+                ThemeBtn.Content = _preferences.Theme == AppTheme.Dark ? "🌙" : "☀️";
+
+            // Refresh all UI elements
+            RenderUsages(_cachedUsages);
+        }
+
         private void ApplyPreferences()
         {
              ShowAllToggle.IsChecked = _preferences.ShowAll;
@@ -228,6 +312,7 @@ namespace AIConsumptionTracker.UI
              AlwaysOnTopCheck.IsChecked = _preferences.AlwaysOnTop;
              CompactCheck.IsChecked = _preferences.CompactMode;
              this.Topmost = _preferences.AlwaysOnTop;
+             ApplyTheme();
 
              // Apply Font Settings
              try 

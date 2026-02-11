@@ -447,14 +447,29 @@ namespace AIConsumptionTracker.UI
 
         private void PopulateLayout()
         {
-             // PRE-CREATE PREVIEW ELEMENT
-             var previewText = new TextBlock
-             {
-                  Text = "OpenAI: $15.00 / $100.00 (15%)",
-                  FontSize = _prefs.FontSize > 0 ? _prefs.FontSize : 12,
-                  Foreground = Brushes.White,
-                  VerticalAlignment = VerticalAlignment.Center
-             };
+            LayoutStack.Children.Clear();
+
+            var previewText = new TextBlock
+            {
+                   Text = "OpenAI: $15.00 / $100.00 (15%)",
+                   FontSize = _prefs.FontSize > 0 ? _prefs.FontSize : 12,
+                   Foreground = Brushes.White,
+                   VerticalAlignment = VerticalAlignment.Center
+              };
+
+            var startWithWindowsCheck = new CheckBox
+            {
+                   Content = "Start with Windows",
+                   IsChecked = _prefs.StartWithWindows,
+                   Foreground = Brushes.White,
+                   FontSize = 11,
+                   Margin = new Thickness(0, 0, 0, 5)
+            };
+            startWithWindowsCheck.Checked += (s, e) => _prefs.StartWithWindows = true;
+            startWithWindowsCheck.Unchecked += (s, e) => _prefs.StartWithWindows = false;
+
+            LayoutStack.Children.Add(previewText);
+            LayoutStack.Children.Add(startWithWindowsCheck);
              // Initial state
              try {
                 if (!string.IsNullOrEmpty(_prefs.FontFamily))

@@ -1,21 +1,22 @@
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Hardcodet.Wpf.TaskbarNotification;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 using AIConsumptionTracker.Core.Interfaces;
 using AIConsumptionTracker.Core.Models;
 using AIConsumptionTracker.Core.Services;
 using AIConsumptionTracker.Infrastructure.Configuration;
 using AIConsumptionTracker.Infrastructure.Providers;
-using AIConsumptionTracker.Infrastructure.Helpers;
 using AIConsumptionTracker.Infrastructure.Services;
+using AIConsumptionTracker.Infrastructure.Helpers;
 using AIConsumptionTracker.UI.Services;
-using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 // =============================================================================
@@ -53,14 +54,13 @@ namespace AIConsumptionTracker.UI
             base.OnStartup(e);
 
             _host = Host.CreateDefaultBuilder()
-                .ConfigureLogging(logging => 
+                .ConfigureLogging(logging =>
                 {
                     logging.ClearProviders();
                     logging.AddConsole();
                     logging.AddDebug();
                     logging.SetMinimumLevel(LogLevel.Debug);
-                    
-                    // Add file logging for debugging
+
                     var logPath = Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                         "AIConsumptionTracker",
@@ -71,11 +71,10 @@ namespace AIConsumptionTracker.UI
                 })
                 .ConfigureServices((context, services) =>
                 {
-                    services.AddHttpClient(); // Required for providers
+                    services.AddHttpClient();
                     services.AddSingleton<IConfigLoader, JsonConfigLoader>();
                     services.AddSingleton<IFontProvider, WpfFontProvider>();
-                    
-                    // Register Providers
+
                     services.AddTransient<IProviderService, OpenCodeProvider>();
                     services.AddTransient<IProviderService, ZaiProvider>();
                     services.AddTransient<IProviderService, OpenRouterProvider>();
@@ -93,14 +92,11 @@ namespace AIConsumptionTracker.UI
                     services.AddTransient<IProviderService, XiaomiProvider>();
                     services.AddTransient<IUpdateCheckerService, GitHubUpdateChecker>();
 
-                    // Auth Services
                     services.AddSingleton<IGitHubAuthService, GitHubAuthService>();
-                    
-                    // Notification Service
                     services.AddSingleton<INotificationService, WindowsNotificationService>();
-                    
+
                     services.AddSingleton<ProviderManager>();
-                    services.AddTransient<MainWindow>(); // Dashboard
+                    services.AddTransient<MainWindow>();
                     services.AddTransient<SettingsWindow>();
                     services.AddTransient<InfoDialog>();
                 })
@@ -108,12 +104,10 @@ namespace AIConsumptionTracker.UI
 
             await _host.StartAsync();
 
-            // Initialize Windows Notification Service
             var notificationService = _host.Services.GetRequiredService<INotificationService>();
             notificationService.Initialize();
             notificationService.OnNotificationClicked += OnNotificationClicked;
 
-            // Handle Screenshots
             bool isTestMode = e.Args.Any(arg => arg == "--test");
             bool isScreenshotMode = e.Args.Any(arg => arg == "--screenshot");
 
@@ -122,13 +116,52 @@ namespace AIConsumptionTracker.UI
                 await HandleScreenshotMode();
                 return;
             }
-            
-            // Preload data
+
+            var configLoader = Services.GetRequiredService<IConfigLoader>();
+            var prefs = await configLoader.LoadPreferencesAsync();
+
+            if (prefs.StartWithWindows)
+            {
+                await SetStartupTaskAsync();
+            }
+
             var providerManager = _host.Services.GetRequiredService<ProviderManager>();
-            _ = Task.Run(() => providerManager.GetAllUsageAsync(forceRefresh: true)); // Fire and forget preload on thread pool
+            _ = Task.Run(() => providerManager.GetAllUsageAsync(forceRefresh: true));
 
             InitializeTrayIcon();
             await ShowDashboard();
+        }
+
+        private async Task SetStartupTaskAsync()
+        {
+            try
+            {
+                var appName = "AIConsumptionTracker";
+                var exePath = Environment.ProcessPath;
+                var startupPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.Startup),
+                    "Microsoft",
+                    "Windows",
+                    "CurrentVersion",
+                    "Run");
+                
+                var command = $"\"{exePath}\"";
+                
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\Run",
+                    true))
+                {
+                    key.SetValue(appName, command, RegistryValueKind.String);
+                    key.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                // Registry operations can fail due to permissions or other issues
+                // Fail silently since this is optional functionality
+                var logger = Services.GetService<ILogger<App>>();
+                logger?.LogWarning(ex, "Failed to set Windows startup: {Message}", ex.Message);
+            }
         }
 
         private async Task HandleScreenshotMode()
