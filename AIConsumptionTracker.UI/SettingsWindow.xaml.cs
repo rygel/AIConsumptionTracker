@@ -929,9 +929,6 @@ namespace AIConsumptionTracker.UI
 
         private void ApplyTheme()
         {
-            var headerBg = _prefs.Theme == AppTheme.Dark 
-                ? Color.FromRgb(37, 37, 38) 
-                : Color.FromRgb(230, 230, 230);
             var windowBg = _prefs.Theme == AppTheme.Dark 
                 ? Color.FromRgb(30, 30, 30) 
                 : Color.FromRgb(243, 243, 243);
@@ -939,16 +936,83 @@ namespace AIConsumptionTracker.UI
                 ? Brushes.White 
                 : Brushes.Black;
 
+            // Apply to current SettingsWindow
             this.Background = new SolidColorBrush(windowBg);
             this.Foreground = windowFg;
 
             if (ThemeBtn != null)
                 ThemeBtn.Content = _prefs.Theme == AppTheme.Dark ? "🌙" : "☀️";
 
-            // Notify the main window to also apply the theme
+            // Apply to MainWindow
             if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
             {
                 mainWindow.ApplyThemeFromPreferences(_prefs);
+            }
+
+            // Apply to all other open windows
+            if (Application.Current != null)
+            {
+                foreach (Window window in Application.Current.Windows)
+                {
+                    if (window != this && window != Application.Current.MainWindow)
+                    {
+                        ApplyThemeToWindow(window, windowBg, windowFg);
+                    }
+                }
+            }
+        }
+
+        private void ApplyThemeToWindow(Window window, Color bgColor, Brush fgBrush)
+        {
+            try
+            {
+                window.Background = new SolidColorBrush(bgColor);
+                window.Foreground = fgBrush;
+
+                // Apply to window content if it's a FrameworkElement
+                if (window.Content is FrameworkElement root)
+                {
+                    ApplyThemeToElement(root, bgColor, fgBrush);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[WARNING] Failed to apply theme to {window.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        private void ApplyThemeToElement(FrameworkElement element, Color bgColor, Brush fgBrush)
+        {
+            if (element == null) return;
+
+            // Apply to panels
+            if (element is Panel panel)
+            {
+                foreach (var child in panel.Children)
+                {
+                    if (child is FrameworkElement childElement)
+                    {
+                        ApplyThemeToElement(childElement, bgColor, fgBrush);
+                    }
+                }
+            }
+
+            // Apply to content controls
+            if (element is ContentControl contentControl && contentControl.Content is FrameworkElement content)
+            {
+                ApplyThemeToElement(content, bgColor, fgBrush);
+            }
+
+            // Apply to border
+            if (element is Border border && border.Child is FrameworkElement borderChild)
+            {
+                ApplyThemeToElement(borderChild, bgColor, fgBrush);
+            }
+
+            // Update text blocks
+            if (element is TextBlock textBlock)
+            {
+                textBlock.Foreground = fgBrush;
             }
         }
 
