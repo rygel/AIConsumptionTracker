@@ -27,6 +27,9 @@ if ($Help) {
 
 Write-Host "`n🚀 AI Token Tracker - Smart Debug`n"
 
+# Store the original directory to return to it later
+$originalDirectory = Get-Location
+
 # Check directory
 if (-not (Test-Path "aic_app\Cargo.toml")) {
     Write-Error "Must run from rust/ directory"
@@ -43,6 +46,9 @@ try { $null = node --version; Write-Success "Node.js found" }
 catch { Write-Error "Node.js not found - install from https://nodejs.org/"; exit 1 }
 
 # Function to check if build is needed
+# Returns $true if:
+#   - The executable doesn't exist
+#   - Any source file (*.rs, *.toml, *.html, *.css, *.js) is newer than the executable
 function Test-BuildNeeded {
     param([string]$TargetPath)
     
@@ -55,7 +61,8 @@ function Test-BuildNeeded {
     # Get the last write time of the executable
     $exeTime = (Get-Item $TargetPath).LastWriteTime
     
-    # Check all Rust source files in the project
+    # Check all source files in the project
+    # Monitors: Rust files, Cargo.toml, and frontend assets (HTML/CSS/JS)
     $sourceFiles = Get-ChildItem -Path "." -Recurse -Include "*.rs", "*.toml", "*.html", "*.css", "*.js" | 
         Where-Object { 
             $_.FullName -notlike "*\target\*" -and 
@@ -113,3 +120,6 @@ Write-Host ""
 & "..\$buildPath"
 
 Write-Host "`nApplication closed."
+
+# Return to original directory
+Set-Location $originalDirectory
