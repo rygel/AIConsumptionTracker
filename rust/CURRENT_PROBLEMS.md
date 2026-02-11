@@ -2,33 +2,35 @@
 
 ## Recent Work (February 11, 2026)
 
-### Feature: Load Data from Agent API
+### Feature: Agent-Only Architecture
 
-**Problem:** The UI was loading provider configuration and usage data only from the local config/manager, even when the agent was running and had more current data.
+**Problem:** The UI was loading data from both local config and agent, creating confusion about the source of truth.
 
-**Solution:** Implemented dual-path data loading that prioritizes the agent's HTTP API.
+**Solution:** Made the UI fully dependent on the agent. No local config fallback.
 
-**New Agent Endpoints:**
+**Agent Endpoints (Single Source of Truth):**
 - `GET /api/providers/usage` - Returns current usage data
 - `POST /api/providers/usage/refresh` - Triggers refresh and returns updated data
 - `GET /api/providers/discovered` - Returns providers discovered by agent (env vars, config files)
 
-**New Commands:**
+**Commands:**
 - `get_usage_from_agent` - Fetches usage from agent
 - `refresh_usage_from_agent` - Triggers refresh via agent
 - `get_all_providers_from_agent` - Fetches discovered providers from agent
 
 **Frontend Changes:**
-- `loadData()` now tries agent API first, falls back to local config
-- `refreshData()` now tries agent API first, falls back to local manager
-- `loadSettings()` now tries agent API first for providers, falls back to local config
-- Settings dialog shows providers discovered by agent (environment variables, existing config files)
+- `loadData()` - Only uses agent API, shows error if agent unavailable
+- `refreshData()` - Only uses agent API, shows alert if agent unavailable
+- `loadSettings()` - Only loads providers from agent
+- Settings dialog requires agent to show provider list
 
 **Benefits:**
-- When agent is running: Gets real-time data with historical tracking and discovered providers
-- When agent is not running: Still works with local config (fallback)
-- Settings shows all discovered providers even if not manually configured
-- No need to rebuild agent - it discovers providers automatically on startup
+- Single source of truth: the agent
+- All data comes from agent's database with historical tracking
+- Agent discovers providers from environment variables and config files automatically
+- Consistent behavior - no confusion about data source
+
+**IMPORTANT:** The UI now **requires** the agent to be running. If the agent is not available, the UI will show errors/alerts instead of falling back to local config.
 
 ---
 
