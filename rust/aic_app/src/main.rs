@@ -122,6 +122,8 @@ async fn main() {
             // Provider commands
             get_usage,
             refresh_usage,
+            get_usage_from_agent,
+            refresh_usage_from_agent,
             // Preferences commands
             load_preferences,
             save_preferences,

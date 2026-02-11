@@ -39,6 +39,51 @@ pub async fn refresh_usage(state: State<'_, AppState>) -> Result<Vec<ProviderUsa
     Ok(manager.get_all_usage(true).await)
 }
 
+#[tauri::command]
+pub async fn get_usage_from_agent() -> Result<Vec<ProviderUsage>, String> {
+    match reqwest::get("http://localhost:8080/api/providers/usage").await {
+        Ok(response) => {
+            match response.json::<Vec<aic_core::ProviderUsage>>().await {
+                Ok(usage) => {
+                    info!("Retrieved {} usage records from agent", usage.len());
+                    Ok(usage)
+                }
+                Err(e) => {
+                    error!("Failed to parse usage from agent: {}", e);
+                    Err(format!("Failed to get usage from agent: {}", e))
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to connect to agent for usage: {}", e);
+            Err(format!("Agent not available: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn refresh_usage_from_agent() -> Result<Vec<ProviderUsage>, String> {
+    let client = reqwest::Client::new();
+    match client.post("http://localhost:8080/api/providers/usage/refresh").send().await {
+        Ok(response) => {
+            match response.json::<Vec<aic_core::ProviderUsage>>().await {
+                Ok(usage) => {
+                    info!("Refreshed and retrieved {} usage records from agent", usage.len());
+                    Ok(usage)
+                }
+                Err(e) => {
+                    error!("Failed to parse refreshed usage from agent: {}", e);
+                    Err(format!("Failed to refresh usage from agent: {}", e))
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to connect to agent for refresh: {}", e);
+            Err(format!("Agent not available: {}", e))
+        }
+    }
+}
+
 // Preferences commands
 #[tauri::command]
 pub async fn load_preferences(
