@@ -8,19 +8,27 @@
 
 **Solution:** Implemented dual-path data loading that prioritizes the agent's HTTP API.
 
+**New Agent Endpoints:**
+- `GET /api/providers/usage` - Returns current usage data
+- `POST /api/providers/usage/refresh` - Triggers refresh and returns updated data
+- `GET /api/providers/discovered` - Returns providers discovered by agent (env vars, config files)
+
 **New Commands:**
-- `get_usage_from_agent` - Fetches usage from `http://localhost:8080/api/providers/usage`
-- `refresh_usage_from_agent` - Triggers refresh via `http://localhost:8080/api/providers/usage/refresh`
+- `get_usage_from_agent` - Fetches usage from agent
+- `refresh_usage_from_agent` - Triggers refresh via agent
+- `get_all_providers_from_agent` - Fetches discovered providers from agent
 
 **Frontend Changes:**
-- `loadData()` now tries agent API first, falls back to local config if agent unavailable
-- `refreshData()` now tries agent API first, falls back to local manager if agent unavailable
-- Seamless user experience - data source is transparent to users
+- `loadData()` now tries agent API first, falls back to local config
+- `refreshData()` now tries agent API first, falls back to local manager
+- `loadSettings()` now tries agent API first for providers, falls back to local config
+- Settings dialog shows providers discovered by agent (environment variables, existing config files)
 
 **Benefits:**
-- When agent is running: Gets real-time data with historical tracking
+- When agent is running: Gets real-time data with historical tracking and discovered providers
 - When agent is not running: Still works with local config (fallback)
-- Refresh button updates data via agent when available
+- Settings shows all discovered providers even if not manually configured
+- No need to rebuild agent - it discovers providers automatically on startup
 
 ---
 
