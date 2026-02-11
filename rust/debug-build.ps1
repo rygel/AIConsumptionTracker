@@ -1,27 +1,31 @@
-# AI Token Tracker - Quick Debug Script
-# Simple PowerShell script for fast development builds
+# AI Token Tracker - Smart Debug Script
+# Builds only when source files have changed, otherwise runs existing executable
 
 param(
     [switch]$Help,
-    [switch]$RunOnly
+    [switch]$ForceBuild
 )
 
 # Color output functions
 function Write-Success { param([string]$msg) Write-Host "✓ $msg" -ForegroundColor Green }
 function Write-Error { param([string]$msg) Write-Host "❌ $msg" -ForegroundColor Red }
 function Write-Info { param([string]$msg) Write-Host "ℹ️  $msg" -ForegroundColor Blue }
+function Write-Warn { param([string]$msg) Write-Host "⚠️  $msg" -ForegroundColor Yellow }
 
 if ($Help) {
-    Write-Host "AI Token Tracker - Quick Debug Script"
+    Write-Host "AI Token Tracker - Smart Debug Script"
     Write-Host "Usage: .\debug-build.ps1 [OPTIONS]"
     Write-Host ""
     Write-Host "Options:"
-    Write-Host "  -RunOnly    Skip build, just run existing build"
-    Write-Host "  -Help       Show this help"
+    Write-Host "  -ForceBuild  Always build, even if no changes detected"
+    Write-Host "  -Help        Show this help"
+    Write-Host ""
+    Write-Host "This script automatically detects if source files have changed"
+    Write-Host "and only rebuilds when necessary."
     exit 0
 }
 
-Write-Host "`n🚀 AI Token Tracker - Quick Debug`n"
+Write-Host "`n🚀 AI Token Tracker - Smart Debug`n"
 
 # Check directory
 if (-not (Test-Path "aic_app\Cargo.toml")) {
@@ -32,16 +36,58 @@ if (-not (Test-Path "aic_app\Cargo.toml")) {
 }
 
 # Check dependencies
-try { cargo --version | Out-Null; Write-Success "Rust found" } 
+try { $null = cargo --version; Write-Success "Rust found" } 
 catch { Write-Error "Rust not found - install from https://rustup.rs/"; exit 1 }
 
-try { node --version | Out-Null; Write-Success "Node.js found" } 
+try { $null = node --version; Write-Success "Node.js found" } 
 catch { Write-Error "Node.js not found - install from https://nodejs.org/"; exit 1 }
 
-# Build or run
+# Function to check if build is needed
+function Test-BuildNeeded {
+    param([string]$TargetPath)
+    
+    # If executable doesn't exist, we need to build
+    if (-not (Test-Path $TargetPath)) {
+        Write-Info "Executable not found, build required"
+        return $true
+    }
+    
+    # Get the last write time of the executable
+    $exeTime = (Get-Item $TargetPath).LastWriteTime
+    
+    # Check all Rust source files in the project
+    $sourceFiles = Get-ChildItem -Path "." -Recurse -Include "*.rs", "*.toml", "*.html", "*.css", "*.js" | 
+        Where-Object { 
+            $_.FullName -notlike "*\target\*" -and 
+            $_.FullName -notlike "*\.git\*" -and
+            $_.FullName -notlike "*\node_modules\*"
+        }
+    
+    $newestSource = $sourceFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    
+    if ($newestSource -and $newestSource.LastWriteTime -gt $exeTime) {
+        Write-Info "Source files changed: $($newestSource.Name)"
+        Write-Info "  Modified: $($newestSource.LastWriteTime)"
+        Write-Info "  Exe time: $exeTime"
+        return $true
+    }
+    
+    return $false
+}
+
+# Determine build path based on platform
+$buildPath = if ($IsWindows -or $env:OS -eq "Windows_NT") {
+    "target\debug\aic_app.exe"
+} else {
+    "target/debug/aic_app"
+}
+
 Set-Location "aic_app"
 
-if (-not $RunOnly) {
+# Decide whether to build
+$needsBuild = $ForceBuild -or (Test-BuildNeeded -TargetPath "..\$buildPath")
+
+if ($needsBuild) {
     Write-Info "Building debug version..."
     cargo tauri build --no-bundle
     if ($LASTEXITCODE -ne 0) { 
@@ -49,10 +95,21 @@ if (-not $RunOnly) {
         exit 1 
     }
     Write-Success "Build complete"
+} else {
+    Write-Success "No changes detected, skipping build"
+}
+
+# Check if executable exists
+if (-not (Test-Path "..\$buildPath")) {
+    Write-Error "Executable not found at $buildPath"
+    Write-Info "Try running with -ForceBuild to force a rebuild"
+    exit 1
 }
 
 Write-Info "Starting application..."
 Write-Host ""
-cargo run
+
+# Run the executable directly instead of using cargo run
+& "..\$buildPath"
 
 Write-Host "`nApplication closed."
