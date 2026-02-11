@@ -61,6 +61,14 @@ pub async fn save_preferences(
 pub async fn get_configured_providers(
     state: State<'_, AppState>,
 ) -> Result<Vec<aic_core::ProviderConfig>, String> {
+    // Load only primary config for settings dialog (skip slow discovery)
+    let configs = state.config_loader.load_primary_config().await;
+    Ok(configs)
+}
+
+#[tauri::command]
+pub async fn scan_for_api_keys(state: State<'_, AppState>) -> Result<Vec<aic_core::ProviderConfig>, String> {
+    // Explicit discovery scan - reads all files and does environment scanning
     let configs = state.config_loader.load_config().await;
     Ok(configs)
 }
@@ -70,7 +78,7 @@ pub async fn save_provider_config(
     state: State<'_, AppState>,
     config: aic_core::ProviderConfig,
 ) -> Result<(), String> {
-    let mut configs = state.config_loader.load_config().await;
+    let mut configs = state.config_loader.load_primary_config().await;
 
     // Update or add the config
     if let Some(existing) = configs

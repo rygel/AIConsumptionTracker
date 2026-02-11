@@ -1,11 +1,11 @@
 [package]
 name = "aic_app"
-version = "1.0.0"
+version = "1.7.13"
 edition = "2021"
 description = "AI Consumption Tracker Desktop Application"
 authors = ["AI Consumption Tracker Contributors"]
 license = "MIT"
-repository = "https://github.com/yourusername/ai-consumption-tracker"
+repository = "https://github.com/rygel/AIConsumptionTracker"
 
 [build-dependencies]
 tauri-build = { version = "2.0", features = [] }
@@ -27,9 +27,4 @@ tempfile = "3.0"
 [features]
 default = []
 
-[profile.release]
-panic = "abort"
-codegen-units = 1
-lto = true
-opt-level = "s"
-strip = true
+

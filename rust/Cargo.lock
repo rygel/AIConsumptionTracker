@@ -66,7 +66,7 @@ dependencies = [
 
 [[package]]
 name = "aic_app"
-version = "1.0.0"
+version = "1.7.13"
 dependencies = [
  "aic_core",
  "log",

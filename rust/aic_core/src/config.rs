@@ -31,15 +31,24 @@ impl ConfigLoader {
 
     fn get_tracker_config_path(&self) -> PathBuf {
         if let Some(ref custom) = self.custom_path {
-            return custom.join("auth.json");
+            let path = custom.join("auth.json");
+            log::info!("Using custom config path: {:?}", path);
+            return path;
         }
-        directories::BaseDirs::new()
+        let path = directories::BaseDirs::new()
             .map(|base| {
-                base.home_dir()
+                let p = base.home_dir()
                     .join(".ai-consumption-tracker")
-                    .join("auth.json")
+                    .join("auth.json");
+                log::info!("Using config path: {:?}", p);
+                p
             })
-            .unwrap_or_else(|| PathBuf::from(".ai-consumption-tracker/auth.json"))
+            .unwrap_or_else(|| {
+                let fallback = PathBuf::from(".ai-consumption-tracker/auth.json");
+                log::warn!("Using fallback config path: {:?}", fallback);
+                fallback
+            });
+        path
     }
 
     pub async fn load_config(&self) -> Vec<ProviderConfig> {
@@ -159,6 +168,82 @@ impl ConfigLoader {
                     existing.description = d.description;
                     if existing.base_url.is_none() {
                         existing.base_url = d.base_url;
+                    }
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Load only primary config file (fast, no discovery)
+    pub async fn load_primary_config(&self) -> Vec<ProviderConfig> {
+        let path = self.get_tracker_config_path();
+        let mut result = Vec::new();
+
+        if path.exists() {
+            if let Ok(content) = tokio::fs::read_to_string(&path).await {
+                if let Ok(raw_configs) =
+                    serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&content)
+                {
+                    for (provider_id, value) in raw_configs {
+                        // Skip app_settings
+                        if provider_id.eq_ignore_ascii_case("app_settings") {
+                            continue;
+                        }
+
+                        let normalized_id =
+                            if provider_id.eq_ignore_ascii_case("kimi-for-coding") {
+                                "kimi".to_string()
+                            } else {
+                                provider_id.clone()
+                            };
+
+                        if let Some(obj) = value.as_object() {
+                            let api_key = obj
+                                .get("key")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let config_type = obj
+                                .get("type")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("api")
+                                .to_string();
+                            let base_url = obj
+                                .get("base_url")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+                            let show_in_tray = obj
+                                .get("show_in_tray")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+                            let enabled_sub_trays = obj
+                                .get("enabled_sub_trays")
+                                .and_then(|v| v.as_array())
+                                .map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                        .collect()
+                                })
+                                .unwrap_or_default();
+
+                            result.push(ProviderConfig {
+                                provider_id: normalized_id.clone(),
+                                api_key,
+                                config_type,
+                                limit: Some(100.0),
+                                base_url,
+                                show_in_tray,
+                                enabled_sub_trays,
+                                auth_source: format!(
+                                    "Config: {}",
+                                    path.file_name().unwrap_or_default().to_string_lossy()
+                                ),
+                                description: None,
+                                ..Default::default()
+                            });
+                        }
                     }
                 }
             }
@@ -697,7 +782,7 @@ impl ProviderManager {
 
     async fn fetch_all_usage(&self) -> Vec<ProviderUsage> {
         debug!("Starting fetch_all_usage...");
-        let mut configs = self.config_loader.load_config().await;
+        let mut configs = self.config_loader.load_primary_config().await;
 
         // Auto-add system providers
         let system_providers = vec![
