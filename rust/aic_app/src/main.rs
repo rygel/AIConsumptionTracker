@@ -2,284 +2,42 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use aic_core::{
-    AuthenticationManager, ConfigLoader, GitHubAuthService, ProviderManager, ProviderUsage,
+    AuthenticationManager, ConfigLoader, GitHubAuthService, ProviderManager,
 };
-use std::process::Command;
+use aic_app::commands::*;
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::menu::MenuEvent;
+
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, Runtime, State, WebviewWindowBuilder,
+    tray::TrayIconBuilder,
+    Emitter, Manager, Runtime, AppHandle,
 };
+use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
 
-struct AppState {
-    provider_manager: Arc<ProviderManager>,
-    config_loader: Arc<ConfigLoader>,
-    auth_manager: Arc<AuthenticationManager>,
-    auto_refresh_enabled: Arc<Mutex<bool>>,
-    device_flow_state: Arc<RwLock<Option<DeviceFlowState>>>,
-}
+async fn check_and_update_tray_status(app_handle: &AppHandle) {
+    let state = app_handle.state::<AppState>();
+    let mut agent_process = state.agent_process.lock().await;
 
-#[derive(Clone)]
-struct DeviceFlowState {
-    device_code: String,
-    user_code: String,
-    verification_uri: String,
-    interval: u64,
-}
-
-// Provider commands
-#[tauri::command]
-async fn get_usage(state: State<'_, AppState>) -> Result<Vec<ProviderUsage>, String> {
-    let manager = &state.provider_manager;
-    Ok(manager.get_all_usage(true).await)
-}
-
-#[tauri::command]
-async fn refresh_usage(state: State<'_, AppState>) -> Result<Vec<ProviderUsage>, String> {
-    let manager = &state.provider_manager;
-    Ok(manager.get_all_usage(true).await)
-}
-
-// Preferences commands
-#[tauri::command]
-async fn load_preferences(state: State<'_, AppState>) -> Result<aic_core::AppPreferences, String> {
-    let prefs = state.config_loader.load_preferences().await;
-    Ok(prefs)
-}
-
-#[tauri::command]
-async fn save_preferences(
-    state: State<'_, AppState>,
-    preferences: aic_core::AppPreferences,
-) -> Result<(), String> {
-    state
-        .config_loader
-        .save_preferences(&preferences)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-// Config commands
-#[tauri::command]
-async fn get_configured_providers(
-    state: State<'_, AppState>,
-) -> Result<Vec<aic_core::ProviderConfig>, String> {
-    let configs = state.config_loader.load_config().await;
-    Ok(configs)
-}
-
-#[tauri::command]
-async fn save_provider_config(
-    state: State<'_, AppState>,
-    config: aic_core::ProviderConfig,
-) -> Result<(), String> {
-    let mut configs = state.config_loader.load_config().await;
-
-    // Update or add the config
-    if let Some(existing) = configs
-        .iter_mut()
-        .find(|c| c.provider_id == config.provider_id)
-    {
-        *existing = config;
+    let is_connected = if let Some(ref mut child) = *agent_process {
+        match child.try_wait() {
+            Ok(None) => true,
+            Ok(_) => {
+                *agent_process = None;
+                false
+            }
+            Err(_) => {
+                *agent_process = None;
+                false
+            }
+        }
     } else {
-        configs.push(config);
-    }
+        false
+    };
 
-    state
-        .config_loader
-        .save_config(&configs)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn remove_provider_config(
-    state: State<'_, AppState>,
-    provider_id: String,
-) -> Result<(), String> {
-    let mut configs = state.config_loader.load_config().await;
-    configs.retain(|c| c.provider_id != provider_id);
-
-    state
-        .config_loader
-        .save_config(&configs)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-// Auto-refresh commands
-#[tauri::command]
-async fn toggle_auto_refresh(state: State<'_, AppState>, enabled: bool) -> Result<(), String> {
-    let mut auto_refresh = state.auto_refresh_enabled.lock().await;
-    *auto_refresh = enabled;
-    Ok(())
-}
-
-#[tauri::command]
-async fn is_auto_refresh_enabled(state: State<'_, AppState>) -> Result<bool, String> {
-    let auto_refresh = state.auto_refresh_enabled.lock().await;
-    Ok(*auto_refresh)
-}
-
-// GitHub Authentication commands
-#[tauri::command]
-async fn is_github_authenticated(state: State<'_, AppState>) -> Result<bool, String> {
-    Ok(state.auth_manager.is_authenticated())
-}
-
-#[tauri::command]
-async fn initiate_github_login(
-    state: State<'_, AppState>,
-) -> Result<(String, String, String), String> {
-    match state.auth_manager.initiate_login().await {
-        Ok(flow_response) => {
-            // Store the device flow state
-            let mut flow_state = state.device_flow_state.write().await;
-            *flow_state = Some(DeviceFlowState {
-                device_code: flow_response.device_code.clone(),
-                user_code: flow_response.user_code.clone(),
-                verification_uri: flow_response.verification_uri.clone(),
-                interval: flow_response.interval as u64,
-            });
-
-            Ok((
-                flow_response.user_code,
-                flow_response.verification_uri,
-                flow_response.device_code,
-            ))
-        }
-        Err(e) => Err(format!("Failed to initiate login: {}", e)),
-    }
-}
-
-#[tauri::command]
-async fn complete_github_login(
-    state: State<'_, AppState>,
-    device_code: String,
-    interval: u64,
-) -> Result<bool, String> {
-    match state
-        .auth_manager
-        .wait_for_login(&device_code, interval)
-        .await
-    {
-        Ok(success) => {
-            // Clear the device flow state
-            let mut flow_state = state.device_flow_state.write().await;
-            *flow_state = None;
-            Ok(success)
-        }
-        Err(e) => Err(format!("Login failed: {}", e)),
-    }
-}
-
-#[tauri::command]
-async fn poll_github_token(
-    state: State<'_, AppState>,
-    device_code: String,
-) -> Result<String, String> {
-    use aic_core::TokenPollResult;
-
-    match state.auth_manager.poll_for_token(&device_code).await {
-        TokenPollResult::Token(_) => Ok("success".to_string()),
-        TokenPollResult::Pending => Ok("pending".to_string()),
-        TokenPollResult::SlowDown => Ok("slow_down".to_string()),
-        TokenPollResult::Expired => Err("Token expired".to_string()),
-        TokenPollResult::AccessDenied => Err("Access denied".to_string()),
-        TokenPollResult::Error(msg) => Err(msg),
-    }
-}
-
-#[tauri::command]
-async fn logout_github(state: State<'_, AppState>) -> Result<(), String> {
-    state
-        .auth_manager
-        .logout()
-        .await
-        .map_err(|e| format!("Logout failed: {}", e))
-}
-
-#[tauri::command]
-async fn cancel_github_login(state: State<'_, AppState>) -> Result<(), String> {
-    let mut flow_state = state.device_flow_state.write().await;
-    *flow_state = None;
-    Ok(())
-}
-
-// Window control commands
-#[tauri::command]
-async fn close_window(window: tauri::Window) -> Result<(), String> {
-    let _ = window.close();
-    Ok(())
-}
-
-#[tauri::command]
-async fn minimize_window(window: tauri::Window) -> Result<(), String> {
-    let _ = window.minimize();
-    Ok(())
-}
-
-#[tauri::command]
-async fn toggle_always_on_top(window: tauri::Window, enabled: bool) -> Result<(), String> {
-    let _ = window.set_always_on_top(enabled);
-    Ok(())
-}
-
-#[tauri::command]
-async fn open_browser(url: String) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        let _ = Command::new("cmd").args(["/C", "start", &url]).spawn();
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let _ = Command::new("open").arg(&url).spawn();
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let _ = Command::new("xdg-open").arg(&url).spawn();
-    }
-    Ok(())
-}
-
-#[tauri::command]
-async fn close_settings_window(window: tauri::Window) -> Result<(), String> {
-    let _ = window.close();
-    Ok(())
-}
-
-#[tauri::command]
-async fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
-    println!("Opening settings window...");
-
-    // Check if settings window already exists
-    if let Some(window) = app.get_webview_window("settings") {
-        let _ = window.show();
-        let _ = window.set_focus();
-        return Ok(());
-    }
-
-    // Create new settings window
-    let _ = WebviewWindowBuilder::new(
-        &app,
-        "settings",
-        tauri::WebviewUrl::App("settings.html".into()),
-    )
-    .title("Settings")
-    .inner_size(500.0, 550.0)
-    .min_inner_size(400.0, 400.0)
-    .center()
-    .decorations(false)
-    .transparent(true)
-    .build()
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
+    update_tray_icon_by_status(app_handle, is_connected).await;
 }
 
 fn create_tray_menu<R: Runtime>(
@@ -289,6 +47,8 @@ fn create_tray_menu<R: Runtime>(
     let refresh_i = MenuItem::with_id(app, "refresh", "Refresh", true, None::<&str>)?;
     let auto_refresh_i =
         MenuItem::with_id(app, "auto_refresh", "Auto Refresh", true, None::<&str>)?;
+    let agent_start_i = MenuItem::with_id(app, "start_agent", "Start Agent", true, None::<&str>)?;
+    let agent_stop_i = MenuItem::with_id(app, "stop_agent", "Stop Agent", true, None::<&str>)?;
     let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
@@ -299,8 +59,11 @@ fn create_tray_menu<R: Runtime>(
             &refresh_i,
             &auto_refresh_i,
             &MenuItem::with_id(app, "separator1", "---", false, None::<&str>)?,
-            &settings_i,
+            &agent_start_i,
+            &agent_stop_i,
             &MenuItem::with_id(app, "separator2", "---", false, None::<&str>)?,
+            &settings_i,
+            &MenuItem::with_id(app, "separator3", "---", false, None::<&str>)?,
             &quit_i,
         ],
     )?;
@@ -320,7 +83,10 @@ async fn main() {
     ));
 
     // Initialize auth manager from existing config
-    auth_manager.initialize_from_config().await;
+    let auth_manager_clone = auth_manager.clone();
+    tokio::spawn(async move {
+        auth_manager_clone.initialize_from_config().await;
+    });
 
     // Start auto-refresh background task
     let auto_refresh_enabled = Arc::new(Mutex::new(false));
@@ -348,13 +114,16 @@ async fn main() {
             auth_manager,
             auto_refresh_enabled,
             device_flow_state: Arc::new(RwLock::new(None)),
+            agent_process: Arc::new(Mutex::new(None)),
         })
         .plugin(tauri_plugin_shell::init())
-        // .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             // Provider commands
             get_usage,
             refresh_usage,
+            get_usage_from_agent,
+            refresh_usage_from_agent,
             // Preferences commands
             load_preferences,
             save_preferences,
@@ -381,6 +150,21 @@ async fn main() {
             // Settings commands
             close_settings_window,
             open_settings_window,
+            save_provider_configs,
+            scan_for_api_keys,
+            check_github_login_status,
+            discover_github_token,
+            // Agent management commands
+            start_agent,
+            stop_agent,
+            is_agent_running,
+            is_agent_running_http,
+            get_agent_status_details,
+            get_all_providers_from_agent,
+            // Update management commands
+            get_app_version,
+            check_for_updates,
+            install_update,
         ])
         .setup(|app| {
             // Create tray menu
@@ -388,46 +172,39 @@ async fn main() {
 
             // Build tray icon
             let _tray = TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
-                .show_menu_on_left_click(true)
-                .on_menu_event(|app: &tauri::AppHandle, event: MenuEvent| {
+                .tooltip("AI Consumption Tracker")
+
+                .on_menu_event(move |app, event| {
                     match event.id().as_ref() {
                         "show" => {
                             if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
+                                let _: Result<(), _> = window.show();
+                                let _: Result<(), _> = window.set_focus();
                             }
                         }
                         "refresh" => {
                             if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.emit("refresh-requested", ());
+                                let _: Result<(), _> = window.emit("refresh-requested", ());
                             }
                         }
                         "auto_refresh" => {
                             if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.emit("toggle-auto-refresh", ());
+                                let _: Result<(), _> = window.emit("toggle-auto-refresh", ());
+                            }
+                        }
+                        "start_agent" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _: Result<(), _> = window.emit("start-agent", ());
+                            }
+                        }
+                        "stop_agent" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _: Result<(), _> = window.emit("stop-agent", ());
                             }
                         }
                         "settings" => {
-                            // Open settings window
-                            if app.get_webview_window("settings").is_none() {
-                                let _ = WebviewWindowBuilder::new(
-                                    app,
-                                    "settings",
-                                    tauri::WebviewUrl::App("settings.html".into()),
-                                )
-                                .title("Settings")
-                                .inner_size(500.0, 550.0)
-                                .min_inner_size(400.0, 400.0)
-                                .center()
-                                .decorations(false)
-                                .transparent(true)
-                                .build();
-                            } else if let Some(window) = app.get_webview_window("settings") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
+                            let _: Result<(), _> = app.emit("open-settings-window", ());
                         }
                         "quit" => {
                             app.exit(0);
@@ -435,21 +212,23 @@ async fn main() {
                         _ => {}
                     }
                 })
-                .on_tray_icon_event(|tray: &tauri::tray::TrayIcon, event: TrayIconEvent| {
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    } = event
-                    {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                })
                 .build(app)?;
+
+            // Initial tray icon status check
+            let app_handle = app.handle().clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                check_and_update_tray_status(&app_handle).await;
+            });
+
+            // Periodic tray icon status update (every 30 seconds)
+            let app_handle = app.handle().clone();
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                    check_and_update_tray_status(&app_handle).await;
+                }
+            });
 
             // Ensure main window is shown
             if let Some(window) = app.get_webview_window("main") {
@@ -460,8 +239,72 @@ async fn main() {
                 println!("WARNING: Main window not found!");
             }
 
+            // Check for updates on startup (silent)
+            let app_handle = app.handle().clone();
+            tokio::spawn(async move {
+                // Wait a moment for app to fully initialize
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                
+                if let Ok(updater) = app_handle.updater() {
+                    match updater.check().await {
+                        Ok(Some(update)) => {
+                            log::info!("Update available: v{}", update.version);
+                            // Optionally show notification or update tray menu
+                        }
+                        Ok(None) => {
+                            log::debug!("No updates available");
+                        }
+                        Err(e) => {
+                            log::error!("Failed to check for updates on startup: {}", e);
+                        }
+                    }
+                }
+            });
+
+            // Do startup discovery once
+            let config_loader = app.state::<AppState>().config_loader.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+                log::info!("Performing startup configuration discovery...");
+                let configs = config_loader.load_config().await;
+                log::info!("Startup discovery found {} provider configurations", configs.len());
+            });
+
+            // Auto-start agent if not running
+            let app_handle = app.handle().clone();
+            let agent_process = app.state::<AppState>().agent_process.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                
+                log::info!("Checking if agent is running on startup...");
+                let is_running = match check_agent_status().await {
+                    Ok(running) => running,
+                    Err(e) => {
+                        log::error!("Failed to check agent status: {}", e);
+                        false
+                    }
+                };
+
+                if !is_running {
+                    log::info!("Agent not running, starting automatically...");
+                    match start_agent_internal(&app_handle, agent_process).await {
+                        Ok(started) => {
+                            if started {
+                                log::info!("Agent started successfully");
+                            } else {
+                                log::warn!("Agent failed to start");
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to start agent: {}", e);
+                        }
+                    }
+                }
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("error while running tauri application")
 }

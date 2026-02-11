@@ -2,7 +2,6 @@
 
 pub mod anthropic;
 pub mod antigravity;
-pub mod cloud_code;
 pub mod codex;
 pub mod deepseek;
 pub mod gemini;
@@ -19,7 +18,6 @@ pub mod zai;
 // Re-export all providers
 pub use anthropic::AnthropicProvider;
 pub use antigravity::AntigravityProvider;
-pub use cloud_code::CloudCodeProvider;
 pub use codex::CodexProvider;
 pub use deepseek::DeepSeekProvider;
 pub use gemini::GeminiProvider;
