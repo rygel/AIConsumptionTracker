@@ -296,7 +296,23 @@ namespace AIConsumptionTracker.UI
             }
             _mainWindow.Activate();
 
+            // Check if SettingsWindow is already open
+            foreach (Window window in Application.Current.Windows)
+            {
+                if (window is SettingsWindow existingSettings && existingSettings.IsVisible)
+                {
+                    existingSettings.Activate();
+                    return;
+                }
+            }
+
             var settingsWindow = Services.GetRequiredService<SettingsWindow>();
+            if (settingsWindow == null)
+            {
+                System.Windows.MessageBox.Show("Failed to create Settings window.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            
             settingsWindow.Owner = _mainWindow;
             settingsWindow.Closed += async (s, e) => 
             {
