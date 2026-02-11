@@ -407,7 +407,14 @@
                 renderProviders();
             } catch (err) {
                 console.error('Error loading data:', err);
-                container.innerHTML = '<div class="error">Failed to load data from agent</div>';
+                // Extract the error message from the error object
+                let errorMessage = 'Failed to load data from agent';
+                if (err && err.message) {
+                    errorMessage = err.message;
+                } else if (typeof err === 'string') {
+                    errorMessage = err;
+                }
+                container.innerHTML = '<div class="error">' + escapeHtml(errorMessage) + '</div>';
             }
         }
         
@@ -446,6 +453,17 @@
                 renderProviders();
             } catch (err) {
                 console.error('Error refreshing data:', err);
+                // Show error message to user
+                let errorMessage = 'Failed to refresh data';
+                if (err && err.message) {
+                    errorMessage = err.message;
+                } else if (typeof err === 'string') {
+                    errorMessage = err;
+                }
+                const container = document.getElementById('providersList');
+                if (container) {
+                    container.innerHTML = '<div class="error">' + escapeHtml(errorMessage) + '</div>';
+                }
             } finally {
                 document.getElementById('refreshBtn').style.opacity = '1';
             }

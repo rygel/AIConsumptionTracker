@@ -204,6 +204,8 @@ async fn fetch_latest_record(db: &libsql::Database) -> Option<DateTime<Utc>> {
 
 async fn health_check() -> Json<serde_json::Value> {
     use serde_json::json;
+    
+    debug!("API: GET /health - Health check");
 
     Json(json!({
         "status": "ok",
@@ -215,10 +217,26 @@ async fn health_check() -> Json<serde_json::Value> {
 async fn get_current_usage(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<ProviderUsage>>, StatusCode> {
+    info!("API: GET /api/providers/usage - Fetching current usage");
+    
     let client = reqwest::Client::new();
     let provider_manager = aic_core::config::ProviderManager::new(client);
 
     let usages = provider_manager.get_all_usage(false).await;
+    
+    info!("API: Returning {} usage records", usages.len());
+    
+    // Log details of each provider
+    for usage in &usages {
+        info!(
+            "  Provider: {} ({}), Available: {}, Cost: {:.2} / {:.2}",
+            usage.provider_name,
+            usage.provider_id,
+            usage.is_available,
+            usage.cost_used,
+            usage.cost_limit
+        );
+    }
 
     Ok(Json(usages))
 }
@@ -226,10 +244,15 @@ async fn get_current_usage(
 async fn trigger_refresh(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<ProviderUsage>>, StatusCode> {
+    info!("API: POST /api/providers/usage/refresh - Refreshing usage data");
+    
     let client = reqwest::Client::new();
     let provider_manager = aic_core::config::ProviderManager::new(client);
 
+    info!("API: Fetching fresh data from providers...");
     let usages = provider_manager.get_all_usage(true).await;
+    info!("API: Fetched {} provider records", usages.len());
+    
     let now = Utc::now();
 
     let db = &state.db;
@@ -273,10 +296,13 @@ async fn get_provider_usage(
     State(state): State<AppState>,
     Path(provider_id): Path<String>,
 ) -> Result<Json<ProviderUsage>, StatusCode> {
+    info!("API: GET /api/providers/{}/usage - Fetching specific provider", provider_id);
+    
     let client = reqwest::Client::new();
     let provider_manager = aic_core::config::ProviderManager::new(client);
 
     let usages = provider_manager.get_all_usage(false).await;
+    info!("API: Searching through {} providers for {}", usages.len(), provider_id);
 
     let usage = usages
         .into_iter()
@@ -404,8 +430,25 @@ async fn update_config(
 async fn get_discovered_providers(
     State(state): State<AppState>,
 ) -> Json<Vec<aic_core::ProviderConfig>> {
+    info!("API: GET /api/providers/discovered - Fetching discovered providers");
+    
     let config = state.config.read().await;
     let providers = config.discovered_providers.clone();
+    
+    info!("API: Returning {} discovered providers", providers.len());
+    
+    // Log each provider
+    for provider in &providers {
+        let key_status = if provider.api_key.is_empty() { "no key" } else { "has key" };
+        info!(
+            "  Provider: {} ({}), Source: {}, {}",
+            provider.provider_id,
+            provider.config_type,
+            provider.auth_source,
+            key_status
+        );
+    }
+    
     Json(providers)
 }
 

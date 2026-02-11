@@ -43,6 +43,13 @@ pub async fn refresh_usage(state: State<'_, AppState>) -> Result<Vec<ProviderUsa
 pub async fn get_usage_from_agent() -> Result<Vec<ProviderUsage>, String> {
     match reqwest::get("http://localhost:8080/api/providers/usage").await {
         Ok(response) => {
+            // Check if we got a successful status code
+            if !response.status().is_success() {
+                let status = response.status();
+                error!("Agent returned error status: {}", status);
+                return Err(format!("Agent error (HTTP {}): Agent returned an error status", status));
+            }
+            
             match response.json::<Vec<aic_core::ProviderUsage>>().await {
                 Ok(usage) => {
                     info!("Retrieved {} usage records from agent", usage.len());
@@ -50,13 +57,19 @@ pub async fn get_usage_from_agent() -> Result<Vec<ProviderUsage>, String> {
                 }
                 Err(e) => {
                     error!("Failed to parse usage from agent: {}", e);
-                    Err(format!("Failed to get usage from agent: {}", e))
+                    Err(format!("Bad response from agent: The agent sent invalid data. Error: {}", e))
                 }
             }
         }
         Err(e) => {
             error!("Failed to connect to agent for usage: {}", e);
-            Err(format!("Agent not available: {}", e))
+            if e.is_connect() {
+                Err(format!("Agent not running: Cannot connect to agent on port 8080. Please start the agent."))
+            } else if e.is_timeout() {
+                Err(format!("Agent timeout: The agent did not respond in time."))
+            } else {
+                Err(format!("Connection error: {}", e))
+            }
         }
     }
 }
@@ -66,6 +79,13 @@ pub async fn refresh_usage_from_agent() -> Result<Vec<ProviderUsage>, String> {
     let client = reqwest::Client::new();
     match client.post("http://localhost:8080/api/providers/usage/refresh").send().await {
         Ok(response) => {
+            // Check if we got a successful status code
+            if !response.status().is_success() {
+                let status = response.status();
+                error!("Agent returned error status: {}", status);
+                return Err(format!("Agent error (HTTP {}): Agent returned an error status", status));
+            }
+            
             match response.json::<Vec<aic_core::ProviderUsage>>().await {
                 Ok(usage) => {
                     info!("Refreshed and retrieved {} usage records from agent", usage.len());
@@ -73,13 +93,19 @@ pub async fn refresh_usage_from_agent() -> Result<Vec<ProviderUsage>, String> {
                 }
                 Err(e) => {
                     error!("Failed to parse refreshed usage from agent: {}", e);
-                    Err(format!("Failed to refresh usage from agent: {}", e))
+                    Err(format!("Bad response from agent: The agent sent invalid data. Error: {}", e))
                 }
             }
         }
         Err(e) => {
             error!("Failed to connect to agent for refresh: {}", e);
-            Err(format!("Agent not available: {}", e))
+            if e.is_connect() {
+                Err(format!("Agent not running: Cannot connect to agent on port 8080. Please start the agent."))
+            } else if e.is_timeout() {
+                Err(format!("Agent timeout: The agent did not respond in time."))
+            } else {
+                Err(format!("Connection error: {}", e))
+            }
         }
     }
 }
@@ -124,6 +150,13 @@ pub async fn get_all_providers_from_agent(
     
     match reqwest::get(agent_url).await {
         Ok(response) => {
+            // Check if we got a successful status code
+            if !response.status().is_success() {
+                let status = response.status();
+                error!("Agent returned error status: {}", status);
+                return Err(format!("Agent error (HTTP {}): Agent returned an error status", status));
+            }
+            
             match response.json::<Vec<aic_core::ProviderConfig>>().await {
                 Ok(providers) => {
                     info!("Retrieved {} providers from agent", providers.len());
@@ -131,13 +164,19 @@ pub async fn get_all_providers_from_agent(
                 }
                 Err(e) => {
                     error!("Failed to parse providers from agent: {}", e);
-                    Err(format!("Failed to get providers from agent: {}", e))
+                    Err(format!("Bad response from agent: The agent sent invalid data. Error: {}", e))
                 }
             }
         }
         Err(e) => {
             error!("Failed to connect to agent: {}", e);
-            Err(format!("Agent not available: {}", e))
+            if e.is_connect() {
+                Err(format!("Agent not running: Cannot connect to agent on port 8080. Please start the agent."))
+            } else if e.is_timeout() {
+                Err(format!("Agent timeout: The agent did not respond in time."))
+            } else {
+                Err(format!("Connection error: {}", e))
+            }
         }
     }
 }
