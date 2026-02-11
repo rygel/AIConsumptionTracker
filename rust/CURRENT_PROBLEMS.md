@@ -2,6 +2,27 @@
 
 ## Recent Work (February 11, 2026)
 
+### Fix: Port Already In Use Error
+
+**Problem:** When clicking the agent button (🤖) to start the agent, users got:
+```
+Error: Only one usage of each socket address (protocol/network address/port) is normally permitted. (os error 10048)
+```
+
+This happened when the agent was already running (e.g., started externally) but the UI didn't know about it.
+
+**Solution:** Modified `start_agent_internal()` to check if something is already listening on port 8080 before attempting to start the agent.
+
+**Changes:**
+- Added HTTP health check at the start of `start_agent_internal()`
+- If something responds on `http://localhost:8080/health`, assume agent is running
+- Return success without trying to spawn a new process
+- Only start a new agent if port 8080 is available
+
+**Impact:** Users can now click the agent button multiple times or start the agent externally without errors.
+
+---
+
 ### Feature: Agent Connection Status Indicator
 
 **Added:** Real-time status indicator in the footer showing agent connection state.
