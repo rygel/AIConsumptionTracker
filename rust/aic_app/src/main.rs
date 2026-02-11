@@ -4,6 +4,7 @@
 use aic_core::{
     AuthenticationManager, ConfigLoader, GitHubAuthService, ProviderManager, ProviderUsage,
 };
+use aic_app::commands::*;
 use std::process::{Command, Child};
 use std::sync::Arc;
 use std::time::Duration;
@@ -11,7 +12,7 @@ use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Emitter, Manager, Runtime, State, WebviewWindowBuilder,
+    Emitter, Manager, Runtime, State, WebviewWindowBuilder, AppHandle,
 };
 use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::{Mutex, RwLock};
@@ -160,77 +161,158 @@ async fn initiate_github_login(
 }
 
 #[tauri::command]
-async fn complete_github_login(
-    state: State<'_, AppState>,
-    device_code: String,
-    interval: u64,
-) -> Result<bool, String> {
-    match state.auth_manager.wait_for_login(&device_code, interval).await {
-        Ok(success) => {
-            // Clear the device flow state
-            let mut flow_state = state.device_flow_state.write().await;
-            *flow_state = None;
-            Ok(success)
+async fn get_agent_status_details(state: State<'_, AppState>) -> Result<AgentStatusDetails, String> {
+    let mut agent_process = state.agent_process.lock().await;
+
+    if let Some(ref mut child) = *agent_process {
+        match child.try_wait() {
+            Ok(None) => {
+                // Process is still running
+                let pid = child.id();
+                let path = match &child {
+                    Child { .. } => "running".to_string(),
+                };
+                Ok(AgentStatusDetails {
+                    is_running: true,
+                    process_id: Some(pid),
+                    path_from: "Manual start".to_string(),
+                })
+            }
+            Ok(_) => {
+                // Process has finished
+                *agent_process = None;
+                Ok(AgentStatusDetails {
+                    is_running: false,
+                    process_id: None,
+                    path_from: "Stopped".to_string(),
+                })
+            }
+            Err(_) => {
+                // Error occurred, assume process is done
+                *agent_process = None;
+                Ok(AgentStatusDetails {
+                    is_running: false,
+                    process_id: None,
+                    path_from: "Unknown".to_string(),
+                })
+            }
         }
-        Err(e) => Err(format!("Login failed: {}", e)),
+    } else {
+        Ok(AgentStatusDetails {
+            is_running: false,
+            process_id: None,
+            path_from: "Not started".to_string(),
+        })
+    }
+}
+
+#[derive(serde::Serialize)]
+struct AgentStatusDetails {
+    is_running: bool,
+    process_id: Option<u32>,
+    path_from: String,
+}
+
+#[tauri::command]
+async fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("settings") {
+        let _ = window.show();
+        let _ = window.set_focus();
+        Ok(())
+    } else {
+        Err("Settings window not found".to_string())
     }
 }
 
 #[tauri::command]
-async fn poll_github_token(
+async fn start_agent(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
-    device_code: String,
-) -> Result<String, String> {
-    use aic_core::TokenPollResult;
+) -> Result<bool, String> {
+    let agent_process = state.agent_process.clone();
+    start_agent_internal(&app, agent_process).await
+}
 
-    match state.auth_manager.poll_for_token(&device_code).await {
-        TokenPollResult::Token(_) => Ok("success".to_string()),
-        TokenPollResult::Pending => Ok("pending".to_string()),
-        TokenPollResult::SlowDown => Ok("slow_down".to_string()),
-        TokenPollResult::Expired => Err("Token expired".to_string()),
-        TokenPollResult::AccessDenied => Err("Access denied".to_string()),
-        TokenPollResult::Error(msg) => Err(format!("Error: {}", msg)),
+#[tauri::command]
+async fn stop_agent(state: State<'_, AppState>) -> Result<bool, String> {
+    let mut agent_process = state.agent_process.lock().await;
+
+    if let Some(ref mut child) = *agent_process {
+        match child.kill() {
+            Ok(_) => {
+                log::info!("Agent stopped successfully");
+                *agent_process = None;
+                Ok(true)
+            }
+            Err(e) => {
+                log::error!("Failed to stop agent: {}", e);
+                Err(format!("Failed to stop agent: {}", e))
+            }
+        }
+    } else {
+        Err("No agent process running".to_string())
     }
 }
 
 #[tauri::command]
-async fn logout_github(state: State<'_, AppState>) -> Result<(), String> {
-    state
-        .auth_manager
-        .logout()
-        .await
-        .map_err(|e| format!("Logout failed: {}", e))
+async fn is_agent_running(state: State<'_, AppState>) -> Result<bool, String> {
+    let mut agent_process = state.agent_process.lock().await;
+
+    if let Some(ref mut child) = *agent_process {
+        match child.try_wait() {
+            Ok(None) => {
+                Ok(true)
+            }
+            Ok(_) => {
+                *agent_process = None;
+                Ok(false)
+            }
+            Err(_) => {
+                *agent_process = None;
+                Ok(false)
+            }
+        }
+    } else {
+        Ok(false)
+    }
 }
 
-#[tauri::command]
-async fn cancel_github_login(state: State<'_, AppState>) -> Result<(), String> {
-    let mut flow_state = state.device_flow_state.write().await;
-    *flow_state = None;
-    Ok(())
+async fn update_tray_icon_by_status(app_handle: &AppHandle, is_connected: bool) {
+    let tooltip = if is_connected {
+        "AI Token Tracker - Connected to Agent"
+    } else {
+        "AI Token Tracker - Agent Disconnected"
+    };
+
+    if let Some(tray) = app_handle.tray_by_id("main") {
+        let _ = tray.set_tooltip(Some(tooltip));
+    }
 }
 
-// Window control commands
-#[tauri::command]
-async fn close_window(window: tauri::Window) -> Result<(), String> {
-    let _ = window.close();
-    Ok(())
+async fn check_and_update_tray_status(app_handle: &AppHandle) {
+    let state = app_handle.state::<AppState>();
+    let mut agent_process = state.agent_process.lock().await;
+
+    let is_connected = if let Some(ref mut child) = *agent_process {
+        match child.try_wait() {
+            Ok(None) => true,
+            Ok(_) => {
+                *agent_process = None;
+                false
+            }
+            Err(_) => {
+                *agent_process = None;
+                false
+            }
+        }
+    } else {
+        false
+    };
+
+    update_tray_icon_by_status(app_handle, is_connected).await;
 }
 
-#[tauri::command]
-async fn minimize_window(window: tauri::Window) -> Result<(), String> {
-    let _ = window.minimize();
-    Ok(())
-}
-
-#[tauri::command]
-async fn toggle_always_on_top(window: tauri::Window, enabled: bool) -> Result<(), String> {
-    let _ = window.set_always_on_top(enabled);
-    Ok(())
-}
-
-// Agent helper functions
 async fn check_agent_status() -> Result<bool, String> {
-    // Try to connect to agent's HTTP endpoint
     if let Ok(response) = reqwest::get("http://localhost:8080/health").await {
         Ok(response.status().is_success())
     } else {
@@ -242,88 +324,27 @@ async fn start_agent_internal(
     app_handle: &tauri::AppHandle,
     agent_process: Arc<Mutex<Option<Child>>>,
 ) -> Result<bool, String> {
-    let agent_path = std::env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?
-        .join("target")
-        .join("release")
-        .join("aic_agent.exe");
+    let mut agent_process = agent_process.lock().await;
 
-    if !agent_path.exists() {
-        return Err("Agent binary not found. Run 'cargo build --release' for aic_agent first.".to_string());
-    }
-
-    let child = std::process::Command::new(&agent_path)
-        .spawn()
-        .map_err(|e| format!("Failed to start agent: {}", e))?;
-
-    // Give agent a moment to start
-    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
-    // Check if it started successfully
-    let is_running = check_agent_status().await?;
-    
-    if is_running {
-        *agent_process.lock().await = Some(child);
-        
-        // Notify UI that agent started
-        if let Some(window) = app_handle.get_webview_window("main") {
-            let _: Result<(), _> = window.emit("agent-status-changed", true);
-        }
-    }
-
-    Ok(is_running)
-}
-
-#[tauri::command]
-async fn open_browser(url: String) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        let _ = Command::new("cmd").args(["/C", "start", &url]).spawn();
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let _ = Command::new("open").arg(&url).spawn();
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let _ = Command::new("xdg-open").arg(&url).spawn();
-    }
-    Ok(())
-}
-
-// Window control commands
-#[tauri::command]
-async fn close_settings_window(window: tauri::Window) -> Result<(), String> {
-    let _ = window.close();
-    Ok(())
-}
-
-// Agent management commands
-#[tauri::command]
-async fn start_agent(state: State<'_, AppState>) -> Result<bool, String> {
-    let mut agent_process = state.agent_process.lock().await;
-
-    // Check if agent is already running
     if let Some(ref mut child) = *agent_process {
         match child.try_wait() {
             Ok(None) => {
-                // Process has finished
-                *agent_process = None;
-            }
-            Ok(_) => {
-                // Process is still running
+                let app_handle = app_handle.clone();
+                tokio::spawn(async move {
+                    update_tray_icon_by_status(&app_handle, true).await;
+                });
                 return Ok(true);
             }
+            Ok(_) => {
+                *agent_process = None;
+            }
             Err(_) => {
-                // Error occurred, assume process is done
                 *agent_process = None;
             }
         }
     }
 
-    // Start the agent process
     let agent_path = if cfg!(target_os = "windows") {
-        // Try to find agent executable in different locations
         let possible_paths = [
             "./aic_agent.exe",
             "../target/debug/aic_agent.exe",
@@ -342,7 +363,6 @@ async fn start_agent(state: State<'_, AppState>) -> Result<bool, String> {
             "Agent executable not found. Please build the agent first."
         })?
     } else {
-        // Unix-like systems
         let possible_paths = [
             "./aic_agent",
             "../target/debug/aic_agent",
@@ -366,6 +386,13 @@ async fn start_agent(state: State<'_, AppState>) -> Result<bool, String> {
         Ok(child) => {
             *agent_process = Some(child);
             log::info!("Agent started successfully");
+
+            let app_handle = app_handle.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                update_tray_icon_by_status(&app_handle, true).await;
+            });
+
             Ok(true)
         }
         Err(e) => {
@@ -373,111 +400,6 @@ async fn start_agent(state: State<'_, AppState>) -> Result<bool, String> {
             Err(format!("Failed to start agent: {}", e))
         }
     }
-}
-
-#[tauri::command]
-async fn stop_agent(state: State<'_, AppState>) -> Result<bool, String> {
-    let mut agent_process = state.agent_process.lock().await;
-
-    if let Some(mut child) = std::mem::take(&mut *agent_process) {
-        match child.try_wait() {
-            Ok(None) => Ok(true), // Process is still running
-            Ok(_) => {
-                // Process has finished
-                *agent_process = None;
-                Ok(false)
-            }
-            Err(_) => {
-                // Error occurred, assume process is done
-                *agent_process = None;
-                Ok(false)
-            }
-        }
-    } else {
-        Ok(false) // Agent was not running
-    }
-}
-
-#[tauri::command]
-async fn is_agent_running(state: State<'_, AppState>) -> Result<bool, String> {
-    let mut agent_process = state.agent_process.lock().await;
-
-    if let Some(ref mut child) = *agent_process {
-        match child.try_wait() {
-            Ok(None) => Ok(true), // Process is still running
-            Ok(_) => {
-                // Process has finished
-                drop(agent_process);
-                let mut agent_process = state.agent_process.lock().await;
-                *agent_process = None;
-                Ok(false)
-            }
-            Err(_) => {
-                // Error occurred, assume process is done
-                drop(agent_process);
-                let mut agent_process = state.agent_process.lock().await;
-                *agent_process = None;
-                Ok(false)
-            }
-        }
-    } else {
-        Ok(false) // No process stored
-    }
-}
-
-// Window management commands
-#[tauri::command]
-async fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
-    // Check if settings window already exists
-    if let Some(window) = app.get_webview_window("settings") {
-        let _ = window.show();
-        let _ = window.set_focus();
-        return Ok(());
-    }
-
-    // Create new settings window
-    let _ = WebviewWindowBuilder::new(
-        &app,
-        "settings",
-        tauri::WebviewUrl::App("settings.html".into()),
-    )
-    .title("Settings")
-    .inner_size(500.0, 550.0)
-    .min_inner_size(400.0, 400.0)
-    .center()
-    .decorations(false)
-    .transparent(true)
-    .build()
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
-#[tauri::command]
-async fn open_agent_window(app: tauri::AppHandle) -> Result<(), String> {
-    // Check if agent window already exists
-    if let Some(window) = app.get_webview_window("agent") {
-        let _ = window.show();
-        let _ = window.set_focus();
-        return Ok(());
-    }
-
-    // Create new agent management window
-    let _ = WebviewWindowBuilder::new(
-        &app,
-        "agent",
-        tauri::WebviewUrl::App("agent.html".into()),
-    )
-    .title("Agent Management")
-    .inner_size(650.0, 700.0)
-    .min_inner_size(500.0, 600.0)
-    .center()
-    .decorations(false)
-    .transparent(true)
-    .build()
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
 }
 
 // Provider config management commands
@@ -767,7 +689,8 @@ async fn main() {
             start_agent,
             stop_agent,
             is_agent_running,
-            open_agent_window,
+            get_agent_status_details,
+            get_all_providers_from_agent,
             // Update management commands
             get_app_version,
             check_for_updates,
@@ -821,6 +744,22 @@ async fn main() {
                 })
                 .build(app)?;
 
+            // Initial tray icon status check
+            let app_handle = app.handle().clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                check_and_update_tray_status(&app_handle).await;
+            });
+
+            // Periodic tray icon status update (every 30 seconds)
+            let app_handle = app.handle().clone();
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                    check_and_update_tray_status(&app_handle).await;
+                }
+            });
+
             // Ensure main window is shown
             if let Some(window) = app.get_webview_window("main") {
                 window.show()?;
@@ -856,16 +795,10 @@ async fn main() {
             let config_loader = app.state::<AppState>().config_loader.clone();
             tokio::spawn(async move {
                 tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                
+
                 log::info!("Performing startup configuration discovery...");
-                match config_loader.load_config().await {
-                    Ok(configs) => {
-                        log::info!("Startup discovery found {} provider configurations", configs.len());
-                    }
-                    Err(e) => {
-                        log::error!("Startup discovery failed: {}", e);
-                    }
-                }
+                let configs = config_loader.load_config().await;
+                log::info!("Startup discovery found {} provider configurations", configs.len());
             });
 
             // Auto-start agent if not running
@@ -887,14 +820,15 @@ async fn main() {
                     log::info!("Agent not running, starting automatically...");
                     match start_agent_internal(&app_handle, agent_process).await {
                         Ok(started) => {
-                        if started {
-                            log::info!("Agent started successfully");
-                        } else {
-                            log::warn!("Agent failed to start");
+                            if started {
+                                log::info!("Agent started successfully");
+                            } else {
+                                log::warn!("Agent failed to start");
+                            }
                         }
-                    }
-                    Err(e) => {
-                        log::error!("Failed to start agent: {}", e);
+                        Err(e) => {
+                            log::error!("Failed to start agent: {}", e);
+                        }
                     }
                 }
             });
