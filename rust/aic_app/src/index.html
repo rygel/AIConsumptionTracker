@@ -523,31 +523,77 @@
             console.log('Starting agent from main window...');
 
             if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
+                // Immediately show connecting state
+                updateAgentUI('connecting', 'Starting Agent...');
+                
                 try {
                     const success = await window.__TAURI__.core.invoke('start_agent');
                     if (success) {
                         console.log('Agent started successfully');
-                        // Wait a moment then check status to update button state
+                        // Wait a moment then check status
                         setTimeout(checkAgentStatus, 2000);
                     }
                 } catch (e) {
                     console.error('Failed to start agent:', e);
-                    alert('Failed to start agent: ' + e);
+                    updateAgentUI('disconnected', 'Failed to Start');
+                }
+            }
+        }
+
+        // Unified function to update ALL agent-related UI elements
+        // This ensures button, LED, text, and content are always synchronized
+        function updateAgentUI(status, message) {
+            const agentBtn = document.getElementById('agentBtn');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const container = document.getElementById('providersList');
+            
+            // Update global state
+            agentConnected = (status === 'connected');
+            
+            // Update button
+            if (agentBtn) {
+                if (status === 'connected') {
+                    agentBtn.disabled = true;
+                    agentBtn.title = 'Agent Running';
+                    agentBtn.style.opacity = '0.5';
+                } else if (status === 'disconnected') {
+                    agentBtn.disabled = false;
+                    agentBtn.title = 'Start Agent';
+                    agentBtn.style.opacity = '1';
+                } else {
+                    agentBtn.disabled = false;
+                    agentBtn.title = 'Start Agent';
+                    agentBtn.style.opacity = '1';
+                }
+            }
+            
+            // Update LED indicator
+            if (statusIndicator) {
+                statusIndicator.className = 'status-indicator ' + status;
+            }
+            
+            // Update status text
+            if (statusText) {
+                statusText.textContent = message;
+            }
+            
+            // Update content area based on connection status
+            if (container) {
+                if (status === 'connected') {
+                    // Only load data if we're connected and haven't loaded yet
+                    if (usageData.length === 0) {
+                        loadData();
+                    }
+                } else {
+                    container.innerHTML = '<div class="loading">' + message + '</div>';
                 }
             }
         }
 
         async function checkAgentStatus() {
-            const agentBtn = document.getElementById('agentBtn');
-            const statusIndicator = document.getElementById('statusIndicator');
-            const statusText = document.getElementById('statusText');
-
             if (!window.__TAURI__ || !window.__TAURI__.core || !window.__TAURI__.core.invoke) {
-                agentConnected = false;
-                if (statusIndicator && statusText) {
-                    statusIndicator.className = 'status-indicator disconnected';
-                    statusText.textContent = 'Not Connected';
-                }
+                updateAgentUI('disconnected', 'Not Connected');
                 return;
             }
 
@@ -557,56 +603,28 @@
                 
                 if (isRunning) {
                     // Agent is running and responding
-                    agentConnected = true;
-                    if (agentBtn) {
-                        agentBtn.disabled = true;
-                        agentBtn.title = 'Agent is running';
-                        agentBtn.style.opacity = '0.5';
-                    }
-                    if (statusIndicator && statusText) {
-                        statusIndicator.className = 'status-indicator connected';
-                        statusText.textContent = 'Agent Connected';
-                    }
+                    updateAgentUI('connected', 'Agent Connected');
                     return;
                 }
                 
-                // Agent not responding via HTTP
-                agentConnected = false;
-                
-                // Check local process state to see if WE started it
-                const status = await window.__TAURI__.core.invoke('get_agent_status_details');
-                
-                // Update button state
-                if (agentBtn) {
+                // Agent not responding via HTTP - check if we have a local process
+                try {
+                    const status = await window.__TAURI__.core.invoke('get_agent_status_details');
+                    
                     if (status.is_running) {
-                        agentBtn.disabled = true;
-                        let tooltip = `Agent is running\nProcess ID: ${status.process_id}\nStarted from: ${status.path_from}`;
-                        agentBtn.title = tooltip;
-                        agentBtn.style.opacity = '0.5';
+                        // Process exists but not responding yet (starting up)
+                        updateAgentUI('connecting', 'Agent Starting...');
                     } else {
-                        agentBtn.disabled = false;
-                        agentBtn.title = 'Start Agent';
-                        agentBtn.style.opacity = '1';
+                        // No process and not responding
+                        updateAgentUI('disconnected', 'Agent Disconnected');
                     }
-                }
-                
-                // Update status indicator
-                if (statusIndicator && statusText) {
-                    if (status.is_running) {
-                        statusIndicator.className = 'status-indicator connected';
-                        statusText.textContent = 'Agent Connected';
-                    } else {
-                        statusIndicator.className = 'status-indicator disconnected';
-                        statusText.textContent = 'Agent Disconnected';
-                    }
+                } catch (e) {
+                    // Can't check process status
+                    updateAgentUI('disconnected', 'Agent Disconnected');
                 }
             } catch (e) {
                 console.error('Failed to check agent status:', e);
-                agentConnected = false;
-                if (statusIndicator && statusText) {
-                    statusIndicator.className = 'status-indicator disconnected';
-                    statusText.textContent = 'Connection Error';
-                }
+                updateAgentUI('disconnected', 'Connection Error');
             }
         }
 
