@@ -2,6 +2,28 @@
 
 ## Recent Work (February 11, 2026)
 
+### Feature: Load Data from Agent API
+
+**Problem:** The UI was loading provider configuration and usage data only from the local config/manager, even when the agent was running and had more current data.
+
+**Solution:** Implemented dual-path data loading that prioritizes the agent's HTTP API.
+
+**New Commands:**
+- `get_usage_from_agent` - Fetches usage from `http://localhost:8080/api/providers/usage`
+- `refresh_usage_from_agent` - Triggers refresh via `http://localhost:8080/api/providers/usage/refresh`
+
+**Frontend Changes:**
+- `loadData()` now tries agent API first, falls back to local config if agent unavailable
+- `refreshData()` now tries agent API first, falls back to local manager if agent unavailable
+- Seamless user experience - data source is transparent to users
+
+**Benefits:**
+- When agent is running: Gets real-time data with historical tracking
+- When agent is not running: Still works with local config (fallback)
+- Refresh button updates data via agent when available
+
+---
+
 ### Fix: Port Already In Use Error
 
 **Problem:** When clicking the agent button (🤖) to start the agent, users got:
