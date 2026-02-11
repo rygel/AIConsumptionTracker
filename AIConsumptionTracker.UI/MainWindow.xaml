@@ -12,7 +12,8 @@
         ShowInTaskbar="False"
         Topmost="True"
         AutomationProperties.Name="AI Consumption Tracker"
-        Icon="Assets/app_icon.png">
+        Icon="Assets/app_icon.png"
+        KeyDown="OnKeyDown">
 
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="50" 
@@ -49,13 +50,14 @@
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <Border Background="#252526" Padding="12" Grid.Row="0">
+            <Border x:Name="HeaderBorder" Background="#252526" Padding="12" Grid.Row="0">
                 <DockPanel>
                     <Image Source="Assets/app_icon.png" Width="18" Height="18" Margin="0,0,8,0" DockPanel.Dock="Left"/>
                     <TextBlock Text="AI Consumption Tracker" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" DockPanel.Dock="Left"/>
                     <TextBlock x:Name="VersionText" Text="v..." FontSize="11" Foreground="#888888" VerticalAlignment="Center" Margin="8,2,0,0" DockPanel.Dock="Left"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button x:Name="PrivacyBtn" Content="🔒" Click="PrivacyBtn_Click" Background="Transparent" Foreground="#AAAAAA" Width="30" Margin="0,0,10,0" ToolTip="Toggle Privacy Mode" WindowChrome.IsHitTestVisibleInChrome="True"/>
+                        <Button x:Name="PrivacyBtn" Content="🔒" Click="PrivacyBtn_Click" Background="Transparent" Foreground="#AAAAAA" Width="30" Margin="0,0,10,0" ToolTip="Toggle Privacy Mode (Ctrl+P)" WindowChrome.IsHitTestVisibleInChrome="True"/>
+                        <Button x:Name="ThemeBtn" Content="🌙" Click="ThemeBtn_Click" Background="Transparent" Foreground="#AAAAAA" Width="30" Margin="0,0,10,0" ToolTip="Toggle Theme (Ctrl+T)" WindowChrome.IsHitTestVisibleInChrome="True"/>
                         <Button Content="X" Click="CloseBtn_Click" Background="Transparent" Foreground="#AAAAAA" Width="20" WindowChrome.IsHitTestVisibleInChrome="True"/>
                     </StackPanel>
                 </DockPanel>
@@ -80,7 +82,7 @@
             </ScrollViewer>
 
             <!-- Footer -->
-            <Border Grid.Row="3" Background="#252526" Padding="12,8">
+            <Border x:Name="FooterBorder" Grid.Row="3" Background="#252526" Padding="12,8">
                 <DockPanel>
                     <CheckBox x:Name="ShowAllToggle" 
                               Content="Show All" 
@@ -89,7 +91,7 @@
                               VerticalAlignment="Center"
                               Checked="RefreshData_NoArgs"
                               Unchecked="RefreshData_NoArgs"/>
-                    
+                     
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <CheckBox x:Name="AlwaysOnTopCheck" 
                                   Content="Top" 
@@ -99,7 +101,7 @@
                                   Margin="0,0,12,0"
                                   Checked="AlwaysOnTop_Checked"
                                   Unchecked="AlwaysOnTop_Checked"/>
-
+                        
                         <CheckBox x:Name="StayOpenCheck" 
                                   Content="Pin" 
                                   IsChecked="False"
@@ -108,7 +110,7 @@
                                   Margin="0,0,12,0"
                                   Checked="StayOpen_Checked"
                                   Unchecked="StayOpen_Checked"/>
-
+                        
                         <CheckBox x:Name="CompactCheck" 
                                   Content="Compact" 
                                   IsChecked="True"
@@ -117,9 +119,8 @@
                                   Margin="0,0,12,0"
                                   Checked="Compact_Checked"
                                   Unchecked="Compact_Checked"/>
-
-
-                        <Button x:Name="RefreshBtn" Click="RefreshBtn_Click" Margin="0,0,10,0" ToolTip="Refresh Data" Width="32" Height="30">
+                        
+                        <Button x:Name="RefreshBtn" Click="RefreshBtn_Click" Margin="0,0,10,0" ToolTip="Refresh Data (Ctrl+R)" Width="32" Height="30">
                             <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center"/>
                         </Button>
                         <Button x:Name="SettingsBtn" Background="#444444" Click="SettingsBtn_Click" ToolTip="Provider Settings" Width="32" Height="30">
