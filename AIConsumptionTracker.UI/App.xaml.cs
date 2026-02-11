@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Extensions.Logging;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -67,15 +68,40 @@ namespace AIConsumptionTracker.UI
                 .ConfigureLogging(logging =>
                 {
                     logging.ClearProviders();
-                    logging.AddConsole();
-                    logging.AddDebug();
-                    // Only log debug messages when --debug flag is provided
-                    logging.SetMinimumLevel(IsDebugMode ? LogLevel.Debug : LogLevel.Information);
+                    
+                    // Always add console and debug output in debug mode
+                    string logPath;
+                    if (IsDebugMode)
+                    {
+                        logging.AddConsole();
+                        logging.AddDebug();
+                        logging.SetMinimumLevel(LogLevel.Debug);
+                        
+                        // Add a trace listener to capture Debug.WriteLine output
+                        var debugLogPath = Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                            "AIConsumptionTracker",
+                            "logs",
+                            $"debug_output_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+                        Directory.CreateDirectory(Path.GetDirectoryName(debugLogPath)!);
+                        
+                        // Create a custom trace listener that writes to file
+                        var listener = new TextWriterTraceListener(debugLogPath, "DebugListener");
+                        listener.TraceOutputOptions = TraceOptions.DateTime;
+                        Trace.Listeners.Add(listener);
+                        Trace.AutoFlush = true;
+                        
+                        Debug.WriteLine($"[DEBUG] Application started with --debug flag at {DateTime.Now}");
+                    }
+                    else
+                    {
+                        logging.SetMinimumLevel(LogLevel.Information);
+                    }
 
                     // Get a short hash of the app directory to differentiate multiple instances
                     var appPath = AppContext.BaseDirectory;
                     var appPathHash = appPath.GetHashCode().ToString("X").Substring(0, 4);
-                    var logPath = Path.Combine(
+                    logPath = Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                         "AIConsumptionTracker",
                         "logs",

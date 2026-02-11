@@ -513,7 +513,7 @@ namespace AIConsumptionTracker.UI
             startWithWindowsCheck.Checked += (s, e) => _prefs.StartWithWindows = true;
             startWithWindowsCheck.Unchecked += (s, e) => _prefs.StartWithWindows = false;
 
-            LayoutStack.Children.Add(previewText);
+            // Note: previewText will be added inside previewBox later, not directly to LayoutStack
             LayoutStack.Children.Add(startWithWindowsCheck);
              // Initial state
              try {
