@@ -120,6 +120,15 @@ namespace AIConsumptionTracker.UI
                 Debug.WriteLine("[DEBUG] Populating list...");
                 PopulateList();
                 
+                // Check if we have usage data, if not, trigger a refresh
+                if (_providerManager.LastUsages.Count == 0)
+                {
+                    Debug.WriteLine("[DEBUG] No usage data available, triggering refresh...");
+                    var usages = await _providerManager.GetAllUsageAsync(forceRefresh: true);
+                    Debug.WriteLine($"[DEBUG] Refresh completed, got {usages.Count} usages, repopulating list...");
+                    PopulateList();
+                }
+                
                 Debug.WriteLine("[DEBUG] Populating layout...");
                 PopulateLayout();
                 
@@ -240,7 +249,8 @@ namespace AIConsumptionTracker.UI
                 };
                 headerPanel.Children.Add(notifyCheckBox);
 
-                if (usage != null && !usage.IsAvailable)
+                // Show "Inactive" badge if no API key is configured
+                if (string.IsNullOrEmpty(config.ApiKey))
                 {
                     var status = new Border 
                     { 
