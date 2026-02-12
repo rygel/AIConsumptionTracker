@@ -356,17 +356,24 @@ pub async fn cancel_github_login(state: State<'_, AppState>) -> Result<(), Strin
 
 // Window control commands
 #[tauri::command]
-pub async fn close_window(window: tauri::Window, app: tauri::AppHandle) -> Result<(), String> {
-    println!("Close window command received");
+pub async fn close_window(window: tauri::Window, _app: tauri::AppHandle) -> Result<(), String> {
+    println!("Close window command received for window: {}", window.label());
 
-    // Close the specific window
-    if let Err(e) = window.close() {
-        println!("Error closing window: {}", e);
+    // For main window, hide instead of close to keep app running in tray
+    if window.label() == "main" {
+        if let Err(e) = window.hide() {
+            println!("Error hiding window: {}", e);
+            return Err(format!("Failed to hide window: {}", e));
+        }
+        println!("Main window hidden (app continues running in tray)");
+    } else {
+        // For other windows, close normally
+        if let Err(e) = window.close() {
+            println!("Error closing window: {}", e);
+            return Err(format!("Failed to close window: {}", e));
+        }
+        println!("Window {} closed", window.label());
     }
-
-    // Also exit the app if this is the main window
-    println!("Exiting application");
-    app.exit(0);
 
     Ok(())
 }
