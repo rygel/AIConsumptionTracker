@@ -104,8 +104,8 @@
         }
 
         .header-btn.active {
-            color: var(--accent-green);
-            background: rgba(0, 255, 133, 0.1);
+            color: #FFD700; /* Gold color for privacy mode */
+            background: rgba(255, 215, 0, 0.1);
         }
 
         .close-btn {
@@ -536,7 +536,7 @@
                 <span class="app-version" id="versionText">v1.0</span>
             </div>
             <div class="header-right">
-                <button class="header-btn" id="privacyToggleBtn" title="Toggle Privacy Mode">👁</button>
+                <button class="header-btn" id="privacyToggleBtn" title="Toggle Privacy Mode">🔒</button>
                 <button class="close-btn" id="closeBtn" title="Close">×</button>
             </div>
         </div>
@@ -987,7 +987,7 @@
                         
                         providerHtml += '<div class="sub-providers-header" data-provider="' + p.provider_id + '" style="display: flex; align-items: center; margin-top: 4px; margin-left: 16px; cursor: pointer; user-select: none; padding: 2px 0;">' +
                             '<span class="sub-toggle" style="font-size: 8px; margin-right: 6px; color: #808080; transition: transform 0.2s;">' + (isSubCollapsed ? '▶' : '▼') + '</span>' +
-                            '<span style="font-size: 9px; color: #808080;">' + subCount + ' sub</span>' +
+                            '<span style="font-size: 9px; color: #808080;">' + subCount + ' sub providers</span>' +
                             '</div>' +
                             '<div class="sub-providers-content" data-provider="' + p.provider_id + '" style="display: ' + (isSubCollapsed ? 'none' : 'block') + ';">';
                         
@@ -1068,7 +1068,7 @@
                         
                         providerHtml += '<div class="sub-providers-header" data-provider="' + p.provider_id + '" style="display: flex; align-items: center; margin-top: 8px; margin-left: 16px; cursor: pointer; user-select: none; padding: 4px 0;">' +
                             '<span class="sub-toggle" style="font-size: 9px; margin-right: 6px; color: #808080; transition: transform 0.2s;">' + (isSubCollapsed ? '▶' : '▼') + '</span>' +
-                            '<span style="font-size: 10px; color: #808080; font-weight: 500;">' + subCount + ' sub-provider' + (subCount > 1 ? 's' : '') + '</span>' +
+                            '<span style="font-size: 10px; color: #808080; font-weight: 500;">' + subCount + ' sub providers</span>' +
                             '</div>' +
                             '<div class="sub-providers-content" data-provider="' + p.provider_id + '" style="display: ' + (isSubCollapsed ? 'none' : 'block') + ';">';
                         
@@ -1174,9 +1174,8 @@
             privacyMode = !privacyMode;
             document.getElementById('privacyToggleBtn').classList.toggle('active', privacyMode);
             
-            // Update icon based on state
+            // Update tooltip based on state
             const btn = document.getElementById('privacyToggleBtn');
-            btn.textContent = privacyMode ? '🙈' : '👁';
             btn.title = privacyMode ? 'Privacy Mode On (Click to Show)' : 'Privacy Mode Off (Click to Hide)';
             
             // Re-render to hide/show sensitive data
@@ -1210,7 +1209,6 @@
                         privacyMode = newPrivacyMode;
                         document.getElementById('privacyToggleBtn').classList.toggle('active', privacyMode);
                         const btn = document.getElementById('privacyToggleBtn');
-                        btn.textContent = privacyMode ? '🙈' : '👁';
                         btn.title = privacyMode ? 'Privacy Mode On (Click to Show)' : 'Privacy Mode Off (Click to Hide)';
                         renderProviders();
                     }
@@ -1227,7 +1225,26 @@
                     const btn = document.getElementById('privacyToggleBtn');
                     if (btn) {
                         btn.classList.toggle('active', privacyMode);
-                        btn.textContent = privacyMode ? '🙈' : '👁';
+                        btn.title = privacyMode ? 'Privacy Mode On (Click to Show)' : 'Privacy Mode Off (Click to Hide)';
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not load privacy mode:', e);
+            }
+        }
+                });
+            }
+        }
+        
+        // Load privacy mode from localStorage
+        function loadPrivacyMode() {
+            try {
+                const saved = localStorage.getItem('privacy_mode');
+                if (saved !== null) {
+                    privacyMode = JSON.parse(saved);
+                    const btn = document.getElementById('privacyToggleBtn');
+                    if (btn) {
+                        btn.classList.toggle('active', privacyMode);
                         btn.title = privacyMode ? 'Privacy Mode On (Click to Show)' : 'Privacy Mode Off (Click to Hide)';
                     }
                 }

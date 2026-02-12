@@ -98,8 +98,9 @@
         }
 
         .header-btn.active {
-            color: var(--accent-green);
-            background: rgba(0, 255, 133, 0.1);
+            color: #FFD700; /* Gold color for privacy mode */
+            background: rgba(255, 215, 0, 0.1);
+        }
         }
 
         .close-btn {
@@ -645,7 +646,7 @@
                 <span class="header-text">Settings</span>
             </div>
             <div class="header-right">
-                <button class="header-btn" id="privacyToggleBtn" title="Toggle Privacy Mode" onclick="console.log('Inline click!'); togglePrivacyMode(); return false;">👁</button>
+                <button class="header-btn" id="privacyToggleBtn" title="Toggle Privacy Mode" onclick="console.log('Inline click!'); togglePrivacyMode(); return false;">🔒</button>
                 <button class="close-btn" id="closeBtn">&#215;</button>
             </div>
         </div>
@@ -892,7 +893,6 @@
             const btn = document.getElementById('privacyToggleBtn');
             if (btn) {
                 btn.classList.toggle('active', privacyMode);
-                btn.textContent = privacyMode ? '🙈' : '👁';
                 btn.title = privacyMode ? 'Privacy Mode On (Click to Show)' : 'Privacy Mode Off (Click to Hide)';
             }
             
@@ -945,7 +945,6 @@
                     const btn = document.getElementById('privacyToggleBtn');
                     if (btn) {
                         btn.classList.toggle('active', privacyMode);
-                        btn.textContent = privacyMode ? '🙈' : '👁';
                         btn.title = privacyMode ? 'Privacy Mode On (Click to Show)' : 'Privacy Mode Off (Click to Hide)';
                     }
                     applyPrivacyMode();
@@ -965,7 +964,6 @@
                         const btn = document.getElementById('privacyToggleBtn');
                         if (btn) {
                             btn.classList.toggle('active', privacyMode);
-                            btn.textContent = privacyMode ? '🙈' : '👁';
                             btn.title = privacyMode ? 'Privacy Mode On (Click to Show)' : 'Privacy Mode Off (Click to Hide)';
                         }
                         applyPrivacyMode();
