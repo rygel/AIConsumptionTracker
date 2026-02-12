@@ -46,30 +46,17 @@ fn create_tray_menu<R: Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> Result<Menu<R>, Box<dyn std::error::Error>> {
     let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
-    let settings_i = MenuItem::with_id(app, "settings", "Open Settings", true, None::<&str>)?;
     let info_i = MenuItem::with_id(app, "info", "Info", true, None::<&str>)?;
-    let refresh_i = MenuItem::with_id(app, "refresh", "Refresh", true, None::<&str>)?;
-    let auto_refresh_i =
-        MenuItem::with_id(app, "auto_refresh", "Auto Refresh", true, None::<&str>)?;
-    let agent_start_i = MenuItem::with_id(app, "start_agent", "Start Agent", true, None::<&str>)?;
-    let agent_stop_i = MenuItem::with_id(app, "stop_agent", "Stop Agent", true, None::<&str>)?;
-    let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let exit_i = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;
 
     let menu = Menu::with_items(
         app,
         &[
             &show_i,
             &MenuItem::with_id(app, "separator1", "---", false, None::<&str>)?,
-            &settings_i,
             &info_i,
             &MenuItem::with_id(app, "separator2", "---", false, None::<&str>)?,
-            &refresh_i,
-            &auto_refresh_i,
-            &MenuItem::with_id(app, "separator3", "---", false, None::<&str>)?,
-            &agent_start_i,
-            &agent_stop_i,
-            &MenuItem::with_id(app, "separator4", "---", false, None::<&str>)?,
-            &quit_i,
+            &exit_i,
         ],
     )?;
 
@@ -202,39 +189,13 @@ async fn main() {
                                 let _: Result<(), _> = window.set_focus();
                             }
                         }
-                        "refresh" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _: Result<(), _> = window.emit("refresh-requested", ());
-                            }
-                        }
-                        "auto_refresh" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _: Result<(), _> = window.emit("toggle-auto-refresh", ());
-                            }
-                        }
-                        "start_agent" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _: Result<(), _> = window.emit("start-agent", ());
-                            }
-                        }
-                        "stop_agent" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _: Result<(), _> = window.emit("stop-agent", ());
-                            }
-                        }
-                        "settings" => {
-                            let app_clone = app.clone();
-                            tokio::spawn(async move {
-                                let _ = aic_app::commands::open_settings_window(app_clone).await;
-                            });
-                        }
                         "info" => {
                             let app_clone = app.clone();
                             tokio::spawn(async move {
                                 let _ = aic_app::commands::open_info_window(app_clone).await;
                             });
                         }
-                        "quit" => {
+                        "exit" => {
                             app.exit(0);
                         }
                         _ => {}
@@ -266,6 +227,17 @@ async fn main() {
                 // Set window title with version number
                 let version = env!("CARGO_PKG_VERSION");
                 window.set_title(&format!("AI Consumption Tracker v{}", version))?;
+                
+                // Handle window close event - hide instead of close
+                let window_clone = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        // Prevent the window from closing
+                        api.prevent_close();
+                        // Hide the window instead
+                        let _ = window_clone.hide();
+                    }
+                });
                 
                 println!("Main window shown successfully");
             } else {

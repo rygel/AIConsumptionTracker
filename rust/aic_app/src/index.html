@@ -339,6 +339,19 @@
             color: var(--accent-green);
         }
 
+        .group-header:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .group-header .group-toggle {
+            transition: transform 0.2s ease;
+        }
+
+        .group-header:active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
         .error-message {
             background: rgba(255, 23, 68, 0.1);
             border: 1px solid var(--accent-red);
@@ -784,13 +797,22 @@
             quotaItems.sort(sortByName);
             payGoItems.sort(sortByName);
             
+            // Group collapse state (persisted in localStorage)
+            let groupCollapseState = {
+                'Plans & Quotas': localStorage.getItem('group_collapsed_plans') === 'true',
+                'Pay As You Go': localStorage.getItem('group_collapsed_paygo') === 'true'
+            };
+            
             // Helper function to create group header
-            const createGroupHeader = (title, color) => {
+            const createGroupHeader = (title, color, groupId) => {
+                const isCollapsed = groupCollapseState[title] || false;
                 return `
-                    <div style="display: flex; align-items: center; margin: 16px 0 10px 0;">
+                    <div class="group-header" data-group="${groupId}" style="display: flex; align-items: center; margin: 16px 0 10px 0; cursor: pointer; user-select: none;" title="Click to ${isCollapsed ? 'expand' : 'collapse'}">
+                        <span class="group-toggle" style="font-size: 10px; margin-right: 6px; transition: transform 0.2s;">${isCollapsed ? '▶' : '▼'}</span>
                         <span style="font-size: 10px; font-weight: bold; color: ${color}; text-transform: uppercase; letter-spacing: 1px; margin-right: 10px;">${title}</span>
                         <div style="flex: 1; height: 1px; background: ${color}; opacity: 0.3;"></div>
                     </div>
+                    <div class="group-content" data-group="${groupId}" style="display: ${isCollapsed ? 'none' : 'block'};">
                 `;
             };
 
@@ -1013,17 +1035,40 @@
             
             // Render Quota/Plans group
             if (quotaItems.length > 0) {
-                html += createGroupHeader('Plans & Quotas', '#00BFFF'); // DeepSkyBlue
+                html += createGroupHeader('Plans & Quotas', '#00BFFF', 'plans');
                 quotaItems.forEach(p => html += renderProvider(p));
+                html += '</div>'; // Close group-content
             }
             
             // Render Pay As You Go group
             if (payGoItems.length > 0) {
-                html += createGroupHeader('Pay As You Go', '#3CB371'); // MediumSeaGreen
+                html += createGroupHeader('Pay As You Go', '#3CB371', 'paygo');
                 payGoItems.forEach(p => html += renderProvider(p));
+                html += '</div>'; // Close group-content
             }
             
             container.innerHTML = html;
+            
+            // Add click handlers to group headers
+            document.querySelectorAll('.group-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    const groupId = this.getAttribute('data-group');
+                    const content = document.querySelector(`.group-content[data-group="${groupId}"]`);
+                    const toggle = this.querySelector('.group-toggle');
+                    const title = this.querySelector('span:nth-child(2)').textContent;
+                    
+                    if (content) {
+                        const isCollapsed = content.style.display === 'none';
+                        content.style.display = isCollapsed ? 'block' : 'none';
+                        toggle.textContent = isCollapsed ? '▼' : '▶';
+                        this.title = `Click to ${isCollapsed ? 'collapse' : 'expand'}`;
+                        
+                        // Save state to localStorage
+                        const storageKey = groupId === 'plans' ? 'group_collapsed_plans' : 'group_collapsed_paygo';
+                        localStorage.setItem(storageKey, (!isCollapsed).toString());
+                    }
+                });
+            });
         }
 
         async function togglePrivacy() {

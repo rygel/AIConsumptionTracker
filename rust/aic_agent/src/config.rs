@@ -28,7 +28,7 @@ pub async fn discover_all_providers() -> Vec<ProviderConfig> {
         ("deepseek", "DeepSeek", false),
         ("openrouter", "OpenRouter", false),
         ("antigravity", "Antigravity", true),  // System provider - discovers running process
-        ("opencode-zen", "OpenCode", true),  // System provider - OpenCode Zen
+        ("opencode", "OpenCode", false),  // API-based provider
         ("mistral", "Mistral", false),
         ("codex", "Codex", true),  // System provider
         ("zai-coding-plan", "Z.ai Coding Plan", false),

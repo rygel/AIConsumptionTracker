@@ -413,22 +413,10 @@ impl ConfigLoader {
             if !opencode_key.is_empty() {
                 Self::add_or_update(
                     &mut discovered,
-                    "opencode",
+            "opencode-zen",
                     &opencode_key,
                     "Discovered via Environment Variable",
                     "Env: OPENCODE_API_KEY",
-                );
-            }
-        }
-
-        if let Ok(opencode_zen_key) = std::env::var("OPENCODE_ZEN_API_KEY") {
-            if !opencode_zen_key.is_empty() {
-                Self::add_or_update(
-                    &mut discovered,
-                    "opencode-zen",
-                    &opencode_zen_key,
-                    "Discovered via Environment Variable",
-                    "Env: OPENCODE_ZEN_API_KEY",
                 );
             }
         }
@@ -745,7 +733,7 @@ impl ProviderManager {
         providers.push(Arc::new(DeepSeekProvider::new(client.clone())));
         providers.push(Arc::new(SimulatedProvider));
         providers.push(Arc::new(OpenRouterProvider::new(client.clone())));
-        providers.push(Arc::new(OpenCodeProvider::new(client.clone())));
+        providers.push(Arc::new(OpenCodeZenProvider::new(client.clone())));
         providers.push(Arc::new(CodexProvider));
         providers.push(Arc::new(GitHubCopilotProvider::new(client.clone())));
         providers.push(Arc::new(AntigravityProvider::new()));
@@ -753,7 +741,6 @@ impl ProviderManager {
         providers.push(Arc::new(ZaiProvider::new(client.clone())));
         providers.push(Arc::new(GenericPayAsYouGoProvider::new(client.clone())));
         providers.push(Arc::new(GeminiProvider::new(client.clone())));
-        providers.push(Arc::new(OpenCodeZenProvider::new()));
 
         Self {
             providers,
@@ -787,7 +774,7 @@ impl ProviderManager {
         let system_providers = vec![
             "antigravity",
             "gemini-cli",
-            "opencode-zen",
+                    "opencode-zen",
             "github-copilot",
         ];
         for provider_id in system_providers {
