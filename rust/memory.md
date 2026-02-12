@@ -12,98 +12,106 @@ Building a Rust-based cross-platform replacement for the .NET WPF AI Consumption
 - **aic_cli**: Command-line interface
 - **aic_web**: Web dashboard for browser access
 
-## Recent Implementations (2026-02-12)
+## Recent Implementations (2026-02-13)
 
-### 1. Info Window (About Dialog)
-- Created `info.html` with app and system information
-- Shows version, OS details, architecture, machine name, user, config path
-- Privacy mode toggle in header
-- Synchronized across all windows
-- Accessible from tray icon menu
+### 1. Collapsible Provider Groups
+- **Plans & Quotas** and **Pay As You Go** groups are now collapsible
+- Click the group header to expand/collapse all providers in that group
+- Visual indicator: ▼ when expanded, ▶ when collapsed
+- State persisted in localStorage (restored on app restart)
+- Hover effects on headers for better UX
 
-### 2. Privacy Mode Enhancement
-- Implemented privacy toggle button (👁/🙈) in all window headers (main, settings, info)
-- Hides API keys and sensitive data when enabled
-- Cross-window synchronization via Tauri events
-- State persistence in localStorage
-- Shows reset times and user names as "••••••••" when privacy is on
+### 2. Collapsible Sub-Providers
+- Providers with sub-providers (like Antigravity) show a collapsible header
+- Displays count: "3 sub providers"
+- Each provider remembers its collapsed state individually
+- Works in both compact and standard view modes
+- Click to toggle visibility of sub-provider bars
 
-### 3. Provider Grouping in Main UI
-- Grouped providers by payment type in main window:
-  - **"Plans & Quotas"** (DeepSkyBlue) - Quota-based and credits providers
-  - **"Pay As You Go"** (MediumSeaGreen) - Usage-based providers
-- Color-coded group headers with horizontal separators
-- Alphabetical sorting within each group
+### 3. Inverted Progress Bars
+- Settings option to invert progress bars (show remaining instead of used)
+- Applied to both main provider bars and sub-provider bars
+- Affects all progress bar calculations throughout the UI
+- State persisted in preferences
 
-### 4. UI Improvements
-- **Dark scrollbar styling**: WebKit and Firefox scrollbars styled to match dark theme
-- **Compact mode**: More compact provider bars with reduced padding and sizes
-- **Sub-bars for Antigravity**: Shows individual quota usage for each AI model (GPT-4, Claude, etc.)
-- **Reset time display**: Shows relative time (e.g., "2d 5h") and absolute time (e.g., "Feb 05 14:30")
+### 4. Privacy Icon Updates
+- Changed from 👁/🙈 to 🔒 (lock icon) to match C# version
+- Privacy mode active: button turns gold (#FFD700)
+- Consistent across all windows (main, settings, info)
+- No icon change, only color change indicates state
 
-### 5. Tray Icon Menu
-- Reorganized menu with new items:
-  - "Open Settings" 
-  - "Info" (About dialog)
-  - "Show", "Refresh", "Auto Refresh"
-  - "Start/Stop Agent"
-  - "Quit"
+### 5. Agent Control Button
+- 🤖 button now toggles between start and stop
+- **Running**: Shows "Agent Running - Click to Stop"
+- **Stopped**: Shows "Start Agent"
+- Stopping agent clears the providers list
+- Starting agent triggers status check after 2 seconds
 
-### 6. Settings Dialog Enhancements
-- **Antigravity sub-models**: Shows individual quota checkboxes for each AI model when antigravity is running
-- **Escape key**: Pressing Escape closes settings window
-- **Alphabetical sorting**: Providers sorted alphabetically by display name
-- **Removed grouping**: Settings shows simple alphabetical list (unlike main UI)
-- **Updated providers**: Removed kilocode, fixed OpenCode naming
+### 6. Window Close Behavior
+- **Main window**: Hides instead of closing (app runs in tray)
+- **Settings window**: Hides instead of closing
+- **Info window**: Hides instead of closing
+- Use tray menu "Exit" to fully quit application
+- All windows can be reopened from tray menu
 
-### 7. Agent Improvements
-- **Better path resolution**: Searches multiple locations for agent executable:
-  - Current directory
-  - App resource directory
-  - App data directory
-  - Development paths (target/debug, target/release)
-- **Detailed error messages**: Shows specific guidance when agent fails to start
-- **Window drag support**: Added `core:window:allow-start-dragging` permission
+### 7. Simplified Tray Menu
+- Reduced to essential items:
+  - **Show**: Bring main window to front
+  - **Info**: Open about dialog
+  - **Exit**: Quit application
+- Removed: Settings, Refresh, Auto Refresh, Start/Stop Agent
+- All functionality accessible through UI buttons
 
-### 8. Provider List Updates
-- Removed kilocode (not a model provider)
-- Fixed OpenCode naming (opencode-zen displays as "OpenCode")
-- Removed generic-pay-as-you-go from discovered list
-- Changed anthropic provider ID from "anthropic" to "claude-code" to match C# app
+### 8. Agent-Only Configuration (CRITICAL)
+**All configuration operations now go through agent API:**
+- `GET /api/providers/discovered` - Read providers
+- `PUT /api/providers/{id}` - Save single provider
+- `DELETE /api/providers/{id}` - Remove provider
+- `POST /api/config/providers` - Save all providers
+- `POST /api/discover` - Trigger discovery scan
 
-### 9. Always-on-Top Persistence
-- Saves preference to localStorage
-- Applies setting on startup automatically
-- Updates checkbox state to match saved preference
+**Removed from UI app:**
+- Direct auth.json loading on startup
+- Direct file access in commands
+- `ConfigLoader` usage in UI layer
 
-### 10. Design Documentation
-- Created comprehensive `DESIGN.md` with:
-  - Architecture diagrams
-  - API endpoints
-  - Data models
-  - Provider system
-  - Configuration management
-  - Caching strategy
-  - Error handling
-  - Build system
-  - Development workflow
+**Agent endpoints added:**
+- `PUT /api/providers/:id` - Save provider config
+- `DELETE /api/providers/:id` - Remove provider
+- `POST /api/config/providers` - Bulk save
+- `POST /api/discover` - Trigger discovery
+
+### 9. Settings Data Preloading
+- Main window preloads settings data after loading its own data
+- Settings window checks for preloaded data first
+- If preloaded data exists, settings open instantly
+- Falls back to agent API if no preloaded data
+- Preloading happens in background after each refresh
+
+### 10. UI/UX Improvements
+- **Group headers**: Hover effects and visual feedback
+- **Sub-provider headers**: "X sub providers" text with toggle arrow
+- **Privacy button**: Gold color when active (consistent with C#)
+- **Agent button**: Enabled when running (allows stopping)
+- **Window focus**: Main window reloads preferences on focus (syncs with settings changes)
 
 ## Known Issues
 
-1. **Port Conflicts**: Agent sometimes fails to start if port 8080 is in use (need to kill existing processes)
+1. **Port Conflicts**: Agent sometimes fails to start if port 8080 is in use
 2. **Build Environment**: Occasional Visual Studio/build tool issues on Windows
 3. **Window Close Warnings**: Some harmless Win32 errors when closing application
 4. **Antigravity Details**: Requires running VS Code extension to show sub-model data
+5. **JavaScript Syntax**: Potential syntax error in index.html (under investigation)
 
 ## Next Steps
 
-1. Complete provider implementations for all AI services
-2. Add proper error handling for network failures
-3. Implement auto-update mechanism
-4. Add system tray integration improvements
-5. Test cross-platform builds (Linux/Mac)
-6. Add click-to-cycle reset display modes (relative/absolute/both)
-7. Implement proper window state restoration
+1. Debug JavaScript syntax error in index.html
+2. Test all provider configuration flows through agent API
+3. Verify agent start/stop functionality on all platforms
+4. Add proper error handling for network failures
+5. Implement auto-update mechanism
+6. Test cross-platform builds (Linux/Mac)
+7. Add click-to-cycle reset display modes
 
 ## Development Commands
 
@@ -117,8 +125,8 @@ cd rust && ./target/release/aic_agent.exe
 # Build and run UI
 cd rust/scripts && ./debug-build.ps1
 
-# Validate HTML/JS
-cd rust/aic_app && ./validate.ps1
+# Check for JS syntax errors
+cd rust/aic_app/src && node --check index.html 2>&1 || echo "Check failed"
 
 # Test agent diagnostics
 cd rust/scripts && ./test-agent.ps1
@@ -153,3 +161,31 @@ cd rust/scripts && ./test-agent.ps1
 - The UI app communicates with agent via HTTP on port 8080
 - All provider data flows: Agent (source of truth) → UI (display only)
 
+## File Locations
+
+- **Main UI**: `aic_app/src/index.html`
+- **Settings**: `aic_app/src/settings.html`
+- **Info/About**: `aic_app/src/info.html`
+- **Agent**: `aic_agent/src/main.rs`
+- **Core**: `aic_core/src/`
+- **Config**: Agent reads from `~/.ai-consumption-tracker/auth.json`
+
+## Architecture Flow
+
+```
+┌─────────────┐      HTTP      ┌──────────────┐      HTTP      ┌─────────────────┐
+│   aic_app   │ ◄─────────────► │  aic_agent   │ ◄─────────────► │ AI Provider APIs│
+│  (Tauri UI) │   Port 8080     │  (HTTP API)  │                 │  (OpenAI, etc.) │
+└─────────────┘                 └──────────────┘                 └─────────────────┘
+       │                               │
+       │                               │
+       ▼                               ▼
+  LocalStorage                    auth.json
+  (UI preferences)           (Provider configs)
+```
+
+## Current Branch
+
+**Branch**: `feature/libsql-upgrade`
+**Commits**: Multiple commits with collapsible sections, agent API routing, stop agent button, and UI improvements
+**Status**: Ready for testing, pending JavaScript syntax error resolution
