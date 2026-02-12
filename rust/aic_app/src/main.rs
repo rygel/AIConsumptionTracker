@@ -180,7 +180,7 @@ async fn main() {
             let _tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .tooltip("AI Consumption Tracker")
-
+                .icon(app.default_window_icon().unwrap().clone())
                 .on_menu_event(move |app, event| {
                     match event.id().as_ref() {
                         "show" => {
