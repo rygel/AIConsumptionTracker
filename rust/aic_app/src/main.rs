@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::TrayIconBuilder,
+    tray::{TrayIconBuilder, TrayIconEvent},
     Emitter, Manager, Runtime, AppHandle,
 };
 use tauri_plugin_updater::UpdaterExt;
@@ -177,7 +177,7 @@ async fn main() {
             let menu = create_tray_menu(app.handle())?;
 
             // Build tray icon
-            let _tray = TrayIconBuilder::new()
+            let tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .tooltip("AI Consumption Tracker")
                 .icon(app.default_window_icon().unwrap().clone())
@@ -202,6 +202,17 @@ async fn main() {
                     }
                 })
                 .build(app)?;
+
+            // Handle tray icon click events
+            tray.on_tray_icon_event(|tray, event| {
+                if let TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, .. } = event {
+                    // Show window on left click
+                    if let Some(window) = tray.app_handle().get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            });
 
             // Initial tray icon status check
             let app_handle = app.handle().clone();
