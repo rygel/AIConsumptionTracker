@@ -40,6 +40,7 @@
   },
   "identifier": "com.ai.tokentracker.application",
   "app": {
+    "withGlobalTauri": true,
     "security": {
       "csp": null
     },
@@ -110,14 +111,7 @@
         "alwaysOnTop": false,
         "parent": "main"
       }
-    ],
-    "trayIcon": {
-      "iconAsTemplate": false,
-      "menuOnLeftClick": false,
-      "tooltip": "AI Token Tracker",
-      "iconPath": "icons/icon.ico"
-    },
-    "withGlobalTauri": true
+    ]
   },
   "plugins": {
     "shell": {
@@ -131,10 +125,6 @@
       "endpoints": ["https://api.github.com/repos/rygel/AIConsumptionTracker/releases"],
       "dialog": true,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENFRUYxQTI0NURGNkRDOEYKUldTUDNQWmRKQnJ2em5KNXZpM1E1WHMyNThrYnptU2c3eGxuYnhHa3lhWk1pN3A3MmF5TUZ3T1EK"
-    },
-    "permissions": {
-      "active": true,
-      "resources": ["capabilities/main.json"]
     }
   }
 }
