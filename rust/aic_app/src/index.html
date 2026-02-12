@@ -398,6 +398,19 @@
             background: #555;
         }
 
+        .sub-providers-header:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .sub-providers-header .sub-toggle {
+            transition: transform 0.2s ease;
+        }
+
+        .sub-providers-header:active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
         .error {
             color: var(--accent-red);
             padding: 20px;
@@ -828,6 +841,15 @@
                 'Pay As You Go': localStorage.getItem('group_collapsed_paygo') === 'true'
             };
             
+            // Provider sub-provider collapse state (persisted in localStorage)
+            function getProviderCollapsed(providerId) {
+                return localStorage.getItem(`provider_collapsed_${providerId}`) === 'true';
+            }
+            
+            function setProviderCollapsed(providerId, collapsed) {
+                localStorage.setItem(`provider_collapsed_${providerId}`, collapsed.toString());
+            }
+            
             // Helper function to create group header
             const createGroupHeader = (title, color, groupId) => {
                 const isCollapsed = groupCollapseState[title] || false;
@@ -958,8 +980,17 @@
                         '<span class="provider-status">' + escapeHtml(statusText) + (statusDetail ? ' (' + escapeHtml(statusDetail) + ')' : '') + '</span>' +
                         '</div></div>';
                     
-                    // Add compact sub-bars for antigravity details
+                    // Add compact collapsible sub-bars section for providers with details
                     if (p.details && p.details.length > 0 && avail) {
+                        const isSubCollapsed = getProviderCollapsed(p.provider_id);
+                        const subCount = p.details.length;
+                        
+                        providerHtml += '<div class="sub-providers-header" data-provider="' + p.provider_id + '" style="display: flex; align-items: center; margin-top: 4px; margin-left: 16px; cursor: pointer; user-select: none; padding: 2px 0;">' +
+                            '<span class="sub-toggle" style="font-size: 8px; margin-right: 6px; color: #808080; transition: transform 0.2s;">' + (isSubCollapsed ? '▶' : '▼') + '</span>' +
+                            '<span style="font-size: 9px; color: #808080;">' + subCount + ' sub</span>' +
+                            '</div>' +
+                            '<div class="sub-providers-content" data-provider="' + p.provider_id + '" style="display: ' + (isSubCollapsed ? 'none' : 'block') + ';">';
+                        
                         p.details.forEach(detail => {
                             let detailPct = 0;
                             if (detail.used) {
@@ -993,6 +1024,8 @@
                                 '<span class="provider-status" style="font-size:9px;">' + escapeHtml(detail.used) + '</span>' +
                                 '</div></div>';
                         });
+                        
+                        providerHtml += '</div>'; // Close sub-providers-content
                     }
                 } else {
                     // Standard view with sub-bars
@@ -1028,8 +1061,17 @@
                     
                     providerHtml += '</div>';
                     
-                    // Add sub-bars for details
+                    // Add collapsible sub-bars section for providers with details
                     if (p.details && p.details.length > 0 && avail) {
+                        const isSubCollapsed = getProviderCollapsed(p.provider_id);
+                        const subCount = p.details.length;
+                        
+                        providerHtml += '<div class="sub-providers-header" data-provider="' + p.provider_id + '" style="display: flex; align-items: center; margin-top: 8px; margin-left: 16px; cursor: pointer; user-select: none; padding: 4px 0;">' +
+                            '<span class="sub-toggle" style="font-size: 9px; margin-right: 6px; color: #808080; transition: transform 0.2s;">' + (isSubCollapsed ? '▶' : '▼') + '</span>' +
+                            '<span style="font-size: 10px; color: #808080; font-weight: 500;">' + subCount + ' sub-provider' + (subCount > 1 ? 's' : '') + '</span>' +
+                            '</div>' +
+                            '<div class="sub-providers-content" data-provider="' + p.provider_id + '" style="display: ' + (isSubCollapsed ? 'none' : 'block') + ';">';
+                        
                         p.details.forEach(detail => {
                             let detailPct = 0;
                             if (detail.used) {
@@ -1059,6 +1101,8 @@
                                 (detail.description ? '<div style="font-size:10px;color:#FFD700;margin-top:2px;margin-left:22px;font-weight:600;">' + escapeHtml(detail.description) + '</div>' : '') +
                                 '</div>';
                         });
+                        
+                        providerHtml += '</div>'; // Close sub-providers-content
                     }
                     
                     providerHtml += '</div>';
@@ -1103,6 +1147,24 @@
                         // Save state to localStorage
                         const storageKey = groupId === 'plans' ? 'group_collapsed_plans' : 'group_collapsed_paygo';
                         localStorage.setItem(storageKey, (!isCollapsed).toString());
+                    }
+                });
+            });
+            
+            // Add click handlers to sub-provider headers
+            document.querySelectorAll('.sub-providers-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    const providerId = this.getAttribute('data-provider');
+                    const content = document.querySelector(`.sub-providers-content[data-provider="${providerId}"]`);
+                    const toggle = this.querySelector('.sub-toggle');
+                    
+                    if (content) {
+                        const isCollapsed = content.style.display === 'none';
+                        content.style.display = isCollapsed ? 'block' : 'none';
+                        toggle.textContent = isCollapsed ? '▼' : '▶';
+                        
+                        // Save state to localStorage
+                        setProviderCollapsed(providerId, !isCollapsed);
                     }
                 });
             });
