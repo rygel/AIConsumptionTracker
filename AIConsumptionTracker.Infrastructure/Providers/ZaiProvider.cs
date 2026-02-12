@@ -136,10 +136,16 @@ public class ZaiProvider : IProviderService
 
         DateTime? nextResetTime = null;
         string resetStr = "";
-        var limitWithReset = limits
-            .Where(l => l.NextResetTime.HasValue && l.NextResetTime.Value > 0)
-            .OrderBy(l => l.NextResetTime.Value)
-            .FirstOrDefault();
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        
+        // Prioritize TOKENS_LIMIT for reset time, but fall back to other limits if not present
+        var limitWithReset = tokenLimit?.NextResetTime.HasValue == true && tokenLimit.NextResetTime.Value > 0
+            ? tokenLimit
+            : limits
+                .Where(l => l.NextResetTime.HasValue && l.NextResetTime.Value > 0)
+                .OrderBy(l => Math.Abs(l.NextResetTime!.Value - now))
+                .FirstOrDefault();
+            
         if (limitWithReset != null)
         {
             var ts = limitWithReset.NextResetTime!.Value;
@@ -161,7 +167,7 @@ public class ZaiProvider : IProviderService
                     utcTime.UtcDateTime, nextResetTime);
             }
 
-            resetStr = $" (Resets: {nextResetTime:MMM dd, yyyy HH:mm} Local)";
+            resetStr = $" (Resets: {nextResetTime:MMM dd HH:mm})";
         }
 
         var finalUsagePercentage = Math.Min(remainingPercent, 100);

@@ -2,12 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+- **Z.AI**: Use TOKENS_LIMIT reset time when available
+
 ## [1.8.5] - 2026-02-11
 
 ### Fixed
 - **Z.AI Provider**: Handle percentage-only API responses after quota reset
 - **Z.AI Provider**: Auto-detect Unix timestamps (seconds vs milliseconds) for reset dates
-- **UI Tests**: Fix NullReferenceException when Application.Current is null in headless CI environment
 
 ### Added
 - **Debug Mode**: Add --debug command line argument with detailed logging for troubleshooting
