@@ -614,7 +614,7 @@
             });
 
             // Setup other buttons
-            document.getElementById('agentBtn').addEventListener('click', startAgentFromMain);
+            document.getElementById('agentBtn').addEventListener('click', toggleAgent);
             document.getElementById('privacyToggleBtn').addEventListener('click', togglePrivacy);
             document.getElementById('refreshBtn').addEventListener('click', refreshData);
             document.getElementById('settingsBtn').addEventListener('click', openSettings);
@@ -1298,6 +1298,44 @@
             }
         }
 
+        async function toggleAgent() {
+            console.log('Toggling agent... Current state:', agentConnected ? 'running' : 'stopped');
+            
+            if (agentConnected) {
+                // Agent is running, stop it
+                await stopAgentFromMain();
+            } else {
+                // Agent is not running, start it
+                await startAgentFromMain();
+            }
+        }
+
+        async function stopAgentFromMain() {
+            console.log('Stopping agent from main window...');
+            
+            if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
+                // Immediately show stopping state
+                await updateAgentUI('connecting', 'Stopping Agent...');
+                
+                try {
+                    const success = await window.__TAURI__.core.invoke('stop_agent');
+                    if (success) {
+                        console.log('Agent stopped successfully');
+                        agentConnected = false;
+                        await updateAgentUI('disconnected', 'Agent Stopped');
+                        // Clear the providers list
+                        document.getElementById('providersList').innerHTML = '<div class="loading">Waiting for agent...</div>';
+                    }
+                } catch (e) {
+                    console.error('Failed to stop agent:', e);
+                    await updateAgentUI('error', 'Failed to Stop Agent', e.message || 'Unknown error');
+                }
+            } else {
+                console.error('Tauri not available');
+                alert('Cannot stop agent. Tauri API not available.');
+            }
+        }
+
         async function startAgentFromMain() {
             console.log('Starting agent from main window...');
 
@@ -1359,15 +1397,15 @@
             // Update button
             if (agentBtn) {
                 if (status === 'connected') {
-                    agentBtn.disabled = true;
+                    agentBtn.disabled = false; // Enable button so user can stop agent
                     // Fetch and display agent version in tooltip
                     try {
                         const agentVersion = await window.__TAURI__.core.invoke('get_agent_version');
-                        agentBtn.title = `Agent Running (v${agentVersion})`;
+                        agentBtn.title = `Agent Running (v${agentVersion}) - Click to Stop`;
                     } catch (e) {
-                        agentBtn.title = 'Agent Running';
+                        agentBtn.title = 'Agent Running - Click to Stop';
                     }
-                    agentBtn.style.opacity = '0.5';
+                    agentBtn.style.opacity = '1';
                 } else if (status === 'disconnected') {
                     agentBtn.disabled = false;
                     agentBtn.title = 'Start Agent';
