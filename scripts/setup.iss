@@ -11,12 +11,29 @@
 #endif
 
 [Code]
+var
+  RestartApplications: Boolean;
+
 function InitializeSetup(): Boolean;
 var
   Arch: String;
+  i: Integer;
+  Param: String;
 begin
   Result := True;
   Arch := '{#MyAppArch}';
+  RestartApplications := False;
+
+  // Check for /RESTARTAPPLICATIONS parameter
+  for i := 1 to ParamCount do
+  begin
+    Param := ParamStr(i);
+    if CompareText(Param, '/RESTARTAPPLICATIONS') = 0 then
+    begin
+      RestartApplications := True;
+      Break;
+    end;
+  end;
 
   // Validate architecture match
   if Arch = 'x64' then
@@ -39,6 +56,12 @@ begin
       Result := False;
     end;
   end;
+end;
+
+function ShouldRunApplication(): Boolean;
+begin
+  // Run if /RESTARTAPPLICATIONS was passed OR if user checked the box (not in silent mode)
+  Result := RestartApplications;
 end;
 
 [Setup]
@@ -84,5 +107,5 @@ Name: "{autodesktop}\AI Consumption Tracker"; Filename: "{app}\AIConsumptionTrac
 Name: "{userstartup}\AI Consumption Tracker"; Filename: "{app}\AIConsumptionTracker.UI.exe"; Tasks: startup
 
 [Run]
-Filename: "{app}\AIConsumptionTracker.UI.exe"; Description: "{cm:LaunchProgram,AI Consumption Tracker}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\AIConsumptionTracker.UI.exe"; Description: "{cm:LaunchProgram,AI Consumption Tracker}"; Flags: nowait postinstall skipifsilent; Check: ShouldRunApplication
 
