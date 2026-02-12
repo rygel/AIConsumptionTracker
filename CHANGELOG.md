@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.8.6] - 2026-02-12
+
+### Added
+- **System Resume**: Auto-refresh provider data when resuming from sleep/hibernate
+
+### Changed
+- **Z.AI**: Use TOKENS_LIMIT reset time when available
+
 ## [1.8.5] - 2026-02-11
 
 ### Fixed
