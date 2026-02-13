@@ -45,26 +45,25 @@ Download the latest installer or .zip file from the [Release](https://github.com
 
 ## Supported Providers
 
-| Provider | Integration | Status | Notes |
-|:---------|:------------|:-------|:------|
-| **Anthropic (Claude)** | OAuth / API Key | ✅ Tested | Usage dashboard only |
-| **Antigravity** | GUI Auth | ✅ Tested | Multi-model quotas |
-| **DeepSeek** | API Key¹ | ⚠️ Beta | **testers needed** |
-| **Gemini** | API Key | 🚧 Planned | Not yet integrated |
-| **GitHub Copilot** | OAuth Device | ✅ Tested | Auto-discovery via CLI |
-| **Kimi (Moonshot)** | API Key¹ | ⚠️ Beta | **testers needed** |
-| **Minimax** | API Key¹ | ⚠️ Beta | China & International |
-| **Mistral** | API Key | ✅ Tested | API usage not available |
-| **OpenAI (Codex)** | OAuth | ⚠️ Beta | Via OpenCLI |
-| **OpenRouter** | API Key¹ | 🚧 Planned | Testers needed |
-| **Opencode Zen** | API Key¹ | ✅ Tested | Pay-as-you-go & Plans |
-| **Synthetic** | API Key¹ | ✅ Tested | Multi-model support |
-| **Z.AI** | API Key¹ | ✅ Tested | Coding plans |
+| Provider                         | Integration         | Tested                                                               |
+|:---------------------------------|:--------------------|:---------------------------------------------------------------------|
+| **Antigravity**                  | via Antigravity GUI | tested                                                               |
+| **Claude Code**                  |                     | partially, testers needed                                            |
+| **DeepSeek**                     | API Key¹            | Testers needed                                                       |
+| **Gemini**                       | not integrated yet  | Testers needed                                                       |
+| **GitHub Copilot**               | OAuth Device Flow   | Tested                                                               |
+| **Kimi (Moonshot)**              | API Key¹            | Testers needed                                                       |
+| **Minimax** (China)              | API Key¹            | Testers needed                                                       |
+| **Minimax** (International)      | API Key¹            | Testers needed                                                       |
+| **Mistral**                      | API Key¹            | tested, but Mistral does not provide usage information via their API |
+| **OpenAI (Codex)**               | via Opencli OAuth   | Testers needed                                                       |
+| **OpenRouter**                   | not integrated yet  | Testers needed                                                       |
+| **Opencode Zen** (coding plan)   | API Key¹            | Testers needed                                                       |
+| **Opencode Zen** (pay-as-you-go) | API Key¹            | Tested                                                               |
+| **Synthetic**                    | API Key¹            | Tested                                                               |
+| **Z.AI** (Coding Plan)           | API Key¹            | Tested                                                               |
 
-**Legend:** ✅ Tested | ⚠️ Beta | 🚧 Planned
-
-¹API Keys can be entered manually or discovered from opencode config files*  
-*Providers with OAuth support automatic token discovery*
+¹ API Key can be either entered directly or discovered automatically via opencode configuration  
 
 ### Screenshots
 
