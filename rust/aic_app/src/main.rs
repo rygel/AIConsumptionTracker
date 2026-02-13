@@ -202,10 +202,11 @@ async fn main() {
             // Create tray menu
             let menu = create_tray_menu(app.handle())?;
 
-            // Build tray icon (no icon - clean taskbar)
+            // Build tray icon
             let tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .tooltip("AI Consumption Tracker")
+                .icon(app.default_window_icon().unwrap().clone())
                 .on_menu_event(move |app, event| {
                     match event.id().as_ref() {
                         "show" => {
@@ -221,6 +222,8 @@ async fn main() {
                             });
                         }
                         "exit" => {
+                            // Remove tray icon first, then exit
+                            let _ = app.remove_tray_by_id("main");
                             app.exit(0);
                         }
                         _ => {}
