@@ -255,6 +255,46 @@ Providers are discovered through:
 - **Rate Limiting**: Implement exponential backoff
 - **Invalid Key**: Mark provider as failed, require re-configuration
 
+### 5.4 Time Handling (UTC Convention)
+
+**IMPORTANT: All timestamps on the server side MUST be in UTC.**
+
+The Rust backend (aic_agent, aic_core) always uses UTC for all time-related calculations and data storage:
+- All `DateTime<Utc>` fields in models
+- All API responses include UTC timestamps
+- All reset times calculated in UTC
+- All historical data stored with UTC timestamps
+
+**Client-side conversion:**
+The client (UI/CLI) is responsible for converting UTC timestamps to local time for display:
+- JavaScript: `new Date(utcTimestamp)` automatically converts to local time
+- Rust CLI: Use `.with_timezone(&Local)` for display purposes
+- Formatting functions handle the conversion at the presentation layer
+
+**Rationale:**
+- Consistency across all server-side operations
+- No ambiguity about timezone in data storage
+- Simpler server logic (always UTC)
+- Client handles user-specific timezone display
+- Prevents timezone-related bugs in caching and calculations
+
+**Example:**
+```rust
+// Server: Always UTC
+let reset_time = Utc::now() + Duration::days(1);
+let usage = ProviderUsage {
+    next_reset_time: Some(reset_time),  // UTC
+    ...
+};
+```
+
+```javascript
+// Client: Convert to local time for display
+const resetUtc = new Date(data.next_reset_time);  // Parses UTC, converts to local
+const now = new Date();  // Local time
+const diffMs = resetUtc - now;  // Correct comparison
+```
+
 ## 6. Configuration Management
 
 ### 6.1 Configuration Locations

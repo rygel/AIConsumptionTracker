@@ -871,8 +871,12 @@
             };
 
             // Helper function to format reset display (relative and absolute time)
+            // All times from server are UTC - JavaScript Date parses them correctly
             function formatResetDisplay(nextReset) {
                 if (!nextReset) return '';
+                
+                // Parse UTC timestamp from server (e.g., "2024-02-14T22:35:00Z")
+                // JavaScript Date automatically converts to local timezone
                 const resetDate = new Date(nextReset);
                 const now = new Date();
                 const diffMs = resetDate - now;
