@@ -42,7 +42,7 @@ dependencies = [
 
 [[package]]
 name = "aic_agent"
-version = "0.0.5"
+version = "0.5.0"
 dependencies = [
  "aic_core",
  "anyhow",
@@ -66,7 +66,7 @@ dependencies = [
 
 [[package]]
 name = "aic_app"
-version = "0.0.5"
+version = "0.5.0"
 dependencies = [
  "aic_core",
  "log",
