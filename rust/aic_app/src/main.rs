@@ -22,13 +22,45 @@ use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
 use tracing::{info, error, debug, warn};
 
-#[derive(Parser, Debug)]
-#[command(name = "aic-app")]
-#[command(about = "AI Consumption Tracker Desktop Application")]
-struct Args {
-    /// Enable debug logging (verbose output)
-    #[arg(long)]
-    debug: bool,
+// Global flag to prevent duplicate cleanup
+static CLEANUP_DONE: AtomicBool = AtomicBool::new(false);
+
+fn cleanup_and_exit(app: &tauri::AppHandle) {
+    // Prevent duplicate cleanup
+    if CLEANUP_DONE.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        return;
+    }
+
+    info!("Cleaning up and exiting...");
+
+    // Close all webview windows
+    let window_ids = ["main", "settings", "info"];
+    for id in window_ids {
+        if let Some(window) = app.get_webview_window(id) {
+            let _ = window.close();
+        }
+    }
+
+    // Remove tray icon
+    let _ = app.remove_tray_by_id("main");
+
+    info!("Cleanup complete - exiting");
+    app.exit(0);
+}
+
+fn setup_signal_handlers() {
+    ctrlc::set_handler(move || {
+        if CLEANUP_DONE.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+            return;
+        }
+        info!("Received shutdown signal (SIGTERM/SIGINT) - cleaning up...");
+        
+        // In signal handler context, we can't easily access Tauri app state
+        // The atomic flag prevents duplicate calls, and the OS will clean up windows
+        // For tray icon cleanup, we rely on the main window's close handler
+        // which calls remove_tray_by_id before exit
+        std::process::exit(0);
+    }).expect("Error setting signal handler");
 }
 
 async fn check_and_update_tray_status(app_handle: &AppHandle) {
@@ -75,31 +107,13 @@ fn create_tray_menu<R: Runtime>(
     Ok(menu)
 }
 
-fn setup_signal_handlers() {
-    ctrlc::set_handler(move || {
-        info!("Received shutdown signal - closing all windows");
-        // Don't use app.exit() here - just exit directly
-        // The windows will be cleaned up by the OS when process terminates
-        std::process::exit(0);
-    }).expect("Error setting signal handler");
-}
-
-fn cleanup_and_exit(app: &tauri::AppHandle) {
-    info!("Cleaning up and exiting...");
-
-    // Close all webview windows
-    let window_ids = ["main", "settings", "info"];
-    for id in window_ids {
-        if let Some(window) = app.get_webview_window(id) {
-            let _ = window.close();
-        }
-    }
-
-    // Remove tray icon
-    let _ = app.remove_tray_by_id("main");
-
-    info!("Cleanup complete - exiting");
-    app.exit(0);
+#[derive(Parser, Debug)]
+#[command(name = "aic-app")]
+#[command(about = "AI Consumption Tracker Desktop Application")]
+struct Args {
+    /// Enable debug logging (verbose output)
+    #[arg(long)]
+    debug: bool,
 }
 
 #[tokio::main]
