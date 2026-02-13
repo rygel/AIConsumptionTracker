@@ -239,8 +239,6 @@ async fn debug_info() -> Json<serde_json::Value> {
 
     Json(json!({
         "version": env!("CARGO_PKG_VERSION"),
-        "rust_version": env!("RUSTC_VERSION"),
-        "target": env!("TARGET"),
         "profile": if cfg!(debug_assertions) { "debug" } else { "release" },
         "timestamp": chrono::Utc::now().to_rfc3339(),
     }))

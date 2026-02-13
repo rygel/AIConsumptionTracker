@@ -1,6 +1,6 @@
 [package]
 name = "aic_agent"
-version = "0.5.0"
+version = "0.0.5"
 edition = "2021"
 description = "Background agent service for AI Consumption Tracker"
 authors = ["Alexander Brandt"]

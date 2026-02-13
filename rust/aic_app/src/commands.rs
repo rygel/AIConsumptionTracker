@@ -1,7 +1,7 @@
 use aic_core::{
     AuthenticationManager, ConfigLoader, ProviderConfig, ProviderManager, ProviderUsage, TokenPollResult,
 };
-use tracing::{error, info, warn};
+use tracing::{error, info, warn, debug};
 use reqwest::Client;
 use std::process::{Command, Child};
 use std::sync::Arc;
