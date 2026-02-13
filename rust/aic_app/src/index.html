@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Consumption Tracker</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         :root {
             --bg-dark: rgba(30, 30, 30, 0.95);
             --bg-medium: rgba(37, 37, 38, 0.95);
@@ -19,7 +24,8 @@
             --accent-yellow: #FFD600;
         }
 
-        html, body {
+        html,
+        body {
             background: transparent !important;
         }
 
@@ -104,7 +110,8 @@
         }
 
         .header-btn.active {
-            color: #FFD700; /* Gold color for privacy mode */
+            color: #FFD700;
+            /* Gold color for privacy mode */
             background: rgba(255, 215, 0, 0.1);
         }
 
@@ -193,11 +200,28 @@
             transition: width 0.3s ease;
         }
 
-        .provider-bar.low { background: #3CB371; }  /* MediumSeaGreen */
-        .provider-bar.medium { background: #FFD700; }  /* Gold */
-        .provider-bar.high { background: #DC143C; }  /* Crimson */
-        .provider-bar.inactive { background: #666; }
-        .provider-bar.status { background: #007ACC; }
+        .provider-bar.low {
+            background: #3CB371;
+        }
+
+        /* MediumSeaGreen */
+        .provider-bar.medium {
+            background: #FFD700;
+        }
+
+        /* Gold */
+        .provider-bar.high {
+            background: #DC143C;
+        }
+
+        /* Crimson */
+        .provider-bar.inactive {
+            background: #666;
+        }
+
+        .provider-bar.status {
+            background: #007ACC;
+        }
 
         .provider-info {
             display: flex;
@@ -374,7 +398,7 @@
             white-space: pre-wrap;
             font-family: monospace;
             font-size: 11px;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.3);
             padding: 8px;
             border-radius: 3px;
         }
@@ -454,13 +478,27 @@
         }
 
         @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
 
         /* Compact Mode Styles */
@@ -527,6 +565,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="app-container">
         <div class="header" data-tauri-drag-region>
@@ -588,15 +627,15 @@
         }; // Default preferences
 
         // Initialize when DOM is ready
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             console.log('DOM loaded');
             console.log('Tauri object:', typeof window.__TAURI__);
             console.log('Tauri keys:', window.__TAURI__ ? Object.keys(window.__TAURI__) : 'none');
-            
+
             // Setup close button with IPC
-            document.getElementById('closeBtn').addEventListener('click', function() {
+            document.getElementById('closeBtn').addEventListener('click', function () {
                 console.log('Close clicked');
-                
+
                 // Try core.invoke (Tauri 2.0)
                 if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
                     console.log('Using core.invoke');
@@ -618,24 +657,24 @@
             document.getElementById('privacyToggleBtn').addEventListener('click', togglePrivacy);
             document.getElementById('refreshBtn').addEventListener('click', refreshData);
             document.getElementById('settingsBtn').addEventListener('click', openSettings);
-            
+
             // Setup privacy mode listener for cross-window sync
             setupPrivacyModeListener();
-            
+
             // Load saved privacy mode
             loadPrivacyMode();
             document.getElementById('showAllToggle').addEventListener('change', refreshData);
             document.getElementById('alwaysOnTopToggle').addEventListener('change', toggleAlwaysOnTop);
-            
+
             // Setup compact mode toggle
-            document.getElementById('compactToggle').addEventListener('change', function() {
+            document.getElementById('compactToggle').addEventListener('change', function () {
                 compactMode = this.checked;
                 renderProviders();
             });
 
             // Load preferences
             loadPreferences();
-            
+
             // Load and display app version
             loadAppVersion();
 
@@ -658,27 +697,27 @@
 
         async function loadData() {
             const container = document.getElementById('providersList');
-            
+
             // Check if agent is connected before trying to load
             if (!agentConnected) {
                 container.innerHTML = '<div class="loading">Waiting for agent...</div>';
                 return;
             }
-            
+
             container.innerHTML = '<div class="loading">Loading...</div>';
-            
+
             try {
                 let data = [];
-                
+
                 // Get data ONLY from agent
                 if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
                     data = await window.__TAURI__.core.invoke('get_usage_from_agent');
                     console.log('Loaded usage from agent:', data);
                 }
-                
+
                 usageData = data || [];
                 renderProviders();
-                
+
                 // Preload settings data in background for faster settings window opening
                 console.log('Preloading settings data in background...');
                 if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
@@ -698,7 +737,7 @@
                 container.innerHTML = '<div class="error">' + escapeHtml(errorMessage) + '</div>';
             }
         }
-        
+
         function formatProviderName(id) {
             const names = {
                 'github-copilot': 'GitHub Copilot',
@@ -727,7 +766,7 @@
                         console.log('Loaded preferences from Tauri:', prefs);
                     }
                 }
-                
+
                 // Also check localStorage for always_on_top (fallback and immediate persistence)
                 try {
                     const localAlwaysOnTop = localStorage.getItem('always_on_top');
@@ -737,7 +776,7 @@
                 } catch (e) {
                     console.warn('Could not read localStorage:', e);
                 }
-                
+
                 // Apply always_on_top if it was saved
                 if (prefs.always_on_top) {
                     const toggle = document.getElementById('alwaysOnTopToggle');
@@ -779,26 +818,26 @@
 
         async function refreshData() {
             showAll = document.getElementById('showAllToggle').checked;
-            
+
             // Check if agent is connected before refreshing
             if (!agentConnected) {
                 return; // Silently ignore if agent not connected
             }
-            
+
             document.getElementById('refreshBtn').style.opacity = '0.5';
-            
+
             try {
                 let data = [];
-                
+
                 // Refresh ONLY via agent
                 if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
                     data = await window.__TAURI__.core.invoke('refresh_usage_from_agent');
                     console.log('Refreshed usage from agent:', data);
                 }
-                
+
                 usageData = data || [];
                 renderProviders();
-                
+
                 // Preload settings data after refresh
                 console.log('Preloading settings data after refresh...');
                 if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
@@ -827,36 +866,36 @@
         function renderProviders() {
             const container = document.getElementById('providersList');
             let filtered = showAll ? usageData : usageData.filter(u => u.is_available);
-            
+
             if (filtered.length === 0) {
                 container.innerHTML = '<div class="empty-state"><div style="font-size: 24px; margin-bottom: 10px;">📊</div><div>No providers configured</div><div style="font-size: 11px; color: #666; margin-top: 8px;">Use CLI: aic-cli auth &lt;provider&gt;</div></div>';
                 return;
             }
-            
+
             // Group providers by payment type
             const quotaItems = filtered.filter(u => u.is_quota_based || u.payment_type === 'credits');
             const payGoItems = filtered.filter(u => !u.is_quota_based && u.payment_type !== 'credits');
-            
+
             // Sort each group alphabetically
             const sortByName = (a, b) => a.provider_name.localeCompare(b.provider_name);
             quotaItems.sort(sortByName);
             payGoItems.sort(sortByName);
-            
+
             // Group collapse state (persisted in localStorage)
             let groupCollapseState = {
                 'Plans & Quotas': localStorage.getItem('group_collapsed_plans') === 'true',
                 'Pay As You Go': localStorage.getItem('group_collapsed_paygo') === 'true'
             };
-            
+
             // Provider sub-provider collapse state (persisted in localStorage)
             function getProviderCollapsed(providerId) {
                 return localStorage.getItem(`provider_collapsed_${providerId}`) === 'true';
             }
-            
+
             function setProviderCollapsed(providerId, collapsed) {
                 localStorage.setItem(`provider_collapsed_${providerId}`, collapsed.toString());
             }
-            
+
             // Helper function to create group header
             const createGroupHeader = (title, color, groupId) => {
                 const isCollapsed = groupCollapseState[title] || false;
@@ -874,20 +913,20 @@
             // All times from server are UTC - JavaScript Date parses them correctly
             function formatResetDisplay(nextReset) {
                 if (!nextReset) return '';
-                
+
                 // Parse UTC timestamp from server (e.g., "2024-02-14T22:35:00Z")
                 // JavaScript Date automatically converts to local timezone
                 const resetDate = new Date(nextReset);
                 const now = new Date();
                 const diffMs = resetDate - now;
-                
+
                 if (diffMs <= 0) return '(Resets: Ready)';
-                
+
                 // Calculate relative time
                 const diffMins = Math.floor(diffMs / 60000);
                 const diffHours = Math.floor(diffMs / 3600000);
                 const diffDays = Math.floor(diffMs / 86400000);
-                
+
                 let relative = '';
                 if (diffDays >= 1) {
                     const remainingHours = Math.floor((diffMs % 86400000) / 3600000);
@@ -898,7 +937,7 @@
                 } else {
                     relative = `${diffMins}m`;
                 }
-                
+
                 // Format absolute time: "Feb 05 14:30"
                 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                 const month = months[resetDate.getMonth()];
@@ -906,7 +945,7 @@
                 const hours = resetDate.getHours().toString().padStart(2, '0');
                 const mins = resetDate.getMinutes().toString().padStart(2, '0');
                 const absolute = `${month} ${day} ${hours}:${mins}`;
-                
+
                 // Return both: "(Resets: 2d 5h - Feb 05 14:30)"
                 return `(Resets: ${relative} - ${absolute})`;
             }
@@ -916,7 +955,7 @@
                 let providerHtml = '';
                 let pct = p.usage_percentage || 0;
                 const avail = p.is_available;
-                
+
                 // Apply inverted calculation if enabled
                 let displayPct = pct;
                 let barWidth = pct;
@@ -928,16 +967,16 @@
                     displayPct = Math.max(0, 100 - pct);
                     barWidth = displayPct;
                 }
-                
+
                 // Use preferences for color thresholds
                 let cls = 'low';
                 if (!avail) cls = 'inactive';
                 else if (p.usage_unit === 'Status') cls = 'status';
                 else if (pct >= prefs.red_threshold) cls = 'high';
                 else if (pct >= prefs.yellow_threshold) cls = 'medium';
-                
+
                 const type = p.is_quota_based ? 'Quota' : p.payment_type === 'credits' ? 'Credits' : 'Pay-As-You-Go';
-                
+
                 // Format description based on payment type
                 let desc = '';
                 if (!avail) {
@@ -946,17 +985,17 @@
                     desc = p.description || 'Connected';
                 } else if (p.payment_type === 'credits' && p.cost_limit > 0) {
                     const remaining = p.cost_limit - p.cost_used;
-                    desc = `${remaining.toFixed(2)} ${p.usage_unit} Remaining`;
+                    desc = `${remaining.toFixed(2)} ${p.usage_unit || 'Credits'} Remaining`;
                 } else if (p.payment_type === 'usage_based' && p.cost_limit > 0) {
-                    desc = `Spent: $${p.cost_used.toFixed(2)} / Limit: $${p.cost_limit.toFixed(2)}`;
+                    desc = `Spent: ${p.cost_used.toFixed(2)} ${p.usage_unit || 'USD'} / Limit: ${p.cost_limit.toFixed(2)}`;
                 } else {
                     desc = p.description || `${displayPct.toFixed(0)}%`;
                 }
-                
+
                 if (privacyMode && p.cost_used > 0) desc = '••••••••';
-                
+
                 const width = avail ? Math.min(barWidth, 100) : 0;
-                
+
                 // Check if compact mode
                 if (compactMode) {
                     // Compact view with sub-bars support
@@ -964,12 +1003,12 @@
                     if (!avail) progressClass = 'inactive';
                     else if (pct >= prefs.red_threshold) progressClass = 'high';
                     else if (pct >= prefs.yellow_threshold) progressClass = 'medium';
-                    
+
                     let statusText = '';
                     if (!avail) statusText = 'N/A';
                     else if (p.usage_unit === 'Status') statusText = 'OK';
                     else statusText = displayPct.toFixed(0) + '%';
-                    
+
                     let statusDetail = '';
                     if (avail && p.cost_used > 0 && !privacyMode) {
                         statusDetail = '$' + p.cost_used.toFixed(2);
@@ -978,13 +1017,13 @@
                     } else {
                         statusDetail = desc || '';
                     }
-                    
+
                     // Calculate reset time display
                     let resetText = '';
                     if (p.next_reset_time) {
                         resetText = formatResetDisplay(p.next_reset_time);
                     }
-                    
+
                     // Build display name with account name for providers that have it
                     let displayName = p.provider_name;
                     if (p.account_name && p.account_name.trim() !== '') {
@@ -993,7 +1032,7 @@
                     } else {
                         displayName = escapeHtml(p.provider_name);
                     }
-                    
+
                     // Main compact item - reset text aligned right before status
                     providerHtml += '<div class="provider-item compact' + (avail ? '' : ' unavailable') + '">' +
                         (avail && width > 0 ? '<div class="provider-progress-bg ' + progressClass + '" style="width:' + width + '%"></div>' : '') +
@@ -1003,18 +1042,18 @@
                         (resetText ? '<span class="provider-status" style="color:#FFD700;font-weight:600;margin-right:10px;">' + escapeHtml(resetText) + '</span>' : '') +
                         '<span class="provider-status">' + escapeHtml(statusText) + (statusDetail ? ' (' + escapeHtml(statusDetail) + ')' : '') + '</span>' +
                         '</div></div>';
-                    
+
                     // Add compact collapsible sub-bars section for providers with details
                     if (p.details && p.details.length > 0 && avail) {
                         const isSubCollapsed = getProviderCollapsed(p.provider_id);
                         const subCount = p.details.length;
-                        
+
                         providerHtml += '<div class="sub-providers-header" data-provider="' + p.provider_id + '" style="display: flex; align-items: center; margin-top: 4px; margin-left: 16px; cursor: pointer; user-select: none; padding: 2px 0;">' +
                             '<span class="sub-toggle" style="font-size: 8px; margin-right: 6px; color: #808080; transition: transform 0.2s;">' + (isSubCollapsed ? '▶' : '▼') + '</span>' +
                             '<span style="font-size: 9px; color: #808080;">' + subCount + ' sub providers</span>' +
                             '</div>' +
                             '<div class="sub-providers-content" data-provider="' + p.provider_id + '" style="display: ' + (isSubCollapsed ? 'none' : 'block') + ';">';
-                        
+
                         p.details.forEach(detail => {
                             // Parse used percentage from detail.used
                             let detailUsedPct = 0;
@@ -1022,30 +1061,32 @@
                                 const match = detail.used.match(/(\d+)/);
                                 if (match) detailUsedPct = parseInt(match[1]);
                             }
-                            
+
                             // Use server-provided remaining value if available, otherwise calculate
                             let detailRemainingPct = detail.remaining !== undefined ? detail.remaining : Math.max(0, 100 - detailUsedPct);
-                            
+
                             // Display text shows remaining
                             let detailText = detailRemainingPct + '%';
-                            
+
                             // Bar width shows remaining (full bar = lots of quota left)
                             let detailDisplayPct = detailRemainingPct;
-                            
+
                             // Color based on used percentage (red when nearly exhausted)
                             let detailCls = 'low';
                             if (detailUsedPct >= prefs.red_threshold) detailCls = 'high';
                             else if (detailUsedPct >= prefs.yellow_threshold) detailCls = 'medium';
-                            
+
                             // Calculate reset time display for detail
                             let detailResetText = '';
                             if (detail.next_reset_time) {
                                 detailResetText = formatResetDisplay(detail.next_reset_time);
                             }
-                            
+
                             // Compact child item - reset text aligned right
                             providerHtml += '<div class="provider-item compact child" style="margin-left:16px;height:18px;padding:2px 6px;">' +
-                                (detailDisplayPct > 0 ? '<div class="provider-progress-bg ' + detailCls + '" style="width:' + detailDisplayPct + '%;opacity:0.25;"></div>' : '') +
+                                (detailDisplayPct > 0 ? '<div class="provider-progress-bg ' + detailCls + '" style="width:' + detailDisplayPct + '%;opacity:0.25;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;">' +
+                                '<span style="font-size:8px;color:#fff;font-weight:600;text-shadow:0 0 2px #000;">' + escapeHtml(detailText) + '</span>' +
+                                '</div>' : '') +
                                 '<div class="provider-content" style="font-size:9px;">' +
                                 '<span class="provider-name" style="font-size:10px;color:#C0C0C0;">' + escapeHtml(detail.name) + '</span>' +
                                 '<span style="flex:1;"></span>' + // Spacer to push right content
@@ -1053,54 +1094,54 @@
                                 '<span class="provider-status" style="font-size:9px;">' + escapeHtml(detailText) + '</span>' +
                                 '</div></div>';
                         });
-                        
+
                         providerHtml += '</div>'; // Close sub-providers-content
                     }
                 } else {
                     // Standard view with sub-bars
                     providerHtml += '<div class="provider-item' + (avail ? '' : ' unavailable') + '">' +
                         '<div class="provider-header">' +
-                        '<span class="provider-name">' + escapeHtml(p.provider_name) + 
-                        (p.account_name && !privacyMode ? ' <span style="color:#888;font-weight:normal;">[' + escapeHtml(p.account_name) + ']</span>' : '') + 
+                        '<span class="provider-name">' + escapeHtml(p.provider_name) +
+                        (p.account_name && !privacyMode ? ' <span style="color:#888;font-weight:normal;">[' + escapeHtml(p.account_name) + ']</span>' : '') +
                         '</span>';
-                    
+
                     // Show status label for missing/error states
                     if (!avail || p.description?.includes('not found') || p.description?.includes('Error')) {
-                        const statusText = p.description?.includes('not found') ? 'API Key not found' : 
-                                         p.description?.includes('Console') ? 'Check Console' : 
-                                         p.description?.includes('Error') ? '[Error]' : '';
-                        const statusColor = p.description?.includes('not found') ? '#CD5C5C' : 
-                                          p.description?.includes('Console') ? '#FFA500' : '#FF0000';
+                        const statusText = p.description?.includes('not found') ? 'API Key not found' :
+                            p.description?.includes('Console') ? 'Check Console' :
+                                p.description?.includes('Error') ? '[Error]' : '';
+                        const statusColor = p.description?.includes('not found') ? '#CD5C5C' :
+                            p.description?.includes('Console') ? '#FFA500' : '#FF0000';
                         if (statusText) {
                             providerHtml += '<span style="font-size:10px;color:' + statusColor + ';margin-left:10px;">' + statusText + '</span>';
                         }
                     }
-                    
+
                     providerHtml += '</div>';
-                    
+
                     // Progress bar row
                     providerHtml += '<div style="display:flex;align-items:center;">' +
                         '<div class="provider-bar-container" style="flex:1;">' +
                         '<div class="provider-bar ' + cls + '" style="width:' + width + '%"></div></div>';
-                    
+
                     // Description text
                     if (desc) {
                         providerHtml += '<span style="font-size:10.5px;color:#808080;margin-left:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;">' + escapeHtml(desc) + '</span>';
                     }
-                    
+
                     providerHtml += '</div>';
-                    
+
                     // Add collapsible sub-bars section for providers with details
                     if (p.details && p.details.length > 0 && avail) {
                         const isSubCollapsed = getProviderCollapsed(p.provider_id);
                         const subCount = p.details.length;
-                        
+
                         providerHtml += '<div class="sub-providers-header" data-provider="' + p.provider_id + '" style="display: flex; align-items: center; margin-top: 8px; margin-left: 16px; cursor: pointer; user-select: none; padding: 4px 0;">' +
                             '<span class="sub-toggle" style="font-size: 9px; margin-right: 6px; color: #808080; transition: transform 0.2s;">' + (isSubCollapsed ? '▶' : '▼') + '</span>' +
                             '<span style="font-size: 10px; color: #808080; font-weight: 500;">' + subCount + ' sub providers</span>' +
                             '</div>' +
                             '<div class="sub-providers-content" data-provider="' + p.provider_id + '" style="display: ' + (isSubCollapsed ? 'none' : 'block') + ';">';
-                        
+
                         p.details.forEach(detail => {
                             // Parse used percentage from detail.used
                             let detailUsedPct = 0;
@@ -1108,95 +1149,97 @@
                                 const match = detail.used.match(/(\d+)/);
                                 if (match) detailUsedPct = parseInt(match[1]);
                             }
-                            
+
                             // Use server-provided remaining value if available, otherwise calculate
                             let detailRemainingPct = detail.remaining !== undefined ? detail.remaining : Math.max(0, 100 - detailUsedPct);
-                            
+
                             // Display text shows remaining
                             let detailText = detailRemainingPct + '%';
-                            
+
                             // Bar width shows remaining (full bar = lots of quota left)
                             let detailDisplayPct = detailRemainingPct;
-                            
+
                             // Color based on used percentage (red when nearly exhausted)
                             let detailCls = 'low';
                             if (detailUsedPct >= prefs.red_threshold) detailCls = 'high';
                             else if (detailUsedPct >= prefs.yellow_threshold) detailCls = 'medium';
-                            
+
                             providerHtml += '<div class="provider-item child" style="margin-top:4px;">' +
                                 '<div class="provider-header" style="margin-bottom:4px;">' +
                                 '<span class="provider-name" style="font-weight:normal;font-size:12px;color:#C0C0C0;">' +
                                 '<span class="child-indicator"></span>' + escapeHtml(detail.name) + '</span></div>' +
                                 '<div style="display:flex;align-items:center;">' +
                                 '<div class="provider-bar-container" style="flex:1;">' +
-                                '<div class="provider-bar ' + detailCls + '" style="width:' + Math.min(detailDisplayPct, 100) + '%"></div></div>' +
+                                '<div class="provider-bar ' + detailCls + '" style="width:' + Math.min(detailDisplayPct, 100) + '%;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;">' +
+                                '<span style="font-size:10px;color:#fff;font-weight:600;text-shadow:0 0 2px #000;">' + escapeHtml(detailText) + '</span>' +
+                                '</div></div>' +
                                 '<span style="font-size:10.5px;color:#808080;margin-left:10px;">' + escapeHtml(detailText) + '</span>' +
                                 '</div>' +
                                 (detail.description ? '<div style="font-size:10px;color:#FFD700;margin-top:2px;margin-left:22px;font-weight:600;">' + escapeHtml(detail.description) + '</div>' : '') +
                                 '</div>';
                         });
-                        
+
                         providerHtml += '</div>'; // Close sub-providers-content
                     }
-                    
+
                     providerHtml += '</div>';
                 }
-                
+
                 return providerHtml;
             };
-            
+
             // Build HTML with groups
             let html = '';
-            
+
             // Render Quota/Plans group
             if (quotaItems.length > 0) {
                 html += createGroupHeader('Plans & Quotas', '#00BFFF', 'plans');
                 quotaItems.forEach(p => html += renderProvider(p));
                 html += '</div>'; // Close group-content
             }
-            
+
             // Render Pay As You Go group
             if (payGoItems.length > 0) {
                 html += createGroupHeader('Pay As You Go', '#3CB371', 'paygo');
                 payGoItems.forEach(p => html += renderProvider(p));
                 html += '</div>'; // Close group-content
             }
-            
+
             container.innerHTML = html;
-            
+
             // Add click handlers to group headers
             document.querySelectorAll('.group-header').forEach(header => {
-                header.addEventListener('click', function() {
+                header.addEventListener('click', function () {
                     const groupId = this.getAttribute('data-group');
                     const content = document.querySelector(`.group-content[data-group="${groupId}"]`);
                     const toggle = this.querySelector('.group-toggle');
                     const title = this.querySelector('span:nth-child(2)').textContent;
-                    
+
                     if (content) {
                         const isCollapsed = content.style.display === 'none';
                         content.style.display = isCollapsed ? 'block' : 'none';
                         toggle.textContent = isCollapsed ? '▼' : '▶';
                         this.title = `Click to ${isCollapsed ? 'collapse' : 'expand'}`;
-                        
+
                         // Save state to localStorage
                         const storageKey = groupId === 'plans' ? 'group_collapsed_plans' : 'group_collapsed_paygo';
                         localStorage.setItem(storageKey, (!isCollapsed).toString());
                     }
                 });
             });
-            
+
             // Add click handlers to sub-provider headers
             document.querySelectorAll('.sub-providers-header').forEach(header => {
-                header.addEventListener('click', function() {
+                header.addEventListener('click', function () {
                     const providerId = this.getAttribute('data-provider');
                     const content = document.querySelector(`.sub-providers-content[data-provider="${providerId}"]`);
                     const toggle = this.querySelector('.sub-toggle');
-                    
+
                     if (content) {
                         const isCollapsed = content.style.display === 'none';
                         content.style.display = isCollapsed ? 'block' : 'none';
                         toggle.textContent = isCollapsed ? '▼' : '▶';
-                        
+
                         // Save state to localStorage
                         setProviderCollapsed(providerId, !isCollapsed);
                     }
@@ -1207,14 +1250,14 @@
         async function togglePrivacy() {
             privacyMode = !privacyMode;
             document.getElementById('privacyToggleBtn').classList.toggle('active', privacyMode);
-            
+
             // Update tooltip based on state
             const btn = document.getElementById('privacyToggleBtn');
             btn.title = privacyMode ? 'Privacy Mode On (Click to Show)' : 'Privacy Mode Off (Click to Hide)';
-            
+
             // Re-render to hide/show sensitive data
             renderProviders();
-            
+
             // Emit event to sync with other windows (settings, info dialog)
             if (window.__TAURI__?.event) {
                 try {
@@ -1224,7 +1267,7 @@
                     console.error('Failed to emit privacy mode event:', e);
                 }
             }
-            
+
             // Save preference
             try {
                 localStorage.setItem('privacy_mode', JSON.stringify(privacyMode));
@@ -1232,7 +1275,7 @@
                 console.warn('Could not save privacy mode to localStorage:', e);
             }
         }
-        
+
         // Listen for privacy mode changes from other windows
         function setupPrivacyModeListener() {
             if (window.__TAURI__?.event) {
@@ -1249,7 +1292,7 @@
                 });
             }
         }
-        
+
         // Load privacy mode from localStorage
         function loadPrivacyMode() {
             try {
@@ -1266,7 +1309,7 @@
                 console.warn('Could not load privacy mode:', e);
             }
         }
-        
+
         // Load privacy mode from localStorage
         function loadPrivacyMode() {
             try {
@@ -1286,7 +1329,7 @@
 
         async function toggleAlwaysOnTop() {
             const enabled = document.getElementById('alwaysOnTopToggle').checked;
-            
+
             // Apply the setting immediately
             if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
                 try {
@@ -1303,7 +1346,7 @@
                     console.error('Failed to set always on top:', e);
                 }
             }
-            
+
             // Save preference to localStorage for immediate persistence
             try {
                 localStorage.setItem('always_on_top', JSON.stringify(enabled));
@@ -1331,7 +1374,7 @@
 
         async function toggleAgent() {
             console.log('Toggling agent... Current state:', agentConnected ? 'running' : 'stopped');
-            
+
             if (agentConnected) {
                 // Agent is running, stop it
                 await stopAgentFromMain();
@@ -1343,11 +1386,11 @@
 
         async function stopAgentFromMain() {
             console.log('Stopping agent from main window...');
-            
+
             if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
                 // Immediately show stopping state
                 await updateAgentUI('connecting', 'Stopping Agent...');
-                
+
                 try {
                     const success = await window.__TAURI__.core.invoke('stop_agent');
                     if (success) {
@@ -1375,7 +1418,7 @@
             if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
                 // Immediately show connecting state
                 await updateAgentUI('connecting', 'Starting Agent...');
-                
+
                 try {
                     const success = await window.__TAURI__.core.invoke('start_agent');
                     if (success) {
@@ -1385,11 +1428,11 @@
                     }
                 } catch (e) {
                     console.error('Failed to start agent:', e);
-                    
+
                     // Extract detailed error message
                     let errorMessage = 'Unknown error';
                     let errorDetails = '';
-                    
+
                     if (e && typeof e === 'object') {
                         if (e.message) {
                             errorMessage = e.message;
@@ -1399,7 +1442,7 @@
                     } else if (typeof e === 'string') {
                         errorMessage = e;
                     }
-                    
+
                     // Provide helpful guidance based on error type
                     if (errorMessage.includes('not found') || errorMessage.includes('executable')) {
                         errorDetails = `Agent executable not found.\n\nTo fix this:\n1. Open terminal in the rust directory\n2. Run: cargo build -p aic_agent\n3. Then click the 🤖 button again`;
@@ -1410,7 +1453,7 @@
                     } else {
                         errorDetails = errorMessage;
                     }
-                    
+
                     await updateAgentUI('error', 'Failed to Start Agent', errorDetails);
                 }
             }
@@ -1423,10 +1466,10 @@
             const statusIndicator = document.getElementById('statusIndicator');
             const statusText = document.getElementById('statusText');
             const container = document.getElementById('providersList');
-            
+
             // Update global state
             agentConnected = (status === 'connected');
-            
+
             // Update button
             if (agentBtn) {
                 if (status === 'connected') {
@@ -1453,7 +1496,7 @@
                     agentBtn.style.opacity = '1';
                 }
             }
-            
+
             // Update LED indicator
             if (statusIndicator) {
                 if (status === 'error') {
@@ -1462,12 +1505,12 @@
                     statusIndicator.className = 'status-indicator ' + status;
                 }
             }
-            
+
             // Update status text
             if (statusText) {
                 statusText.textContent = message;
             }
-            
+
             // Update content area based on connection status
             if (container) {
                 if (status === 'connected') {
@@ -1477,7 +1520,7 @@
                     }
                 } else if (status === 'error' && errorDetails) {
                     // Show detailed error message with actions
-                    container.innerHTML = 
+                    container.innerHTML =
                         '<div class="error-message">' +
                         '<div class="error-title">⚠️ ' + escapeHtml(message) + '</div>' +
                         '<div class="error-details">' + escapeHtml(errorDetails) + '</div>' +
@@ -1501,17 +1544,17 @@
             try {
                 // Check if agent is responding via HTTP
                 const isRunning = await window.__TAURI__.core.invoke('is_agent_running_http');
-                
+
                 if (isRunning) {
                     // Agent is running and responding
                     await updateAgentUI('connected', 'Agent Connected');
                     return;
                 }
-                
+
                 // Agent not responding via HTTP - check if we have a local process
                 try {
                     const status = await window.__TAURI__.core.invoke('get_agent_status_details');
-                    
+
                     if (status.is_running) {
                         // Process exists but not responding yet (starting up)
                         await updateAgentUI('connecting', 'Agent Starting...');
@@ -1534,7 +1577,7 @@
             console.log('__TAURI__:', window.__TAURI__);
             console.log('invoke:', window.__TAURI__?.invoke);
             console.log('core:', window.__TAURI__?.core);
-            
+
             if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
                 console.log('Using core.invoke...');
                 window.__TAURI__.core.invoke('open_settings_window')
@@ -1559,7 +1602,7 @@
             }
             return '***';
         }
-        
+
         function escapeHtml(text) {
             if (!text) return '';
             const div = document.createElement('div');
@@ -1568,4 +1611,5 @@
         }
     </script>
 </body>
+
 </html>
