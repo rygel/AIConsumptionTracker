@@ -1033,14 +1033,14 @@
                         displayName = escapeHtml(p.provider_name);
                     }
 
-                    // Main compact item - reset text aligned right before status
+                    // Main compact item - status first, reset time rightmost
                     providerHtml += '<div class="provider-item compact' + (avail ? '' : ' unavailable') + '">' +
                         (avail && width > 0 ? '<div class="provider-progress-bg ' + progressClass + '" style="width:' + width + '%"></div>' : '') +
                         '<div class="provider-content">' +
                         '<span class="provider-name">' + displayName + '</span>' +
                         '<span style="flex:1;"></span>' + // Spacer to push right content
-                        (resetText ? '<span class="provider-status" style="color:#FFD700;font-weight:600;margin-right:10px;">' + escapeHtml(resetText) + '</span>' : '') +
                         '<span class="provider-status">' + escapeHtml(statusText) + (statusDetail ? ' (' + escapeHtml(statusDetail) + ')' : '') + '</span>' +
+                        (resetText ? '<span class="provider-status" style="color:#FFD700;font-weight:600;margin-left:10px;">' + escapeHtml(resetText) + '</span>' : '') +
                         '</div></div>';
 
                     // Add compact collapsible sub-bars section for providers with details
@@ -1091,8 +1091,8 @@
                                 '<div class="provider-content" style="font-size:9px;">' +
                                 '<span class="provider-name" style="font-size:10px;color:#C0C0C0;">' + escapeHtml(detail.name) + '</span>' +
                                 '<span style="flex:1;"></span>' + // Spacer to push right content
-                                (detailResetText ? '<span class="provider-status" style="color:#FFD700;font-weight:600;font-size:9px;margin-right:8px;">' + escapeHtml(detailResetText) + '</span>' : '') +
                                 '<span class="provider-status" style="font-size:9px;">' + escapeHtml(detailText) + '</span>' +
+                                (detailResetText ? '<span class="provider-status" style="color:#FFD700;font-weight:600;font-size:9px;margin-left:8px;">' + escapeHtml(detailResetText) + '</span>' : '') +
                                 '</div></div>';
                         });
 
