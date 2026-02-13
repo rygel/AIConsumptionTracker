@@ -896,16 +896,6 @@
                 </div>
 
                 <div class="settings-section" style="margin-top: 24px;">
-                    <div class="settings-section-title">Agent Information</div>
-                    <div class="settings-row">
-                        <label class="settings-label">Version</label>
-                        <div class="settings-control">
-                            <span id="aboutVersion">Version </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="settings-section" style="margin-top: 24px;">
                     <div class="settings-section-title">Connection Information</div>
                     <div class="settings-row">
                         <label class="settings-label">Agent URL</label>
@@ -925,9 +915,6 @@
                             <span>HTTP</span>
                         </div>
                     </div>
-                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
-                        The agent runs on localhost only. Port may vary if 8080 is in use.
-                    </p>
                 </div>
             </div>
         </div>
@@ -1500,10 +1487,8 @@
             try {
                 const version = await invoke('get_app_version');
                 const currentVersionEl = document.getElementById('currentVersion');
-                const aboutVersionEl = document.getElementById('aboutVersion');
                 if (version) {
                     if (currentVersionEl) currentVersionEl.textContent = 'v' + version;
-                    if (aboutVersionEl) aboutVersionEl.textContent = 'Version ' + version;
                 }
             } catch (e) {
                 console.log('Could not load app version:', e);
