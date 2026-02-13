@@ -739,6 +739,7 @@ impl ProviderManager {
         providers.push(Arc::new(AntigravityProvider::new()));
         providers.push(Arc::new(KimiProvider::new(client.clone())));
         providers.push(Arc::new(ZaiProvider::new(client.clone())));
+        providers.push(Arc::new(SyntheticProvider::new(client.clone())));
         providers.push(Arc::new(GenericPayAsYouGoProvider::new(client.clone())));
         providers.push(Arc::new(GeminiProvider::new(client.clone())));
 

@@ -58,19 +58,6 @@ struct GenericCreditsData {
 }
 
 #[derive(Debug, Deserialize)]
-struct SyntheticResponse {
-    subscription: Option<SyntheticSubscription>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SyntheticSubscription {
-    limit: f64,
-    requests: f64,
-    #[serde(rename = "renewsAt")]
-    renews_at: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
 struct GenericKimiResponse {
     data: Option<GenericKimiData>,
 }
@@ -205,25 +192,7 @@ impl ProviderService for GenericPayAsYouGoProvider {
                     }
                 }
 
-                // Try Synthetic format (only if OpenCode didn't match)
-                if !format_matched {
-                    if let Ok(data) = serde_json::from_str::<SyntheticResponse>(&response_string) {
-                        if let Some(sub) = data.subscription {
-                            total = sub.limit;
-                            used = sub.requests;
-                            payment_type = PaymentType::Quota;
-                            format_matched = true;
-
-                            if let Some(renews_at) = sub.renews_at {
-                                if let Ok(dt) = DateTime::parse_from_rfc3339(&renews_at) {
-                                    next_reset_time = Some(dt.with_timezone(&Utc));
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Try Kimi format (only if previous formats didn't match)
+                // Try Kimi format (only if OpenCode didn't match)
                 if !format_matched {
                     if let Ok(data) = serde_json::from_str::<GenericKimiResponse>(&response_string)
                     {

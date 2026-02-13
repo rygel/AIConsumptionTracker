@@ -12,6 +12,7 @@ pub mod openai;
 pub mod opencode_zen;
 pub mod openrouter;
 pub mod simulated;
+pub mod synthetic;
 pub mod zai;
 
 // Re-export all providers
@@ -27,4 +28,5 @@ pub use openai::OpenAIProvider;
 pub use opencode_zen::OpenCodeZenProvider;
 pub use openrouter::OpenRouterProvider;
 pub use simulated::SimulatedProvider;
+pub use synthetic::SyntheticProvider;
 pub use zai::ZaiProvider;
