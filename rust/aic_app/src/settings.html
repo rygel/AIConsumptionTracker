@@ -657,7 +657,7 @@
             <button class="tab" data-tab="github">GitHub</button>
             <button class="tab" data-tab="updates">Updates</button>
             <button class="tab" data-tab="fonts">Fonts</button>
-            <button class="tab" data-tab="about">About</button>
+            <button class="tab" data-tab="agent">Agent</button>
         </div>
 
         <div class="settings-content">
@@ -835,24 +835,8 @@
                 </div>
             </div>
 
-            <div class="tab-panel" id="about-panel">
-                <div class="about-section">
-                    <div class="about-logo">&#128200;</div>
-                    <div class="about-title">AI Consumption Tracker</div>
-                    <div class="about-version" id="aboutVersion">Version </div>
-                    <div class="about-links">
-                        <a href="https://github.com/aiconsumptiontracker" class="about-link" target="_blank">GitHub</a>
-                        <a href="https://aiconsumptiontracker.app" class="about-link" target="_blank">Website</a>
-                        <a href="https://github.com/aiconsumptiontracker/issues" class="about-link"
-                            target="_blank">Issues</a>
-                    </div>
-                    <div class="about-license">
-                        AI Consumption Tracker is open source software licensed under the MIT License.
-                        Built with Tauri, .NET, and Rust.
-                    </div>
-                </div>
-                
-                <div class="settings-section" style="margin-top: 24px;">
+            <div class="tab-panel" id="agent-panel">
+                <div class="settings-section">
                     <div class="settings-section-title">Agent Control</div>
                     <div class="settings-row">
                         <label class="settings-label">Agent Status</label>
@@ -863,6 +847,16 @@
                     <div style="margin-top: 12px; display: flex; gap: 8px;">
                         <button class="btn btn-primary" id="startAgentBtn" onclick="startAgent()" style="display: none;">Start Agent</button>
                         <button class="btn" id="stopAgentBtn" onclick="stopAgent()" style="display: none; background: var(--accent-red); color: white;">Stop Agent</button>
+                    </div>
+                </div>
+                
+                <div class="settings-section" style="margin-top: 24px;">
+                    <div class="settings-section-title">Agent Information</div>
+                    <div class="settings-row">
+                        <label class="settings-label">Version</label>
+                        <div class="settings-control">
+                            <span id="aboutVersion">Version </span>
+                        </div>
                     </div>
                 </div>
             </div>

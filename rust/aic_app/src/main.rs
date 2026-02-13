@@ -253,6 +253,30 @@ async fn main() {
 
             // Ensure main window is shown
             if let Some(window) = app.get_webview_window("main") {
+                // Position window near system tray (bottom-right) on first startup
+                if let Ok(Some(monitor)) = window.primary_monitor() {
+                    let size = monitor.size();
+                    if let Ok(window_size) = window.inner_size() {
+                        // Calculate position: bottom-right corner, above taskbar
+                        let screen_width = size.width as f64;
+                        let screen_height = size.height as f64;
+                        let window_width = window_size.width as f64;
+                        let window_height = window_size.height as f64;
+                        
+                        // Position in bottom-right with padding
+                        let x = screen_width - window_width - 10.0;
+                        let y = screen_height - window_height - 50.0; // 50px from bottom for taskbar
+                        
+                        info!("Positioning window at x={}, y={} (screen: {}x{}, window: {}x{})", 
+                              x, y, screen_width, screen_height, window_width, window_height);
+                        
+                        let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { 
+                            x: x as i32, 
+                            y: y as i32 
+                        }));
+                    }
+                }
+                
                 window.show()?;
                 window.set_focus()?;
                 
