@@ -16,6 +16,7 @@ use tauri::{
     Emitter, Manager, Runtime, AppHandle,
 };
 use tauri_plugin_updater::UpdaterExt;
+use ctrlc;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
 use tracing::{info, error, debug, warn};
@@ -73,6 +74,13 @@ fn create_tray_menu<R: Runtime>(
     Ok(menu)
 }
 
+fn setup_signal_handlers() {
+    ctrlc::set_handler(move || {
+        info!("Received shutdown signal - exiting gracefully");
+        std::process::exit(0);
+    }).expect("Error setting signal handler");
+}
+
 #[tokio::main]
 async fn main() {
     // Parse command line arguments
@@ -85,6 +93,9 @@ async fn main() {
         .init();
     
     info!("Starting AI Consumption Tracker application");
+
+    // Set up signal handlers for clean shutdown (Ctrl+C, SIGINT, SIGTERM)
+    setup_signal_handlers();
 
     let client = reqwest::Client::new();
     let provider_manager = Arc::new(ProviderManager::new(client.clone()));
@@ -191,11 +202,10 @@ async fn main() {
             // Create tray menu
             let menu = create_tray_menu(app.handle())?;
 
-            // Build tray icon
+            // Build tray icon (no icon - clean taskbar)
             let tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .tooltip("AI Consumption Tracker")
-                .icon(app.default_window_icon().unwrap().clone())
                 .on_menu_event(move |app, event| {
                     match event.id().as_ref() {
                         "show" => {
@@ -220,7 +230,7 @@ async fn main() {
 
             // Handle tray icon click events
             tray.on_tray_icon_event(|tray, event| {
-                if let TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, position, rect, .. } = event {
+                if let TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, position, .. } = event {
                     // Show window on left click near tray icon
                     if let Some(window) = tray.app_handle().get_webview_window("main") {
                         // Get window size
@@ -230,39 +240,53 @@ async fn main() {
                             let window_height = window_size.height as f64;
                             
                             // Get monitor dimensions to account for taskbar
-                            let mut monitor_work_height = f64::MAX;
-                            let mut monitor_work_y = 0.0;
+                            let mut work_area_x = 0.0;
+                            let mut work_area_y = 0.0;
+                            let mut work_area_w = f64::MAX;
+                            let mut work_area_h = f64::MAX;
                             
-                            if let Ok(Some(monitor)) = window.primary_monitor() {
+                            // Get monitor for the click position
+                            if let Ok(Some(monitor)) = window.monitor_from_point(position.x, position.y) {
                                 let work_area = monitor.work_area();
-                                monitor_work_height = work_area.size.height as f64;
-                                monitor_work_y = work_area.position.y as f64;
+                                work_area_x = work_area.position.x as f64;
+                                work_area_y = work_area.position.y as f64;
+                                work_area_w = work_area.size.width as f64;
+                                work_area_h = work_area.size.height as f64;
+                            } else if let Ok(Some(monitor)) = window.primary_monitor() {
+                                // Fallback to primary monitor
+                                let work_area = monitor.work_area();
+                                work_area_x = work_area.position.x as f64;
+                                work_area_y = work_area.position.y as f64;
+                                work_area_w = work_area.size.width as f64;
+                                work_area_h = work_area.size.height as f64;
                             }
                             
-                            // Position to the left of the tray icon, vertically centered
-                            let x = position.x - window_width + 20.0; // Offset slightly to the right
-                            let mut y = position.y - window_height - 10.0; // Show above tray icon
+                            // 1. Initial preferred position: centered horizontally above the tray icon
+                            // position.x is the click position. We want the window center to be near it.
+                            let mut x = position.x - (window_width / 2.0); 
+                            let mut y = position.y - window_height - 5.0; 
                             
-                            // Check if window would be above work area (taskbar at top)
-                            if y < monitor_work_y {
-                                // Show below tray icon instead
-                                y = position.y + 10.0;
-                                
-                                // Check if window would go below work area
-                                if y + window_height > monitor_work_y + monitor_work_height {
-                                    // Clamp to bottom of work area
-                                    y = monitor_work_y + monitor_work_height - window_height - 10.0;
-                                }
+                            // 2. Adjust if it falls outside work area (top taskbar case)
+                            if y < work_area_y {
+                                y = position.y + 5.0; // Show below tray
                             }
                             
-                            // Ensure window stays on screen (minimum 0 coordinates)
-                            let x = x.max(0.0);
-                            let y = y.max(monitor_work_y);
+                            // 3. STRICT CLAMPING to work area (ensures it never covers taskbar)
+                            // Add a standard 12px margin from any edge for a flyout look
+                            let margin = 12.0;
                             
-                            info!("Positioning window at x={}, y={} (tray position: {:?}, rect: {:?}, work_area_y: {}, work_area_height: {})", 
-                                  x, y, position, rect, monitor_work_y, monitor_work_height);
+                            x = x.max(work_area_x + margin)
+                                 .min(work_area_x + work_area_w - window_width - margin);
+                            y = y.max(work_area_y + margin)
+                                 .min(work_area_y + work_area_h - window_height - margin);
                             
-                            let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: x as i32, y: y as i32 }));
+                            info!("Positioning window at x={}, y={} (tray click: {:?}, monitor work_area: [{}, {}, {}x{}])", 
+                                  x, y, position, work_area_x, work_area_y, work_area_w, work_area_h);
+                            
+                            let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { 
+                                x: x as i32, 
+                                y: y as i32 
+                            }));
                         }
                         
                         let _ = window.show();
@@ -295,11 +319,6 @@ async fn main() {
                     let window_width = 480.0;
                     let window_height = 500.0;
                     
-                    // Get monitor dimensions
-                    let monitor_size = monitor.size();
-                    let monitor_width = monitor_size.width as f64;
-                    let monitor_height = monitor_size.height as f64;
-                    
                     // Get the work area (available area excluding taskbar/dock)
                     let work_area = monitor.work_area();
                     let work_x = work_area.position.x as f64;
@@ -307,31 +326,14 @@ async fn main() {
                     let work_width = work_area.size.width as f64;
                     let work_height = work_area.size.height as f64;
                     
-                    // Calculate taskbar/dock dimensions
-                    let taskbar_top = work_y;
-                    let taskbar_bottom = monitor_height - (work_y + work_height);
-                    let taskbar_left = work_x;
-                    let taskbar_right = monitor_width - (work_x + work_width);
+                    // Position window in bottom-right corner of the work area
+                    // Add a consistent 12px margin
+                    let margin = 12.0;
+                    let x = work_x + work_width - window_width - margin;
+                    let y = work_y + work_height - window_height - margin;
                     
-                    // Detect taskbar position based on work area offset
-                    let taskbar_position = if taskbar_top > 0.0 {
-                        "top"
-                    } else if taskbar_bottom > 0.0 {
-                        "bottom"
-                    } else if taskbar_left > 0.0 {
-                        "left"
-                    } else if taskbar_right > 0.0 {
-                        "right"
-                    } else {
-                        "none"
-                    };
-                    
-                    // Position window in bottom-right corner, accounting for taskbar
-                    let x = work_x + work_width - window_width - 10.0;
-                    let y = work_y + work_height - window_height - 10.0;
-                    
-                    info!("Positioning window at x={}, y={} (monitor: {}x{}, work_area: {}x{}+{}+{}, taskbar_position: {}, window: {}x{})", 
-                          x, y, monitor_width, monitor_height, work_width, work_height, work_x, work_y, taskbar_position, window_width, window_height);
+                    info!("Startup positioning: x={}, y={} (work_area: [{}, {}, {}x{}])", 
+                          x, y, work_x, work_y, work_width, work_height);
                     
                     let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { 
                         x: x as i32, 
