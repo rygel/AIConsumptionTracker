@@ -1374,7 +1374,27 @@
                                 <span class="status-badge ${hasKey ? 'active' : 'inactive'}">${hasKey ? 'Active' : 'Inactive'}</span>
                             </div>
                         </div>
-                        ${config.provider_id === 'github-copilot' ? '' : `
+                        ${config.provider_id === 'github-copilot' ? `
+                            <div class="provider-row" style="display: flex; align-items: center; gap: 10px;">
+                                ${(() => {
+                                    const isAuthenticated = config.api_key && config.api_key.length > 0;
+                                    const username = config.account_name || '';
+                                    const displayUsername = (privacyMode && username) ? '***' : username;
+                                    const authStatus = isAuthenticated 
+                                        ? (username ? `Authenticated (${displayUsername})` : 'Authenticated')
+                                        : 'Not Authenticated';
+                                    const authColor = isAuthenticated ? '#90EE90' : '#888';
+                                    const btnText = isAuthenticated ? 'Log out' : 'Log in';
+                                    return `
+                                        <span style="color: ${authColor}; font-size: 11px;">${authStatus}</span>
+                                        <button class="auth-btn" data-provider="github-copilot" 
+                                            style="padding: 4px 12px; font-size: 11px; background: #333; color: #fff; border: 1px solid #555; border-radius: 3px; cursor: pointer;">
+                                            ${btnText}
+                                        </button>
+                                    `;
+                                })()}
+                            </div>
+                        ` : `
                             <div class="provider-row">
                                 <input type="text" class="api-key-input" id="api-key-${config.provider_id}"
                                     value="${config.api_key || ''}" 
@@ -1406,6 +1426,47 @@
             document.querySelectorAll('.api-key-input').forEach(el => {
                 el.addEventListener('input', () => settingsChanged = true);
             });
+            
+            // Add GitHub auth button listeners
+            document.querySelectorAll('.auth-btn').forEach(el => {
+                el.addEventListener('click', async (e) => {
+                    const providerId = e.target.dataset.provider;
+                    if (providerId === 'github-copilot') {
+                        const config = configs.find(c => c.provider_id === 'github-copilot');
+                        const isAuthenticated = config && config.api_key && config.api_key.length > 0;
+                        
+                        if (isAuthenticated) {
+                            // Log out
+                            config.api_key = '';
+                            config.account_name = '';
+                            settingsChanged = true;
+                            populateProviders();
+                        } else {
+                            // Initiate GitHub login
+                            try {
+                                const response = await fetch('http://localhost:8080/api/auth/github/device', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                                const data = await response.json();
+                                
+                                if (data.success) {
+                                    // Show device code to user
+                                    const code = data.user_code;
+                                    alert(`Please enter this code at ${data.verification_uri}:\n\n${code}`);
+                                    
+                                    // Start polling for token
+                                    pollForGitHubToken(data.device_code, data.interval);
+                                }
+                            } catch (err) {
+                                console.error('GitHub auth initiation failed:', err);
+                                alert('Failed to initiate GitHub login: ' + err.message);
+                            }
+                        }
+                    }
+                });
+            });
+            
             console.log('=== populateProviders() END ===');
         }
 
@@ -1448,6 +1509,60 @@
             document.getElementById('fontItalic').checked = false;
             updateFontPreview();
             settingsChanged = true;
+        }
+
+        // Poll for GitHub token after device flow initiation
+        async function pollForGitHubToken(deviceCode, interval) {
+            const maxAttempts = 60; // 5 minutes with 5-second interval
+            let attempts = 0;
+            
+            const pollInterval = setInterval(async () => {
+                attempts++;
+                if (attempts > maxAttempts) {
+                    clearInterval(pollInterval);
+                    alert('GitHub login timed out. Please try again.');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('http://localhost:8080/api/auth/github/poll', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ device_code: deviceCode, interval: interval })
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        clearInterval(pollInterval);
+                        // Token received, update config
+                        const config = configs.find(c => c.provider_id === 'github-copilot');
+                        if (config) {
+                            config.api_key = data.token;
+                            config.auth_source = 'GitHub OAuth';
+                            settingsChanged = true;
+                            populateProviders();
+                            
+                            // Fetch username
+                            try {
+                                const userResponse = await fetch('http://localhost:8080/api/auth/github/status');
+                                const userData = await userResponse.json();
+                                if (userData.username) {
+                                    config.account_name = userData.username;
+                                    populateProviders();
+                                }
+                            } catch (err) {
+                                console.error('Failed to fetch username:', err);
+                            }
+                        }
+                    } else if (data.status === 'expired' || data.status === 'access_denied') {
+                        clearInterval(pollInterval);
+                        alert('GitHub login failed: ' + (data.error || 'Unknown error'));
+                    }
+                    // If pending, continue polling
+                } catch (err) {
+                    console.error('GitHub token poll error:', err);
+                }
+            }, interval * 1000);
         }
 
         async function saveSettings() {
