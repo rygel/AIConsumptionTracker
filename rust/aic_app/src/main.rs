@@ -207,9 +207,28 @@ async fn main() {
 
             // Handle tray icon click events
             tray.on_tray_icon_event(|tray, event| {
-                if let TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, .. } = event {
-                    // Show window on left click
+                if let TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, position, rect, .. } = event {
+                    // Show window on left click near tray icon
                     if let Some(window) = tray.app_handle().get_webview_window("main") {
+                        // Get window size
+                        if let Ok(window_size) = window.inner_size() {
+                            // Calculate position: show window above or below tray icon
+                            let window_width = window_size.width as f64;
+                            let window_height = window_size.height as f64;
+                            
+                            // Position to the left of the tray icon, vertically centered
+                            let x = position.x - window_width + 20.0; // Offset slightly to the right
+                            let y = position.y - window_height - 10.0; // Show above tray icon
+                            
+                            // Ensure window stays on screen (minimum 0 coordinates)
+                            let x = x.max(0.0);
+                            let y = y.max(0.0);
+                            
+                            info!("Positioning window at x={}, y={} (tray position: {:?}, rect: {:?})", x, y, position, rect);
+                            
+                            let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: x as i32, y: y as i32 }));
+                        }
+                        
                         let _ = window.show();
                         let _ = window.set_focus();
                     }
