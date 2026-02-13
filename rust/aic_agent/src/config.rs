@@ -18,7 +18,7 @@ pub async fn discover_all_providers() -> Vec<ProviderConfig> {
     // Add well-known providers (matching C# application)
     let well_known = vec![
         ("openai", "OpenAI", false),
-        ("claude-code", "Anthropic", false),
+        ("claude-code", "Claude Code", false),
         ("gemini-cli", "Google Gemini", false),
         ("github-copilot", "GitHub Copilot", true),  // System provider - no API key needed
         ("minimax", "MiniMax", false),

@@ -472,40 +472,6 @@
             text-decoration: underline;
         }
 
-        .github-status {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 16px;
-            background: var(--bg-light);
-            border-radius: 4px;
-            margin-bottom: 16px;
-        }
-
-        .github-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: var(--bg-medium);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .github-info {
-            flex: 1;
-        }
-
-        .github-username {
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .github-connected {
-            font-size: 12px;
-            color: var(--accent-green);
-        }
-
         .update-status {
             padding: 20px;
             text-align: center;
@@ -654,7 +620,6 @@
         <div class="tab-container">
             <button class="tab active" data-tab="providers">Providers</button>
             <button class="tab" data-tab="layout">Layout</button>
-            <button class="tab" data-tab="github">GitHub</button>
             <button class="tab" data-tab="updates">Updates</button>
             <button class="tab" data-tab="fonts">Fonts</button>
             <button class="tab" data-tab="agent">Agent</button>
@@ -736,34 +701,6 @@
                             Invert Progress Bars (Show 'Remaining' instead of 'Used')
                         </label>
                     </div>
-                </div>
-            </div>
-
-            <div class="tab-panel" id="github-panel">
-                <div class="settings-section">
-                    <div class="settings-section-title">GitHub Copilot</div>
-                    <div class="github-status" id="githubStatus">
-                        <div class="github-avatar">&#128279;</div>
-                        <div class="github-info">
-                            <div class="github-username" id="githubUsername">Not connected</div>
-                            <div class="github-connected" id="githubConnected">Sign in to access your Copilot usage
-                            </div>
-                        </div>
-                    </div>
-                    <div id="githubActions">
-                        <button class="btn btn-primary" id="githubLoginBtn" onclick="loginGitHub()">Login with
-                            GitHub</button>
-                    </div>
-                </div>
-
-                <div class="divider"></div>
-
-                <div class="settings-section">
-                    <div class="settings-section-title">Token Discovery</div>
-                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
-                        Automatically discover GitHub tokens from common locations on your system.
-                    </p>
-                    <button class="btn" id="discoverTokenBtn" onclick="discoverToken()">Discover Token</button>
                 </div>
             </div>
 
@@ -851,6 +788,15 @@
                 </div>
                 
                 <div class="settings-section" style="margin-top: 24px;">
+                    <div class="settings-section-title">Token Discovery</div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                        Automatically discover API tokens from common locations on your system via the agent.
+                    </p>
+                    <button class="btn" id="discoverTokenBtn" onclick="discoverTokens()">Discover Tokens</button>
+                    <div id="discoveryStatus" style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);"></div>
+                </div>
+                
+                <div class="settings-section" style="margin-top: 24px;">
                     <div class="settings-section-title">Agent Information</div>
                     <div class="settings-row">
                         <label class="settings-label">Version</label>
@@ -872,7 +818,7 @@
     <div class="modal-overlay" id="authModal">
         <div class="modal">
             <div class="modal-header">
-                <span class="modal-title">GitHub Authentication</span>
+                <span class="modal-title">Authentication</span>
                 <button class="close-btn" onclick="closeAuthModal()">&#215;</button>
             </div>
             <div class="auth-dialog" id="authContent">
@@ -887,7 +833,6 @@
         let configs = [];
         let usageData = [];  // Store usage data to get antigravity details
         let prefs = {};
-        let githubUser = null;
         let settingsChanged = false;
 
         // Privacy mode state
@@ -1001,7 +946,6 @@
             });
 
             document.getElementById('closeBtn').addEventListener('click', closeSettings);
-            document.getElementById('cancelBtn').addEventListener('click', closeSettings);
 
             document.querySelectorAll('.form-input, .form-select, input[type="checkbox"]').forEach(el => {
                 el.addEventListener('change', () => settingsChanged = true);
@@ -1195,24 +1139,13 @@
                         console.log('No preferences found:', e.message || e);
                     }
 
-                    try {
-                        const startTime = Date.now();
-                        const githubAuth = await invoke('is_github_authenticated');
-                        console.log(`GitHub auth check completed in ${Date.now() - startTime}ms:`, githubAuth);
-                        if (githubAuth) {
-                            githubUser = { username: 'Connected' };
-                        }
-                    } catch (e) {
-                        console.log('GitHub auth check failed:', e.message || e);
-                    }
+
                 }
 
                 console.log('Calling populateProviders() with', configs.length, 'configs');
                 populateProviders();
                 console.log('Calling populateLayout()');
                 populateLayout();
-                console.log('Calling populateGitHub()');
-                populateGitHub();
                 console.log('Calling populateFonts()');
                 populateFonts();
                 console.log('Checking agent status...');
@@ -1299,6 +1232,45 @@
             }
         }
 
+        async function discoverTokens() {
+            console.log('Discovering tokens via agent...');
+            const statusDiv = document.getElementById('discoveryStatus');
+            const btn = document.getElementById('discoverTokenBtn');
+            
+            if (statusDiv) statusDiv.textContent = 'Discovering tokens...';
+            if (btn) btn.disabled = true;
+            
+            try {
+                // Call the agent's discover endpoint
+                const response = await fetch('http://localhost:8080/api/discover', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('Token discovery result:', result);
+                    
+                    if (result.discovered && result.discovered.length > 0) {
+                        if (statusDiv) statusDiv.textContent = `Discovered ${result.discovered.length} token(s). Reloading providers...`;
+                        // Reload settings to show newly discovered providers
+                        setTimeout(() => loadSettings(), 1000);
+                    } else {
+                        if (statusDiv) statusDiv.textContent = 'No new tokens found.';
+                    }
+                } else {
+                    const errorText = await response.text();
+                    console.error('Discovery failed:', errorText);
+                    if (statusDiv) statusDiv.textContent = 'Discovery failed. Is the agent running?';
+                }
+            } catch (e) {
+                console.error('Failed to discover tokens:', e);
+                if (statusDiv) statusDiv.textContent = 'Error: ' + (e?.message || 'Failed to connect to agent');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
         function populateProviders() {
             console.log('=== populateProviders() START ===');
             console.log('configs.length:', configs ? configs.length : 'undefined');
@@ -1320,7 +1292,7 @@
             const providerInfo = {
                 'github-copilot': { name: 'GitHub Copilot', icon: 'G', color: '#24292e' },
                 'openai': { name: 'OpenAI', icon: 'O', color: '#10a37f' },
-                'claude-code': { name: 'Anthropic', icon: 'A', color: '#d4a574' },
+                'claude-code': { name: 'Claude Code', icon: 'C', color: '#d4a574' },
                 'deepseek': { name: 'DeepSeek', icon: 'D', color: '#1e80ff' },
                 'gemini-cli': { name: 'Google Gemini', icon: 'G', color: '#4285f4' },
                 'kimi': { name: 'Kimi', icon: 'K', color: '#0066cc' },
@@ -1443,17 +1415,6 @@
             document.getElementById('autoUpdate').checked = prefs.auto_update !== false;
         }
 
-        function populateGitHub() {
-            if (githubUser) {
-                document.getElementById('githubUsername').textContent = githubUser.username;
-                document.getElementById('githubConnected').textContent = 'Connected to GitHub';
-                document.getElementById('githubConnected').style.color = 'var(--accent-green)';
-                document.getElementById('githubActions').innerHTML = `
-                    <button class="btn btn-danger" onclick="logoutGitHub()">Logout</button>
-                `;
-            }
-        }
-
         function populateFonts() {
             document.getElementById('fontFamily').value = prefs.font_family || '-apple-system';
             document.getElementById('fontSize').value = prefs.font_size || 13;
@@ -1566,100 +1527,6 @@
                 console.error('Scan failed:', e);
             } finally {
                 btn.textContent = 'Scan for Keys';
-                btn.disabled = false;
-            }
-        }
-
-        async function loginGitHub() {
-            document.getElementById('authModal').classList.add('visible');
-
-            try {
-                if (invoke) {
-                    const [userCode, verificationUri] = await invoke('initiate_github_login');
-
-                    document.getElementById('authContent').innerHTML = `
-                        <p>Go to <a href="${verificationUri}" class="auth-link" target="_blank">${verificationUri}</a></p>
-                        <p>and enter this code:</p>
-                        <div class="auth-code">${userCode}</div>
-                        <p style="color: #888; font-size: 12px;">Waiting for authentication...</p>
-                        <button class="btn" style="margin-top: 12px;" onclick="cancelGitHubLogin()">Cancel</button>
-                    `;
-
-                    if (window.__TAURI__?.shell) {
-                        await window.__TAURI__.shell.open(verificationUri);
-                    }
-
-                    pollGitHubLogin();
-                }
-            } catch (e) {
-                document.getElementById('authContent').innerHTML = `<p style="color: red;">Error: ${e.message}</p>`;
-            }
-        }
-
-        async function pollGitHubLogin() {
-            if (!invoke) return;
-
-            const poll = async () => {
-                try {
-                    const result = await invoke('check_github_login_status');
-                    if (result === 'success') {
-                        githubUser = { username: 'Connected' };
-                        closeAuthModal();
-                        populateGitHub();
-                        settingsChanged = true;
-                    } else if (result === 'pending') {
-                        setTimeout(poll, 2000);
-                    }
-                } catch (e) {
-                    console.error('Poll error:', e);
-                }
-            };
-
-            setTimeout(poll, 2000);
-        }
-
-        async function cancelGitHubLogin() {
-            if (invoke) {
-                await invoke('cancel_github_login');
-            }
-            closeAuthModal();
-        }
-
-        async function logoutGitHub() {
-            try {
-                if (invoke) {
-                    await invoke('logout_github');
-                    githubUser = null;
-                    populateGitHub();
-                    settingsChanged = true;
-                }
-            } catch (e) {
-                console.error('Logout failed:', e);
-            }
-        }
-
-        async function discoverToken() {
-            const btn = document.getElementById('discoverTokenBtn');
-            btn.textContent = 'Discovering...';
-            btn.disabled = true;
-
-            try {
-                if (invoke) {
-                    const result = await invoke('discover_github_token');
-                    if (result.found) {
-                        alert('GitHub token found and configured!');
-                        const config = configs.find(c => c.provider_id === 'github-copilot');
-                        if (config) config.api_key = result.token;
-                        populateProviders();
-                        settingsChanged = true;
-                    } else {
-                        alert('No GitHub token found in common locations.');
-                    }
-                }
-            } catch (e) {
-                console.error('Discovery failed:', e);
-            } finally {
-                btn.textContent = 'Discover Token';
                 btn.disabled = false;
             }
         }
