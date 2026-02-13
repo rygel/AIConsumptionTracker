@@ -1005,9 +1005,20 @@
                                 if (match) detailPct = parseInt(match[1]);
                             }
                             
-                            // Apply inverted calculation for sub-bars too
+                            // For Antigravity, show remaining in text (bar shows used for color consistency)
+                            const isAntigravity = p.provider_id === 'antigravity';
                             let detailDisplayPct = detailPct;
-                            if (prefs.invert_progress_bar) {
+                            let detailText = detail.used;
+                            
+                            if (isAntigravity) {
+                                // Calculate remaining for display text
+                                const remainingPct = Math.max(0, 100 - detailPct);
+                                detailText = remainingPct + '%';
+                                // Apply inverted calculation for bar width (show remaining)
+                                if (!prefs.invert_progress_bar) {
+                                    detailDisplayPct = remainingPct;
+                                }
+                            } else if (prefs.invert_progress_bar) {
                                 detailDisplayPct = Math.max(0, 100 - detailPct);
                             }
                             
@@ -1028,7 +1039,7 @@
                                 '<span class="provider-name" style="font-size:10px;color:#C0C0C0;">' + escapeHtml(detail.name) + '</span>' +
                                 '<span style="flex:1;"></span>' + // Spacer to push right content
                                 (detailResetText ? '<span class="provider-status" style="color:#FFD700;font-weight:600;font-size:9px;margin-right:8px;">' + escapeHtml(detailResetText) + '</span>' : '') +
-                                '<span class="provider-status" style="font-size:9px;">' + escapeHtml(detail.used) + '</span>' +
+                                '<span class="provider-status" style="font-size:9px;">' + escapeHtml(detailText) + '</span>' +
                                 '</div></div>';
                         });
                         
@@ -1086,9 +1097,20 @@
                                 if (match) detailPct = parseInt(match[1]);
                             }
                             
-                            // Apply inverted calculation for sub-bars too
+                            // For Antigravity, show remaining in text (bar shows used for color consistency)
+                            const isAntigravity = p.provider_id === 'antigravity';
                             let detailDisplayPct = detailPct;
-                            if (prefs.invert_progress_bar) {
+                            let detailText = detail.used;
+                            
+                            if (isAntigravity) {
+                                // Calculate remaining for display text
+                                const remainingPct = Math.max(0, 100 - detailPct);
+                                detailText = remainingPct + '%';
+                                // Apply inverted calculation for bar width (show remaining)
+                                if (!prefs.invert_progress_bar) {
+                                    detailDisplayPct = remainingPct;
+                                }
+                            } else if (prefs.invert_progress_bar) {
                                 detailDisplayPct = Math.max(0, 100 - detailPct);
                             }
                             
@@ -1103,7 +1125,7 @@
                                 '<div style="display:flex;align-items:center;">' +
                                 '<div class="provider-bar-container" style="flex:1;">' +
                                 '<div class="provider-bar ' + detailCls + '" style="width:' + Math.min(detailDisplayPct, 100) + '%"></div></div>' +
-                                '<span style="font-size:10.5px;color:#808080;margin-left:10px;">' + escapeHtml(detail.used) + '</span>' +
+                                '<span style="font-size:10.5px;color:#808080;margin-left:10px;">' + escapeHtml(detailText) + '</span>' +
                                 '</div>' +
                                 (detail.description ? '<div style="font-size:10px;color:#FFD700;margin-top:2px;margin-left:22px;font-weight:600;">' + escapeHtml(detail.description) + '</div>' : '') +
                                 '</div>';
