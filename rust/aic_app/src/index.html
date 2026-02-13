@@ -1332,7 +1332,9 @@
                     }
                 } catch (e) {
                     console.error('Failed to stop agent:', e);
-                    await updateAgentUI('error', 'Failed to Stop Agent', e.message || 'Unknown error');
+                    const errorDetails = e?.message || e?.toString() || 'Unknown error';
+                    console.error('Error details:', errorDetails);
+                    await updateAgentUI('error', 'Failed to Stop Agent', errorDetails);
                 }
             } else {
                 console.error('Tauri not available');

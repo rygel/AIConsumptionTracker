@@ -677,21 +677,40 @@ pub async fn start_agent(
 
 #[tauri::command]
 pub async fn stop_agent(state: State<'_, AppState>) -> Result<bool, String> {
+    debug!("Attempting to stop agent");
+    
     let mut agent_process = state.agent_process.lock().await;
+    debug!("Acquired agent process lock");
 
     if let Some(ref mut child) = *agent_process {
+        let pid = child.id();
+        info!("Found agent process with PID: {}, attempting to kill", pid);
+        
         match child.kill() {
             Ok(_) => {
-                info!("Agent stopped successfully");
+                info!("Agent process (PID: {}) killed successfully", pid);
+                
+                // Wait for the process to actually exit
+                match child.wait() {
+                    Ok(exit_status) => {
+                        info!("Agent process exited with status: {:?}", exit_status);
+                    }
+                    Err(e) => {
+                        warn!("Could not wait for agent process exit: {}", e);
+                    }
+                }
+                
                 *agent_process = None;
                 Ok(true)
             }
             Err(e) => {
-                error!("Failed to stop agent: {}", e);
-                Err(format!("Failed to stop agent: {}", e))
+                let error_msg = format!("Failed to kill agent process (PID: {}): {}", pid, e);
+                error!("{}", error_msg);
+                Err(error_msg)
             }
         }
     } else {
+        warn!("No agent process found in state");
         Err("No agent process running".to_string())
     }
 }
@@ -701,20 +720,27 @@ pub async fn is_agent_running(state: State<'_, AppState>) -> Result<bool, String
     let mut agent_process = state.agent_process.lock().await;
 
     if let Some(ref mut child) = *agent_process {
+        let pid = child.id();
+        debug!("Checking if agent is running (PID: {})", pid);
+        
         match child.try_wait() {
             Ok(None) => {
+                debug!("Agent process (PID: {}) is still running", pid);
                 Ok(true)
             }
-            Ok(_) => {
+            Ok(exit_code) => {
+                info!("Agent process (PID: {}) has exited with code: {:?}", pid, exit_code);
                 *agent_process = None;
                 Ok(false)
             }
-            Err(_) => {
+            Err(e) => {
+                warn!("Could not check agent process (PID: {}) status: {}", pid, e);
                 *agent_process = None;
                 Ok(false)
             }
         }
     } else {
+        debug!("No agent process in state");
         Ok(false)
     }
 }
