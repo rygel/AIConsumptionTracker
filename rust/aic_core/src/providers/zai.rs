@@ -156,10 +156,13 @@ impl ProviderService for ZaiProvider {
                         let z_reset =
                             format!(" (Resets: ({}))", reset_datetime.format("%b %d %H:%M"));
 
+                        let remaining_percent = 100.0 - used_percent.min(100.0);
+                        
                         vec![ProviderUsage {
                             provider_id: self.provider_id().to_string(),
                             provider_name: format!("Z.AI {}", plan_description),
                             usage_percentage: used_percent.min(100.0),
+                            remaining_percentage: Some(remaining_percent),
                             cost_used: used_percent,
                             cost_limit: 100.0,
                             usage_unit: "Quota %".to_string(),

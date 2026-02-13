@@ -916,9 +916,10 @@
                 // Apply inverted calculation if enabled
                 let displayPct = pct;
                 let barWidth = pct;
-                // Use server-provided remaining_percentage when available (Antigravity, Gemini, etc.)
+                // Use server-provided remaining_percentage when available (Antigravity, Gemini, ZAI, etc.)
                 if (p.remaining_percentage !== undefined && p.remaining_percentage !== null) {
                     barWidth = p.remaining_percentage;
+                    displayPct = p.remaining_percentage; // Show remaining in text too
                 } else if (prefs.invert_progress_bar && avail) {
                     displayPct = Math.max(0, 100 - pct);
                     barWidth = displayPct;
