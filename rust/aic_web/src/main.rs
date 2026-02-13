@@ -24,8 +24,9 @@ struct Args {
     #[arg(long)]
     db_url: Option<String>,
 
-    #[arg(long, default_value = "info")]
-    log_level: String,
+    /// Enable debug logging (verbose output)
+    #[arg(long)]
+    debug: bool,
 }
 
 #[derive(Clone)]
@@ -99,8 +100,10 @@ struct ResetQuery {
 async fn main() -> Result<()> {
     let args = Args::parse();
 
+    // Set log level based on --debug flag
+    let log_level = if args.debug { "debug" } else { "info" };
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&args.log_level));
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level));
     tracing_subscriber::registry()
         .with(env_filter)
         .with(tracing_subscriber::fmt::layer())

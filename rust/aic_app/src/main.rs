@@ -6,6 +6,7 @@ use aic_core::{
     AuthenticationManager, ConfigLoader, GitHubAuthService, ProviderManager,
 };
 use aic_app::commands::*;
+use clap::Parser;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -18,6 +19,15 @@ use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
 use tracing::{info, error, debug, warn};
+
+#[derive(Parser, Debug)]
+#[command(name = "aic-app")]
+#[command(about = "AI Consumption Tracker Desktop Application")]
+struct Args {
+    /// Enable debug logging (verbose output)
+    #[arg(long)]
+    debug: bool,
+}
 
 async fn check_and_update_tray_status(app_handle: &AppHandle) {
     let state = app_handle.state::<AppState>();
@@ -65,10 +75,13 @@ fn create_tray_menu<R: Runtime>(
 
 #[tokio::main]
 async fn main() {
-    // Initialize tracing for console output
+    // Parse command line arguments
+    let args = Args::parse();
+    
+    // Initialize tracing for console output based on --debug flag
+    let log_level = if args.debug { tracing::Level::DEBUG } else { tracing::Level::INFO };
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env()
-            .add_directive(tracing::Level::INFO.into()))
+        .with_max_level(log_level)
         .init();
     
     info!("Starting AI Consumption Tracker application");
@@ -255,21 +268,24 @@ async fn main() {
             if let Some(window) = app.get_webview_window("main") {
                 // Position window near system tray (bottom-right) on first startup
                 if let Ok(Some(monitor)) = window.primary_monitor() {
-                    let size = monitor.size();
                     // Use configured window size from tauri.conf.json
                     let window_width = 480.0;
                     let window_height = 500.0;
                     
-                    // Calculate position: bottom-right corner, above taskbar
-                    let screen_width = size.width as f64;
-                    let screen_height = size.height as f64;
+                    // Get the work area (available area excluding taskbar)
+                    let work_area = monitor.work_area();
+                    // work_area gives us the available space (screen minus taskbar)
+                    let work_x = work_area.position.x as f64;
+                    let work_y = work_area.position.y as f64;
+                    let work_width = work_area.size.width as f64;
+                    let work_height = work_area.size.height as f64;
                     
-                    // Position in bottom-right with padding
-                    let x = screen_width - window_width - 10.0;
-                    let y = screen_height - window_height - 50.0; // 50px from bottom for taskbar
+                    // Position in bottom-right of work area with padding
+                    let x = work_x + work_width - window_width - 10.0;
+                    let y = work_y + work_height - window_height - 10.0;
                     
-                    info!("Positioning window at x={}, y={} (screen: {}x{}, window: {}x{})", 
-                          x, y, screen_width, screen_height, window_width, window_height);
+                    info!("Positioning window at x={}, y={} (work area: {}x{}+{}+{}, window: {}x{})", 
+                          x, y, work_width, work_height, work_x, work_y, window_width, window_height);
                     
                     let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { 
                         x: x as i32, 

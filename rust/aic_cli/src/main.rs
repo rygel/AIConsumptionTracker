@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
 use std::process::Command;
+use tracing::debug;
 
 #[derive(Parser)]
     #[command(name = "aic-cli")]
@@ -24,9 +25,9 @@ struct Cli {
     #[arg(long, global = true)]
     json: bool,
 
-    /// Verbose output
-    #[arg(short, long, global = true)]
-    verbose: bool,
+    /// Enable debug logging (verbose output)
+    #[arg(long, global = true)]
+    debug: bool,
 }
 
 #[derive(Subcommand)]
@@ -122,6 +123,12 @@ impl From<AgentUsageResponse> for ProviderUsage {
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
+    
+    // Initialize logging based on --debug flag
+    tracing_subscriber::fmt()
+        .with_max_level(if cli.debug { tracing::Level::DEBUG } else { tracing::Level::INFO })
+        .init();
+    
     let agent_url = cli.agent_url.trim_end_matches('/');
     let command = cli.command.unwrap_or_else(|| {
         print_usage();
@@ -130,7 +137,7 @@ async fn main() {
 
     match command {
         Commands::Status => {
-            show_status(agent_url, cli.all, cli.json, cli.verbose).await;
+            show_status(agent_url, cli.all, cli.json, cli.debug).await;
         }
         Commands::List => {
             show_list(agent_url, cli.json).await;
@@ -170,7 +177,7 @@ async fn show_status(
     agent_url: &str,
     show_all: bool,
     json: bool,
-    verbose: bool,
+    debug: bool,
 ) {
     let client = reqwest::Client::new();
     let url = format!("{}/api/providers/usage", agent_url);
@@ -264,7 +271,7 @@ async fn show_status(
                 }
             }
 
-            if verbose {
+            if debug {
                 println!(
                     "{:<36} | {:<14} | {:<10} |   Unit: {}",
                     "", "", "", u.usage_unit

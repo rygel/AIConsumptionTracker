@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 // Import ProviderUsage from aic_core to ensure API compatibility
 use aic_core::ProviderUsage;
+use aic_core::github_auth::GitHubAuthService;
 
 mod config;
 mod database;
@@ -37,8 +38,9 @@ struct Args {
     #[arg(long, default_value_t = 5)]
     refresh_interval_minutes: u64,
 
-    #[arg(long, default_value = "info")]
-    log_level: String,
+    /// Enable debug logging (verbose output)
+    #[arg(long)]
+    debug: bool,
 }
 
 #[derive(Clone)]
@@ -46,6 +48,7 @@ struct AppState {
     db: Arc<libsql::Database>,
     config: Arc<RwLock<AgentConfig>>,
     provider_manager: Arc<aic_core::config::ProviderManager>,
+    github_auth_service: Arc<GitHubAuthService>,
 }
 
 // UsageResponse is replaced with ProviderUsage from aic_core for API compatibility
@@ -66,8 +69,10 @@ struct HistoricalUsageRecord {
 async fn main() -> Result<()> {
     let args = Args::parse();
 
+    // Set log level based on --debug flag
+    let log_level = if args.debug { "debug" } else { "info" };
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&args.log_level));
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level));
     tracing_subscriber::registry()
         .with(env_filter)
         .with(tracing_subscriber::fmt::layer())
@@ -99,12 +104,16 @@ async fn main() -> Result<()> {
 
     // Create provider manager once and share it across requests
     let client = reqwest::Client::new();
-    let provider_manager = Arc::new(aic_core::config::ProviderManager::new(client));
+    let provider_manager = Arc::new(aic_core::config::ProviderManager::new(client.clone()));
+
+    // Create GitHub auth service
+    let github_auth_service = Arc::new(GitHubAuthService::new(client));
 
     let state = AppState {
         db: Arc::new(db),
         config,
         provider_manager,
+        github_auth_service,
     };
 
     let scheduler_handle = start_scheduler(state.clone()).await?;
@@ -124,6 +133,10 @@ async fn main() -> Result<()> {
         .route("/api/config/providers", post(save_all_providers))
         .route("/api/providers/:id", put(save_provider))
         .route("/api/providers/:id", delete(remove_provider))
+        .route("/api/auth/github/device", post(initiate_github_device_flow))
+        .route("/api/auth/github/poll", post(poll_github_token))
+        .route("/api/auth/github/status", get(get_github_auth_status))
+        .route("/api/auth/github/logout", post(logout_github))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", args.port)).await?;
@@ -664,4 +677,120 @@ async fn refresh_and_store(
     }
 
     Ok(())
+}
+
+// GitHub OAuth Device Flow handlers
+
+async fn initiate_github_device_flow(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    info!("API: POST /api/auth/github/device - Initiating GitHub device flow");
+
+    match state.github_auth_service.initiate_device_flow().await {
+        Ok(response) => {
+            info!("Device flow initiated. User code: {}", response.user_code);
+            Json(serde_json::json!({
+                "success": true,
+                "device_code": response.device_code,
+                "user_code": response.user_code,
+                "verification_uri": response.verification_uri,
+                "expires_in": response.expires_in,
+                "interval": response.interval
+            }))
+        }
+        Err(e) => {
+            error!("Failed to initiate device flow: {}", e);
+            Json(serde_json::json!({
+                "success": false,
+                "error": e
+            }))
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PollTokenRequest {
+    device_code: String,
+    interval: i64,
+}
+
+async fn poll_github_token(
+    State(state): State<AppState>,
+    Json(request): Json<PollTokenRequest>,
+) -> Json<serde_json::Value> {
+    info!("API: POST /api/auth/github/poll - Polling for GitHub token");
+
+    match state.github_auth_service.poll_for_token(&request.device_code).await {
+        aic_core::github_auth::TokenPollResult::Token(token) => {
+            info!("GitHub token received successfully");
+            Json(serde_json::json!({
+                "success": true,
+                "token": token
+            }))
+        }
+        aic_core::github_auth::TokenPollResult::Pending => {
+            Json(serde_json::json!({
+                "success": false,
+                "status": "pending"
+            }))
+        }
+        aic_core::github_auth::TokenPollResult::SlowDown => {
+            warn!("GitHub poll received slow_down, need to increase interval");
+            Json(serde_json::json!({
+                "success": false,
+                "status": "slow_down"
+            }))
+        }
+        aic_core::github_auth::TokenPollResult::Expired => {
+            error!("GitHub token expired");
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Token expired"
+            }))
+        }
+        aic_core::github_auth::TokenPollResult::AccessDenied => {
+            error!("GitHub access denied by user");
+            Json(serde_json::json!({
+                "success": false,
+                "error": "Access denied"
+            }))
+        }
+        aic_core::github_auth::TokenPollResult::Error(msg) => {
+            error!("GitHub poll error: {}", msg);
+            Json(serde_json::json!({
+                "success": false,
+                "error": msg
+            }))
+        }
+    }
+}
+
+async fn get_github_auth_status(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    info!("API: GET /api/auth/github/status - Getting GitHub auth status");
+
+    let is_authenticated = state.github_auth_service.is_authenticated();
+    let username = if is_authenticated {
+        state.github_auth_service.get_username().await
+    } else {
+        None
+    };
+
+    Json(serde_json::json!({
+        "is_authenticated": is_authenticated,
+        "username": username
+    }))
+}
+
+async fn logout_github(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    info!("API: POST /api/auth/github/logout - Logging out from GitHub");
+
+    state.github_auth_service.logout();
+
+    Json(serde_json::json!({
+        "success": true
+    }))
 }
