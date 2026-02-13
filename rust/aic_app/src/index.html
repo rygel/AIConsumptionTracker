@@ -602,10 +602,6 @@
                     <input type="checkbox" id="stayOpenToggle">
                     <span>Pin</span>
                 </label>
-                <label class="checkbox-label" style="margin-right: 8px;">
-                    <input type="checkbox" id="compactToggle" checked>
-                    <span>Compact</span>
-                </label>
                 <button class="icon-btn" id="agentBtn" title="Agent Management">🤖</button>
                 <button class="icon-btn" id="refreshBtn" title="Refresh">↻</button>
                 <button class="icon-btn" id="settingsBtn" title="Settings">⚙</button>
@@ -617,7 +613,6 @@
         // Global state
         let showAll = true;
         let privacyMode = false;
-        let compactMode = true; // Default to compact mode
         let usageData = [];
         let agentConnected = false; // Shared agent status
         let prefs = {
@@ -665,12 +660,6 @@
             loadPrivacyMode();
             document.getElementById('showAllToggle').addEventListener('change', refreshData);
             document.getElementById('alwaysOnTopToggle').addEventListener('change', toggleAlwaysOnTop);
-
-            // Setup compact mode toggle
-            document.getElementById('compactToggle').addEventListener('change', function () {
-                compactMode = this.checked;
-                renderProviders();
-            });
 
             // Load preferences
             loadPreferences();
@@ -993,199 +982,108 @@
                 }
 
                 if (privacyMode && p.cost_used > 0) desc = '••••••••';
-
+                
                 const width = avail ? Math.min(barWidth, 100) : 0;
 
-                // Check if compact mode
-                if (compactMode) {
-                    // Compact view with sub-bars support
-                    let progressClass = 'low';
-                    if (!avail) progressClass = 'inactive';
-                    else if (pct >= prefs.red_threshold) progressClass = 'high';
-                    else if (pct >= prefs.yellow_threshold) progressClass = 'medium';
+                // Compact view (only mode now)
+                let progressClass = 'low';
+                if (!avail) progressClass = 'inactive';
+                else if (pct >= prefs.red_threshold) progressClass = 'high';
+                else if (pct >= prefs.yellow_threshold) progressClass = 'medium';
 
-                    let statusText = '';
-                    if (!avail) statusText = 'N/A';
-                    else if (p.usage_unit === 'Status') statusText = 'OK';
-                    else statusText = displayPct.toFixed(0) + '%';
+                let statusText = '';
+                if (!avail) statusText = 'N/A';
+                else if (p.usage_unit === 'Status') statusText = 'OK';
+                else statusText = displayPct.toFixed(0) + '%';
 
-                    let statusDetail = '';
-                    if (avail && p.cost_used > 0 && !privacyMode) {
-                        statusDetail = '$' + p.cost_used.toFixed(2);
-                    } else if (avail && p.usage_unit !== 'Status' && !privacyMode) {
-                        statusDetail = pct.toFixed(0) + '%';
-                    } else {
-                        statusDetail = desc || '';
-                    }
-
-                    // Calculate reset time display
-                    let resetText = '';
-                    if (p.next_reset_time) {
-                        resetText = formatResetDisplay(p.next_reset_time);
-                    }
-
-                    // Build display name with account name for providers that have it
-                    let displayName = p.provider_name;
-                    if (p.account_name && p.account_name.trim() !== '') {
-                        const accountDisplay = privacyMode ? '***' : escapeHtml(p.account_name);
-                        displayName = escapeHtml(p.provider_name) + ' [' + accountDisplay + ']';
-                    } else {
-                        displayName = escapeHtml(p.provider_name);
-                    }
-
-                    // Main compact item - status first, reset time rightmost
-                    providerHtml += '<div class="provider-item compact' + (avail ? '' : ' unavailable') + '">' +
-                        (avail && width > 0 ? '<div class="provider-progress-bg ' + progressClass + '" style="width:' + width + '%"></div>' : '') +
-                        '<div class="provider-content">' +
-                        '<span class="provider-name">' + displayName + '</span>' +
-                        '<span style="flex:1;"></span>' + // Spacer to push right content
-                        '<span class="provider-status">' + escapeHtml(statusText) + (statusDetail ? ' (' + escapeHtml(statusDetail) + ')' : '') + '</span>' +
-                        (resetText ? '<span class="provider-status" style="color:#FFD700;font-weight:600;margin-left:10px;">' + escapeHtml(resetText) + '</span>' : '') +
-                        '</div></div>';
-
-                    // Add compact collapsible sub-bars section for providers with details
-                    if (p.details && p.details.length > 0 && avail) {
-                        const isSubCollapsed = getProviderCollapsed(p.provider_id);
-                        const subCount = p.details.length;
-
-                        providerHtml += '<div class="sub-providers-header" data-provider="' + p.provider_id + '" style="display: flex; align-items: center; margin-top: 4px; margin-left: 16px; cursor: pointer; user-select: none; padding: 2px 0;">' +
-                            '<span class="sub-toggle" style="font-size: 8px; margin-right: 6px; color: #808080; transition: transform 0.2s;">' + (isSubCollapsed ? '▶' : '▼') + '</span>' +
-                            '<span style="font-size: 9px; color: #808080;">' + subCount + ' sub providers</span>' +
-                            '</div>' +
-                            '<div class="sub-providers-content" data-provider="' + p.provider_id + '" style="display: ' + (isSubCollapsed ? 'none' : 'block') + ';">';
-
-                        p.details.forEach(detail => {
-                            // Parse used percentage from detail.used
-                            let detailUsedPct = 0;
-                            if (detail.used) {
-                                const match = detail.used.match(/(\d+)/);
-                                if (match) detailUsedPct = parseInt(match[1]);
-                            }
-
-                            // Use server-provided remaining value if available, otherwise calculate
-                            let detailRemainingPct = detail.remaining !== undefined ? detail.remaining : Math.max(0, 100 - detailUsedPct);
-
-                            // Display text shows remaining
-                            let detailText = detailRemainingPct + '%';
-
-                            // Bar width shows remaining (full bar = lots of quota left)
-                            let detailDisplayPct = detailRemainingPct;
-
-                            // Color based on used percentage (red when nearly exhausted)
-                            let detailCls = 'low';
-                            if (detailUsedPct >= prefs.red_threshold) detailCls = 'high';
-                            else if (detailUsedPct >= prefs.yellow_threshold) detailCls = 'medium';
-
-                            // Calculate reset time display for detail
-                            let detailResetText = '';
-                            if (detail.next_reset_time) {
-                                detailResetText = formatResetDisplay(detail.next_reset_time);
-                            }
-
-                            // Compact child item - percentage inside bar, remaining on right
-                            let usedText = detailUsedPct + '%';
-                            providerHtml += '<div class="provider-item compact child" style="margin-left:16px;height:18px;padding:2px 6px;">' +
-                                (detailDisplayPct > 0 ? '<div class="provider-progress-bg ' + detailCls + '" style="width:' + detailDisplayPct + '%;opacity:0.25;display:flex;align-items:center;justify-content:flex-start;padding-left:4px;">' +
-                                '<span style="font-size:8px;color:#fff;font-weight:600;text-shadow:0 0 2px #000;">' + escapeHtml(usedText) + '</span>' +
-                                '</div>' : '') +
-                                '<div class="provider-content" style="font-size:9px;">' +
-                                '<span class="provider-name" style="font-size:10px;color:#C0C0C0;">' + escapeHtml(detail.name) + '</span>' +
-                                '<span style="flex:1;"></span>' + // Spacer to push right content
-                                '<span class="provider-status" style="font-size:9px;">' + escapeHtml(detailText) + '</span>' +
-                                (detailResetText ? '<span class="provider-status" style="color:#FFD700;font-weight:600;font-size:9px;margin-left:8px;">' + escapeHtml(detailResetText) + '</span>' : '') +
-                                '</div></div>';
-                        });
-
-                        providerHtml += '</div>'; // Close sub-providers-content
-                    }
+                let statusDetail = '';
+                if (avail && p.cost_used > 0 && !privacyMode) {
+                    statusDetail = '$' + p.cost_used.toFixed(2);
+                } else if (avail && p.usage_unit !== 'Status' && !privacyMode) {
+                    statusDetail = pct.toFixed(0) + '%';
                 } else {
-                    // Standard view with sub-bars
-                    providerHtml += '<div class="provider-item' + (avail ? '' : ' unavailable') + '">' +
-                        '<div class="provider-header">' +
-                        '<span class="provider-name">' + escapeHtml(p.provider_name) +
-                        (p.account_name && !privacyMode ? ' <span style="color:#888;font-weight:normal;">[' + escapeHtml(p.account_name) + ']</span>' : '') +
-                        '</span>';
+                    statusDetail = desc || '';
+                }
 
-                    // Show status label for missing/error states
-                    if (!avail || p.description?.includes('not found') || p.description?.includes('Error')) {
-                        const statusText = p.description?.includes('not found') ? 'API Key not found' :
-                            p.description?.includes('Console') ? 'Check Console' :
-                                p.description?.includes('Error') ? '[Error]' : '';
-                        const statusColor = p.description?.includes('not found') ? '#CD5C5C' :
-                            p.description?.includes('Console') ? '#FFA500' : '#FF0000';
-                        if (statusText) {
-                            providerHtml += '<span style="font-size:10px;color:' + statusColor + ';margin-left:10px;">' + statusText + '</span>';
+                // Calculate reset time display
+                let resetText = '';
+                if (p.next_reset_time) {
+                    resetText = formatResetDisplay(p.next_reset_time);
+                }
+
+                // Build display name with account name for providers that have it
+                let displayName = p.provider_name;
+                if (p.account_name && p.account_name.trim() !== '') {
+                    const accountDisplay = privacyMode ? '***' : escapeHtml(p.account_name);
+                    displayName = escapeHtml(p.provider_name) + ' [' + accountDisplay + ']';
+                } else {
+                    displayName = escapeHtml(p.provider_name);
+                }
+
+                // Main compact item - status first, reset time rightmost
+                providerHtml += '<div class="provider-item compact' + (avail ? '' : ' unavailable') + '">' +
+                    (avail && width > 0 ? '<div class="provider-progress-bg ' + progressClass + '" style="width:' + width + '%"></div>' : '') +
+                    '<div class="provider-content">' +
+                    '<span class="provider-name">' + displayName + '</span>' +
+                    '<span style="flex:1;"></span>' + // Spacer to push right content
+                    '<span class="provider-status">' + escapeHtml(statusText) + (statusDetail ? ' (' + escapeHtml(statusDetail) + ')' : '') + '</span>' +
+                    (resetText ? '<span class="provider-status" style="color:#FFD700;font-weight:600;margin-left:10px;">' + escapeHtml(resetText) + '</span>' : '') +
+                    '</div></div>';
+
+                // Add compact collapsible sub-bars section for providers with details
+                if (p.details && p.details.length > 0 && avail) {
+                    const isSubCollapsed = getProviderCollapsed(p.provider_id);
+                    const subCount = p.details.length;
+
+                    providerHtml += '<div class="sub-providers-header" data-provider="' + p.provider_id + '" style="display: flex; align-items: center; margin-top: 4px; margin-left: 16px; cursor: pointer; user-select: none; padding: 2px 0;">' +
+                        '<span class="sub-toggle" style="font-size: 8px; margin-right: 6px; color: #808080; transition: transform 0.2s;">' + (isSubCollapsed ? '▶' : '▼') + '</span>' +
+                        '<span style="font-size: 9px; color: #808080;">' + subCount + ' sub providers</span>' +
+                        '</div>' +
+                        '<div class="sub-providers-content" data-provider="' + p.provider_id + '" style="display: ' + (isSubCollapsed ? 'none' : 'block') + ';">';
+
+                    p.details.forEach(detail => {
+                        // Parse used percentage from detail.used
+                        let detailUsedPct = 0;
+                        if (detail.used) {
+                            const match = detail.used.match(/(\d+)/);
+                            if (match) detailUsedPct = parseInt(match[1]);
                         }
-                    }
 
-                    providerHtml += '</div>';
+                        // Use server-provided remaining value if available, otherwise calculate
+                        let detailRemainingPct = detail.remaining !== undefined ? detail.remaining : Math.max(0, 100 - detailUsedPct);
 
-                    // Progress bar row
-                    providerHtml += '<div style="display:flex;align-items:center;">' +
-                        '<div class="provider-bar-container" style="flex:1;">' +
-                        '<div class="provider-bar ' + cls + '" style="width:' + width + '%"></div></div>';
+                        // Display text shows remaining
+                        let detailText = detailRemainingPct + '%';
 
-                    // Description text
-                    if (desc) {
-                        providerHtml += '<span style="font-size:10.5px;color:#808080;margin-left:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;">' + escapeHtml(desc) + '</span>';
-                    }
+                        // Bar width shows remaining (full bar = lots of quota left)
+                        let detailDisplayPct = detailRemainingPct;
 
-                    providerHtml += '</div>';
+                        // Color based on used percentage (red when nearly exhausted)
+                        let detailCls = 'low';
+                        if (detailUsedPct >= prefs.red_threshold) detailCls = 'high';
+                        else if (detailUsedPct >= prefs.yellow_threshold) detailCls = 'medium';
 
-                    // Add collapsible sub-bars section for providers with details
-                    if (p.details && p.details.length > 0 && avail) {
-                        const isSubCollapsed = getProviderCollapsed(p.provider_id);
-                        const subCount = p.details.length;
+                        // Calculate reset time display for detail
+                        let detailResetText = '';
+                        if (detail.next_reset_time) {
+                            detailResetText = formatResetDisplay(detail.next_reset_time);
+                        }
 
-                        providerHtml += '<div class="sub-providers-header" data-provider="' + p.provider_id + '" style="display: flex; align-items: center; margin-top: 8px; margin-left: 16px; cursor: pointer; user-select: none; padding: 4px 0;">' +
-                            '<span class="sub-toggle" style="font-size: 9px; margin-right: 6px; color: #808080; transition: transform 0.2s;">' + (isSubCollapsed ? '▶' : '▼') + '</span>' +
-                            '<span style="font-size: 10px; color: #808080; font-weight: 500;">' + subCount + ' sub providers</span>' +
-                            '</div>' +
-                            '<div class="sub-providers-content" data-provider="' + p.provider_id + '" style="display: ' + (isSubCollapsed ? 'none' : 'block') + ';">';
+                        // Compact child item - percentage inside bar, remaining on right
+                        let usedText = detailUsedPct + '%';
+                        providerHtml += '<div class="provider-item compact child" style="margin-left:16px;height:18px;padding:2px 6px;">' +
+                            (detailDisplayPct > 0 ? '<div class="provider-progress-bg ' + detailCls + '" style="width:' + detailDisplayPct + '%;opacity:0.25;display:flex;align-items:center;justify-content:flex-start;padding-left:4px;">' +
+                            '<span style="font-size:8px;color:#fff;font-weight:600;text-shadow:0 0 2px #000;">' + escapeHtml(usedText) + '</span>' +
+                            '</div>' : '') +
+                            '<div class="provider-content" style="font-size:9px;">' +
+                            '<span class="provider-name" style="font-size:10px;color:#C0C0C0;">' + escapeHtml(detail.name) + '</span>' +
+                            '<span style="flex:1;"></span>' + // Spacer to push right content
+                            '<span class="provider-status" style="font-size:9px;">' + escapeHtml(detailText) + '</span>' +
+                            (detailResetText ? '<span class="provider-status" style="color:#FFD700;font-weight:600;font-size:9px;margin-left:8px;">' + escapeHtml(detailResetText) + '</span>' : '') +
+                            '</div></div>';
+                    });
 
-                        p.details.forEach(detail => {
-                            // Parse used percentage from detail.used
-                            let detailUsedPct = 0;
-                            if (detail.used) {
-                                const match = detail.used.match(/(\d+)/);
-                                if (match) detailUsedPct = parseInt(match[1]);
-                            }
-
-                            // Use server-provided remaining value if available, otherwise calculate
-                            let detailRemainingPct = detail.remaining !== undefined ? detail.remaining : Math.max(0, 100 - detailUsedPct);
-
-                            // Display text shows remaining
-                            let detailText = detailRemainingPct + '%';
-
-                            // Bar width shows remaining (full bar = lots of quota left)
-                            let detailDisplayPct = detailRemainingPct;
-
-                            // Color based on used percentage (red when nearly exhausted)
-                            let detailCls = 'low';
-                            if (detailUsedPct >= prefs.red_threshold) detailCls = 'high';
-                            else if (detailUsedPct >= prefs.yellow_threshold) detailCls = 'medium';
-
-                            // Standard child item - percentage inside bar, remaining on right
-                            let usedText = detailUsedPct + '%';
-                            providerHtml += '<div class="provider-item child" style="margin-top:4px;">' +
-                                '<div class="provider-header" style="margin-bottom:4px;">' +
-                                '<span class="provider-name" style="font-weight:normal;font-size:12px;color:#C0C0C0;">' +
-                                '<span class="child-indicator"></span>' + escapeHtml(detail.name) + '</span></div>' +
-                                '<div style="display:flex;align-items:center;">' +
-                                '<div class="provider-bar-container" style="flex:1;">' +
-                                '<div class="provider-bar ' + detailCls + '" style="width:' + Math.min(detailDisplayPct, 100) + '%;display:flex;align-items:center;justify-content:flex-start;padding-left:6px;">' +
-                                '<span style="font-size:10px;color:#fff;font-weight:600;text-shadow:0 0 2px #000;">' + escapeHtml(usedText) + '</span>' +
-                                '</div></div>' +
-                                '<span style="font-size:10.5px;color:#808080;margin-left:10px;">' + escapeHtml(detailText) + '</span>' +
-                                '</div>' +
-                                (detail.description ? '<div style="font-size:10px;color:#FFD700;margin-top:2px;margin-left:22px;font-weight:600;">' + escapeHtml(detail.description) + '</div>' : '') +
-                                '</div>';
-                        });
-
-                        providerHtml += '</div>'; // Close sub-providers-content
-                    }
-
-                    providerHtml += '</div>'; // Close provider-item
+                    providerHtml += '</div>'; // Close sub-providers-content
                 }
                 return providerHtml;
             };
