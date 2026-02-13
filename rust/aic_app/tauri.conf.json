@@ -55,8 +55,8 @@
         "title": "AI Token Tracker",
         "width": 480,
         "minWidth": 350,
-        "visible": true,
-        "center": true,
+        "visible": false,
+        "center": false,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": false
