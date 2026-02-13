@@ -17,7 +17,7 @@ use tauri::{
 use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
-use tracing::{info, error, debug};
+use tracing::{info, error, debug, warn};
 
 async fn check_and_update_tray_status(app_handle: &AppHandle) {
     let state = app_handle.state::<AppState>();
@@ -245,15 +245,15 @@ async fn main() {
                 let window_clone = window.clone();
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        println!("Main window close requested - hiding instead");
+                        info!("Main window close requested - hiding instead");
                         api.prevent_close();
                         let _ = window_clone.hide();
                     }
                 });
                 
-                println!("Main window shown successfully");
+                info!("Main window shown successfully");
             } else {
-                println!("WARNING: Main window not found!");
+                warn!("Main window not found!");
             }
 
             // Add close handler for settings window (hide instead of close)
@@ -261,12 +261,12 @@ async fn main() {
                 let settings_clone = settings_window.clone();
                 settings_window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        println!("Settings window close requested - hiding instead");
+                        info!("Settings window close requested - hiding instead");
                         api.prevent_close();
                         let _ = settings_clone.hide();
                     }
                 });
-                println!("Settings window close handler installed");
+                info!("Settings window close handler installed");
             }
 
             // Add close handler for info window (hide instead of close)
@@ -274,12 +274,12 @@ async fn main() {
                 let info_clone = info_window.clone();
                 info_window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        println!("Info window close requested - hiding instead");
+                        info!("Info window close requested - hiding instead");
                         api.prevent_close();
                         let _ = info_clone.hide();
                     }
                 });
-                println!("Info window close handler installed");
+                info!("Info window close handler installed");
             }
 
             // Check for updates on startup (silent)
@@ -310,27 +310,27 @@ async fn main() {
             tokio::spawn(async move {
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
                 
-                log::info!("Checking if agent is running on startup...");
+                info!("Checking if agent is running on startup...");
                 let is_running = match check_agent_status().await {
                     Ok(running) => running,
                     Err(e) => {
-                        log::error!("Failed to check agent status: {}", e);
+                        error!("Failed to check agent status: {}", e);
                         false
                     }
                 };
 
                 if !is_running {
-                    log::info!("Agent not running, starting automatically...");
+                    info!("Agent not running, starting automatically...");
                     match start_agent_internal(&app_handle, agent_process).await {
                         Ok(started) => {
                             if started {
-                                log::info!("Agent started successfully");
+                                info!("Agent started successfully");
                             } else {
-                                log::warn!("Agent failed to start");
+                                warn!("Agent failed to start");
                             }
                         }
                         Err(e) => {
-                            log::error!("Failed to start agent: {}", e);
+                            error!("Failed to start agent: {}", e);
                         }
                     }
                 }

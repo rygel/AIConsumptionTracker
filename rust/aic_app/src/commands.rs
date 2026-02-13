@@ -392,22 +392,22 @@ pub async fn cancel_github_login(state: State<'_, AppState>) -> Result<(), Strin
 // Window control commands
 #[tauri::command]
 pub async fn close_window(window: tauri::Window, _app: tauri::AppHandle) -> Result<(), String> {
-    println!("Close window command received for window: {}", window.label());
+    info!("Close window command received for window: {}", window.label());
 
     // For main window, hide instead of close to keep app running in tray
     if window.label() == "main" {
         if let Err(e) = window.hide() {
-            println!("Error hiding window: {}", e);
+            error!("Error hiding window: {}", e);
             return Err(format!("Failed to hide window: {}", e));
         }
-        println!("Main window hidden (app continues running in tray)");
+        info!("Main window hidden (app continues running in tray)");
     } else {
         // For other windows, close normally
         if let Err(e) = window.close() {
-            println!("Error closing window: {}", e);
+            error!("Error closing window: {}", e);
             return Err(format!("Failed to close window: {}", e));
         }
-        println!("Window {} closed", window.label());
+        info!("Window {} closed", window.label());
     }
 
     Ok(())
@@ -800,13 +800,17 @@ pub async fn find_agent_executable(app_handle: &tauri::AppHandle) -> Result<Stri
     } else {
         "aic_agent"
     };
+    
+    debug!("Searching for agent executable: {}", exe_name);
 
     // Build list of possible paths to check
     let mut possible_paths: Vec<std::path::PathBuf> = Vec::new();
 
     // 1. Current working directory
     if let Ok(current_dir) = std::env::current_dir() {
-        possible_paths.push(current_dir.join(exe_name));
+        let path = current_dir.join(exe_name);
+        debug!("Checking current directory: {:?}", path);
+        possible_paths.push(path);
     }
 
     // 2. App resource directory (for packaged apps)
@@ -814,7 +818,9 @@ pub async fn find_agent_executable(app_handle: &tauri::AppHandle) -> Result<Stri
         "",
         tauri::path::BaseDirectory::Resource
     ) {
-        possible_paths.push(resource_dir.join(exe_name));
+        let path = resource_dir.join(exe_name);
+        debug!("Checking resource directory: {:?}", path);
+        possible_paths.push(path);
     }
 
     // 3. App binary directory (where the app executable is located)
@@ -822,44 +828,55 @@ pub async fn find_agent_executable(app_handle: &tauri::AppHandle) -> Result<Stri
         "",
         tauri::path::BaseDirectory::AppLocalData
     ) {
-        possible_paths.push(app_dir.join(exe_name));
+        let path = app_dir.join(exe_name);
+        debug!("Checking app local data directory: {:?}", path);
+        possible_paths.push(path);
         // Also check parent of app data directory
         if let Some(parent) = app_dir.parent() {
-            possible_paths.push(parent.join(exe_name));
+            let path = parent.join(exe_name);
+            debug!("Checking parent of app data directory: {:?}", path);
+            possible_paths.push(path);
         }
     }
 
     // 4. Development paths (relative to current directory)
+    debug!("Adding development paths");
     possible_paths.push(std::path::PathBuf::from(format!("./{}", exe_name)));
     possible_paths.push(std::path::PathBuf::from(format!("../target/debug/{}", exe_name)));
     possible_paths.push(std::path::PathBuf::from(format!("../target/release/{}", exe_name)));
 
     // 5. Check if running from aic_app directory - look in parent rust directory
     if let Ok(current_dir) = std::env::current_dir() {
+        debug!("Current working directory: {:?}", current_dir);
         let rust_debug = current_dir.join("..").join("..").join("target").join("debug").join(exe_name);
         let rust_release = current_dir.join("..").join("..").join("target").join("release").join(exe_name);
+        debug!("Checking rust debug path: {:?}", rust_debug);
+        debug!("Checking rust release path: {:?}", rust_release);
         possible_paths.push(rust_debug);
         possible_paths.push(rust_release);
     }
 
     // Try each path
-    for path in &possible_paths {
-        tracing::debug!("Checking for agent at: {:?}", path);
+    info!("Searching for agent executable in {} possible locations", possible_paths.len());
+    for (idx, path) in possible_paths.iter().enumerate() {
+        debug!("[{}] Checking for agent at: {:?}", idx, path);
         if path.exists() {
-            tracing::info!("Found agent executable at: {:?}", path);
+            info!("Found agent executable at: {:?}", path);
             return Ok(path.to_string_lossy().to_string());
         }
     }
 
     // Log all attempted paths for debugging
-    tracing::error!("Agent executable not found. Searched in:");
-    for path in &possible_paths {
-        tracing::error!("  - {:?}", path);
+    let cwd = std::env::current_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|_| "unknown".to_string());
+    error!("Agent executable '{}' not found. Current working directory: {}", exe_name, cwd);
+    error!("Searched in the following locations:");
+    for (idx, path) in possible_paths.iter().enumerate() {
+        error!("  [{}] {:?} - exists: {}", idx, path, path.exists());
     }
 
     Err(format!(
-        "Agent executable '{}' not found. Please build the agent with: cargo build -p aic_agent",
-        exe_name
+        "Agent executable '{}' not found in current directory '{}'. Please build the agent with: cargo build -p aic_agent",
+        exe_name, cwd
     ))
 }
 
@@ -867,7 +884,10 @@ pub async fn start_agent_internal(
     app_handle: &tauri::AppHandle,
     agent_process: Arc<Mutex<Option<Child>>>,
 ) -> Result<bool, String> {
+    debug!("Starting agent internal process");
+    
     // First, check if something is already listening on port 8080
+    debug!("Checking if agent already running on port 8080");
     match check_agent_status().await {
         Ok(true) => {
             info!("Agent is already running on port 8080");
@@ -878,7 +898,7 @@ pub async fn start_agent_internal(
             return Ok(true);
         }
         Ok(false) => {
-            // Port is available, continue to start agent
+            debug!("Port 8080 is available, proceeding to start agent");
         }
         Err(e) => {
             warn!("Could not check if port 8080 is in use: {}", e);
@@ -886,38 +906,51 @@ pub async fn start_agent_internal(
     }
 
     let mut agent_process = agent_process.lock().await;
+    debug!("Acquired agent process lock");
 
     if let Some(ref mut child) = *agent_process {
+        debug!("Found existing agent process, checking if still running");
         match child.try_wait() {
             Ok(None) => {
+                info!("Agent process is already running");
                 let app_handle = app_handle.clone();
                 tokio::spawn(async move {
                     update_tray_icon_by_status(&app_handle, true).await;
                 });
                 return Ok(true);
             }
-            Ok(_) => {
+            Ok(exit_code) => {
+                info!("Previous agent process has exited with code: {:?}", exit_code);
                 *agent_process = None;
             }
-            Err(_) => {
+            Err(e) => {
+                warn!("Failed to check agent process status: {}", e);
                 *agent_process = None;
             }
         }
+    } else {
+        debug!("No existing agent process found");
     }
 
+    debug!("Searching for agent executable");
     let agent_path = find_agent_executable(app_handle).await?;
+    info!("Found agent executable at: {}", agent_path);
 
+    debug!("Spawning agent process");
     match Command::new(agent_path).spawn() {
         Ok(child) => {
+            let pid = child.id();
             *agent_process = Some(child);
-            info!("Agent started successfully");
+            info!("Agent started successfully with PID: {}", pid);
 
             let app_handle = app_handle.clone();
             tokio::spawn(async move {
                 // Wait for agent to be ready
+                debug!("Waiting 2 seconds for agent to initialize");
                 tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
                 
                 // Update tray icon
+                debug!("Updating tray icon to show agent is running");
                 update_tray_icon_by_status(&app_handle, true).await;
                 
                 // Notify all windows that agent is ready
