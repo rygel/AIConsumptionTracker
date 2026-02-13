@@ -57,6 +57,9 @@ pub async fn discover_all_providers() -> Vec<ProviderConfig> {
     // Discover from config files (cross-platform)
     discover_from_config_files(&mut providers).await;
     
+    // Discover GitHub tokens from common locations
+    discover_github_token(&mut providers).await;
+    
     info!("Discovered {} providers", providers.len());
     providers
 }
@@ -154,43 +157,103 @@ async fn discover_from_config_files(providers: &mut Vec<ProviderConfig>) {
     };
     
     if let Some(home) = home {
-        // Check specific config file locations with their exact source names
-        // OpenCode
-        check_config_file(providers, &format!("{}/.local/share/opencode/auth.json", home), "OpenCode").await;
-        check_config_file(providers, &format!("{}/.config/opencode/auth.json", home), "OpenCode").await;
-        check_config_file(providers, &format!("{}/.opencode/auth.json", home), "OpenCode").await;
-        
-        // AI Consumption Tracker (this app)
-        check_config_file(providers, &format!("{}/.ai-consumption-tracker/auth.json", home), "AI Consumption Tracker").await;
-        check_config_file(providers, &format!("{}/.local/share/ai-consumption-tracker/auth.json", home), "AI Consumption Tracker").await;
+        // Tier 1: OpenCode (highest priority)
+        info!("Tier 1: Checking OpenCode configuration files...");
+        check_config_file_tier1(providers, &format!("{}/.local/share/opencode/auth.json", home), "OpenCode").await;
+        check_config_file_tier1(providers, &format!("{}/.config/opencode/auth.json", home), "OpenCode").await;
+        check_config_file_tier1(providers, &format!("{}/.opencode/auth.json", home), "OpenCode").await;
         
         #[cfg(target_os = "windows")]
         {
-            // OpenCode (Windows)
-            check_config_file(providers, &format!("{}\\AppData\\Local\\opencode\\auth.json", home), "OpenCode").await;
-            check_config_file(providers, &format!("{}\\AppData\\Roaming\\opencode\\auth.json", home), "OpenCode").await;
-            check_config_file(providers, &format!("{}\\.opencode\\auth.json", home), "OpenCode").await;
-            
-            // AI Consumption Tracker (Windows)
-            check_config_file(providers, &format!("{}\\.ai-consumption-tracker\\auth.json", home), "AI Consumption Tracker").await;
-            check_config_file(providers, &format!("{}\\AppData\\Local\\ai-consumption-tracker\\auth.json", home), "AI Consumption Tracker").await;
-            check_config_file(providers, &format!("{}\\AppData\\Roaming\\ai-consumption-tracker\\auth.json", home), "AI Consumption Tracker").await;
+            check_config_file_tier1(providers, &format!("{}\\AppData\\Local\\opencode\\auth.json", home), "OpenCode").await;
+            check_config_file_tier1(providers, &format!("{}\\AppData\\Roaming\\opencode\\auth.json", home), "OpenCode").await;
+            check_config_file_tier1(providers, &format!("{}\\.opencode\\auth.json", home), "OpenCode").await;
+        }
+        
+        // Tier 2: KiloCode (second priority)
+        info!("Tier 2: Checking KiloCode configuration files...");
+        check_config_file_tier2(providers, &format!("{}/.local/share/kilocode/auth.json", home), "KiloCode").await;
+        check_config_file_tier2(providers, &format!("{}/.config/kilocode/auth.json", home), "KiloCode").await;
+        check_config_file_tier2(providers, &format!("{}/.kilocode/auth.json", home), "KiloCode").await;
+        
+        #[cfg(target_os = "windows")]
+        {
+            check_config_file_tier2(providers, &format!("{}\\AppData\\Local\\kilocode\\auth.json", home), "KiloCode").await;
+            check_config_file_tier2(providers, &format!("{}\\AppData\\Roaming\\kilocode\\auth.json", home), "KiloCode").await;
+            check_config_file_tier2(providers, &format!("{}\\.kilocode\\auth.json", home), "KiloCode").await;
+        }
+        
+        // Tier 3: AI Consumption Tracker (lowest priority for config files)
+        info!("Tier 3: Checking AI Consumption Tracker configuration files...");
+        check_config_file_tier3(providers, &format!("{}/.ai-consumption-tracker/auth.json", home), "AI Consumption Tracker").await;
+        check_config_file_tier3(providers, &format!("{}/.local/share/ai-consumption-tracker/auth.json", home), "AI Consumption Tracker").await;
+        
+        #[cfg(target_os = "windows")]
+        {
+            check_config_file_tier3(providers, &format!("{}\\.ai-consumption-tracker\\auth.json", home), "AI Consumption Tracker").await;
+            check_config_file_tier3(providers, &format!("{}\\AppData\\Local\\ai-consumption-tracker\\auth.json", home), "AI Consumption Tracker").await;
+            check_config_file_tier3(providers, &format!("{}\\AppData\\Roaming\\ai-consumption-tracker\\auth.json", home), "AI Consumption Tracker").await;
         }
     }
 }
 
-async fn check_config_file(providers: &mut Vec<ProviderConfig>, path: &str, source_name: &str) {
-    debug!("Checking config file: {}", path);
+/// Tier 1: OpenCode config files - highest priority, can override any provider except antigravity/github-copilot
+async fn check_config_file_tier1(providers: &mut Vec<ProviderConfig>, path: &str, source_name: &str) {
+    debug!("Tier 1: Checking config file: {}", path);
     if let Ok(content) = tokio::fs::read_to_string(path).await {
-        info!("Found config file: {} (source: {})", path, source_name);
+        info!("Tier 1: Found config file: {} (source: {})", path, source_name);
         if let Ok(raw_configs) = serde_json::from_str::<serde_json::Value>(&content) {
             if let Some(obj) = raw_configs.as_object() {
                 for (provider_id, value) in obj {
-                    if provider_id != "app_settings" {
-                        if let Some(api_key) = value.get("key").and_then(|v| v.as_str()) {
-                            if !api_key.is_empty() {
+                    // Skip app_settings and system providers
+                    if provider_id == "app_settings" 
+                        || provider_id == "antigravity" 
+                        || provider_id == "github-copilot" {
+                        continue;
+                    }
+                    
+                    if let Some(api_key) = value.get("key").and_then(|v| v.as_str()) {
+                        if !api_key.is_empty() {
+                            // Tier 1 can add or update any provider
+                            add_or_update_provider(providers, provider_id, api_key, source_name);
+                            info!("Tier 1: Loaded API key for {} from {} config file", provider_id, source_name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Tier 2: KiloCode config files - second priority, can add keys for providers not in Tier 1
+async fn check_config_file_tier2(providers: &mut Vec<ProviderConfig>, path: &str, source_name: &str) {
+    debug!("Tier 2: Checking config file: {}", path);
+    if let Ok(content) = tokio::fs::read_to_string(path).await {
+        info!("Tier 2: Found config file: {} (source: {})", path, source_name);
+        if let Ok(raw_configs) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(obj) = raw_configs.as_object() {
+                for (provider_id, value) in obj {
+                    // Skip app_settings and system providers
+                    if provider_id == "app_settings" 
+                        || provider_id == "antigravity" 
+                        || provider_id == "github-copilot" {
+                        continue;
+                    }
+                    
+                    if let Some(api_key) = value.get("key").and_then(|v| v.as_str()) {
+                        if !api_key.is_empty() {
+                            // Tier 2: Only add if provider doesn't already have an API key from Tier 1 (OpenCode)
+                            let has_tier1_key = providers.iter().any(|p| {
+                                p.provider_id == *provider_id 
+                                    && !p.api_key.is_empty() 
+                                    && p.auth_source == "OpenCode"
+                            });
+                            
+                            if !has_tier1_key {
                                 add_or_update_provider(providers, provider_id, api_key, source_name);
-                                info!("Loaded API key for {} from {} config file", provider_id, source_name);
+                                info!("Tier 2: Loaded API key for {} from {} config file", provider_id, source_name);
+                            } else {
+                                debug!("Tier 2: Skipping {} - already has key from OpenCode", provider_id);
                             }
                         }
                     }
@@ -198,6 +261,119 @@ async fn check_config_file(providers: &mut Vec<ProviderConfig>, path: &str, sour
             }
         }
     }
+}
+
+/// Tier 3: Application config files - lowest priority, only adds keys for providers without Tier 1 or Tier 2 keys
+async fn check_config_file_tier3(providers: &mut Vec<ProviderConfig>, path: &str, source_name: &str) {
+    debug!("Tier 3: Checking config file: {}", path);
+    if let Ok(content) = tokio::fs::read_to_string(path).await {
+        info!("Tier 3: Found config file: {} (source: {})", path, source_name);
+        if let Ok(raw_configs) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(obj) = raw_configs.as_object() {
+                for (provider_id, value) in obj {
+                    // Skip app_settings and system providers
+                    if provider_id == "app_settings" 
+                        || provider_id == "antigravity" 
+                        || provider_id == "github-copilot" {
+                        continue;
+                    }
+                    
+                    if let Some(api_key) = value.get("key").and_then(|v| v.as_str()) {
+                        if !api_key.is_empty() {
+                            // Tier 3: Only add if provider doesn't have API key from Tier 1 or Tier 2
+                            let has_higher_tier_key = providers.iter().any(|p| {
+                                p.provider_id == *provider_id 
+                                    && !p.api_key.is_empty() 
+                                    && (p.auth_source == "OpenCode" || p.auth_source == "KiloCode")
+                            });
+                            
+                            if !has_higher_tier_key {
+                                add_or_update_provider(providers, provider_id, api_key, source_name);
+                                info!("Tier 3: Loaded API key for {} from {} config file", provider_id, source_name);
+                            } else {
+                                debug!("Tier 3: Skipping {} - already has key from higher tier", provider_id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Legacy function - kept for backward compatibility, delegates to tier1 behavior
+async fn check_config_file(providers: &mut Vec<ProviderConfig>, path: &str, source_name: &str) {
+    check_config_file_tier1(providers, path, source_name).await;
+}
+
+/// Discover GitHub tokens from common locations
+async fn discover_github_token(providers: &mut Vec<ProviderConfig>) {
+    // Get home directory (cross-platform)
+    let home = if cfg!(target_os = "windows") {
+        std::env::var("USERPROFILE").ok()
+    } else {
+        std::env::var("HOME").ok()
+    };
+    
+    if let Some(home) = home {
+        let paths_to_check = [
+            format!("{}/.config/gh/hosts.yml", home),
+            format!("{}/.git-credential-store", home),
+            format!("{}/.config/gh/config.yml", home),
+            #[cfg(target_os = "windows")]
+            format!("{}\\AppData\\Local\\GitHub CLI\\config.yml", home),
+            #[cfg(target_os = "windows")]
+            format!("{}\\AppData\\Roaming\\GitHub CLI\\config.yml", home),
+        ];
+        
+        for path in paths_to_check.iter() {
+            debug!("Checking for GitHub token in: {}", path);
+            if let Ok(content) = tokio::fs::read_to_string(path).await {
+                if let Some(token) = extract_github_pat(&content) {
+                    info!("Found GitHub token in {}", path);
+                    let token_len = token.len();
+                    // Update github-copilot provider with the token
+                    if let Some(provider) = providers.iter_mut().find(|p| p.provider_id == "github-copilot") {
+                        provider.api_key = token;
+                        provider.auth_source = format!("GitHub CLI ({})", token_len);
+                        provider.description = Some("GitHub Copilot - Token discovered from GitHub CLI".to_string());
+                    }
+                    break; // Found a token, no need to check other files
+                }
+            }
+        }
+    }
+}
+
+/// Extract GitHub PAT from content
+fn extract_github_pat(content: &str) -> Option<String> {
+    // Look for github_pat_ tokens (GitHub personal access tokens)
+    if let Some(start) = content.find("github_pat_") {
+        let rest = &content[start..];
+        // Find the end of the token (alphanumeric, underscore, hyphen)
+        let end = rest.find(|c: char| !c.is_alphanumeric() && c != '_' && c != '-')
+            .unwrap_or(rest.len());
+        let token = &rest[..end];
+        if token.len() > 10 { // Ensure it's a reasonable token length
+            return Some(token.to_string());
+        }
+    }
+    
+    // Look for oauth_token in YAML format
+    if content.contains("oauth_token:") {
+        for line in content.lines() {
+            if line.contains("oauth_token:") {
+                if let Some(token) = line.split("oauth_token:").nth(1) {
+                    let token = token.trim().trim_matches('"').trim_matches('\'');
+                    if !token.is_empty() && token.len() > 10 {
+                        return Some(token.to_string());
+                    }
+                }
+            }
+        }
+    }
+    
+    None
 }
 
 fn add_or_update_provider(
