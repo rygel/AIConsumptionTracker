@@ -225,19 +225,42 @@ async fn main() {
                     if let Some(window) = tray.app_handle().get_webview_window("main") {
                         // Get window size
                         if let Ok(window_size) = window.inner_size() {
-                            // Calculate position: show window above or below tray icon
+                            // Get monitor info for taskbar calculation
                             let window_width = window_size.width as f64;
                             let window_height = window_size.height as f64;
                             
+                            // Get monitor dimensions to account for taskbar
+                            let mut monitor_work_height = f64::MAX;
+                            let mut monitor_work_y = 0.0;
+                            
+                            if let Ok(Some(monitor)) = window.primary_monitor() {
+                                let work_area = monitor.work_area();
+                                monitor_work_height = work_area.size.height as f64;
+                                monitor_work_y = work_area.position.y as f64;
+                            }
+                            
                             // Position to the left of the tray icon, vertically centered
                             let x = position.x - window_width + 20.0; // Offset slightly to the right
-                            let y = position.y - window_height - 10.0; // Show above tray icon
+                            let mut y = position.y - window_height - 10.0; // Show above tray icon
+                            
+                            // Check if window would be above work area (taskbar at top)
+                            if y < monitor_work_y {
+                                // Show below tray icon instead
+                                y = position.y + 10.0;
+                                
+                                // Check if window would go below work area
+                                if y + window_height > monitor_work_y + monitor_work_height {
+                                    // Clamp to bottom of work area
+                                    y = monitor_work_y + monitor_work_height - window_height - 10.0;
+                                }
+                            }
                             
                             // Ensure window stays on screen (minimum 0 coordinates)
                             let x = x.max(0.0);
-                            let y = y.max(0.0);
+                            let y = y.max(monitor_work_y);
                             
-                            info!("Positioning window at x={}, y={} (tray position: {:?}, rect: {:?})", x, y, position, rect);
+                            info!("Positioning window at x={}, y={} (tray position: {:?}, rect: {:?}, work_area_y: {}, work_area_height: {})", 
+                                  x, y, position, rect, monitor_work_y, monitor_work_height);
                             
                             let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: x as i32, y: y as i32 }));
                         }
@@ -272,20 +295,43 @@ async fn main() {
                     let window_width = 480.0;
                     let window_height = 500.0;
                     
-                    // Get the work area (available area excluding taskbar)
+                    // Get monitor dimensions
+                    let monitor_size = monitor.size();
+                    let monitor_width = monitor_size.width as f64;
+                    let monitor_height = monitor_size.height as f64;
+                    
+                    // Get the work area (available area excluding taskbar/dock)
                     let work_area = monitor.work_area();
-                    // work_area gives us the available space (screen minus taskbar)
                     let work_x = work_area.position.x as f64;
                     let work_y = work_area.position.y as f64;
                     let work_width = work_area.size.width as f64;
                     let work_height = work_area.size.height as f64;
                     
-                    // Position in bottom-right of work area with padding
+                    // Calculate taskbar/dock dimensions
+                    let taskbar_top = work_y;
+                    let taskbar_bottom = monitor_height - (work_y + work_height);
+                    let taskbar_left = work_x;
+                    let taskbar_right = monitor_width - (work_x + work_width);
+                    
+                    // Detect taskbar position based on work area offset
+                    let taskbar_position = if taskbar_top > 0.0 {
+                        "top"
+                    } else if taskbar_bottom > 0.0 {
+                        "bottom"
+                    } else if taskbar_left > 0.0 {
+                        "left"
+                    } else if taskbar_right > 0.0 {
+                        "right"
+                    } else {
+                        "none"
+                    };
+                    
+                    // Position window in bottom-right corner, accounting for taskbar
                     let x = work_x + work_width - window_width - 10.0;
                     let y = work_y + work_height - window_height - 10.0;
                     
-                    info!("Positioning window at x={}, y={} (work area: {}x{}+{}+{}, window: {}x{})", 
-                          x, y, work_width, work_height, work_x, work_y, window_width, window_height);
+                    info!("Positioning window at x={}, y={} (monitor: {}x{}, work_area: {}x{}+{}+{}, taskbar_position: {}, window: {}x{})", 
+                          x, y, monitor_width, monitor_height, work_width, work_height, work_x, work_y, taskbar_position, window_width, window_height);
                     
                     let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { 
                         x: x as i32, 
