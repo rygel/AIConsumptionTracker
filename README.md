@@ -45,23 +45,23 @@ Download the latest installer or .zip file from the [Release](https://github.com
 
 ## Supported Providers
 
-| Provider                         | Integration         | Tested                                                               |
-|:---------------------------------|:--------------------|:---------------------------------------------------------------------|
-| **Antigravity**                  | via Antigravity GUI | tested                                                               |
-| **Claude Code**                  |                     | partially, testers needed                                            |
-| **DeepSeek**                     | API Key¹            | Testers needed                                                       |
-| **Gemini**                       | not integrated yet  | Testers needed                                                       |
-| **GitHub Copilot**               | OAuth Device Flow   | Tested                                                               |
-| **Kimi (Moonshot)**              | API Key¹            | Testers needed                                                       |
-| **Minimax** (China)              | API Key¹            | Testers needed                                                       |
-| **Minimax** (International)      | API Key¹            | Testers needed                                                       |
-| **Mistral**                      | API Key¹            | tested, but Mistral does not provide usage information via their API |
-| **OpenAI (Codex)**               | via Opencli OAuth   | Testers needed                                                       |
-| **OpenRouter**                   | not integrated yet  | Testers needed                                                       |
-| **Opencode Zen** (coding plan)   | API Key¹            | Testers needed                                                       |
-| **Opencode Zen** (pay-as-you-go) | API Key¹            | Tested                                                               |
-| **Synthetic**                    | API Key¹            | Tested                                                               |
-| **Z.AI** (Coding Plan)           | API Key¹            | Tested                                                               |
+| Provider                         | Integration         | Status              | Comment                                                      |
+|:---------------------------------|:--------------------|:--------------------|--------------------------------------------------------------|
+| **Antigravity**                  | via Antigravity GUI | ✅ Tested            |                                                              |
+| **Claude Code**                  |                     | ⚠️ partially tested | Testers welcome                                              |
+| **DeepSeek**                     | API Key¹            | ⚠️ Beta             | Testers welcome                                              |
+| **Gemini**                       | not integrated yet  | 🚧 Planned          | Testers welcome                                              |
+| **GitHub Copilot**               | OAuth Device Flow   | ✅ Tested            |                                                              |
+| **Kimi (Moonshot)**              | API Key¹            |                     | Testers welcome                                              |
+| **Minimax** (China)              | API Key¹            |                     | Testers welcome                                              |
+| **Minimax** (International)      | API Key¹            |                     | Testers welcome                                              |
+| **Mistral**                      | API Key¹            | ✅ Tested            | but Mistral does not provide usage information via their API |
+| **OpenAI (Codex)**               | via Opencli OAuth   | ️ ⚠️ Beta           | Testers welcome                                              |
+| **OpenRouter**                   | not integrated yet  | 🚧 Planned          | Testers welcome                                              |
+| **Opencode Zen** (coding plan)   | API Key¹            | ⚠️ Beta             | Testers welcome                                              |
+| **Opencode Zen** (pay-as-you-go) | API Key¹            | ✅ Tested            |                                                              |
+| **Synthetic**                    | API Key¹            | ✅ Tested            |                                                              |
+| **Z.AI** (Coding Plan)           | API Key¹            | ✅ Tested            |                                                              |
 
 ¹ API Key can be either entered directly or discovered automatically via opencode configuration  
 
