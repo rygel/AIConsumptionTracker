@@ -792,7 +792,7 @@
                         <div class="history-subtabs" style="display: flex; gap: 10px;">
                             <button class="btn-small active" onclick="switchHistorySubTab('usage')"
                                 id="usage-subtab-btn">Usage</button>
-                            <button class="btn-small" onclick="switchHistorySubTab('ancient')" id="ancient-subtab-btn">Ancient</button>
+                            <button class="btn-small" onclick="switchHistorySubTab('agent')" id="agent-subtab-btn">Agent</button>
                             <button class="btn-small" onclick="switchHistorySubTab('logs')" id="logs-subtab-btn">Raw
                                 Logs</button>
                         </div>
@@ -804,9 +804,9 @@
                         </div>
                     </div>
 
-                    <div id="ancient-history-subpanel" style="display: none;">
-                        <div id="ancient-list">
-                            <div class="loading">Loading ancient history...</div>
+                    <div id="agent-history-subpanel" style="display: none;">
+                        <div id="agent-list">
+                            <div class="loading">Loading agent history...</div>
                         </div>
                     </div>
 
@@ -1222,11 +1222,11 @@
         function switchHistorySubTab(subTab) {
             currentHistorySubTab = subTab;
             document.getElementById('usage-subtab-btn').classList.toggle('active', subTab === 'usage');
-            document.getElementById('ancient-subtab-btn').classList.toggle('active', subTab === 'ancient');
+            document.getElementById('agent-subtab-btn').classList.toggle('active', subTab === 'agent');
             document.getElementById('logs-subtab-btn').classList.toggle('active', subTab === 'logs');
 
             document.getElementById('usage-history-subpanel').style.display = subTab === 'usage' ? 'block' : 'none';
-            document.getElementById('ancient-history-subpanel').style.display = subTab === 'ancient' ? 'block' : 'none';
+            document.getElementById('agent-history-subpanel').style.display = subTab === 'agent' ? 'block' : 'none';
             document.getElementById('logs-history-subpanel').style.display = subTab === 'logs' ? 'block' : 'none';
 
             refreshHistory();
@@ -1235,8 +1235,8 @@
         async function refreshHistory() {
             if (currentHistorySubTab === 'usage') {
                 await loadUsageHistory();
-            } else if (currentHistorySubTab === 'ancient') {
-                await loadAncientHistory();
+            } else if (currentHistorySubTab === 'agent') {
+                await loadAgentHistory();
             } else {
                 await loadRawLogs();
             }
@@ -1284,9 +1284,9 @@
             }
         }
 
-        async function loadAncientHistory() {
-            const container = document.getElementById('ancient-list');
-            container.innerHTML = '<div class="loading">Loading ancient history...</div>';
+        async function loadAgentHistory() {
+            const container = document.getElementById('agent-list');
+            container.innerHTML = '<div class="loading">Loading agent history...</div>';
 
             try {
                 // Calculate date 30+ days ago
@@ -1300,7 +1300,7 @@
                 });
                 
                 if (!history || history.length === 0) {
-                    container.innerHTML = '<div class="loading">No ancient history found. (Retention: 30 days)</div>';
+                    container.innerHTML = '<div class="loading">No agent history found. (Retention: 30 days)</div>';
                     return;
                 }
 
@@ -1332,8 +1332,8 @@
                 html += '</tbody></table>';
                 container.innerHTML = html;
             } catch (e) {
-                console.error('Failed to load ancient history:', e);
-                container.innerHTML = `<div class="error">Failed to load ancient history: ${e}</div>`;
+                console.error('Failed to load agent history:', e);
+                container.innerHTML = `<div class="error">Failed to load agent history: ${e}</div>`;
             }
         }
 
