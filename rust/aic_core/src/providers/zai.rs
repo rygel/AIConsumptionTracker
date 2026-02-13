@@ -178,7 +178,7 @@ impl ProviderService for ZaiProvider {
                                 },
                                 z_reset
                             ),
-                            next_reset_time: Some(reset_datetime_utc),
+                            next_reset_time: Some(reset_datetime_local),
                             ..Default::default()
                         }]
                     }
