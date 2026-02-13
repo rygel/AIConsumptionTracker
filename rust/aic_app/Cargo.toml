@@ -9,6 +9,7 @@ repository = "https://github.com/rygel/AIConsumptionTracker"
 
 [build-dependencies]
 tauri-build = { version = "2.0", features = [] }
+walkdir = "2"
 
 [dependencies]
 aic_core = { path = "../aic_core" }
