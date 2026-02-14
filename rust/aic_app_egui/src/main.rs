@@ -18,6 +18,7 @@ use models::{AgentInfo, AppPreferences, ProviderConfig, ProviderUsage};
 use tray::{TrayManager, TrayEvent};
 
 const REFRESH_INTERVAL_SECS: u64 = 30;
+const POLL_INTERVAL_SECS: u64 = 2;  // Poll for incremental updates every 2 seconds
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -97,6 +98,7 @@ pub struct AICApp {
     expanded_sub_providers: HashSet<String>,
     expanded_groups: HashSet<String>,
     provider_icons: ProviderIcons,
+    last_poll: Option<Instant>,
 }
 
 impl Default for AICApp {
@@ -150,6 +152,7 @@ impl Default for AICApp {
                 set
             },
             provider_icons: ProviderIcons::new(),
+            last_poll: None,
         }
     }
 }
@@ -180,6 +183,19 @@ impl AICApp {
             ctx.request_repaint_after(Duration::from_secs(REFRESH_INTERVAL_SECS));
         }
 
+        // Poll for incremental updates every 2 seconds if agent is running
+        if self.agent_status.is_running {
+            let should_poll = match self.last_poll {
+                None => true,
+                Some(last) => last.elapsed().as_secs() >= POLL_INTERVAL_SECS,
+            };
+            
+            if should_poll && !self.is_refreshing {
+                self.last_poll = Some(Instant::now());
+                self.poll_for_updates(ctx);
+            }
+        }
+
         if let Some(ref receiver) = self.tray_receiver {
             if let Ok(event) = receiver.try_recv() {
                 match event {
@@ -204,6 +220,11 @@ impl AICApp {
         
         if let Some(data) = load_data {
             self.log(&format!("Received {} providers", data.providers.len()));
+            for p in &data.providers {
+                let details_count = p.details.as_ref().map(|d| d.len()).unwrap_or(0);
+                self.log(&format!("  {} (quota={}, payment={}, details={})", 
+                    p.provider_id, p.is_quota_based, p.payment_type, details_count));
+            }
             self.providers = data.providers;
             self.agent_info = data.agent_info;
             self.agent_status = data.agent_status;
@@ -354,11 +375,11 @@ impl AICApp {
             return;
         }
 
-        if self.providers.is_empty() && (self.is_refreshing || self.is_starting_agent) {
+        if self.providers.is_empty() && !self.agent_status.is_running {
             ui.centered_and_justified(|ui| {
                 ui.vertical(|ui| {
                     ui.spinner();
-                    ui.label(if self.is_starting_agent { "Starting agent..." } else { "Loading providers..." });
+                    ui.label("Connecting to agent...");
                 });
             });
             return;
@@ -367,11 +388,16 @@ impl AICApp {
         if self.providers.is_empty() {
             ui.centered_and_justified(|ui| {
                 ui.vertical(|ui| {
-                    ui.label("No providers configured");
-                    ui.add_space(8.0);
-                    if ui.button("Open Settings").clicked() {
-                        self.settings_open = true;
-                        self.selected_tab = 0;
+                    if self.is_refreshing {
+                        ui.spinner();
+                        ui.label("Loading providers...");
+                    } else {
+                        ui.label("No providers configured");
+                        ui.add_space(8.0);
+                        if ui.button("Open Settings").clicked() {
+                            self.settings_open = true;
+                            self.selected_tab = 0;
+                        }
                     }
                 });
             });
@@ -384,6 +410,11 @@ impl AICApp {
         }
 
         egui::ScrollArea::vertical().show(ui, |ui| {
+            // Debug: show total providers
+            if self.config.show_all {
+                ui.label(egui::RichText::new(format!("Total providers: {}", self.providers.len())).size(9.0).color(egui::Color32::from_rgb(136, 136, 136)));
+            }
+            
             let mut quota_providers: Vec<_> = self.providers.iter()
                 .filter(|p| p.is_quota_based || p.payment_type == "credits")
                 .collect();
@@ -746,6 +777,36 @@ impl AICApp {
         } else if selected_tab == 3 && self.history.is_empty() && !self.loading_history {
             self.load_history(ctx);
         }
+    }
+
+    fn poll_for_updates(&mut self, _ctx: &egui::Context) {
+        // Don't start a new poll if one is already in progress
+        if self.is_refreshing {
+            return;
+        }
+        
+        let client = self.agent_client.clone();
+        let result = Arc::clone(&self.load_result);
+        
+        self.runtime.spawn(async move {
+            match client.get_usage().await {
+                Ok(providers) => {
+                    if let Ok(mut r) = result.lock() {
+                        *r = Some(LoadResult {
+                            providers,
+                            agent_info: None,
+                            agent_status: AgentStatus {
+                                is_running: true,
+                                port: client.port(),
+                                message: "Connected".to_string(),
+                            },
+                            error: None,
+                        });
+                    }
+                }
+                Err(_) => {}
+            }
+        });
     }
 
     fn load_discovered_providers(&mut self, ctx: &egui::Context) {
