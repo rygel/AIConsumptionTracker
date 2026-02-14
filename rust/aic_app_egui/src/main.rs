@@ -555,9 +555,9 @@ impl AICApp {
             // Progress bar background - same as main bars
             ui.painter().rect_filled(rect, 2.0, egui::Color32::from_rgb(35, 35, 35));
             
-            // Progress bar fill - same as main bars (alpha 100)
-            if remaining_pct > 0.0 {
-                let progress = (remaining_pct / 100.0).min(1.0) as f32;
+            // Progress bar fill - show USED percentage (empty when nothing used)
+            if used_pct > 0.0 {
+                let progress = (used_pct / 100.0).min(1.0) as f32;
                 let bar_width = rect.width() * progress;
                 let bar_rect = egui::Rect::from_min_size(rect.min, egui::vec2(bar_width, rect.height()));
                 
