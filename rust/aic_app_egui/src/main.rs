@@ -415,13 +415,19 @@ impl AICApp {
                 ui.label(egui::RichText::new(format!("Total providers: {}", self.providers.len())).size(9.0).color(egui::Color32::from_rgb(136, 136, 136)));
             }
             
+            // Filter providers: only show available ones (unless show_all is enabled)
+            // This matches Tauri behavior: providers are shown if is_available=true
+            let should_show = |p: &&ProviderUsage| {
+                self.config.show_all || p.is_available
+            };
+            
             let mut quota_providers: Vec<_> = self.providers.iter()
-                .filter(|p| p.is_quota_based || p.payment_type == "credits")
+                .filter(|p| (p.is_quota_based || p.payment_type == "credits") && should_show(p))
                 .collect();
             quota_providers.sort_by(|a, b| a.provider_name.to_lowercase().cmp(&b.provider_name.to_lowercase()));
             
             let mut paygo_providers: Vec<_> = self.providers.iter()
-                .filter(|p| !p.is_quota_based && p.payment_type != "credits")
+                .filter(|p| !p.is_quota_based && p.payment_type != "credits" && should_show(p))
                 .collect();
             paygo_providers.sort_by(|a, b| a.provider_name.to_lowercase().cmp(&b.provider_name.to_lowercase()));
 
