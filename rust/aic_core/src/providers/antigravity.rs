@@ -81,7 +81,7 @@ impl AntigravityProvider {
                                 if cmd.contains("antigravity") {
                                     // Extract CSRF token from command line
                                     let re =
-                                        regex::Regex::new(r"--csrf_token[=\s]+([a-zA-Z0-9-]+)")
+                                        regex::Regex::new(r"--csrf_token[= ]+([a-zA-Z0-9-]+)")
                                             .unwrap();
                                     if let Some(caps) = re.captures(cmd) {
                                         if let Some(token) = caps.get(1) {
