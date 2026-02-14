@@ -35,6 +35,7 @@
 - Fixed timing issues where the "Live" badge appeared before the UI finished rendering fresh data.
 - Fixed `localStorage` key mismatch (`cached_usage_data` vs `usage_data`) and removed hardcoded "Cached" labels in `settings.html`.
 - Added `tauri://focus` listener to `settings.html` to force-sync the badge status when the dialog is brought to the foreground.
+- Fixed "Live too early" issue by adding a local `freshDataArrived` flag to both windows, ensuring the "Live" label only appears after that window has rendered fresh data.
 - Improved reliability by re-ordering initialization logic and fixing a script crash (duplicate `invoke` declaration).
 
 ### Icons

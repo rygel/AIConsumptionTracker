@@ -1549,6 +1549,8 @@
                         if (invoke) {
                             await invoke('set_data_live', { isLive: true });
                         }
+                        // Mark data as fresh BEFORE updating badge
+                        freshDataArrived = true;
                         await updateCachedBadge();
 
                         // Store agent info for use by loadAgentStatusAsync
@@ -2104,10 +2106,14 @@
 
                 if (usageData && usageData.length > 0) {
                     // We have data to show, use the status from Rust
-                    cachedBadge.textContent = status.label;
-                    cachedBadge.className = 'cached-badge ' + (status.css_class || '');
+                    // BUT: Only show "Live" if THIS window has actually received and rendered fresh data
+                    const label = (status.label === 'Live' && !freshDataArrived) ? 'Cached' : status.label;
+                    const css_class = (status.label === 'Live' && !freshDataArrived) ? 'cached' : (status.css_class || '');
+
+                    cachedBadge.textContent = label;
+                    cachedBadge.className = 'cached-badge ' + css_class;
                     cachedBadge.style.display = 'inline-block';
-                    console.log('[CACHE] Settings showing badge:', status.label);
+                    console.log('[CACHE] Settings showing badge:', label, '(Rust said:', status.label, 'freshDataArrived:', freshDataArrived, ')');
                 } else {
                     // No data yet - hide badge
                     cachedBadge.style.display = 'none';
