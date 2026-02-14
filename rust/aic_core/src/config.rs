@@ -756,27 +756,92 @@ impl ProviderManager {
         }
     }
 
+    /// Get usage data - returns immediately with cached data if available.
+    /// If no cache exists, returns empty vec and triggers background fetch.
+    /// Call again later to get updated results.
     pub async fn get_all_usage(&self, force_refresh: bool) -> Vec<ProviderUsage> {
-        let _permit = self.refresh_semaphore.acquire().await.unwrap();
-
-        // Return cached data immediately if available and not forcing refresh
-        if !force_refresh {
-            let usages: tokio::sync::MutexGuard<'_, Vec<ProviderUsage>> =
-                self.last_usages.lock().await;
-            if !usages.is_empty() {
+        // Check cache first - return immediately if we have data
+        {
+            let usages = self.last_usages.lock().await;
+            if !usages.is_empty() && !force_refresh {
                 log::info!("[CACHE HIT] Returning {} cached usage records", usages.len());
                 return usages.clone();
             }
-            log::debug!("[CACHE MISS] No cached data, will fetch from providers");
-        } else {
-            log::debug!("[CACHE BYPASS] force_refresh=true, fetching from providers");
         }
 
-        // No cache - fetch and return partial results as they come in
-        self.fetch_and_update_usage().await
+        // If forcing refresh or no cache, check if a refresh is already in progress
+        let can_refresh = self.refresh_semaphore.try_acquire().ok();
+        if can_refresh.is_none() {
+            // Refresh already in progress - return current cache (may be empty)
+            let usages = self.last_usages.lock().await;
+            if !usages.is_empty() {
+                log::info!("[REFRESH IN PROGRESS] Returning {} cached records", usages.len());
+                return usages.clone();
+            }
+            log::info!("[REFRESH IN PROGRESS] No cache yet, returning empty");
+            return Vec::new();
+        }
+
+        let _permit = can_refresh.unwrap();
+        
+        // No cache and we got the semaphore - fetch synchronously this one time
+        // (subsequent calls will hit cache while background refresh continues)
+        self.fetch_and_update_usage_incremental().await
     }
 
-    async fn fetch_and_update_usage(&self) -> Vec<ProviderUsage> {
+    /// Fetch providers and update cache incrementally as results arrive
+    async fn fetch_and_update_usage_incremental(&self) -> Vec<ProviderUsage> {
+        let configs = self.prepare_configs().await;
+        
+        log::info!("[FETCH] Starting incremental fetch for {} providers", configs.len());
+        
+        let timeout = std::time::Duration::from_secs(4);
+        let fetch_start = std::time::Instant::now();
+        let mut results = Vec::new();
+
+        // Fetch all providers in parallel
+        let mut tasks = Vec::new();
+        for config in configs {
+            let providers = self.providers.clone();
+            let config_clone = config.clone();
+            let provider_id = config.provider_id.clone();
+            
+            tasks.push(tokio::spawn(async move {
+                let provider_start = std::time::Instant::now();
+                let result = tokio::time::timeout(timeout, async {
+                    Self::fetch_single_provider(&providers, &config_clone).await
+                }).await;
+                
+                match result {
+                    Ok(usages) => {
+                        let elapsed = provider_start.elapsed();
+                        log::debug!("[FETCH] Provider {} completed in {:?}", provider_id, elapsed);
+                        usages
+                    }
+                    Err(_) => {
+                        log::warn!("[FETCH] Provider {} timed out", provider_id);
+                        Vec::new()
+                    }
+                }
+            }));
+        }
+
+        // Collect results as they complete
+        for task in tasks {
+            if let Ok(usages) = task.await {
+                results.extend(usages);
+                // Update cache incrementally so UI can show partial results
+                *self.last_usages.lock().await = results.clone();
+            }
+        }
+
+        let total_elapsed = fetch_start.elapsed();
+        log::info!("[FETCH] Incremental fetch completed in {:?}, total: {} results", total_elapsed, results.len());
+        
+        results
+    }
+
+    async fn prepare_configs(&self) -> Vec<ProviderConfig> {
         let mut configs = self.config_loader.load_primary_config().await;
 
         // Auto-add system providers
@@ -795,81 +860,107 @@ impl ProviderManager {
         // Deduplicate configs by provider_id (keep first occurrence)
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         configs.retain(|c| seen.insert(c.provider_id.to_lowercase()));
-
-        log::info!("[FETCH] Starting to fetch usage for {} providers", configs.len());
         
-        let mut results = Vec::new();
-        let timeout = std::time::Duration::from_secs(4);
-        let fetch_start = std::time::Instant::now();
+        configs
+    }
 
-        for config in configs {
-            let providers = self.providers.clone();
-            let provider_start = std::time::Instant::now();
-            let provider_id = config.provider_id.clone();
-            let task = tokio::spawn(async move {
-                let result = tokio::time::timeout(timeout, async {
-                    Ok::<Vec<ProviderUsage>, ()>({
-                        let provider = providers.iter().find(|p| {
-                            p.provider_id().eq_ignore_ascii_case(&config.provider_id)
-                                || (p.provider_id() == "anthropic" && config.provider_id.contains("claude"))
-                        }).or_else(|| {
-                            if config.config_type == "pay-as-you-go" || config.config_type == "api" {
-                                providers.iter().find(|p| p.provider_id() == "generic-pay-as-you-go")
-                            } else { None }
-                        });
+    async fn fetch_single_provider(providers: &[Arc<dyn ProviderService>], config: &ProviderConfig) -> Vec<ProviderUsage> {
+        let provider = providers.iter().find(|p| {
+            p.provider_id().eq_ignore_ascii_case(&config.provider_id)
+                || (p.provider_id() == "anthropic" && config.provider_id.contains("claude"))
+        }).or_else(|| {
+            if config.config_type == "pay-as-you-go" || config.config_type == "api" {
+                providers.iter().find(|p| p.provider_id() == "generic-pay-as-you-go")
+            } else { None }
+        });
 
-                        if let Some(provider) = provider {
-                            let mut usages = provider.get_usage(&config).await;
-                            for usage in &mut usages { usage.auth_source = config.auth_source.clone(); }
-                            usages
-                        } else {
-                            let display_name = config.provider_id.replace("-", " ").split_whitespace()
-                                .map(|w| {
-                                    let mut chars = w.chars();
-                                    match chars.next() {
-                                        None => String::new(),
-                                        Some(first) => {
-                                            first.to_uppercase().collect::<String>() + chars.as_str()
-                                        }
-                                    }
-                                })
-                                .collect::<Vec<_>>()
-                                .join(" ");
-                            vec![ProviderUsage {
-                                provider_id: config.provider_id.clone(),
-                                provider_name: display_name,
-                                description: "Connected (Generic)".to_string(),
-                                usage_unit: "USD".to_string(),
-                                is_quota_based: false,
-                                is_available: true,
-                                ..Default::default()
-                            }]
+        if let Some(provider) = provider {
+            let mut usages = provider.get_usage(config).await;
+            for usage in &mut usages { 
+                usage.auth_source = config.auth_source.clone(); 
+            }
+            usages
+        } else {
+            let display_name = config.provider_id.replace("-", " ").split_whitespace()
+                .map(|w| {
+                    let mut chars = w.chars();
+                    match chars.next() {
+                        None => String::new(),
+                        Some(first) => {
+                            first.to_uppercase().collect::<String>() + chars.as_str()
                         }
-                    })
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            vec![ProviderUsage {
+                provider_id: config.provider_id.clone(),
+                provider_name: display_name,
+                description: "Connected (Generic)".to_string(),
+                usage_unit: "USD".to_string(),
+                is_quota_based: false,
+                is_available: true,
+                ..Default::default()
+            }]
+        }
+    }
+
+    /// Force a background refresh - returns immediately, updates cache async
+    pub fn trigger_background_refresh(&self) {
+        let providers = self.providers.clone();
+        let last_usages = self.last_usages.clone();
+        let config_loader = self.config_loader.clone();
+        let semaphore = self.refresh_semaphore.clone();
+        
+        tokio::spawn(async move {
+            // Try to acquire semaphore - if refresh is already running, skip
+            let Ok(_permit) = semaphore.try_acquire() else {
+                log::info!("[BG REFRESH] Refresh already in progress, skipping");
+                return;
+            };
+
+            let mut configs = config_loader.load_primary_config().await;
+            
+            // Auto-add system providers
+            let system_providers = vec!["antigravity", "gemini-cli", "opencode-zen", "github-copilot"];
+            for provider_id in system_providers {
+                if !configs.iter().any(|c| c.provider_id.eq_ignore_ascii_case(provider_id)) {
+                    configs.push(ProviderConfig {
+                        provider_id: provider_id.to_string(),
+                        api_key: String::new(),
+                        auth_source: "System".to_string(),
+                        ..Default::default()
+                    });
+                }
+            }
+
+            let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+            configs.retain(|c| seen.insert(c.provider_id.to_lowercase()));
+
+            log::info!("[BG REFRESH] Starting for {} providers", configs.len());
+            
+            let mut results = (*last_usages.lock().await).clone();
+            let timeout = std::time::Duration::from_secs(4);
+
+            for config in configs {
+                let providers = providers.clone();
+                let config_clone = config.clone();
+                
+                let result = tokio::time::timeout(timeout, async {
+                    Self::fetch_single_provider(&providers, &config_clone).await
                 }).await;
 
-                match result {
-                    Ok(Ok(usages)) => Some(usages),
-                    _ => None,
+                if let Ok(usages) = result {
+                    // Remove old entry for this provider and add new
+                    results.retain(|u| u.provider_id != config.provider_id);
+                    results.extend(usages);
+                    // Update cache incrementally
+                    *last_usages.lock().await = results.clone();
                 }
-            });
-
-            // Don't await - collect as we go
-            if let Ok(Some(usages)) = task.await {
-                let elapsed = provider_start.elapsed();
-                log::debug!("[FETCH] Provider {} completed in {:?}", provider_id, elapsed);
-                results.extend(usages);
-            } else {
-                log::warn!("[FETCH] Provider {} failed or timed out", provider_id);
             }
-        }
 
-        let total_elapsed = fetch_start.elapsed();
-        log::info!("[FETCH] All providers fetched in {:?}, total: {} results", total_elapsed, results.len());
-
-        // Update cache with partial results
-        *self.last_usages.lock().await = results.clone();
-        results
+            log::info!("[BG REFRESH] Completed, {} providers cached", results.len());
+        });
     }
 
     pub async fn get_last_usages(&self) -> Vec<ProviderUsage> {

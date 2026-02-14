@@ -131,6 +131,26 @@ pub trait ProviderService: Send + Sync {
 | GET | `/debug/info` | Debug information (development) |
 | GET | `/debug/config` | Debug configuration (development) |
 
+#### API Design Principles
+
+**Non-Blocking Behavior:**
+- All API endpoints must return immediately with available data
+- Long-running operations (provider fetching) happen in the background
+- The agent caches results and serves cached data while refreshing
+- UI clients should never wait for provider data to be fetched
+
+**Incremental Updates:**
+- Provider data is fetched in parallel with timeouts (4 seconds per provider)
+- Results are accumulated as they arrive, not batched at the end
+- Cache is updated incrementally as providers respond
+- First provider results should be available within milliseconds
+
+**Timeout Strategy:**
+- Each provider has a 4-second timeout for API calls
+- Failed/timed-out providers return with `is_available: false`
+- Agent responds immediately even if some providers haven't responded
+- Background refresh continues without blocking API responses
+
 #### Agent Info Endpoint
 
 ```
@@ -801,3 +821,388 @@ curl -X POST http://localhost:8080/api/v1/config/openai \
   -H "Content-Type: application/json" \
   -d '{"api_key": "sk-xxx", "enabled": true}'
 ```
+
+## Appendix E: HTMX Frontend Architecture
+
+### E.1 Overview
+
+The Tauri desktop application (`aic_app`) uses HTMX for a hypermedia-driven frontend architecture. This approach:
+
+- **Reduces JavaScript complexity**: UI updates are driven by HTML fragments from the backend
+- **Enables declarative UI**: HTML attributes describe behavior, not imperative JavaScript
+- **Unifies data flow**: All communication goes through Rust backend commands
+- **Simplifies window coordination**: Backend events synchronize state across windows
+
+### E.2 Architecture Principles
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Frontend (HTML + HTMX)                      │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐               │
+│  │ index.html  │   │settings.html│   │  info.html  │               │
+│  │  (Main)     │   │ (Settings)  │   │   (About)   │               │
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘               │
+│         │                 │                 │                       │
+│         └─────────────────┴─────────────────┘                       │
+│                           │                                         │
+│                    HTMX Attributes                                  │
+│              (hx-get, hx-post, hx-trigger)                         │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            │
+                   Tauri invoke() calls
+                            │
+┌───────────────────────────▼─────────────────────────────────────────┐
+│                    Rust Backend (aic_app)                           │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                    HTML Fragment Commands                     │  │
+│  │  - render_providers_list()     → HTML <div> fragment         │  │
+│  │  - render_provider_card()      → HTML <div> fragment         │  │
+│  │  - render_settings_providers() → HTML <div> fragment         │  │
+│  │  - render_history_table()      → HTML <table> fragment       │  │
+│  │  - render_agent_status()       → HTML <span> fragment        │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                    Event Emitter System                       │  │
+│  │  - emit("providers-updated", html) → All windows refresh     │  │
+│  │  - emit("agent-status-changed")    → Status indicators       │  │
+│  │  - emit("privacy-mode-changed")    → Mask sensitive data     │  │
+│  │  - emit("data-status-changed")     → Live/Cached badge       │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+                            │
+                   HTTP to aic_agent
+                            │
+┌───────────────────────────▼─────────────────────────────────────────┐
+│                    aic_agent (Background Service)                    │
+│                    Port 8080 (configurable)                          │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### E.3 HTML Fragment Commands
+
+All UI rendering is done server-side by returning HTML fragments:
+
+```rust
+#[tauri::command]
+pub async fn render_providers_list(
+    state: State<'_, AppState>,
+    prefs: AppPreferences,
+    privacy_mode: bool,
+) -> Result<String, String> {
+    // Fetch usage data from agent
+    let usage = fetch_usage_from_agent().await?;
+    
+    // Generate HTML fragment
+    let html = generate_providers_html(&usage, &prefs, privacy_mode);
+    Ok(html)
+}
+```
+
+### E.4 HTMX Integration Pattern
+
+#### Main Window (index.html)
+
+```html
+<!-- Provider list auto-refreshes every 30 seconds -->
+<div id="providersList"
+     hx-get="tauri://render_providers_list"
+     hx-trigger="load, every 30s, providers-updated from:window"
+     hx-swap="innerHTML">
+    <div class="loading">Loading providers...</div>
+</div>
+
+<!-- Refresh button triggers manual refresh -->
+<button hx-post="tauri://refresh_and_render_providers"
+        hx-target="#providersList"
+        hx-swap="innerHTML">
+    Refresh
+</button>
+
+<!-- Privacy toggle updates backend and triggers refresh -->
+<button hx-post="tauri://toggle_privacy_mode"
+        hx-trigger="click"
+        hx-on::after-request="htmx.trigger('#providersList', 'providers-updated')">
+    Toggle Privacy
+</button>
+```
+
+#### Settings Window (settings.html)
+
+```html
+<!-- Tab switching via HTMX -->
+<div class="tab-container">
+    <button class="tab active" 
+            hx-get="tauri://render_settings_tab?tab=providers"
+            hx-target="#settings-content"
+            hx-swap="innerHTML">
+        Providers
+    </button>
+    <button class="tab"
+            hx-get="tauri://render_settings_tab?tab=layout"
+            hx-target="#settings-content"
+            hx-swap="innerHTML">
+        Layout
+    </button>
+</div>
+
+<!-- Provider cards rendered as fragments -->
+<div id="providers-list"
+     hx-get="tauri://render_settings_providers"
+     hx-trigger="load, settings-window-shown from:window"
+     hx-swap="innerHTML">
+</div>
+```
+
+### E.5 Tauri Transport Extension
+
+HTMX uses a custom transport extension to communicate with Tauri commands:
+
+```javascript
+// lib/htmx-tauri.js
+htmx.defineExtension('tauri', {
+    onEvent: function(name, evt) {
+        if (name === 'htmx:configRequest') {
+            const url = evt.detail.path;
+            if (url.startsWith('tauri://')) {
+                // Intercept and route to Tauri invoke
+                evt.preventDefault();
+                const command = url.replace('tauri://', '');
+                const params = evt.detail.parameters;
+                
+                window.__TAURI__.core.invoke(command, params)
+                    .then(html => {
+                        htmx.swap(evt.detail.target, html, evt.detail.swapStyle);
+                    });
+            }
+        }
+    }
+});
+```
+
+### E.6 Event-Driven Window Communication
+
+All inter-window communication flows through the Rust backend:
+
+```rust
+// When usage data changes, notify all windows
+pub async fn broadcast_usage_update(app_handle: &AppHandle, usage: &[ProviderUsage]) {
+    let html = generate_providers_html(usage);
+    let _ = app_handle.emit("providers-updated", html);
+}
+
+// When privacy mode changes, notify all windows
+pub async fn broadcast_privacy_change(app_handle: &AppHandle, enabled: bool) {
+    let _ = app_handle.emit("privacy-mode-changed", { "enabled": enabled });
+}
+```
+
+Windows listen for events:
+
+```html
+<body hx-ext="tauri">
+    <div hx-trigger="privacy-mode-changed from:window"
+         hx-get="tauri://render_providers_list"
+         hx-target="#providersList">
+    </div>
+</body>
+```
+
+### E.7 Benefits of HTMX Architecture
+
+1. **Reduced Bundle Size**: No heavy frontend framework (React, Vue, etc.)
+2. **Simpler Mental Model**: HTML describes what the UI should look like
+3. **Better Testability**: HTML fragments can be tested independently
+4. **Consistent State**: Single source of truth in Rust backend
+5. **Progressive Enhancement**: Works without JavaScript for basic operations
+6. **Locality of Behavior**: Related code stays together in HTML attributes
+
+### E.8 Data Flow Examples
+
+#### Example 1: Refreshing Provider List
+
+```
+User clicks "Refresh" button
+       │
+       ▼
+hx-post="tauri://refresh_and_render_providers"
+       │
+       ▼
+Rust: refresh_and_render_providers()
+       │
+       ├── POST http://localhost:8080/api/providers/usage/refresh
+       │
+       ├── Generate HTML fragment from fresh data
+       │
+       ▼
+Return HTML string
+       │
+       ▼
+HTMX swaps innerHTML of #providersList
+       │
+       ▼
+UI updated with fresh data
+```
+
+#### Example 2: Saving Settings
+
+```
+User clicks "Save" button
+       │
+       ▼
+hx-post="tauri://save_settings"
+hx-include="[name]"  (serialize all form inputs)
+       │
+       ▼
+Rust: save_settings(configs, prefs)
+       │
+       ├── POST http://localhost:8080/api/config/providers
+       │
+       ├── emit("settings-saved") to all windows
+       │
+       ▼
+Return success HTML or redirect
+       │
+       ▼
+Settings window closes, main window refreshes
+```
+
+### E.9 File Structure
+
+```
+aic_app/
+├── src/
+│   ├── main.rs              # App entry, window setup
+│   ├── lib.rs               # Module exports
+│   ├── commands.rs          # Tauri command handlers
+│   ├── html/                # HTML fragment generators
+│   │   ├── mod.rs
+│   │   ├── providers.rs     # Provider list rendering
+│   │   ├── settings.rs      # Settings panel rendering
+│   │   ├── history.rs       # History table rendering
+│   │   └── common.rs        # Shared HTML utilities
+│   └── events.rs            # Event emission helpers
+├── www/
+│   ├── index.html           # Main window (HTMX)
+│   ├── settings.html        # Settings window (HTMX)
+│   ├── info.html            # Info/about window (HTMX)
+│   ├── css/
+│   │   ├── main.css         # Shared styles
+│   │   ├── index.css        # Main window styles
+│   │   └── settings.css     # Settings window styles
+│   ├── lib/
+│   │   ├── htmx.min.js      # HTMX library
+│   │   ├── htmx-tauri.js    # Tauri transport extension
+│   │   └── htmx-config.js   # HTMX configuration
+│   └── js/
+│       └── utils.js         # Minimal utilities (escapeHtml, etc.)
+└── tauri.conf.json
+```
+
+### E.10 Migration Strategy
+
+The migration from JavaScript-heavy frontend to HTMX is done incrementally:
+
+1. **Phase 1**: Add HTMX library and Tauri extension
+2. **Phase 2**: Convert provider list rendering to HTML fragments
+3. **Phase 3**: Convert settings panels to HTML fragments
+4. **Phase 4**: Convert history tables to HTML fragments
+5. **Phase 5**: Remove redundant JavaScript rendering code
+6. **Phase 6**: Implement event-driven window communication
+
+### E.11 HTML Fragment Examples
+
+#### Provider Card Fragment
+
+```html
+<div class="provider-item compact" data-provider="openai">
+    <div class="provider-progress-bg medium" style="width:45%"></div>
+    <div class="provider-content">
+        <span class="provider-name">OpenAI [user@example.com]</span>
+        <span style="flex:1;"></span>
+        <span class="provider-status">45% ($12.34)</span>
+    </div>
+</div>
+```
+
+#### Settings Provider Card Fragment
+
+```html
+<div class="provider-card" data-provider="anthropic">
+    <div class="provider-header">
+        <div class="provider-info">
+            <div class="provider-icon" style="background: #d4a574;">A</div>
+            <span class="provider-name">Anthropic</span>
+        </div>
+        <div class="provider-actions">
+            <span class="auth-source-label">Env</span>
+            <label class="checkbox-label">
+                <input type="checkbox" class="tray-checkbox" checked>
+                <span>Tray</span>
+            </label>
+            <span class="status-badge active">Active</span>
+        </div>
+    </div>
+    <div class="provider-row">
+        <input type="text" class="api-key-input" placeholder="Enter API key"
+               data-provider="anthropic">
+    </div>
+</div>
+```
+
+#### History Table Fragment
+
+```html
+<table class="history-table">
+    <thead>
+        <tr><th>Time</th><th>Provider</th><th>Usage</th><th>Unit</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>2026-02-14 10:30:00</td>
+            <td>OpenAI</td>
+            <td>45.50</td>
+            <td>%</td>
+        </tr>
+    </tbody>
+</table>
+```
+
+### E.12 Error Handling
+
+HTML fragments include error states:
+
+```html
+<!-- Error state fragment -->
+<div class="error-state">
+    <div class="error-icon">⚠️</div>
+    <div class="error-message">Failed to load providers</div>
+    <button class="retry-btn" hx-get="tauri://render_providers_list"
+            hx-trigger="click">Retry</button>
+</div>
+```
+
+### E.13 Loading States
+
+HTMX provides built-in loading indicators:
+
+```html
+<div hx-get="tauri://render_providers_list"
+     hx-indicator="#loading-spinner"
+     hx-swap="innerHTML">
+</div>
+
+<div id="loading-spinner" class="htmx-indicator">
+    <div class="loading">Loading...</div>
+</div>
+```
+
+### E.14 Accessibility
+
+HTMX maintains accessibility through:
+
+- Semantic HTML elements
+- ARIA attributes on dynamic content
+- Focus management after swaps
+- Keyboard navigation support
+- Screen reader announcements via `hx-on`

@@ -177,7 +177,7 @@ async fn main() -> Result<()> {
     let state = AppState {
         db: Arc::new(database),
         config,
-        provider_manager,
+        provider_manager: provider_manager.clone(),
         github_auth_service,
         start_time: Instant::now(),
         agent_path: std::env::current_exe()
@@ -185,6 +185,15 @@ async fn main() -> Result<()> {
             .unwrap_or_else(|_| "unknown".to_string()),
     };
     info!("App state initialized with uptime tracking");
+
+    // Pre-fetch provider data in background so cache is warm for first request
+    let pm_clone = provider_manager.clone();
+    tokio::spawn(async move {
+        info!("[PRE-FETCH] Starting background provider fetch...");
+        let start = std::time::Instant::now();
+        let usages = pm_clone.get_all_usage(true).await;
+        info!("[PRE-FETCH] Cached {} providers in {:?}", usages.len(), start.elapsed());
+    });
 
     let scheduler_handle = start_scheduler(state.clone()).await?;
     info!("Scheduler started");
