@@ -266,7 +266,7 @@ impl AICApp {
             });
 
         egui::TopBottomPanel::bottom("footer")
-            .exact_height(32.0)
+            .exact_height(44.0)
             .show(ctx, |ui| {
                 self.render_footer(ui, ctx);
             });
@@ -303,18 +303,18 @@ impl AICApp {
 
     fn render_footer(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         egui::Frame::default()
-            .fill(egui::Color32::from_rgb(30, 30, 30))
-            .inner_margin(egui::vec2(8.0, 6.0))
+            .fill(egui::Color32::from_rgb(37, 37, 38))
+            .inner_margin(egui::vec2(12.0, 8.0))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut self.config.show_all, egui::RichText::new("Show All").size(11.0));
                     
                     let status_color = if self.agent_status.is_running {
-                        egui::Color32::from_rgb(0, 204, 106)  // #00CC6A - green
+                        egui::Color32::from_rgb(0, 204, 106)
                     } else if self.is_starting_agent || self.is_refreshing {
-                        egui::Color32::from_rgb(255, 214, 0)  // #FFD600 - yellow
+                        egui::Color32::from_rgb(255, 214, 0)
                     } else {
-                        egui::Color32::from_rgb(255, 23, 68)  // #FF1744 - red
+                        egui::Color32::from_rgb(255, 23, 68)
                     };
                     
                     ui.add_space(8.0);
@@ -332,26 +332,36 @@ impl AICApp {
                     }
                     
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let settings_btn = egui::Button::new(egui::RichText::new("\u{2699}").size(16.0))
-                            .fill(egui::Color32::TRANSPARENT)
-                            .frame(false);
+                        // Settings button - larger clickable area
+                        let settings_btn = egui::Button::new(egui::RichText::new("\u{2699}").size(18.0))
+                            .fill(egui::Color32::from_rgb(68, 68, 68))
+                            .rounding(egui::Rounding::same(4.0))
+                            .min_size(egui::vec2(32.0, 28.0));
                         if ui.add(settings_btn).on_hover_text("Settings").clicked() {
                             self.settings_open = !self.settings_open;
                         }
                         
+                        ui.add_space(4.0);
+                        
+                        // Refresh button - larger clickable area
                         let refresh_text = if self.is_refreshing { "..." } else { "\u{21BB}" };
-                        let refresh_btn = egui::Button::new(egui::RichText::new(refresh_text).size(16.0))
-                            .fill(egui::Color32::TRANSPARENT)
-                            .frame(false);
+                        let refresh_btn = egui::Button::new(egui::RichText::new(refresh_text).size(18.0))
+                            .fill(egui::Color32::from_rgb(68, 68, 68))
+                            .rounding(egui::Rounding::same(4.0))
+                            .min_size(egui::vec2(32.0, 28.0));
                         if ui.add(refresh_btn).on_hover_text("Refresh").clicked() && !self.is_refreshing {
                             self.trigger_load(ctx);
                         }
                         
-                        let agent_btn = egui::Button::new(egui::RichText::new("A").size(14.0).strong())
-                            .fill(egui::Color32::TRANSPARENT)
-                            .frame(false);
+                        ui.add_space(4.0);
+                        
+                        // Agent button - larger clickable area
+                        let agent_btn = egui::Button::new(egui::RichText::new("A").size(16.0).strong())
+                            .fill(egui::Color32::from_rgb(68, 68, 68))
+                            .rounding(egui::Rounding::same(4.0))
+                            .min_size(egui::vec2(32.0, 28.0));
                         if ui.add(agent_btn).on_hover_text("Agent Management").clicked() {
-                            self.selected_tab = 2;  // Switch to Agent tab
+                            self.selected_tab = 5;  // Switch to Agent tab
                             self.settings_open = true;
                         }
                     });
