@@ -3,7 +3,7 @@
   "build": {
     "beforeBuildCommand": "",
     "beforeDevCommand": "",
-    "frontendDist": "src"
+    "frontendDist": "www"
   },
   "bundle": {
     "active": true,

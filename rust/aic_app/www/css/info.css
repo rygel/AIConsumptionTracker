@@ -1,0 +1,109 @@
+/* 
+ * AI Consumption Tracker - Info Window Styles (info.html)
+ */
+
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* Header */
+.header {
+    background: var(--bg-medium);
+    padding: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    -webkit-app-region: drag;
+    app-region: drag;
+}
+
+.header-title {
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.header-right {
+    display: flex;
+    gap: 8px;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+}
+
+/* Content */
+.content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.app-title {
+    font-size: 18px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 4px;
+}
+
+.app-version {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.app-description {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-bottom: 30px;
+    line-height: 1.5;
+}
+
+/* Section */
+.section {
+    margin-bottom: 20px;
+}
+
+.section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.info-row {
+    display: flex;
+    margin-bottom: 5px;
+    font-size: 12px;
+}
+
+.info-label {
+    width: 100px;
+    color: var(--text-muted);
+}
+
+.info-value {
+    color: var(--text-primary);
+    flex: 1;
+}
+
+.config-path {
+    color: var(--accent-blue);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.config-path:hover {
+    text-decoration: underline;
+}
+
+/* Footer */
+.footer {
+    background: var(--bg-medium);
+    padding: 12px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+}

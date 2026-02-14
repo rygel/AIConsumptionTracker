@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - AI Consumption Tracker</title>
+    
+    <!-- External CSS -->
+    <link rel="stylesheet" href="./css/main.css">
+    <link rel="stylesheet" href="./css/settings.css">
+</head>
+
+<body>
+    <div class="settings-container">
+        <div class="settings-header" data-tauri-drag-region>
+            <div class="header-title">
+                <img class="header-icon" src="./icons/icon.png" alt="Icon">
+                <span class="header-text">Settings</span>
+                <span id="cachedBadge" class="cached-badge" style="display: none;">Cached</span>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" id="privacyToggleBtn" title="Toggle Privacy Mode">🔒</button>
+                <button class="close-btn" id="closeBtn">&#215;</button>
+            </div>
+        </div>
+
+        <div class="tab-container">
+            <button class="tab active" data-tab="providers">Providers</button>
+            <button class="tab" data-tab="layout">Layout</button>
+            <button class="tab" data-tab="updates">Updates</button>
+            <button class="tab" data-tab="history">History</button>
+            <button class="tab" data-tab="fonts">Fonts</button>
+            <button class="tab" data-tab="agent">Agent</button>
+        </div>
+
+        <div class="settings-content">
+            <div class="tab-panel active" id="providers-panel">
+                <div id="providers-list">
+                    <div class="loading">Loading providers...</div>
+                </div>
+            </div>
+
+            <div class="tab-panel" id="layout-panel">
+                <div class="settings-section">
+                    <div class="settings-section-title">Window</div>
+                    <div class="settings-row">
+                        <label class="settings-label">Compact Mode</label>
+                        <div class="settings-control">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="compactMode">
+                                <span>Enable compact view</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Always on Top</label>
+                        <div class="settings-control">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="alwaysOnTop">
+                                <span>Keep window always visible</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Stay Open</label>
+                        <div class="settings-control">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="stayOpen">
+                                <span>Keep window open after focus loss</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Show All</label>
+                        <div class="settings-control">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="showAll" checked>
+                                <span>Show inactive providers</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Auto-Refresh</label>
+                        <div class="settings-control" style="display: flex; gap: 10px; align-items: center;">
+                            <input type="number" class="form-input" id="refreshInterval" min="10" max="3600" value="300" style="width: 80px;">
+                            <span style="font-size: 12px; color: var(--text-secondary);">seconds</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="settings-section">
+                    <div class="settings-section-title">UI Colors</div>
+                    <div class="settings-row">
+                        <label class="settings-label">Yellow Threshold (%)</label>
+                        <input type="number" class="form-input settings-control" id="yellowThreshold" value="60" min="0" max="100">
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Red Threshold (%)</label>
+                        <input type="number" class="form-input settings-control" id="redThreshold" value="80" min="0" max="100">
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label" style="flex: 1;">
+                            <input type="checkbox" id="invertProgressBar" style="margin-right: 8px;">
+                            Invert Progress Bars (Show 'Remaining' instead of 'Used')
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-panel" id="updates-panel">
+                <div class="settings-section">
+                    <div class="settings-section-title">Application Updates</div>
+                    <div class="update-status" id="updateStatus">
+                        <div class="update-version" id="currentVersion">v</div>
+                        <div class="update-message" id="updateMessage">Checking for updates...</div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Auto-Update</label>
+                        <div class="settings-control">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="autoUpdate" checked>
+                                <span>Automatically check for updates</span>
+                            </label>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="checkUpdatesBtn">Check for Updates</button>
+                </div>
+            </div>
+
+            <div class="tab-panel" id="history-panel">
+                <div class="settings-section">
+                    <div class="settings-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Historical Data & Logs</span>
+                        <div class="history-subtabs" style="display: flex; gap: 10px;">
+                            <button class="btn-small active" id="usage-subtab-btn">Usage</button>
+                            <button class="btn-small" id="agent-subtab-btn">Agent</button>
+                            <button class="btn-small" id="logs-subtab-btn">Raw Logs</button>
+                        </div>
+                    </div>
+
+                    <div id="usage-history-subpanel">
+                        <div id="history-list">
+                            <div class="loading">Loading history...</div>
+                        </div>
+                    </div>
+
+                    <div id="agent-history-subpanel" style="display: none;">
+                        <div id="agent-list">
+                            <div class="loading">Loading agent history...</div>
+                        </div>
+                    </div>
+
+                    <div id="logs-history-subpanel" style="display: none;">
+                        <div id="logs-list">
+                            <div class="loading">Loading raw logs...</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: 12px; display: flex; gap: 8px;">
+                    <button class="btn" id="refreshHistoryBtn">Refresh History</button>
+                </div>
+            </div>
+
+            <div class="tab-panel" id="fonts-panel">
+                <div class="settings-section">
+                    <div class="settings-section-title">Typography</div>
+                    <div class="settings-row">
+                        <label class="settings-label">Font Family</label>
+                        <select class="form-input settings-control" id="fontFamily">
+                            <option value="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">System Default</option>
+                            <option value="Segoe UI, sans-serif">Segoe UI</option>
+                            <option value="Arial, Helvetica, sans-serif">Arial</option>
+                            <option value="Helvetica, Arial, sans-serif">Helvetica</option>
+                            <option value="Roboto, sans-serif">Roboto</option>
+                            <option value="Inter, sans-serif">Inter</option>
+                            <option value="Open Sans, sans-serif">Open Sans</option>
+                            <option value="Lato, sans-serif">Lato</option>
+                            <option value="Montserrat, sans-serif">Montserrat</option>
+                            <option value="Source Sans Pro, sans-serif">Source Sans Pro</option>
+                            <option value="Ubuntu, sans-serif">Ubuntu</option>
+                            <option value="Nunito, sans-serif">Nunito</option>
+                            <option value="Poppins, sans-serif">Poppins</option>
+                            <option value="Raleway, sans-serif">Raleway</option>
+                            <option value="PT Sans, sans-serif">PT Sans</option>
+                            <option value="Merriweather, serif">Merriweather</option>
+                            <option value="Georgia, serif">Georgia</option>
+                            <option value="Times New Roman, serif">Times New Roman</option>
+                            <option value="Courier New, monospace">Courier New</option>
+                            <option value="Consolas, Monaco, monospace">Consolas</option>
+                            <option value="Fira Code, monospace">Fira Code</option>
+                            <option value="JetBrains Mono, monospace">JetBrains Mono</option>
+                            <option value="Source Code Pro, monospace">Source Code Pro</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Font Size</label>
+                        <input type="number" class="form-input settings-control" id="fontSize" value="13" min="8" max="24">
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Style</label>
+                        <div class="settings-control">
+                            <label class="checkbox-label" style="margin-right: 20px;">
+                                <input type="checkbox" id="fontBold">
+                                <span>Bold</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="fontItalic">
+                                <span>Italic</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="font-preview">
+                        <div class="font-preview-text" id="fontPreviewText" style="font-weight: normal; font-style: normal;">
+                            The quick brown fox jumps over the lazy dog
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">
+                            Preview Text - 1234567890
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <button class="btn" id="resetFontBtn">Reset to Default</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-panel" id="agent-panel">
+                <div class="settings-section">
+                    <div class="settings-section-title">Agent Control</div>
+                    <div class="settings-row">
+                        <label class="settings-label">Agent Status</label>
+                        <div class="settings-control">
+                            <span id="agentStatusText" style="color: var(--text-secondary);">Checking...</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <button class="btn btn-primary" id="startAgentBtn" style="display: none;">Start Agent</button>
+                        <button class="btn" id="stopAgentBtn" style="display: none; background: var(--accent-red); color: white;">Stop Agent</button>
+                        <button class="btn" id="discoverTokenBtn" style="margin-left: 8px;">Discover Tokens</button>
+                    </div>
+                    <div id="discoveryStatus" style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);"></div>
+                </div>
+
+                <div class="settings-section" style="margin-top: 24px;">
+                    <div class="settings-section-title">Connection Information</div>
+                    <div class="settings-row">
+                        <label class="settings-label">Agent Version</label>
+                        <div class="settings-control">
+                            <span id="agentVersion" style="color: var(--text-secondary);">Loading...</span>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Agent Path</label>
+                        <div class="settings-control">
+                            <span id="agentPath" style="color: var(--text-secondary);">Loading...</span>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Agent URL</label>
+                        <div class="settings-control">
+                            <span id="agentUrl">http://localhost:8080</span>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Port</label>
+                        <div class="settings-control">
+                            <span id="agentPort">8080</span>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label">Protocol</label>
+                        <div class="settings-control">
+                            <span>HTTP</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-footer">
+            <div class="footer-actions">
+                <button class="btn btn-primary" id="saveBtn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="authModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">Authentication</span>
+                <button class="close-btn" id="closeAuthModal">&#215;</button>
+            </div>
+            <div class="auth-dialog" id="authContent">
+                <p>Initializing...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- External JS -->
+    <script src="./js/utils.js"></script>
+    <script src="./js/settings.js"></script>
+</body>
+
+</html>

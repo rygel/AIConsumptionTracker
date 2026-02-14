@@ -1,0 +1,355 @@
+/* 
+ * AI Consumption Tracker - Main Styles
+ * Common variables, reset, and base styles shared across all windows
+ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    /* Background colors */
+    --bg-dark: #1E1E1E;
+    --bg-medium: #252526;
+    --bg-light: #2D2D30;
+    
+    /* Border */
+    --border-color: #333333;
+    
+    /* Text colors */
+    --text-primary: #FFFFFF;
+    --text-secondary: #AAAAAA;
+    --text-muted: #888888;
+    
+    /* Accent colors */
+    --accent-blue: #007ACC;
+    --accent-green: #00CC6A;
+    --accent-red: #FF1744;
+    --accent-yellow: #FFD600;
+    
+    /* Typography */
+    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-size: 13px;
+}
+
+/* Dark scrollbar styling - shared across all windows */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1e1e1e;
+    border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #424242;
+    border-radius: 5px;
+    border: 2px solid #1e1e1e;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #4f4f4f;
+}
+
+::-webkit-scrollbar-corner {
+    background: #1e1e1e;
+}
+
+/* Firefox scrollbar */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #424242 #1e1e1e;
+}
+
+/* Base body styles */
+body {
+    font-family: var(--font-family);
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-size: var(--font-size);
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Utility classes */
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #888;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #888;
+}
+
+.error {
+    color: var(--accent-red);
+    padding: 20px;
+    text-align: center;
+}
+
+/* Badge styles */
+.cached-badge {
+    display: inline-block;
+    background: rgba(255, 193, 7, 0.2);
+    color: #FFC107;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.cached-badge.live {
+    background: rgba(0, 200, 83, 0.2);
+    color: #00C853;
+    border: 1px solid rgba(0, 200, 83, 0.3);
+}
+
+/* Button styles */
+.btn {
+    background: #444444;
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 12px;
+    border-radius: 3px;
+    transition: background 0.15s;
+}
+
+.btn:hover {
+    background: #555555;
+}
+
+.btn-primary {
+    background: var(--accent-blue);
+}
+
+.btn-primary:hover {
+    background: #009DFF;
+}
+
+.btn-success {
+    background: var(--accent-green);
+    color: #000;
+}
+
+.btn-success:hover {
+    background: #00E676;
+}
+
+.btn-danger {
+    background: var(--accent-red);
+}
+
+.btn-danger:hover {
+    background: #FF5252;
+}
+
+/* Form elements */
+.form-input {
+    width: 100%;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    font-size: 13px;
+    border-radius: 3px;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+.form-select {
+    width: 100%;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    font-size: 13px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.form-select:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+/* Checkbox */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent-blue);
+}
+
+/* Status badges */
+.status-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    background: #555;
+    color: #888;
+    border-radius: 3px;
+}
+
+.status-badge.active {
+    background: var(--accent-green);
+    color: #000;
+}
+
+.status-badge.inactive {
+    background: #444;
+    color: #888;
+}
+
+/* Header button base */
+.header-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+    border-radius: 3px;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+    transition: all 0.2s;
+}
+
+.header-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.header-btn.active {
+    color: #FFD700;
+    background: rgba(255, 215, 0, 0.1);
+}
+
+/* Close button base */
+.close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    border-radius: 3px;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+    transition: all 0.2s;
+}
+
+.close-btn:hover {
+    color: var(--text-primary);
+    background: var(--accent-red);
+}
+
+/* Animations */
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Status indicator */
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #666;
+    transition: background-color 0.3s ease;
+}
+
+.status-indicator.connected {
+    background: var(--accent-green);
+    box-shadow: 0 0 4px var(--accent-green);
+}
+
+.status-indicator.disconnected {
+    background: var(--accent-red);
+}
+
+.status-indicator.connecting {
+    background: var(--accent-yellow);
+    animation: pulse 1.5s infinite;
+}
+
+.status-indicator.error {
+    background: var(--accent-red);
+    animation: blink 1s infinite;
+}
+
+/* Divider */
+.divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 20px 0;
+}
+
+/* Modal overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-overlay.visible {
+    display: flex;
+}
+
+.modal {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    width: 450px;
+    padding: 24px;
+    border-radius: 6px;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.modal-title {
+    font-size: 16px;
+    font-weight: 600;
+}

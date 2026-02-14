@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About AI Consumption Tracker</title>
+    
+    <!-- External CSS -->
+    <link rel="stylesheet" href="./css/main.css">
+    <link rel="stylesheet" href="./css/info.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header" data-tauri-drag-region>
+            <span class="header-title">Info</span>
+            <div class="header-right">
+                <button class="header-btn" id="privacyToggleBtn" title="Toggle Privacy Mode">🔒</button>
+                <button class="header-btn" id="closeBtn" title="Close">×</button>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="app-title">AI Consumption Tracker</div>
+            <div class="app-version" id="versionText">v...</div>
+            <div class="app-description">
+                A desktop application for tracking AI service usage and costs.
+            </div>
+
+            <div class="section">
+                <div class="section-title">Application Info</div>
+                <div class="info-row">
+                    <span class="info-label">Rust Version:</span>
+                    <span class="info-value" id="rustVersion">...</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">OS:</span>
+                    <span class="info-value" id="osVersion">...</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Architecture:</span>
+                    <span class="info-value" id="archText">...</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">System Info</div>
+                <div class="info-row">
+                    <span class="info-label">Machine:</span>
+                    <span class="info-value" id="machineName">...</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">User:</span>
+                    <span class="info-value" id="userName">...</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Config:</span>
+                    <span class="info-value">
+                        <a href="#" class="config-path" id="configPath">auth.json</a>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <button class="btn" id="closeBtnFooter">Close</button>
+        </div>
+    </div>
+
+    <!-- External JS -->
+    <script src="./js/utils.js"></script>
+    <script src="./js/info.js"></script>
+</body>
+</html>
