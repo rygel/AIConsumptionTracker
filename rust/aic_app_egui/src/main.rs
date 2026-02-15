@@ -17,8 +17,7 @@ use http_client::{AgentClient, AgentStatus, GitHubAuthStatus, DeviceFlowResponse
 use models::{AgentInfo, AppPreferences, ProviderConfig, ProviderUsage};
 use tray::{TrayManager, TrayEvent};
 
-const REFRESH_INTERVAL_SECS: u64 = 30;
-const POLL_INTERVAL_SECS: u64 = 2;  // Poll for incremental updates every 2 seconds
+const POLL_INTERVAL_SECS: u64 = 60;  // Poll agent for cached data every 60 seconds
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -179,11 +178,8 @@ impl AICApp {
     }
 
     fn update_impl(&mut self, ctx: &egui::Context) {
-        if self.config.auto_refresh && self.agent_status.is_running {
-            ctx.request_repaint_after(Duration::from_secs(REFRESH_INTERVAL_SECS));
-        }
-
-        // Poll for incremental updates every 2 seconds if agent is running
+        // Poll agent for cached data every minute if agent is running
+        // The agent independently refreshes provider data on its own schedule
         if self.agent_status.is_running {
             let should_poll = match self.last_poll {
                 None => true,
@@ -539,6 +535,9 @@ impl AICApp {
         let (_, icon, color_hex) = get_provider_info_egui(provider_id);
         let icon_color = parse_hex_color(color_hex);
         
+        let font_size = (self.prefs.font_size as f32 * 0.8).max(8.0);  // 80% of main font size
+        let bar_height = (font_size + 10.0).max(18.0);  // Dynamic height based on font size
+        
         for detail in details {
             let used_pct = Self::parse_percentage_from_string(&detail.used);
             let remaining_pct = detail.remaining.unwrap_or(100.0 - used_pct) as f32;
@@ -546,7 +545,7 @@ impl AICApp {
             let bar_color = self.get_progress_color(used_pct);
             
             let (rect, _response) = ui.allocate_exact_size(
-                egui::vec2(ui.available_width(), 18.0),
+                egui::vec2(ui.available_width(), bar_height),
                 egui::Sense::hover(),
             );
             
@@ -571,51 +570,56 @@ impl AICApp {
             }
             
             // Draw small icon box
+            let icon_size = (font_size + 2.0).min(14.0);
             let icon_rect = egui::Rect::from_min_size(
-                egui::pos2(rect.min.x + 2.0, rect.min.y + 3.0),
-                egui::vec2(12.0, 12.0),
+                egui::pos2(rect.min.x + 2.0, rect.min.y + (bar_height - icon_size) / 2.0),
+                egui::vec2(icon_size, icon_size),
             );
             ui.painter().rect_filled(icon_rect, 2.0, icon_color.gamma_multiply(0.7));
             
             // Draw icon letter
-            let icon_text_pos = egui::pos2(icon_rect.min.x + 3.0, icon_rect.min.y + 1.0);
+            let icon_font_size = (font_size * 0.7).max(6.0);
+            let icon_text_pos = egui::pos2(
+                icon_rect.min.x + icon_size * 0.25,
+                icon_rect.min.y + icon_size * 0.1
+            );
             ui.painter().text(
                 icon_text_pos,
                 egui::Align2::LEFT_TOP,
                 icon,
-                egui::FontId::proportional(8.0),
+                egui::FontId::proportional(icon_font_size),
                 egui::Color32::WHITE,
             );
             
             // Percentage text
             let used_text = format!("{:.0}%", used_pct);
-            let text_pos = egui::pos2(rect.min.x + 18.0, rect.min.y + 3.0);
+            let text_pos = egui::pos2(rect.min.x + icon_size + 6.0, rect.min.y + (bar_height - font_size) / 2.0);
             ui.painter().text(
                 text_pos,
                 egui::Align2::LEFT_TOP,
                 &used_text,
-                egui::FontId::proportional(9.0),
+                egui::FontId::proportional(font_size),
                 bar_color,
             );
             
             // Name in the middle
-            let name_pos = egui::pos2(rect.min.x + 40.0, rect.min.y + 3.0);
+            let name_pos = egui::pos2(rect.min.x + icon_size + 30.0, rect.min.y + (bar_height - font_size) / 2.0);
             ui.painter().text(
                 name_pos,
                 egui::Align2::LEFT_TOP,
                 &detail.name,
-                egui::FontId::proportional(9.0),
+                egui::FontId::proportional(font_size),
                 egui::Color32::from_rgb(230, 230, 230),
             );
             
             // Status on the right
             let status_text = format!("{:.0}%", remaining_pct);
-            let status_pos = egui::pos2(rect.max.x - 4.0, rect.min.y + 3.0);
+            let status_pos = egui::pos2(rect.max.x - 4.0, rect.min.y + (bar_height - font_size) / 2.0);
             ui.painter().text(
                 status_pos,
                 egui::Align2::RIGHT_TOP,
                 &status_text,
-                egui::FontId::proportional(9.0),
+                egui::FontId::proportional(font_size),
                 egui::Color32::from_rgb(200, 200, 200),
             );
         }
@@ -630,8 +634,11 @@ impl AICApp {
     }
 
     fn render_provider_compact(&self, ui: &mut egui::Ui, provider: &ProviderUsage) {
+        let font_size = self.prefs.font_size as f32;
+        let bar_height = (font_size + 14.0).max(24.0);  // Dynamic height based on font size
+        
         let (rect, response) = ui.allocate_exact_size(
-            egui::vec2(ui.available_width(), 24.0),
+            egui::vec2(ui.available_width(), bar_height),
             egui::Sense::hover(),
         );
 
@@ -658,9 +665,10 @@ impl AICApp {
         }
 
         // Draw icon - try SVG first, fall back to letter
+        let icon_size = (font_size + 4.0).min(20.0);
         let icon_rect = egui::Rect::from_min_size(
-            egui::pos2(rect.min.x + 4.0, rect.min.y + 4.0),
-            egui::vec2(16.0, 16.0),
+            egui::pos2(rect.min.x + 4.0, rect.min.y + (bar_height - icon_size) / 2.0),
+            egui::vec2(icon_size, icon_size),
         );
         
         if let Some(texture_id) = self.provider_icons.get_or_load(ui.ctx(), &provider.provider_id) {
@@ -671,12 +679,16 @@ impl AICApp {
             let (_, icon, color_hex) = get_provider_info_egui(&provider.provider_id);
             let icon_color = parse_hex_color(color_hex);
             ui.painter().rect_filled(icon_rect, 2.0, icon_color);
-            let icon_text_pos = egui::pos2(icon_rect.min.x + 5.0, icon_rect.min.y + 2.0);
+            let icon_font_size = (font_size * 0.8).max(8.0);
+            let icon_text_pos = egui::pos2(
+                icon_rect.min.x + icon_size * 0.3,
+                icon_rect.min.y + icon_size * 0.15
+            );
             ui.painter().text(
                 icon_text_pos,
                 egui::Align2::LEFT_TOP,
                 icon,
-                egui::FontId::proportional(10.0),
+                egui::FontId::proportional(icon_font_size),
                 egui::Color32::WHITE,
             );
         }
@@ -694,12 +706,12 @@ impl AICApp {
             egui::Color32::from_rgb(136, 136, 136)  // Gray
         };
 
-        let name_pos = egui::pos2(rect.min.x + 24.0, rect.min.y + 6.0);
+        let name_pos = egui::pos2(rect.min.x + icon_size + 8.0, rect.min.y + (bar_height - font_size) / 2.0);
         ui.painter().text(
             name_pos,
             egui::Align2::LEFT_TOP,
             &name,
-            egui::FontId::proportional(11.0),
+            egui::FontId::proportional(font_size),
             text_color,
         );
 
@@ -714,15 +726,19 @@ impl AICApp {
             } else {
                 format!("${:.2}", provider.cost_used)
             }
-        } else {
-            let pct = format!("{:.0}%", provider.usage_percentage);
+        } else if provider.usage_unit == "Quota %" {
+            // Quota-based percentage (Antigravity): show percentage only
+            format!("{:.0}%", provider.usage_percentage)
+        } else if provider.usage_unit == "Reqs" {
+            // Request-based (Synthetic, GitHub Copilot): show request counts
             if self.config.privacy_mode {
-                pct
-            } else if provider.cost_used > 0.0 {
-                format!("{} (${:.2})", pct, provider.cost_used)
+                format!("{:.0}%", provider.usage_percentage)
             } else {
-                pct
+                format!("{:.0}/{:.0} reqs", provider.cost_used, provider.cost_limit)
             }
+        } else {
+            // Default: show percentage
+            format!("{:.0}%", provider.usage_percentage)
         };
 
         let status_color = if provider.is_available {
@@ -731,12 +747,12 @@ impl AICApp {
             egui::Color32::from_rgb(136, 136, 136)  // Muted
         };
 
-        let status_pos = egui::pos2(rect.max.x - 8.0, rect.min.y + 6.0);
+        let status_pos = egui::pos2(rect.max.x - 8.0, rect.min.y + (bar_height - font_size) / 2.0);
         ui.painter().text(
             status_pos,
             egui::Align2::RIGHT_TOP,
             &status_text,
-            egui::FontId::proportional(10.0),
+            egui::FontId::proportional(font_size * 0.9),
             status_color,
         );
 
@@ -1103,7 +1119,6 @@ impl AICApp {
     fn render_layout_tab(&mut self, ui: &mut egui::Ui) {
         ui.checkbox(&mut self.config.privacy_mode, "Privacy Mode");
         ui.checkbox(&mut self.config.show_all, "Show All Providers");
-        ui.checkbox(&mut self.config.auto_refresh, "Auto Refresh");
         ui.checkbox(&mut self.config.auto_start_agent, "Auto Start Agent");
         ui.checkbox(&mut self.config.always_on_top, "Always on Top");
         ui.checkbox(&mut self.config.compact_mode, "Compact Mode");

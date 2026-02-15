@@ -204,12 +204,41 @@ async fn main() -> Result<()> {
     info!("App state initialized with uptime tracking");
 
     // Pre-fetch provider data in background so cache is warm for first request
+    // Only refresh if last refresh was more than 5 minutes ago
     let pm_clone = provider_manager.clone();
+    let db_clone = state.db.clone();
+    let refresh_interval = args.refresh_interval_minutes;
     tokio::spawn(async move {
-        info!("[PRE-FETCH] Starting background provider fetch...");
-        let start = std::time::Instant::now();
-        let usages = pm_clone.get_all_usage(true).await;
-        info!("[PRE-FETCH] Cached {} providers in {:?}", usages.len(), start.elapsed());
+        info!("[PRE-FETCH] Checking if refresh is needed...");
+        
+        // Check last refresh time from database
+        let should_refresh = {
+            let latest_records = db_clone.get_latest_usage_records(1).await;
+            let last_refresh = latest_records.first().and_then(|r| {
+                DateTime::parse_from_rfc3339(&r.timestamp)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&Utc))
+            });
+            
+            match last_refresh {
+                Some(ts) => {
+                    let now = Utc::now();
+                    let elapsed = (now - ts).num_seconds() as u64;
+                    let interval_secs = refresh_interval * 60;
+                    elapsed >= interval_secs
+                }
+                None => true, // No records, should refresh
+            }
+        };
+        
+        if should_refresh {
+            info!("[PRE-FETCH] Starting background provider fetch...");
+            let start = std::time::Instant::now();
+            let usages = pm_clone.get_all_usage(true).await;
+            info!("[PRE-FETCH] Cached {} providers in {:?}", usages.len(), start.elapsed());
+        } else {
+            info!("[PRE-FETCH] Skipping - last refresh was less than {} minutes ago", refresh_interval);
+        }
     });
 
     let scheduler_handle = start_scheduler(state.clone()).await?;

@@ -141,9 +141,9 @@ impl ProviderService for SyntheticProvider {
                                 cost_used: used,
                                 cost_limit: total,
                                 payment_type: PaymentType::Quota,
-                                usage_unit: "Quota %".to_string(),
+                                usage_unit: "Reqs".to_string(),
                                 is_quota_based: true,
-                                description: format!("{:.1}% used", utilization),
+                                description: format!("{:.0}/{:.0} requests", used, total),
                                 next_reset_time,
                                 raw_response: Some(raw_body),
                                 ..Default::default()

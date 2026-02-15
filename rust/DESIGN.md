@@ -822,7 +822,99 @@ curl -X POST http://localhost:8080/api/v1/config/openai \
   -d '{"api_key": "sk-xxx", "enabled": true}'
 ```
 
-## Appendix E: HTMX Frontend Architecture
+## Appendix E: Polling Architecture
+
+### E.1 Overview
+
+The application follows a strict separation between data fetching and UI polling:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         UI Layer (aic_app_egui)                     │
+│                                                                      │
+│   ┌─────────────────────────────────────────────────────────────┐  │
+│   │  Polls agent every 60 seconds for CACHED data only          │  │
+│   │  - Never triggers provider API calls                        │  │
+│   │  - Just reads from agent's database/cache                   │  │
+│   │  - Independent of agent's refresh schedule                   │  │
+│   └─────────────────────────────────────────────────────────────┘  │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            │
+                   HTTP GET /api/providers/usage
+                   (returns cached data immediately)
+                            │
+┌───────────────────────────▼─────────────────────────────────────────┐
+│                    Agent Layer (aic_agent)                           │
+│                                                                      │
+│   ┌─────────────────────────────────────────────────────────────┐  │
+│   │  Independent Scheduler (every 5 minutes by default)         │  │
+│   │  - Fetches from all provider APIs                           │  │
+│   │  - Stores to SQLite database                                │  │
+│   │  - Respects last refresh time (won't refresh if < 5 min)   │  │
+│   │  - Configurable via --refresh-interval-minutes flag        │  │
+│   └─────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│   ┌─────────────────────────────────────────────────────────────┐  │
+│   │  HTTP API serves cached data immediately                    │  │
+│   │  - No blocking on provider fetches                          │  │
+│   │  - Returns last known data + timestamp                      │  │
+│   └─────────────────────────────────────────────────────────────┘  │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            │
+                   Provider APIs (OpenAI, Anthropic, etc.)
+                   (Only called by agent scheduler)
+                            │
+```
+
+### E.2 Key Principles
+
+1. **UI Never Triggers Refreshes**
+   - The UI only polls `/api/providers/usage` for cached data
+   - The refresh button in UI is for manual override only
+   - UI polling interval: 60 seconds
+
+2. **Agent Owns Data Freshness**
+   - Agent scheduler runs independently every 5 minutes (configurable)
+   - On startup, agent checks last refresh time and skips if < 5 minutes ago
+   - All provider API calls go through the agent only
+
+3. **Separation of Concerns**
+   - UI: Display data, user interactions
+   - Agent: Fetch data, cache data, serve data
+
+### E.3 Configuration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--refresh-interval-minutes` | 5 | Minutes between agent refreshes |
+| UI poll interval | 60 sec | How often UI polls agent for cached data |
+| `auto_refresh_enabled` | true | Whether agent scheduler is active |
+
+### E.4 Startup Behavior
+
+When the agent starts:
+
+1. Check database for last refresh timestamp
+2. If last refresh was < 5 minutes ago, skip initial fetch
+3. If last refresh was > 5 minutes ago (or never), fetch fresh data
+4. Scheduler begins checking every 60 seconds if refresh is due
+
+This prevents:
+- Multiple agent restarts from spamming provider APIs
+- Unnecessary API calls during development/testing
+- Rate limiting issues from over-eager refreshing
+
+### E.5 API Rate Limit Considerations
+
+| Provider | Rate Limit | Refresh Interval | Safe? |
+|----------|------------|------------------|-------|
+| GitHub | 5000 req/hour | 5 min = 12/hour | ✅ |
+| OpenAI | Varies | 5 min = 12/hour | ✅ |
+| Anthropic | Varies | 5 min = 12/hour | ✅ |
+
+At 5-minute intervals, the agent makes only 12 requests per provider per hour, well within most API rate limits.
+
+## Appendix F: HTMX Frontend Architecture
 
 ### E.1 Overview
 

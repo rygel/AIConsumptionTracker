@@ -149,13 +149,19 @@ impl ProviderService for GitHubCopilotProvider {
                     raw_rate_limit = Some(raw.clone());
                     if let Ok(rate_data) = serde_json::from_str::<GitHubRateLimitResponse>(&raw) {
                         if let Some(core) = rate_data.resources.get("core") {
-                            cost_limit = core.limit as f64;
-                            cost_used = (core.limit - core.remaining) as f64;
-                            percentage = if core.limit > 0 {
-                                ((core.limit - core.remaining) as f64 / core.limit as f64) * 100.0
+                            let total = core.limit as f64;
+                            let used = (core.limit - core.remaining) as f64;
+                            
+                            cost_limit = total;
+                            cost_used = used;
+                            
+                            let utilization = if total > 0.0 {
+                                (used / total) * 100.0
                             } else {
                                 0.0
                             };
+                            
+                            percentage = utilization.min(100.0);
                             reset_time = Some(
                                 DateTime::from_timestamp(core.reset, 0)
                                     .unwrap_or_else(|| Utc::now()),
@@ -175,6 +181,8 @@ impl ProviderService for GitHubCopilotProvider {
             "copilot_token": raw_token,
             "rate_limit": raw_rate_limit
         }).to_string();
+        
+        let remaining_percent = 100.0 - percentage;
 
         vec![ProviderUsage {
             provider_id: self.provider_id().to_string(),
@@ -182,13 +190,14 @@ impl ProviderService for GitHubCopilotProvider {
             account_name: username,
             is_available: true,
             usage_percentage: percentage,
+            remaining_percentage: Some(remaining_percent),
             cost_used,
             cost_limit,
             usage_unit: "Reqs".to_string(),
             payment_type: PaymentType::Quota,
             is_quota_based: true,
             description: format!(
-                "API Rate Limit (Hourly): {:.0}/{:.0} Used",
+                "{:.0}/{:.0} requests used",
                 cost_used, cost_limit
             ),
             auth_source: plan_name,
