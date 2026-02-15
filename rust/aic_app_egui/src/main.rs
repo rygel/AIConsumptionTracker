@@ -952,9 +952,25 @@ impl AICApp {
                         .rounding(egui::Rounding::same(4.0))
                         .inner_margin(egui::vec2(12.0, 8.0))
                         .show(ui, |ui| {
-                            // Check if this is antigravity (no API key needed) - moved outside for wider scope
+                            // Check if this is antigravity (no API key needed)
                             let is_antigravity = provider_id == "antigravity";
-                            let is_connected = is_antigravity && provider.get("is_available").and_then(|v| v.as_bool()).unwrap_or(false);
+                            
+                            // For antigravity, get real-time status from providers list (usage data)
+                            let antigravity_usage = if is_antigravity {
+                                self.providers.iter().find(|p| p.provider_id == "antigravity")
+                            } else {
+                                None
+                            };
+                            
+                            let is_connected = if is_antigravity {
+                                antigravity_usage.map(|u| u.is_available).unwrap_or(false)
+                            } else {
+                                false
+                            };
+                            
+                            let account_name = antigravity_usage.and_then(|u| {
+                                if u.account_name.is_empty() { None } else { Some(u.account_name.clone()) }
+                            });
                             
                             // Header row - icon, name on left, actions on right
                             ui.horizontal(|ui| {
@@ -971,21 +987,34 @@ impl AICApp {
                                         });
                                     
                                     ui.label(egui::RichText::new(name).size(13.0));
+                                    
+                                    // Show account name for antigravity
+                                    if is_antigravity {
+                                        if let Some(acc_name) = &account_name {
+                                            ui.label(egui::RichText::new(format!("[{}]", if self.config.privacy_mode { "***" } else { acc_name })).size(11.0).color(egui::Color32::from_rgb(170, 170, 170)));
+                                        }
+                                    }
                                 });
                                 
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     // Right side: auth source, tray, status
                                     
                                     // Status badge
-                                    let status_color = if has_key || is_connected {
+                                    let status_color = if is_antigravity {
+                                        if is_connected {
+                                            egui::Color32::from_rgb(0, 204, 106)  // green
+                                        } else {
+                                            egui::Color32::from_rgb(136, 136, 136)  // gray
+                                        }
+                                    } else if has_key {
                                         egui::Color32::from_rgb(0, 204, 106)  // green
                                     } else {
                                         egui::Color32::from_rgb(136, 136, 136)  // gray
                                     };
-                                    let status_text = if has_key { 
+                                    let status_text = if is_antigravity {
+                                        if is_connected { "Connected" } else { "Inactive" }
+                                    } else if has_key { 
                                         "Active" 
-                                    } else if is_connected {
-                                        "Connected"
                                     } else { 
                                         "Inactive" 
                                     };
@@ -1039,7 +1068,15 @@ impl AICApp {
                             } else {
                                 // Show status for antigravity
                                 ui.add_space(6.0);
-                                let status_msg = if is_connected { "Running (Connected)" } else { "Not Running" };
+                                let status_msg = if is_connected {
+                                    if let Some(acc_name) = &account_name {
+                                        format!("Running (Connected as {})", if self.config.privacy_mode { "***" } else { acc_name })
+                                    } else {
+                                        "Running (Connected)".to_string()
+                                    }
+                                } else { 
+                                    "Not Running".to_string() 
+                                };
                                 ui.label(egui::RichText::new(status_msg).size(11.0).color(egui::Color32::from_rgb(136, 136, 136)));
                                 
                                 // Show sub-trays (Individual Quota Icons) for antigravity
