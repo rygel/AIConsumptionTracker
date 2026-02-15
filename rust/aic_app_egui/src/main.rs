@@ -178,6 +178,13 @@ impl AICApp {
     }
 
     fn update_impl(&mut self, ctx: &egui::Context) {
+        // On first run, or when agent is not running, try to connect/start agent and load data
+        let should_initial_load = self.providers.is_empty() && !self.is_refreshing && !self.is_starting_agent;
+        
+        if should_initial_load {
+            self.trigger_load(ctx);
+        }
+        
         // Poll agent for cached data every minute if agent is running
         // The agent independently refreshes provider data on its own schedule
         if self.agent_status.is_running {
