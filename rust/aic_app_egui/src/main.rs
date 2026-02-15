@@ -605,16 +605,50 @@ impl AICApp {
                 egui::Color32::from_rgb(230, 230, 230),
             );
             
-            // Status on the right
+            // Status and reset time on the right
             let status_text = format!("{:.0}%", remaining_pct);
-            let status_pos = egui::pos2(rect.max.x - 4.0, rect.min.y + (bar_height - font_size) / 2.0);
-            ui.painter().text(
-                status_pos,
-                egui::Align2::RIGHT_TOP,
-                &status_text,
-                egui::FontId::proportional(font_size),
-                egui::Color32::from_rgb(200, 200, 200),
-            );
+            let status_color = egui::Color32::from_rgb(200, 200, 200);
+            let reset_color = egui::Color32::from_rgb(255, 215, 0);  // Gold
+            
+            if let Some(reset_time) = &detail.next_reset_time {
+                let reset_text = Self::format_reset_display(reset_time);
+                
+                // Draw reset text first (to the left of status)
+                let reset_pos = egui::pos2(rect.max.x - 4.0, rect.min.y + (bar_height - font_size) / 2.0);
+                ui.painter().text(
+                    reset_pos,
+                    egui::Align2::RIGHT_TOP,
+                    &reset_text,
+                    egui::FontId::proportional(font_size * 0.7),
+                    reset_color,
+                );
+                
+                // Calculate reset text width and position status before it
+                let reset_width = ui.painter().layout_no_wrap(
+                    reset_text.clone(),
+                    egui::FontId::proportional(font_size * 0.7),
+                    reset_color,
+                ).size().x;
+                
+                let status_pos = egui::pos2(rect.max.x - 4.0 - reset_width - 6.0, rect.min.y + (bar_height - font_size) / 2.0);
+                ui.painter().text(
+                    status_pos,
+                    egui::Align2::RIGHT_TOP,
+                    &status_text,
+                    egui::FontId::proportional(font_size),
+                    status_color,
+                );
+            } else {
+                // No reset time, just draw status on the right
+                let status_pos = egui::pos2(rect.max.x - 4.0, rect.min.y + (bar_height - font_size) / 2.0);
+                ui.painter().text(
+                    status_pos,
+                    egui::Align2::RIGHT_TOP,
+                    &status_text,
+                    egui::FontId::proportional(font_size),
+                    status_color,
+                );
+            }
         }
     }
 
@@ -624,6 +658,38 @@ impl AICApp {
         } else {
             0.0
         }
+    }
+
+    fn format_reset_display(next_reset: &chrono::DateTime<chrono::Utc>) -> String {
+        use chrono::{Local, Timelike, Datelike};
+        
+        let reset_local = next_reset.with_timezone(&Local);
+        let diff = *next_reset - chrono::Utc::now();
+        
+        if diff.num_seconds() <= 0 {
+            return "(Resets: Ready)".to_string();
+        }
+        
+        let total_secs = diff.num_seconds();
+        let days = total_secs / 86400;
+        let hours = (total_secs % 86400) / 3600;
+        let mins = (total_secs % 3600) / 60;
+        
+        let relative = if days > 0 {
+            format!("{}d {}h", days, hours)
+        } else if hours > 0 {
+            format!("{}h {}m", hours, mins)
+        } else {
+            format!("{}m", mins)
+        };
+        
+        let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        let month = months[reset_local.month() as usize - 1];
+        let day = format!("{:02}", reset_local.day());
+        let hour = format!("{:02}", reset_local.hour());
+        let minute = format!("{:02}", reset_local.minute());
+        
+        format!("(Resets: {} - {} {} {}:{})", relative, month, day, hour, minute)
     }
 
     fn render_provider_compact(&self, ui: &mut egui::Ui, provider: &ProviderUsage) {
@@ -740,22 +806,69 @@ impl AICApp {
             egui::Color32::from_rgb(136, 136, 136)  // Muted
         };
 
-        let status_pos = egui::pos2(rect.max.x - 8.0, rect.min.y + (bar_height - font_size) / 2.0);
-        ui.painter().text(
-            status_pos,
-            egui::Align2::RIGHT_TOP,
-            &status_text,
-            egui::FontId::proportional(font_size * 0.9),
-            status_color,
-        );
+        let reset_color = egui::Color32::from_rgb(255, 215, 0);  // Gold #FFD700
 
-        response.on_hover_text(format!(
-            "Provider: {}\nUsage: {:.1}%\nCost: ${:.2}\nAvailable: {}",
-            provider.provider_name,
-            provider.usage_percentage,
-            provider.cost_used,
-            provider.is_available
-        ));
+        // Draw reset time and status text
+        // Order: [name] ... [reset time] [status] (right aligned)
+        if let Some(reset_time) = &provider.next_reset_time {
+            let reset_text = Self::format_reset_display(reset_time);
+            
+            // Draw reset text first (to the left of status)
+            let reset_pos = egui::pos2(rect.max.x - 8.0, rect.min.y + (bar_height - font_size) / 2.0);
+            ui.painter().text(
+                reset_pos,
+                egui::Align2::RIGHT_TOP,
+                &reset_text,
+                egui::FontId::proportional(font_size * 0.8),
+                reset_color,
+            );
+            
+            // Calculate reset text width and position status before it
+            let reset_width = ui.painter().layout_no_wrap(
+                reset_text.clone(),
+                egui::FontId::proportional(font_size * 0.8),
+                reset_color,
+            ).size().x;
+            
+            let status_pos = egui::pos2(rect.max.x - 8.0 - reset_width - 8.0, rect.min.y + (bar_height - font_size) / 2.0);
+            ui.painter().text(
+                status_pos,
+                egui::Align2::RIGHT_TOP,
+                &status_text,
+                egui::FontId::proportional(font_size * 0.9),
+                status_color,
+            );
+        } else {
+            // No reset time, just draw status on the right
+            let status_pos = egui::pos2(rect.max.x - 8.0, rect.min.y + (bar_height - font_size) / 2.0);
+            ui.painter().text(
+                status_pos,
+                egui::Align2::RIGHT_TOP,
+                &status_text,
+                egui::FontId::proportional(font_size * 0.9),
+                status_color,
+            );
+        }
+
+        let hover_text = if let Some(reset_time) = &provider.next_reset_time {
+            format!(
+                "Provider: {}\nUsage: {:.1}%\nCost: ${:.2}\nAvailable: {}\nReset: {}",
+                provider.provider_name,
+                provider.usage_percentage,
+                provider.cost_used,
+                provider.is_available,
+                Self::format_reset_display(reset_time)
+            )
+        } else {
+            format!(
+                "Provider: {}\nUsage: {:.1}%\nCost: ${:.2}\nAvailable: {}",
+                provider.provider_name,
+                provider.usage_percentage,
+                provider.cost_used,
+                provider.is_available
+            )
+        };
+        response.on_hover_text(hover_text);
     }
 
     fn render_settings_window(&mut self, ctx: &egui::Context) {
