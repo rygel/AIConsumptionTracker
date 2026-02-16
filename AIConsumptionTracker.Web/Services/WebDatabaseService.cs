@@ -337,6 +337,85 @@ public class WebDatabaseService
         }
     }
 
+    /// <summary>
+    /// Get raw providers table with pagination
+    /// </summary>
+    public async Task<(List<Dictionary<string, object?>> rows, int totalCount)> GetProvidersRawAsync(int page = 1, int pageSize = 100)
+    {
+        return await GetTableRawAsync("providers", page, pageSize);
+    }
+
+    /// <summary>
+    /// Get raw provider_history table with pagination
+    /// </summary>
+    public async Task<(List<Dictionary<string, object?>> rows, int totalCount)> GetProviderHistoryRawAsync(int page = 1, int pageSize = 100)
+    {
+        return await GetTableRawAsync("provider_history", page, pageSize, "fetched_at DESC");
+    }
+
+    /// <summary>
+    /// Get raw raw_snapshots table with pagination
+    /// </summary>
+    public async Task<(List<Dictionary<string, object?>> rows, int totalCount)> GetRawSnapshotsRawAsync(int page = 1, int pageSize = 100)
+    {
+        return await GetTableRawAsync("raw_snapshots", page, pageSize, "fetched_at DESC");
+    }
+
+    /// <summary>
+    /// Get raw reset_events table with pagination
+    /// </summary>
+    public async Task<(List<Dictionary<string, object?>> rows, int totalCount)> GetResetEventsRawAsync(int page = 1, int pageSize = 100)
+    {
+        return await GetTableRawAsync("reset_events", page, pageSize, "timestamp DESC");
+    }
+
+    private async Task<(List<Dictionary<string, object?>> rows, int totalCount)> GetTableRawAsync(string tableName, int page, int pageSize, string? orderBy = null)
+    {
+        if (!IsDatabaseAvailable())
+            return (new List<Dictionary<string, object?>>(), 0);
+
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var connection = new SqliteConnection($"Data Source={_dbPath}");
+            await connection.OpenAsync();
+
+            var offset = (page - 1) * pageSize;
+            var orderClause = string.IsNullOrEmpty(orderBy) ? "" : $"ORDER BY {orderBy}";
+
+            // Get total count
+            using (var countCmd = connection.CreateCommand())
+            {
+                countCmd.CommandText = $"SELECT COUNT(*) FROM {tableName}";
+                var totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
+
+                // Get rows
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = $"SELECT * FROM {tableName} {orderClause} LIMIT {pageSize} OFFSET {offset}";
+
+                var rows = new List<Dictionary<string, object?>>();
+                using var reader = await cmd.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    var row = new Dictionary<string, object?>();
+                    for (int i = 0; i < reader.FieldCount; i++)
+                    {
+                        var value = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                        row[reader.GetName(i)] = value;
+                    }
+                    rows.Add(row);
+                }
+
+                return (rows, totalCount);
+            }
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
     private ProviderUsage MapToProviderUsage(SqliteDataReader reader)
     {
         return new ProviderUsage

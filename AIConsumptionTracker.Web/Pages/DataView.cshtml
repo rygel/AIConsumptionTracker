@@ -1,0 +1,82 @@
+@page "/Data/{tableName?}"
+@model DataViewModel
+@{
+    ViewData["Title"] = "Database: " + (Model.TableName ?? "Select Table");
+}
+
+<h1 class="page-title">Database: @Model.TableName</h1>
+
+<div class="data-tabs mb-2">
+    <a href="/Data/providers" class="data-tab @(Model.TableName == "providers" ? "active" : "")">Providers</a>
+    <a href="/Data/history" class="data-tab @(Model.TableName == "history" ? "active" : "")">History</a>
+    <a href="/Data/snapshots" class="data-tab @(Model.TableName == "snapshots" ? "active" : "")">Snapshots</a>
+    <a href="/Data/resets" class="data-tab @(Model.TableName == "resets" ? "active" : "")">Resets</a>
+</div>
+
+@if (!Model.IsDatabaseAvailable)
+{
+    <div class="alert alert-warning">Database not found.</div>
+}
+else if (Model.Rows == null || !Model.Rows.Any())
+{
+    <div class="alert alert-info">No data in this table.</div>
+}
+else
+{
+    <div class="table-stats mb-1">
+        @Model.TotalCount rows total - Page @Model.Page of @Model.TotalPages
+    </div>
+    
+    <div class="table-container">
+        <table class="raw-table">
+            <thead>
+                <tr>
+                    @foreach (var col in Model.Columns)
+                    {
+                        <th>@col</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        @foreach (var col in Model.Columns)
+                        {
+                            <td>@(row.TryGetValue(col, out var val) ? FormatValue(val) : "")</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    
+    @if (Model.TotalPages > 1)
+    {
+        <div class="pagination mt-2">
+            @if (Model.Page > 1)
+            {
+                <a href="/Data/@Model.TableName?page=1" class="btn btn-secondary btn-sm">First</a>
+                <a href="/Data/@Model.TableName?page=@(Model.Page - 1)" class="btn btn-secondary btn-sm">Prev</a>
+            }
+            
+            <span class="page-info">@Model.Page / @Model.TotalPages</span>
+            
+            @if (Model.Page < Model.TotalPages)
+            {
+                <a href="/Data/@Model.TableName?page=@(Model.Page + 1)" class="btn btn-secondary btn-sm">Next</a>
+                <a href="/Data/@Model.TableName?page=@Model.TotalPages" class="btn btn-secondary btn-sm">Last</a>
+            }
+        </div>
+    }
+}
+
+@functions {
+    string FormatValue(object? val)
+    {
+        if (val == null) return "NULL";
+        if (val is byte[] bytes) return $"[{bytes.Length} bytes]";
+        if (val is DateTime dt) return dt.ToString("g");
+        return val.ToString() ?? "";
+    }
+}

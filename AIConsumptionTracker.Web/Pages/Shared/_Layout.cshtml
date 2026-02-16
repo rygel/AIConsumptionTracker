@@ -38,6 +38,11 @@
                             <span class="nav-text">History</span>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a href="/Data/providers" class="nav-link @(Context.Request.Path.Value?.Contains("/Data") == true ? "active" : "")">
+                            <span class="nav-text">Raw Data</span>
+                        </a>
+                    </li>
                 </ul>
             </nav>
             
