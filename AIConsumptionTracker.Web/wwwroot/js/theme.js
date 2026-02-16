@@ -16,7 +16,7 @@ const ThemeManager = {
     // Initialize theme system
     init() {
         this.loadSavedTheme();
-        this.setupThemeToggle();
+        this.setupThemeDropdown();
         this.setupHTMXListeners();
         this.applyTheme(this.getCurrentTheme());
     },
@@ -30,24 +30,14 @@ const ThemeManager = {
     applyTheme(themeId) {
         const html = document.documentElement;
         html.setAttribute('data-theme', themeId);
-        this.updateToggleButton(themeId);
+        this.updateThemeDisplay(themeId);
         localStorage.setItem('theme', themeId);
+        
+        // Update active state in dropdown
+        this.updateDropdownActiveState(themeId);
         
         // Dispatch custom event for other components
         window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: themeId } }));
-    },
-
-    // Toggle between themes (cycles through all)
-    toggleTheme() {
-        const currentTheme = this.getCurrentTheme();
-        const currentIndex = this.themes.findIndex(t => t.id === currentTheme);
-        const nextIndex = (currentIndex + 1) % this.themes.length;
-        const nextTheme = this.themes[nextIndex];
-        
-        this.applyTheme(nextTheme.id);
-        
-        // Show notification
-        this.showNotification(`Theme: ${nextTheme.name}`);
     },
 
     // Set specific theme
@@ -57,19 +47,103 @@ const ThemeManager = {
         }
     },
 
-    // Update toggle button icon
-    updateToggleButton(themeId) {
+    // Update theme display in dropdown button
+    updateThemeDisplay(themeId) {
         const theme = this.themes.find(t => t.id === themeId);
-        const iconElement = document.getElementById('theme-icon');
-        const btnElement = document.getElementById('theme-toggle-btn');
+        const iconElement = document.getElementById('current-theme-icon');
+        const nameElement = document.getElementById('current-theme-name');
         
         if (iconElement && theme) {
             iconElement.textContent = theme.icon;
         }
         
-        if (btnElement) {
-            btnElement.title = `Current theme: ${theme?.name || 'Dark'}. Click to cycle themes.`;
+        if (nameElement && theme) {
+            nameElement.textContent = theme.name;
         }
+    },
+
+    // Update active state in dropdown
+    updateDropdownActiveState(themeId) {
+        const options = document.querySelectorAll('.theme-option');
+        options.forEach(option => {
+            option.classList.remove('active');
+            if (option.dataset.theme === themeId) {
+                option.classList.add('active');
+            }
+        });
+    },
+
+    // Setup theme dropdown
+    setupThemeDropdown() {
+        const dropdownBtn = document.getElementById('theme-dropdown-btn');
+        const dropdownMenu = document.getElementById('theme-dropdown-menu');
+        
+        if (!dropdownBtn || !dropdownMenu) return;
+        
+        // Toggle dropdown
+        dropdownBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = dropdownMenu.classList.contains('show');
+            
+            if (isOpen) {
+                this.closeDropdown();
+            } else {
+                this.openDropdown();
+            }
+        });
+        
+        // Theme option clicks
+        const themeOptions = dropdownMenu.querySelectorAll('.theme-option');
+        themeOptions.forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const themeId = option.dataset.theme;
+                this.setTheme(themeId);
+                this.closeDropdown();
+                this.showNotification(`Theme: ${this.getThemeName(themeId)}`);
+            });
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', () => {
+            this.closeDropdown();
+        });
+        
+        // Update initial display
+        this.updateThemeDisplay(this.getCurrentTheme());
+        this.updateDropdownActiveState(this.getCurrentTheme());
+    },
+
+    // Open dropdown
+    openDropdown() {
+        const dropdownBtn = document.getElementById('theme-dropdown-btn');
+        const dropdownMenu = document.getElementById('theme-dropdown-menu');
+        
+        if (dropdownMenu) {
+            dropdownMenu.classList.add('show');
+        }
+        if (dropdownBtn) {
+            dropdownBtn.classList.add('open');
+        }
+    },
+
+    // Close dropdown
+    closeDropdown() {
+        const dropdownBtn = document.getElementById('theme-dropdown-btn');
+        const dropdownMenu = document.getElementById('theme-dropdown-menu');
+        
+        if (dropdownMenu) {
+            dropdownMenu.classList.remove('show');
+        }
+        if (dropdownBtn) {
+            dropdownBtn.classList.remove('open');
+        }
+    },
+
+    // Get theme name
+    getThemeName(themeId) {
+        const theme = this.themes.find(t => t.id === themeId);
+        return theme ? theme.name : themeId;
     },
 
     // Load saved theme on page load
@@ -80,31 +154,12 @@ const ThemeManager = {
         }
     },
 
-    // Setup theme toggle button
-    setupThemeToggle() {
-        const toggleBtn = document.getElementById('theme-toggle-btn');
-        if (toggleBtn) {
-            // Use data-action attribute for event binding
-            toggleBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.toggleTheme();
-            });
-        }
-        
-        // Update initial button state
-        this.updateToggleButton(this.getCurrentTheme());
-    },
-
     // Setup HTMX event listeners for theme persistence across swaps
     setupHTMXListeners() {
         // Re-apply theme after HTMX content swaps
         document.addEventListener('htmx:afterSwap', () => {
-            this.applyTheme(this.getCurrentTheme());
-        });
-        
-        // Apply theme on initial load
-        document.addEventListener('DOMContentLoaded', () => {
-            this.applyTheme(this.getCurrentTheme());
+            this.updateThemeDisplay(this.getCurrentTheme());
+            this.updateDropdownActiveState(this.getCurrentTheme());
         });
     },
 
@@ -151,33 +206,6 @@ const ThemeManager = {
             notification.style.transform = 'translateY(20px)';
             setTimeout(() => notification.remove(), 300);
         }, 2000);
-    },
-
-    // Create theme selector dropdown (can be called to create a dropdown menu)
-    createThemeSelector() {
-        const dropdown = document.createElement('div');
-        dropdown.className = 'theme-dropdown';
-        dropdown.id = 'theme-dropdown';
-        
-        this.themes.forEach(theme => {
-            const option = document.createElement('div');
-            option.className = 'theme-option';
-            option.dataset.theme = theme.id;
-            option.innerHTML = `${theme.icon} ${theme.name}`;
-            
-            if (theme.id === this.getCurrentTheme()) {
-                option.classList.add('active');
-            }
-            
-            option.addEventListener('click', () => {
-                this.setTheme(theme.id);
-                dropdown.classList.remove('show');
-            });
-            
-            dropdown.appendChild(option);
-        });
-        
-        return dropdown;
     }
 };
 
