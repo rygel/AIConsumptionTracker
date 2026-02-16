@@ -24,6 +24,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a href="/Charts" class="nav-link @(Context.Request.Path.Value?.Contains("/Charts") == true ? "active" : "")">
+                            <span class="nav-text">Charts</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="/Providers" class="nav-link @(Context.Request.Path.Value?.Contains("/Providers") == true ? "active" : "")">
                             <span class="nav-text">Providers</span>
                         </a>
@@ -37,6 +42,13 @@
             </nav>
             
             <div class="sidebar-footer">
+                <div class="agent-section">
+                    <div class="agent-status-row">
+                        <span id="agent-status" class="agent-status">Checking...</span>
+                        <button id="start-agent-btn" class="btn btn-sm btn-primary" onclick="startAgent()">Start</button>
+                    </div>
+                </div>
+                
                 <div class="theme-section">
                     <select id="theme-select" class="theme-select">
                         <option value="dark">Dark</option>
@@ -73,6 +85,50 @@
 
     <script src="~/js/theme.js"></script>
     <script src="~/js/sidebar.js"></script>
+    <script>
+        // Agent status check
+        async function checkAgentStatus() {
+            try {
+                const res = await fetch('/api/agent/status');
+                const data = await res.json();
+                const statusEl = document.getElementById('agent-status');
+                const btn = document.getElementById('start-agent-btn');
+                
+                if (data.isRunning) {
+                    statusEl.textContent = 'Agent: Running';
+                    statusEl.classList.add('running');
+                    btn.style.display = 'none';
+                } else {
+                    statusEl.textContent = 'Agent: Stopped';
+                    statusEl.classList.remove('running');
+                    btn.style.display = 'inline-block';
+                }
+            } catch {
+                document.getElementById('agent-status').textContent = 'Agent: Unknown';
+            }
+        }
+        
+        async function startAgent() {
+            const btn = document.getElementById('start-agent-btn');
+            btn.disabled = true;
+            btn.textContent = 'Starting...';
+            
+            try {
+                const res = await fetch('/api/agent/start', { method: 'POST' });
+                if (res.ok) {
+                    setTimeout(checkAgentStatus, 2000);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Start';
+        }
+        
+        document.addEventListener('DOMContentLoaded', checkAgentStatus);
+        setInterval(checkAgentStatus, 30000);
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

@@ -286,6 +286,57 @@ public class WebDatabaseService
         }
     }
 
+    /// <summary>
+    /// Get time series data for charts (last N hours)
+    /// </summary>
+    public async Task<List<ChartDataPoint>> GetChartDataAsync(int hours = 24)
+    {
+        if (!IsDatabaseAvailable())
+            return new List<ChartDataPoint>();
+
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var connection = new SqliteConnection($"Data Source={_dbPath}");
+            await connection.OpenAsync();
+
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                SELECT 
+                    h.provider_id,
+                    p.provider_name,
+                    h.fetched_at,
+                    h.usage_percentage,
+                    h.cost_used
+                FROM provider_history h
+                JOIN providers p ON h.provider_id = p.provider_id
+                WHERE datetime(h.fetched_at) >= datetime('now', '-' || @hours || ' hours')
+                ORDER BY h.fetched_at ASC";
+            cmd.Parameters.AddWithValue("@hours", hours);
+
+            var results = new List<ChartDataPoint>();
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                results.Add(new ChartDataPoint
+                {
+                    ProviderId = reader.GetString(reader.GetOrdinal("provider_id")),
+                    ProviderName = reader.GetString(reader.GetOrdinal("provider_name")),
+                    Timestamp = DateTime.Parse(reader.GetString(reader.GetOrdinal("fetched_at"))),
+                    UsagePercentage = reader.GetDouble(reader.GetOrdinal("usage_percentage")),
+                    CostUsed = reader.GetDouble(reader.GetOrdinal("cost_used"))
+                });
+            }
+
+            return results;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
     private ProviderUsage MapToProviderUsage(SqliteDataReader reader)
     {
         return new ProviderUsage
@@ -341,4 +392,16 @@ public class UsageSummary
     public int ProviderCount { get; set; }
     public double AverageUsage { get; set; }
     public string? LastUpdate { get; set; }
+}
+
+/// <summary>
+/// Chart data point for time series
+/// </summary>
+public class ChartDataPoint
+{
+    public string ProviderId { get; set; } = string.Empty;
+    public string ProviderName { get; set; } = string.Empty;
+    public DateTime Timestamp { get; set; }
+    public double UsagePercentage { get; set; }
+    public double CostUsed { get; set; }
 }

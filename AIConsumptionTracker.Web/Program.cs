@@ -5,6 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services
 builder.Services.AddRazorPages();
 builder.Services.AddSingleton<WebDatabaseService>();
+builder.Services.AddSingleton<AgentProcessService>();
 
 var app = builder.Build();
 
@@ -15,16 +16,15 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-// Content Security Policy - Enabled in all modes with appropriate settings
+// Content Security Policy
 var isDevelopment = app.Environment.IsDevelopment();
 app.Use(async (context, next) =>
 {
     if (isDevelopment)
     {
-        // Development: Allow eval and inline scripts for Browser Link/Hot Reload/HTMX
         context.Response.Headers.Append("Content-Security-Policy",
             "default-src 'self'; " +
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; " +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net; " +
             "style-src 'self' 'unsafe-inline' https://unpkg.com; " +
             "img-src 'self' data:; " +
             "font-src 'self'; " +
@@ -32,10 +32,9 @@ app.Use(async (context, next) =>
     }
     else
     {
-        // Production: Strict CSP
         context.Response.Headers.Append("Content-Security-Policy",
             "default-src 'self'; " +
-            "script-src 'self' https://unpkg.com; " +
+            "script-src 'self' https://unpkg.com https://cdn.jsdelivr.net; " +
             "style-src 'self' 'unsafe-inline' https://unpkg.com; " +
             "img-src 'self' data:; " +
             "font-src 'self'; " +
@@ -47,6 +46,22 @@ app.Use(async (context, next) =>
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+
+// API endpoints for agent management
+app.MapGet("/api/agent/status", async (AgentProcessService agentService) =>
+{
+    var (isRunning, port) = await agentService.GetAgentStatusAsync();
+    return Results.Ok(new { isRunning, port });
+});
+
+app.MapPost("/api/agent/start", async (AgentProcessService agentService) =>
+{
+    var success = await agentService.StartAgentAsync();
+    return success 
+        ? Results.Ok(new { message = "Agent started" }) 
+        : Results.BadRequest(new { message = "Failed to start agent" });
+});
+
 app.MapRazorPages();
 
 // Log startup information

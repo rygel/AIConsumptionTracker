@@ -138,6 +138,26 @@
     border-top: 1px solid var(--border-color);
 }
 
+.agent-section {
+    margin-bottom: 0.5rem;
+}
+
+.agent-status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.agent-status {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.agent-status.running {
+    color: var(--accent-success);
+}
+
 .theme-select {
     width: 100%;
     padding: 0.4rem 0.5rem;
