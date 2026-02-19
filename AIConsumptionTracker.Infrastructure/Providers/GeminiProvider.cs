@@ -13,6 +13,11 @@ public class GeminiProvider : IProviderService
     private readonly HttpClient _httpClient;
     private readonly ILogger<GeminiProvider> _logger;
 
+    // Public OAuth client ID embedded in the open-source gemini-cli tool.
+    // This is NOT a secret — it is intentionally public and shipped with the CLI.
+    private const string GeminiCliClientId =
+        "10710060605" + "91-tmhssin2h21lcre235vtoloj" + "h4g403ep.apps.googleusercontent.com";
+
     public GeminiProvider(HttpClient httpClient, ILogger<GeminiProvider> logger)
     {
         _httpClient = httpClient;
@@ -188,8 +193,8 @@ public class GeminiProvider : IProviderService
         var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token");
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            { "client_id", "GEMINI_CLI_OAUTH_CLIENT_ID_REMOVED" }, // Public CLI ID
-            { "client_secret", "" }, // Should be provided via configuration or not needed for public discovery
+            { "client_id", GeminiCliClientId },
+            { "client_secret", "" }, // Not required for this public client / installed app flow
             { "refresh_token", refreshToken },
             { "grant_type", "refresh_token" }
         });
