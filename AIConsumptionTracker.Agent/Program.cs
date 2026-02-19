@@ -194,11 +194,15 @@ app.MapPost("/api/preferences", async (AppPreferences preferences, ConfigService
 });
 
 // Scan for keys endpoint
-app.MapPost("/api/scan-keys", async (ConfigService configService) =>
+app.MapPost("/api/scan-keys", async (ConfigService configService, ProviderRefreshService refreshService) =>
 {
     if (isDebugMode) Console.WriteLine($"[API] POST /api/scan-keys - {DateTime.Now:HH:mm:ss}");
     var discovered = await configService.ScanForKeysAsync();
     if (isDebugMode) Console.WriteLine($"[API] Discovered {discovered.Count} keys");
+
+    // Immediately refresh so newly discovered keys appear in /api/usage within seconds
+    _ = Task.Run(async () => await refreshService.TriggerRefreshAsync(forceAll: true));
+
     return Results.Ok(new { discovered = discovered.Count, configs = discovered });
 });
 
