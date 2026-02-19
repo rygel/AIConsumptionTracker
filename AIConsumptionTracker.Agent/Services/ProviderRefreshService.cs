@@ -176,15 +176,21 @@ public class ProviderRefreshService : BackgroundService
                     c.ProviderId, hasKey ? $"Has API key ({c.ApiKey?.Length ?? 0} chars)" : "NO API KEY");
             }
 
-            var activeConfigs = configs.Where(c => 
+            // Always include system providers that don't require API keys (mirrors ProviderManager.FetchAllUsageInternal)
+            if (!configs.Any(c => c.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase)))
+                configs.Add(new ProviderConfig { ProviderId = "antigravity", ApiKey = "" });
+            if (!configs.Any(c => c.ProviderId.Equals("gemini-cli", StringComparison.OrdinalIgnoreCase)))
+                configs.Add(new ProviderConfig { ProviderId = "gemini-cli", ApiKey = "" });
+            if (!configs.Any(c => c.ProviderId.Equals("cloud-code", StringComparison.OrdinalIgnoreCase)))
+                configs.Add(new ProviderConfig { ProviderId = "cloud-code", ApiKey = "" });
+
+            var activeConfigs = configs.Where(c =>
                 forceAll ||
-                c.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase) || 
+                string.IsNullOrEmpty(c.ApiKey) ||   // System providers (antigravity, gemini-cli, etc.)
                 c.ProviderId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) ||
                 !string.IsNullOrEmpty(c.ApiKey)).ToList();
-            var skippedCount = configs.Count(c => 
-                !forceAll &&
-                !c.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase) && 
-                string.IsNullOrEmpty(c.ApiKey));
+            var skippedCount = 0; // All configs are now included
+
 
             _logger.LogInformation("Providers: {Available} available, {Initialized} initialized", configs.Count, activeConfigs.Count);
 
