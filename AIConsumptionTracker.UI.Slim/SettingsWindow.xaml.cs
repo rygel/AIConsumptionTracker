@@ -235,7 +235,7 @@ public partial class SettingsWindow : Window
         if (config.ProviderId == "antigravity")
         {
             // Antigravity: Auto-Detection
-            var statusPanel = new StackPanel { Orientation = Orientation.Horizontal };
+            var statusPanel = new StackPanel { Orientation = Orientation.Vertical };
             bool isConnected = usage != null && usage.IsAvailable;
             string accountInfo = usage?.AccountName ?? "Unknown";
             var displayAccount = _isPrivacyMode
@@ -253,6 +253,30 @@ public partial class SettingsWindow : Window
                 isConnected ? "ProgressBarGreen" : "TertiaryText");
 
             statusPanel.Children.Add(statusText);
+
+            var antigravitySubmodels = usage?.Details?
+                .Select(d => d.Name)
+                .Where(name =>
+                    !string.IsNullOrWhiteSpace(name) &&
+                    !name.StartsWith("[", StringComparison.Ordinal))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (antigravitySubmodels is { Count: > 0 })
+            {
+                var modelsText = new TextBlock
+                {
+                    Text = $"Models: {string.Join(", ", antigravitySubmodels)}",
+                    VerticalAlignment = VerticalAlignment.Center,
+                    FontSize = 10,
+                    Margin = new Thickness(0, 4, 0, 0),
+                    TextWrapping = TextWrapping.Wrap
+                };
+                modelsText.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
+                statusPanel.Children.Add(modelsText);
+            }
+
             Grid.SetColumn(statusPanel, 0);
             keyPanel.Children.Add(statusPanel);
         }

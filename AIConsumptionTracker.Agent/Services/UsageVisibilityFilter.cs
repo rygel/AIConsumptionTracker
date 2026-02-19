@@ -10,7 +10,8 @@ public static class UsageVisibilityFilter
         "antigravity",
         "cloud-code",
         "opencode-zen",
-        "claude-code"
+        "claude-code",
+        "codex"
     };
 
     public static List<ProviderUsage> FilterForConfiguredProviders(

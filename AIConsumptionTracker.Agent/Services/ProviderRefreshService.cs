@@ -195,6 +195,14 @@ public class ProviderRefreshService : BackgroundService
                 });
             if (!configs.Any(c => c.ProviderId.Equals("cloud-code", StringComparison.OrdinalIgnoreCase)))
                 configs.Add(new ProviderConfig { ProviderId = "cloud-code", ApiKey = "" });
+            if (!configs.Any(c => c.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase)))
+                configs.Add(new ProviderConfig
+                {
+                    ProviderId = "codex",
+                    ApiKey = "",
+                    Type = "quota-based",
+                    PlanType = PlanType.Coding
+                });
 
             var activeConfigs = configs.Where(c =>
                 forceAll ||

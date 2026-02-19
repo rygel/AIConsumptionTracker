@@ -44,50 +44,52 @@ By requiring manual tag creation:
 Create a feature branch and update these files:
 
 #### 1.1 Project Files (.csproj)
-Update `Version`, `AssemblyVersion`, and `FileVersion` in all project files:
+Update `Version` in all release project files. For projects that contain `AssemblyVersion` and `FileVersion`, use the numeric base version (without prerelease suffix) for those two fields.
 - `AIConsumptionTracker.Core/AIConsumptionTracker.Core.csproj`
 - `AIConsumptionTracker.Infrastructure/AIConsumptionTracker.Infrastructure.csproj`
 - `AIConsumptionTracker.UI/AIConsumptionTracker.UI.csproj`
 - `AIConsumptionTracker.CLI/AIConsumptionTracker.CLI.csproj`
+- `AIConsumptionTracker.UI.Slim/AIConsumptionTracker.UI.Slim.csproj`
+- `AIConsumptionTracker.Agent/AIConsumptionTracker.Agent.csproj`
 
 Example changes:
 ```xml
-<Version>1.7.14</Version>
-<AssemblyVersion>1.7.14</AssemblyVersion>
-<FileVersion>1.7.14</FileVersion>
+<Version>1.8.7-alpha.2</Version>
+<AssemblyVersion>1.8.7</AssemblyVersion>
+<FileVersion>1.8.7</FileVersion>
 ```
 
 #### 1.2 README.md
 Update the version badge:
 ```markdown
-![Version](https://img.shields.io/badge/version-1.7.14-blue)
+![Version](https://img.shields.io/badge/version-1.8.7--alpha.2-orange)
 ```
 
 #### 1.3 Installer Script
 Update `scripts/setup.iss`:
 ```pascal
-#define MyAppVersion "1.7.14"
+#define MyAppVersion "1.8.7-alpha.2"
 ```
 
 #### 1.4 Publish Script
 Update `scripts/publish-app.ps1`:
 ```powershell
-# Usage: .\scripts\publish-app.ps1 -Runtime win-x64 -Version 1.7.14
+# Usage: .\scripts\publish-app.ps1 -Runtime win-x64 -Version 1.8.7-alpha.2
 ```
 
 #### 1.5 Create and Merge PR
 ```bash
 # Create branch
-git checkout -b feature/v1.7.14-version-update
+git checkout -b feature/v1.8.7-alpha.2-version-update
 
 # Stage and commit changes
 git add .
-git commit -m "chore(release): update version files to v1.7.14"
-git push -u origin feature/v1.7.14-version-update
+git commit -m "chore(release): update version files to v1.8.7-alpha.2"
+git push -u origin feature/v1.8.7-alpha.2-version-update
 
 # Create PR (or use GitHub UI)
-gh pr create --base main --head feature/v1.7.14-version-update \
-  --title "chore(release): update version files to v1.7.14"
+gh pr create --base main --head feature/v1.8.7-alpha.2-version-update \
+  --title "chore(release): update version files to v1.8.7-alpha.2"
 
 # Merge the PR
 ```
@@ -99,14 +101,14 @@ After the version update PR is merged to `main`, trigger the release workflow:
 **Via GitHub UI:**
 1. Go to Actions > Create Release
 2. Click "Run workflow"
-3. Enter version: `1.7.14`
+3. Enter version: `1.8.7-alpha.2`
 4. Check "Skip automatic file updates" (since files are already updated)
 5. Click "Run workflow"
 
 **Via CLI:**
 ```bash
 gh workflow run "Create Release" --repo rygel/AIConsumptionTracker \
-  -f version="1.7.14" \
+  -f version="1.8.7-alpha.2" \
   -f skip_file_updates="true"
 ```
 
@@ -120,8 +122,8 @@ git checkout main
 git pull origin main
 
 # Create and push the tag
-git tag v1.7.14
-git push origin v1.7.14
+git tag v1.8.7-alpha.2
+git push origin v1.8.7-alpha.2
 ```
 
 **Important**: Only repository admins can push tags due to protection rules.
@@ -172,7 +174,7 @@ The release workflow automatically generates:
 - `appcast.xml` for NetSparkle auto-updater
 
 The following must be updated manually before triggering:
-- All `.csproj` files (Version, AssemblyVersion, FileVersion)
+- All `.csproj` files (Version, plus AssemblyVersion/FileVersion where present)
 - `README.md` (version badge)
 - `scripts/setup.iss` (MyAppVersion)
 - `scripts/publish-app.ps1` (example version)
@@ -184,8 +186,11 @@ We follow [Semantic Versioning](https://semver.org/):
 - **MAJOR** (X.0.0): Breaking changes
 - **MINOR** (0.X.0): New features, backwards compatible
 - **PATCH** (0.0.X): Bug fixes, backwards compatible
+- **PRERELEASE** (optional suffix): early builds such as `-alpha.2`, `-beta.1`, or `-rc.1`
 
-Example: `1.7.14` = Major 1, Minor 7, Patch 14
+Examples:
+- `1.8.7` = Major 1, Minor 8, Patch 7
+- `1.8.7-alpha.2` = prerelease build of `1.8.7` (keep `AssemblyVersion`/`FileVersion` as `1.8.7`)
 
 ## Related Documentation
 

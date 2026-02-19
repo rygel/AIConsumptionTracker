@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [1.8.7-alpha.2] - 2026-02-19
+
+### Added
+- **Codex Native Provider**: Added local Codex auth detection and native usage parsing from ChatGPT `wham/usage`.
+- **Antigravity Detail Metadata**: Added strict `group_name` and `model_name` metadata to provider detail payloads for grouped rendering.
+
+### Changed
+- **Slim Antigravity Layout**: Replaced sub-bars with grouped per-model rows and removed the synthetic parent percentage calculation.
+- **Slim Window Behavior**: Main close button now hides to tray, and settings now has its own taskbar entry.
+
+### Fixed
+- **Slim Agent Lifecycle**: Removed blocking start/stop paths that could hang the UI during restart flows.
+- **Settings Theme Consistency**: Dark theme now applies to font selection combo popups and settings history grid styling.
+
 ## [1.8.6] - 2026-02-12
 
 ### Added

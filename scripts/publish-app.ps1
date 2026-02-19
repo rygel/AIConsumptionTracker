@@ -4,7 +4,7 @@ param(
 )
 
 # AI Consumption Tracker - Distribution Packaging Script
-# Usage: .\scripts\publish-app.ps1 -Runtime win-x64 -Version 1.8.6
+# Usage: .\scripts\publish-app.ps1 -Runtime win-x64 -Version 1.8.7-alpha.2
 
 $isWinPlatform = $Runtime.StartsWith("win-")
 $projectName = if ($isWinPlatform) { "AIConsumptionTracker.UI" } else { "AIConsumptionTracker.CLI" }

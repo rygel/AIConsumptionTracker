@@ -6,6 +6,7 @@
         WindowStyle="None" ResizeMode="CanResize"
         Background="{DynamicResource Background}" 
         Foreground="{DynamicResource PrimaryText}"
+        ShowInTaskbar="True"
         WindowStartupLocation="CenterScreen"
         KeyDown="Window_KeyDown"
         Icon="Assets/app_icon.ico">

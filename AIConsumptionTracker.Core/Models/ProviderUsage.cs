@@ -32,8 +32,9 @@ public class ProviderUsage
 public class ProviderUsageDetail
 {
     public string Name { get; set; } = string.Empty;
+    public string ModelName { get; set; } = string.Empty;
+    public string GroupName { get; set; } = string.Empty;
     public string Used { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public DateTime? NextResetTime { get; set; }
 }
-

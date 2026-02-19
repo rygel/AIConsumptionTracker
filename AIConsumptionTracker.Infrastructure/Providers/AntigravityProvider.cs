@@ -410,8 +410,47 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
             data.UserStatus.CascadeModelConfigData?.ClientModelConfigs?.Count ?? 0);
 
         var modelConfigs = data.UserStatus.CascadeModelConfigData?.ClientModelConfigs ?? new List<ClientModelConfig>();
-        var modelSorts = data.UserStatus.CascadeModelConfigData?.ClientModelSorts?.FirstOrDefault();
-        var masterModelLabels = modelSorts?.Groups?.SelectMany(g => g.ModelLabels ?? new List<string>()).Distinct().ToList() ?? new List<string>();
+        var modelSorts = data.UserStatus.CascadeModelConfigData?.ClientModelSorts ?? new List<ClientModelSort>();
+        var labelToGroup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var masterModelLabelSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var masterModelLabels = new List<string>();
+
+        for (var sortIndex = 0; sortIndex < modelSorts.Count; sortIndex++)
+        {
+            var modelSort = modelSorts[sortIndex];
+            var sortName = ResolveModelSortName(modelSort, sortIndex);
+            var modelGroups = modelSort.Groups ?? new List<ModelGroup>();
+            for (var groupIndex = 0; groupIndex < modelGroups.Count; groupIndex++)
+            {
+                var groupName = ResolveModelGroupName(modelGroups[groupIndex], sortName, groupIndex);
+                foreach (var label in GetModelLabels(modelGroups[groupIndex]))
+                {
+                    if (string.IsNullOrWhiteSpace(label))
+                    {
+                        continue;
+                    }
+
+                    if (masterModelLabelSet.Add(label))
+                    {
+                        masterModelLabels.Add(label);
+                    }
+
+                    if (!labelToGroup.ContainsKey(label))
+                    {
+                        labelToGroup[label] = groupName;
+                    }
+                }
+            }
+        }
+
+        if (!masterModelLabels.Any())
+        {
+            masterModelLabels = modelConfigs
+                .Where(c => !string.IsNullOrWhiteSpace(c.Label))
+                .Select(c => c.Label!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
 
         var details = new List<ProviderUsageDetail>();
         double minRemaining = 100.0;
@@ -476,9 +515,29 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                         }
             }
 
+            var displayModelName = modelConfig?.ModelOrAlias?.Model;
+            if (string.IsNullOrWhiteSpace(displayModelName))
+            {
+                displayModelName = modelConfig?.ModelOrAlias?.Alias;
+            }
+
+            if (string.IsNullOrWhiteSpace(displayModelName))
+            {
+                displayModelName = modelConfig?.ModelOrAlias?.Name;
+            }
+
+            if (string.IsNullOrWhiteSpace(displayModelName))
+            {
+                displayModelName = label;
+            }
+
             details.Add(new ProviderUsageDetail
             {
                 Name = label,
+                ModelName = displayModelName,
+                GroupName = labelToGroup.TryGetValue(label, out var groupName)
+                    ? groupName
+                    : "Ungrouped Models",
                 Used = $"{detailRemainingPct.ToString("F0", CultureInfo.InvariantCulture)}%",
                 Description = resetStr,
                 NextResetTime = itemResetDt
@@ -650,6 +709,171 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
         return results;
     }
 
+    private static List<string> GetModelLabels(ModelGroup group)
+    {
+        var labels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (group.ModelLabels != null)
+        {
+            foreach (var label in group.ModelLabels)
+            {
+                if (!string.IsNullOrWhiteSpace(label))
+                {
+                    labels.Add(label);
+                }
+            }
+        }
+
+        if (group.ExtensionData != null)
+        {
+            foreach (var key in new[] { "labels", "modelLabels", "models", "items", "model_ids", "modelIds" })
+            {
+                if (!group.ExtensionData.TryGetValue(key, out var element) || element.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                foreach (var item in element.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.String)
+                    {
+                        var value = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            labels.Add(value);
+                        }
+                    }
+                    else if (item.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var property in new[] { "label", "name", "modelLabel", "model_name" })
+                        {
+                            if (!item.TryGetProperty(property, out var valueElement) || valueElement.ValueKind != JsonValueKind.String)
+                            {
+                                continue;
+                            }
+
+                            var value = valueElement.GetString();
+                            if (!string.IsNullOrWhiteSpace(value))
+                            {
+                                labels.Add(value);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return labels.ToList();
+    }
+
+    private static string ResolveModelSortName(ClientModelSort sort, int index)
+    {
+        if (!string.IsNullOrWhiteSpace(sort.Name))
+        {
+            return sort.Name;
+        }
+
+        if (!string.IsNullOrWhiteSpace(sort.Label))
+        {
+            return sort.Label;
+        }
+
+        if (!string.IsNullOrWhiteSpace(sort.Title))
+        {
+            return sort.Title;
+        }
+
+        if (!string.IsNullOrWhiteSpace(sort.SortId))
+        {
+            return sort.SortId;
+        }
+
+        if (sort.ExtensionData != null)
+        {
+            foreach (var key in new[] { "name", "label", "title", "id", "sortName", "sort_name" })
+            {
+                if (sort.ExtensionData.TryGetValue(key, out var element))
+                {
+                    var value = TryReadStringFromJsonElement(element);
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        return value;
+                    }
+                }
+            }
+        }
+
+        return $"Sort {index + 1}";
+    }
+
+    private static string ResolveModelGroupName(ModelGroup group, string sortName, int index)
+    {
+        if (!string.IsNullOrWhiteSpace(group.Name))
+        {
+            return group.Name;
+        }
+
+        if (!string.IsNullOrWhiteSpace(group.Label))
+        {
+            return group.Label;
+        }
+
+        if (!string.IsNullOrWhiteSpace(group.Title))
+        {
+            return group.Title;
+        }
+
+        if (!string.IsNullOrWhiteSpace(group.GroupName))
+        {
+            return group.GroupName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(group.DisplayName))
+        {
+            return group.DisplayName;
+        }
+
+        if (group.ExtensionData != null)
+        {
+            foreach (var key in new[] { "name", "label", "title", "groupName", "displayName", "group_label", "group_name" })
+            {
+                if (group.ExtensionData.TryGetValue(key, out var element))
+                {
+                    var value = TryReadStringFromJsonElement(element);
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        return value;
+                    }
+                }
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(sortName)
+            ? $"Group {index + 1}"
+            : $"{sortName} Group {index + 1}";
+    }
+
+    private static string? TryReadStringFromJsonElement(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.String)
+        {
+            return element.GetString();
+        }
+
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var key in new[] { "name", "label", "title", "displayName" })
+            {
+                if (element.TryGetProperty(key, out var nested) && nested.ValueKind == JsonValueKind.String)
+                {
+                    return nested.GetString();
+                }
+            }
+        }
+
+        return null;
+    }
+
     private class AntigravityResponse
     {
         [JsonPropertyName("userStatus")]
@@ -703,23 +927,74 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
 
     private class ClientModelSort
     {
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonPropertyName("label")]
+        public string? Label { get; set; }
+
+        [JsonPropertyName("title")]
+        public string? Title { get; set; }
+
+        [JsonPropertyName("id")]
+        public string? SortId { get; set; }
+
         [JsonPropertyName("groups")]
         public List<ModelGroup>? Groups { get; set; }
+
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 
     private class ModelGroup
     {
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonPropertyName("label")]
+        public string? Label { get; set; }
+
+        [JsonPropertyName("title")]
+        public string? Title { get; set; }
+
+        [JsonPropertyName("groupName")]
+        public string? GroupName { get; set; }
+
+        [JsonPropertyName("displayName")]
+        public string? DisplayName { get; set; }
+
         [JsonPropertyName("modelLabels")]
         public List<string>? ModelLabels { get; set; }
+
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 
     private class ClientModelConfig
     {
         [JsonPropertyName("label")]
         public string? Label { get; set; }
+
+        [JsonPropertyName("modelOrAlias")]
+        public ModelOrAlias? ModelOrAlias { get; set; }
         
         [JsonPropertyName("quotaInfo")]
         public QuotaInfo? QuotaInfo { get; set; }
+
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+    }
+
+    private class ModelOrAlias
+    {
+        [JsonPropertyName("model")]
+        public string? Model { get; set; }
+
+        [JsonPropertyName("alias")]
+        public string? Alias { get; set; }
+
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
 
         [JsonExtensionData]
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }

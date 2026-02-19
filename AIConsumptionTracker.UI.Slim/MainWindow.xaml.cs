@@ -351,13 +351,16 @@ public partial class MainWindow : Window
 
             if (!_preferences.IsPlansAndQuotasCollapsed)
             {
-                // Add all quota providers (including antigravity) with collapsible sub-providers if available
+                // Add all quota providers with Antigravity model rows grouped by Antigravity groups
                 foreach (var usage in quotaProviders.OrderBy(u => u.ProviderName))
                 {
                     AddProviderCard(usage, plansContainer);
-                    
-                    // Add collapsible sub-providers section if details exist
-                    if (usage.Details?.Any() == true)
+
+                    if (usage.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase))
+                    {
+                        AddGroupedAntigravityModels(usage, plansContainer);
+                    }
+                    else if (usage.Details?.Any() == true)
                     {
                         AddCollapsibleSubProviders(usage, plansContainer);
                     }
@@ -537,6 +540,7 @@ public partial class MainWindow : Window
         bool isMissing = usage.Description.Contains("not found", StringComparison.OrdinalIgnoreCase);
         bool isConsoleCheck = usage.Description.Contains("Check Console", StringComparison.OrdinalIgnoreCase);
         bool isError = usage.Description.Contains("[Error]", StringComparison.OrdinalIgnoreCase);
+        bool isAntigravityParent = usage.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase);
 
         // Main Grid Container - single row layout
         var grid = new Grid
@@ -547,7 +551,7 @@ public partial class MainWindow : Window
             Tag = usage.ProviderId
         };
 
-        bool shouldHaveProgress = (usage.RequestsPercentage > 0 || usage.IsQuotaBased) && !isMissing && !isError;
+        bool shouldHaveProgress = !isAntigravityParent && (usage.RequestsPercentage > 0 || usage.IsQuotaBased) && !isMissing && !isError;
 
         // Background Progress Bar
         var pGrid = new Grid();
@@ -628,7 +632,13 @@ public partial class MainWindow : Window
         { 
             statusText = usage.Description;
             
-            if (usage.PlanType == PlanType.Coding)
+            if (isAntigravityParent)
+            {
+                statusText = string.IsNullOrWhiteSpace(usage.Description)
+                    ? "Per-model quotas"
+                    : usage.Description;
+            }
+            else if (usage.PlanType == PlanType.Coding)
             {
                 var displayUsed = ShowUsedToggle?.IsChecked ?? false;
                 
@@ -744,7 +754,7 @@ public partial class MainWindow : Window
             tooltipBuilder.AppendLine("Rate Limits:");
             foreach (var detail in usage.Details)
             {
-                tooltipBuilder.AppendLine($"  {detail.Name}: {detail.Used}");
+                tooltipBuilder.AppendLine($"  {GetDetailDisplayName(detail)}: {detail.Used}");
             }
             grid.ToolTip = tooltipBuilder.ToString().Trim();
         }
@@ -754,6 +764,83 @@ public partial class MainWindow : Window
         }
 
         container.Children.Add(grid);
+    }
+
+    private void AddGroupedAntigravityModels(ProviderUsage usage, StackPanel container)
+    {
+        if (usage.Details?.Any() != true)
+        {
+            return;
+        }
+
+        var groupedDetails = usage.Details
+            .Where(d => !string.IsNullOrWhiteSpace(GetAntigravityModelDisplayName(d)) && !d.Name.StartsWith("[", StringComparison.Ordinal))
+            .GroupBy(ResolveAntigravityGroupHeader)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in groupedDetails)
+        {
+            var groupHeader = CreateText(
+                group.Key!,
+                9.0,
+                GetResourceBrush("SecondaryText", Brushes.Gray),
+                FontWeights.SemiBold,
+                new Thickness(20, 4, 0, 2));
+            container.Children.Add(groupHeader);
+
+            foreach (var detail in group.OrderBy(GetAntigravityModelDisplayName, StringComparer.OrdinalIgnoreCase))
+            {
+                AddProviderCard(CreateAntigravityModelUsage(detail, usage), container, isChild: true);
+            }
+        }
+    }
+
+    private static ProviderUsage CreateAntigravityModelUsage(ProviderUsageDetail detail, ProviderUsage parentUsage)
+    {
+        var remainingPercent = ParsePercent(detail.Used);
+        return new ProviderUsage
+        {
+            ProviderId = $"antigravity.{detail.Name.ToLowerInvariant().Replace(" ", "-")}",
+            ProviderName = GetAntigravityModelDisplayName(detail),
+            RequestsPercentage = remainingPercent,
+            RequestsUsed = 100.0 - remainingPercent,
+            RequestsAvailable = 100,
+            UsageUnit = "Quota %",
+            IsQuotaBased = true,
+            PlanType = PlanType.Coding,
+            Description = $"{remainingPercent:F0}% Remaining",
+            NextResetTime = detail.NextResetTime,
+            IsAvailable = parentUsage.IsAvailable,
+            AuthSource = parentUsage.AuthSource
+        };
+    }
+
+    private static double ParsePercent(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 0;
+        }
+
+        var parsedValue = value.Replace("%", "").Trim();
+        return double.TryParse(parsedValue, out var parsed)
+            ? Math.Max(0, Math.Min(100, parsed))
+            : 0;
+    }
+
+    private static string GetAntigravityModelDisplayName(ProviderUsageDetail detail)
+    {
+        return string.IsNullOrWhiteSpace(detail.ModelName) ? detail.Name : detail.ModelName;
+    }
+
+    private static string GetDetailDisplayName(ProviderUsageDetail detail)
+    {
+        return string.IsNullOrWhiteSpace(detail.ModelName) ? detail.Name : detail.ModelName;
+    }
+
+    private static string ResolveAntigravityGroupHeader(ProviderUsageDetail detail)
+    {
+        return string.IsNullOrWhiteSpace(detail.GroupName) ? "Ungrouped Models" : detail.GroupName;
     }
 
     private void AddSubProviderCard(ProviderUsageDetail detail, StackPanel container)
@@ -1292,7 +1379,7 @@ public partial class MainWindow : Window
 
     private void CloseBtn_Click(object sender, RoutedEventArgs e)
     {
-        Application.Current.Shutdown();
+        Hide();
     }
 
     private async void AlwaysOnTop_Checked(object sender, RoutedEventArgs e)
@@ -1356,7 +1443,7 @@ public partial class MainWindow : Window
             ShowStatus("Restarting agent...", StatusType.Warning);
             
             // Try to start agent
-            if (AgentLauncher.StartAgent())
+            if (await AgentLauncher.StartAgentAsync())
             {
                 var agentReady = await AgentLauncher.WaitForAgentAsync();
                 if (agentReady)
@@ -1400,7 +1487,7 @@ public partial class MainWindow : Window
         {
             // Start the agent
             ShowStatus("Starting agent...", StatusType.Warning);
-            if (AgentLauncher.StartAgent())
+            if (await AgentLauncher.StartAgentAsync())
             {
                 var agentReady = await AgentLauncher.WaitForAgentAsync();
                 if (agentReady)
