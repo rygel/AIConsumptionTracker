@@ -305,8 +305,7 @@ namespace AIConsumptionTracker.UI
                     }
                     else if ((_prefs.IsPrivacyMode || _isScreenshotMode) && !string.IsNullOrEmpty(displayUsername))
                     {
-                        // Privacy mode: show only masked username
-                        authStatusText = PrivacyHelper.MaskString(displayUsername);
+                        authStatusText = $"Authenticated ({PrivacyHelper.MaskContent(displayUsername, displayUsername)})";
                     }
                     else if (!string.IsNullOrEmpty(displayUsername))
                     {
@@ -371,15 +370,18 @@ namespace AIConsumptionTracker.UI
                 }
                 else if (config.ProviderId == "antigravity")
                 {
-                    // Antigravity: Local Process Auto-Detection (No Key Input) - no privacy masking
+                    // Antigravity: Local Process Auto-Detection (No Key Input)
                     var statusPanel = new StackPanel { Orientation = Orientation.Horizontal };
                     
                     bool isConnected = usage != null && usage.IsAvailable;
                     string accountInfo = usage?.AccountName ?? "Unknown";
+                    string displayAccount = (_prefs.IsPrivacyMode || _isScreenshotMode)
+                        ? PrivacyHelper.MaskContent(accountInfo, accountInfo)
+                        : accountInfo;
 
                     var statusText = new TextBlock
                     {
-                        Text = isConnected ? $"Auto-Detected ({accountInfo})" : "Searching for local process...",
+                        Text = isConnected ? $"Auto-Detected ({displayAccount})" : "Searching for local process...",
                         Foreground = isConnected ? (SolidColorBrush)Application.Current.Resources["ProgressBarGreen"] : (SolidColorBrush)Application.Current.Resources["TertiaryText"],
                         VerticalAlignment = VerticalAlignment.Center,
                         FontSize = 11,

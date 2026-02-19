@@ -193,9 +193,12 @@ public class TokenDiscoveryService
 
     private void AddOrUpdate(List<ProviderConfig> configs, string providerId, string key, string description, string source)
     {
+        var (planType, type) = GetProviderDefaults(providerId);
         var existing = configs.FirstOrDefault(c => c.ProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase));
         if (existing != null)
         {
+            existing.PlanType = planType;
+            existing.Type = type;
             if (!string.IsNullOrEmpty(key))
             {
                 existing.ApiKey = key;
@@ -209,7 +212,8 @@ public class TokenDiscoveryService
             {
                 ProviderId = providerId,
                 ApiKey = key,
-                Type = "pay-as-you-go",
+                Type = type,
+                PlanType = planType,
                 Description = description,
                 AuthSource = source
             });
@@ -385,15 +389,26 @@ public class TokenDiscoveryService
     {
         if (!configs.Any(c => c.ProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase)))
         {
+            var (planType, type) = GetProviderDefaults(providerId);
             configs.Add(new ProviderConfig
             {
                 ProviderId = providerId,
                 ApiKey = key,
-                Type = "pay-as-you-go",
+                Type = type,
+                PlanType = planType,
                 Description = description,
                 AuthSource = source
             });
         }
     }
-}
 
+    private static (PlanType PlanType, string Type) GetProviderDefaults(string providerId)
+    {
+        if (ProviderPlanClassifier.IsCodingPlanProvider(providerId))
+        {
+            return (PlanType.Coding, "quota-based");
+        }
+
+        return (PlanType.Usage, "pay-as-you-go");
+    }
+}

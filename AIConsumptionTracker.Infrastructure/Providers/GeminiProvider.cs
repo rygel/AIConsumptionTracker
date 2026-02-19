@@ -70,7 +70,7 @@ public class GeminiProvider : IProviderService
                            name = name.Replace("Requests Per Day", "(Day)").Replace("Requests Per Minute", "(Min)");
                         }
 
-                        var used = 100.0 - (bucket.RemainingFraction * 100.0);
+                        var bucketRemainingPercentage = UsageMath.ClampPercent(bucket.RemainingFraction * 100.0);
                         string? resetTime = bucket.ResetTime;
 
                         if (string.IsNullOrEmpty(resetTime) && bucket.ExtensionData != null && bucket.ExtensionData.TryGetValue("quotaId", out qidElement))
@@ -101,7 +101,7 @@ public class GeminiProvider : IProviderService
                         details.Add(new ProviderUsageDetail 
                         { 
                             Name = name, 
-                            Used = $"{used:F1}%", 
+                            Used = $"{bucketRemainingPercentage:F1}%", 
                             Description = $"{bucket.RemainingFraction:P1} remaining{resetStr}",
                             NextResetTime = itemResetDt
                         });
@@ -111,7 +111,8 @@ public class GeminiProvider : IProviderService
                 // Sort details
                 details = details.OrderBy(d => d.Name).ToList();
 
-                var usedPercentage = 100.0 - (minFrac * 100.0);
+                var remainingPercentage = UsageMath.ClampPercent(minFrac * 100.0);
+                var usedPercentage = 100.0 - remainingPercentage;
                 
                 var soonestBucket = allBuckets.Where(b => !string.IsNullOrEmpty(b.ResetTime))
                                              .OrderBy(b => DateTime.TryParse(b.ResetTime, out var dt) ? dt : DateTime.MaxValue)
@@ -131,14 +132,14 @@ public class GeminiProvider : IProviderService
                 {
                     ProviderId = ProviderId,
                     ProviderName = "Gemini CLI",
-                    RequestsPercentage = usedPercentage,
+                    RequestsPercentage = remainingPercentage,
                     RequestsUsed = usedPercentage,
                     RequestsAvailable = 100,
                     UsageUnit = "Quota %",
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
                     AccountName = account.Email, // Separate usage per account
-                    Description = $"{usedPercentage:F1}% Used{mainResetStr}",
+                    Description = $"{remainingPercentage:F1}% Remaining{mainResetStr}",
                     NextResetTime = soonestResetDt,
                     Details = details
                 });
@@ -150,11 +151,16 @@ public class GeminiProvider : IProviderService
                 {
                     ProviderId = ProviderId,
                     ProviderName = "Gemini CLI",
-                    IsAvailable = true,
+                    IsAvailable = false,
                     Description = $"Error: {ex.Message}",
                     AccountName = account.Email
                 });
             }
+        }
+
+        if (results.Any(r => r.IsAvailable))
+        {
+            results = results.Where(r => r.IsAvailable).ToList();
         }
 
         if (!results.Any()) 
@@ -255,4 +261,3 @@ public class GeminiProvider : IProviderService
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 }
-

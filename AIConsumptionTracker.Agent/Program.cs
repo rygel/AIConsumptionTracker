@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.Sockets;
 using AIConsumptionTracker.Core.Interfaces;
 using AIConsumptionTracker.Infrastructure.Services;
+using Microsoft.AspNetCore.Mvc;
 
 // Check for debug flag early
 bool isDebugMode = args.Contains("--debug");
@@ -79,7 +80,8 @@ builder.Services.AddSingleton<UsageDatabase>();
 builder.Services.AddSingleton<IUsageDatabase>(sp => sp.GetRequiredService<UsageDatabase>());
 builder.Services.AddSingleton<INotificationService, WindowsNotificationService>();
 builder.Services.AddSingleton<ConfigService>();
-builder.Services.AddHostedService<ProviderRefreshService>();
+builder.Services.AddSingleton<ProviderRefreshService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ProviderRefreshService>());
 builder.Services.AddHttpClient();
 
 // Enable debug mode in refresh service
@@ -133,12 +135,14 @@ app.MapGet("/api/diagnostics", () =>
 });
 
 // Provider usage endpoints
-app.MapGet("/api/usage", async (UsageDatabase db) =>
+app.MapGet("/api/usage", async (UsageDatabase db, ConfigService configService) =>
 {
     if (isDebugMode) Console.WriteLine($"[API] GET /api/usage - {DateTime.Now:HH:mm:ss}");
     var usage = await db.GetLatestHistoryAsync();
-    if (isDebugMode) Console.WriteLine($"[API] Returning {usage.Count} providers");
-    return Results.Ok(usage);
+    var configs = await configService.GetConfigsAsync();
+    var filteredUsage = UsageVisibilityFilter.FilterForConfiguredProviders(usage, configs);
+    if (isDebugMode) Console.WriteLine($"[API] Returning {filteredUsage.Count} providers");
+    return Results.Ok(filteredUsage);
 });
 
 app.MapGet("/api/usage/{providerId}", async (string providerId, UsageDatabase db) =>
@@ -149,7 +153,7 @@ app.MapGet("/api/usage/{providerId}", async (string providerId, UsageDatabase db
     return result != null ? Results.Ok(result) : Results.NotFound();
 });
 
-app.MapPost("/api/refresh", async (ProviderRefreshService refreshService) =>
+app.MapPost("/api/refresh", async ([FromServices] ProviderRefreshService refreshService) =>
 {
     if (isDebugMode) Console.WriteLine($"[API] POST /api/refresh - {DateTime.Now:HH:mm:ss}");
     await refreshService.TriggerRefreshAsync();
@@ -194,7 +198,7 @@ app.MapPost("/api/preferences", async (AppPreferences preferences, ConfigService
 });
 
 // Scan for keys endpoint
-app.MapPost("/api/scan-keys", async (ConfigService configService, ProviderRefreshService refreshService) =>
+app.MapPost("/api/scan-keys", async ([FromServices] ConfigService configService, [FromServices] ProviderRefreshService refreshService) =>
 {
     if (isDebugMode) Console.WriteLine($"[API] POST /api/scan-keys - {DateTime.Now:HH:mm:ss}");
     var discovered = await configService.ScanForKeysAsync();

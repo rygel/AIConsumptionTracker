@@ -52,9 +52,10 @@ public class XiaomiProvider : IProviderService
             
             // If quota is 0, treat as pay-as-you-go balance only
             double percentage = 0;
+            var used = quota > 0 ? Math.Max(0, quota - balance) : 0;
             if (quota > 0)
             {
-                percentage = ((quota - balance) / quota) * 100.0; // Assuming balance is 'remaining'
+                percentage = UsageMath.CalculateRemainingPercent(used, quota);
             }
 
             return new[] { new ProviderUsage
@@ -62,7 +63,7 @@ public class XiaomiProvider : IProviderService
                 ProviderId = config.ProviderId,
                 ProviderName = "Xiaomi",
                 RequestsPercentage = percentage,
-                RequestsUsed = quota > 0 ? quota - balance : 0,
+                RequestsUsed = used,
                 RequestsAvailable = quota > 0 ? quota : balance, 
                 UsageUnit = "Points", // or CNY
                 IsQuotaBased = quota > 0,

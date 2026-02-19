@@ -103,29 +103,34 @@ public class GitHubCopilotProviderTests
                 Content = new StringContent(JsonSerializer.Serialize(new { sku = "copilot_business" }))
             });
 
-        // 3. User usage (Billing) - fail or ignore
-         _msgHandler.Protected()
+        var expectedResetUtc = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1);
+
+        // 3. Copilot quota snapshot (preferred)
+        _msgHandler.Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(r => r.RequestUri!.ToString() == "https://api.github.com/user/usage"),
+                ItExpr.Is<HttpRequestMessage>(r => r.RequestUri!.ToString() == "https://api.github.com/copilot_internal/user"),
                 ItExpr.IsAny<CancellationToken>()
             )
-            .ReturnsAsync(new HttpResponseMessage { StatusCode = HttpStatusCode.NotFound });
-
-        // 4. Rate Limit
-        var rateLimitResponse = JsonSerializer.Serialize(new
-        {
-            resources = new
+            .ReturnsAsync(new HttpResponseMessage
             {
-                core = new
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(JsonSerializer.Serialize(new
                 {
-                    limit = 5000,
-                    remaining = 4900,
-                    reset = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds()
-                }
-            }
-        });
+                    copilot_plan = "copilot_business",
+                    quota_reset_date = expectedResetUtc.ToString("O"),
+                    quota_snapshots = new
+                    {
+                        premium_interactions = new
+                        {
+                            entitlement = 300,
+                            remaining = 240
+                        }
+                    }
+                }))
+            });
 
+        // 4. Legacy rate-limit fallback
         _msgHandler.Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
@@ -135,7 +140,18 @@ public class GitHubCopilotProviderTests
             .ReturnsAsync(new HttpResponseMessage
             {
                 StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(rateLimitResponse)
+                Content = new StringContent(JsonSerializer.Serialize(new
+                {
+                    resources = new
+                    {
+                        core = new
+                        {
+                            limit = 5000,
+                            remaining = 4900,
+                            reset = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds()
+                        }
+                    }
+                }))
             });
 
         // Act
@@ -147,8 +163,10 @@ public class GitHubCopilotProviderTests
         Assert.Equal("GitHub Copilot", usage.ProviderName);
         Assert.Equal("testuser", usage.AccountName);
         Assert.Equal("Copilot Business", usage.AuthSource);
-        Assert.Equal(98.0, usage.RequestsPercentage); // 4900/5000
-        Assert.Contains("API Rate Limit: 4900/5000 Remaining", usage.Description);
+        Assert.Equal(80.0, usage.RequestsPercentage); // 240/300 remaining
+        Assert.Contains("Premium Requests: 240/300 Remaining", usage.Description);
         Assert.Contains("(Copilot Business)", usage.Description);
+        Assert.True(usage.NextResetTime.HasValue);
+        Assert.Equal(expectedResetUtc, usage.NextResetTime.Value.ToUniversalTime());
     }
 }

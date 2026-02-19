@@ -94,6 +94,34 @@ public class UsageDatabase : IUsageDatabase
             using var connection = new SqliteConnection(_connectionString);
             await connection.OpenAsync();
 
+            const string providerUpsertSql = @"
+                INSERT INTO providers (
+                    provider_id, provider_name, plan_type, auth_source,
+                    account_name, updated_at, is_active, config_json
+                ) VALUES (
+                    @ProviderId, @ProviderName, @PlanType, @AuthSource,
+                    @AccountName, CURRENT_TIMESTAMP, @IsActive, '{}'
+                )
+                ON CONFLICT(provider_id) DO UPDATE SET
+                    provider_name = CASE 
+                        WHEN excluded.provider_name IS NOT NULL AND excluded.provider_name != '' THEN excluded.provider_name
+                        ELSE providers.provider_name
+                    END,
+                    plan_type = CASE
+                        WHEN excluded.plan_type IS NOT NULL AND excluded.plan_type != '' THEN excluded.plan_type
+                        ELSE providers.plan_type
+                    END,
+                    auth_source = CASE
+                        WHEN excluded.auth_source IS NOT NULL AND excluded.auth_source != '' THEN excluded.auth_source
+                        ELSE providers.auth_source
+                    END,
+                    account_name = CASE
+                        WHEN excluded.account_name IS NOT NULL AND excluded.account_name != '' THEN excluded.account_name
+                        ELSE providers.account_name
+                    END,
+                    is_active = excluded.is_active,
+                    updated_at = CURRENT_TIMESTAMP";
+
             const string sql = @"
                 INSERT INTO provider_history (
                     provider_id,
@@ -106,6 +134,18 @@ public class UsageDatabase : IUsageDatabase
                     @IsAvailable, @StatusMessage, @NextResetTime, @FetchedAt,
                     @DetailsJson
                 )";
+
+            var providerUpsertParameters = usages.Select(u => new
+            {
+                ProviderId = u.ProviderId,
+                ProviderName = u.ProviderName,
+                PlanType = u.PlanType.ToString().ToLowerInvariant(),
+                AuthSource = u.AuthSource,
+                AccountName = u.AccountName,
+                IsActive = u.IsAvailable ? 1 : 0
+            });
+
+            await connection.ExecuteAsync(providerUpsertSql, providerUpsertParameters);
 
             var parameters = usages.Select(u => new
             {
@@ -216,19 +256,55 @@ public class UsageDatabase : IUsageDatabase
             await connection.OpenAsync();
 
             const string sql = @"
-                SELECT h.provider_id AS ProviderId, h.provider_id AS ProviderName,
+                SELECT h.provider_id AS ProviderId,
+                       COALESCE(NULLIF(p.provider_name, ''), h.provider_id) AS ProviderName,
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson
+                       h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson,
+                       COALESCE(p.account_name, '') AS AccountName,
+                       COALESCE(p.auth_source, '') AS AuthSource,
+                       CASE WHEN LOWER(COALESCE(p.plan_type, '')) = 'coding' THEN 1 ELSE 0 END AS PlanType
                 FROM provider_history h
+                LEFT JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.id IN (
                     SELECT MAX(id) FROM provider_history GROUP BY provider_id
                 )
                 ORDER BY h.provider_id";
 
-            var results = await connection.QueryAsync<ProviderUsage>(sql);
-            return results.ToList();
+            var results = (await connection.QueryAsync<ProviderUsage>(sql)).ToList();
+
+            foreach (var usage in results.Where(u => !string.IsNullOrWhiteSpace(u.DetailsJson)))
+            {
+                try
+                {
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                }
+            }
+
+            foreach (var usage in results)
+            {
+                if (ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId))
+                {
+                    usage.PlanType = PlanType.Coding;
+                    usage.IsQuotaBased = true;
+                }
+                else if (usage.PlanType == PlanType.Coding)
+                {
+                    usage.IsQuotaBased = true;
+                }
+
+                if (!usage.DisplayAsFraction && usage.PlanType == PlanType.Coding && usage.RequestsAvailable > 100)
+                {
+                    usage.DisplayAsFraction = true;
+                }
+            }
+
+            return results;
         }
         finally
         {

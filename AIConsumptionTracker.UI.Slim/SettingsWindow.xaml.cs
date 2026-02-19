@@ -234,14 +234,17 @@ public partial class SettingsWindow : Window
 
         if (config.ProviderId == "antigravity")
         {
-            // Antigravity: Auto-Detection - no privacy masking for account info
+            // Antigravity: Auto-Detection
             var statusPanel = new StackPanel { Orientation = Orientation.Horizontal };
             bool isConnected = usage != null && usage.IsAvailable;
             string accountInfo = usage?.AccountName ?? "Unknown";
+            var displayAccount = _isPrivacyMode
+                ? MaskAccountIdentifier(accountInfo)
+                : accountInfo;
 
             var statusText = new TextBlock
             {
-                Text = isConnected ? $"Auto-Detected ({accountInfo})" : "Searching for local process...",
+                Text = isConnected ? $"Auto-Detected ({displayAccount})" : "Searching for local process...",
                 VerticalAlignment = VerticalAlignment.Center,
                 FontSize = 11,
                 FontStyle = isConnected ? FontStyles.Normal : FontStyles.Italic
@@ -273,8 +276,7 @@ public partial class SettingsWindow : Window
             }
             else if (_isPrivacyMode && username != null)
             {
-                // Privacy mode: show only the masked username
-                displayText = MaskString(username);
+                displayText = $"Authenticated ({MaskAccountIdentifier(username)})";
             }
             else
             {
@@ -416,8 +418,50 @@ public partial class SettingsWindow : Window
 
     private string MaskString(string input)
     {
-        if (string.IsNullOrEmpty(input) || input.Length <= 2) return "**";
-        return input[0] + "***" + input[^1];
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        if (input.Length <= 2)
+        {
+            return new string('*', input.Length);
+        }
+
+        return input[0] + new string('*', input.Length - 2) + input[^1];
+    }
+
+    private string MaskAccountIdentifier(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return input;
+        }
+
+        var atIndex = input.IndexOf('@');
+        if (atIndex > 0 && atIndex < input.Length - 1)
+        {
+            var localPart = input[..atIndex];
+            var domainPart = input[(atIndex + 1)..];
+            var maskedDomainChars = domainPart.ToCharArray();
+            for (var i = 0; i < maskedDomainChars.Length; i++)
+            {
+                if (maskedDomainChars[i] != '.')
+                {
+                    maskedDomainChars[i] = '*';
+                }
+            }
+
+            var maskedDomain = new string(maskedDomainChars);
+            if (localPart.Length <= 2)
+            {
+                return $"{new string('*', localPart.Length)}@{maskedDomain}";
+            }
+
+            return $"{localPart[0]}{new string('*', localPart.Length - 2)}{localPart[^1]}@{maskedDomain}";
+        }
+
+        return MaskString(input);
     }
 
     private void PopulateLayoutSettings()

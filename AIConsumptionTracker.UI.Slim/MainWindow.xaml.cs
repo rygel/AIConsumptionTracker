@@ -224,8 +224,20 @@ public partial class MainWindow : Window
         this.Width = _preferences.WindowWidth;
         this.Height = _preferences.WindowHeight;
 
+        if (!string.IsNullOrWhiteSpace(_preferences.FontFamily))
+        {
+            this.FontFamily = new FontFamily(_preferences.FontFamily);
+        }
+
+        if (_preferences.FontSize > 0)
+        {
+            this.FontSize = _preferences.FontSize;
+        }
+
+        this.FontWeight = _preferences.FontBold ? FontWeights.Bold : FontWeights.Normal;
+        this.FontStyle = _preferences.FontItalic ? FontStyles.Italic : FontStyles.Normal;
+
         // Apply UI controls
-        ShowAllToggle.IsChecked = _preferences.ShowAll;
         AlwaysOnTopCheck.IsChecked = _preferences.AlwaysOnTop;
         ShowUsedToggle.IsChecked = _preferences.InvertProgressBar;
     }
@@ -307,12 +319,13 @@ public partial class MainWindow : Window
         if (!_usages.Any())
         {
             ProvidersList.Children.Add(CreateInfoTextBlock("No provider data available."));
+            ApplyProviderListFontPreferences();
             return;
         }
 
-        var filteredUsages = _preferences.ShowAll ? _usages : _usages.Where(u => u.IsAvailable).ToList();
+        var filteredUsages = _usages.ToList();
 
-        // Filter out Antigravity completely if not available (regardless of ShowAll setting)
+        // Filter out Antigravity completely if not available
         // Also filter out Antigravity child items (antigravity.*) as they are shown inside the main card
         filteredUsages = filteredUsages.Where(u => 
             !(u.ProviderId == "antigravity" && !u.IsAvailable) &&
@@ -372,6 +385,66 @@ public partial class MainWindow : Window
                     AddProviderCard(usage, paygContainer);
                 }
             }
+        }
+
+        ApplyProviderListFontPreferences();
+    }
+
+    private void ApplyProviderListFontPreferences()
+    {
+        if (ProvidersList == null)
+        {
+            return;
+        }
+
+        ApplyFontPreferencesToElement(ProvidersList);
+    }
+
+    private void ApplyFontPreferencesToElement(DependencyObject element)
+    {
+        if (element is TextBlock textBlock)
+        {
+            if (!string.IsNullOrWhiteSpace(_preferences.FontFamily))
+            {
+                textBlock.FontFamily = new FontFamily(_preferences.FontFamily);
+            }
+
+            if (_preferences.FontSize > 0)
+            {
+                textBlock.FontSize = Math.Max(8, textBlock.FontSize * (_preferences.FontSize / 12.0));
+            }
+
+            if (_preferences.FontBold)
+            {
+                textBlock.FontWeight = FontWeights.Bold;
+            }
+
+            if (_preferences.FontItalic)
+            {
+                textBlock.FontStyle = FontStyles.Italic;
+            }
+        }
+
+        switch (element)
+        {
+            case Panel panel:
+                foreach (UIElement child in panel.Children)
+                {
+                    ApplyFontPreferencesToElement(child);
+                }
+                break;
+
+            case Border border when border.Child is not null:
+                ApplyFontPreferencesToElement(border.Child);
+                break;
+
+            case Decorator decorator when decorator.Child is not null:
+                ApplyFontPreferencesToElement(decorator.Child);
+                break;
+
+            case ContentControl contentControl when contentControl.Content is DependencyObject child:
+                ApplyFontPreferencesToElement(child);
+                break;
         }
     }
 
@@ -553,7 +626,7 @@ public partial class MainWindow : Window
         else if (isConsoleCheck) { statusText = "Check Console"; statusBrush = Brushes.Orange; }
         else 
         { 
-            statusText = _isPrivacyMode ? "***" : usage.Description;
+            statusText = usage.Description;
             
             if (usage.PlanType == PlanType.Coding)
             {
@@ -575,20 +648,24 @@ public partial class MainWindow : Window
                 else
                 {
                     // Percentage only mode
+                    var remainingPercent = UsageMath.ClampPercent(usage.RequestsPercentage);
                     if (displayUsed)
                     {
-                        statusText = $"{usage.RequestsUsed:F0}% used";
+                        statusText = $"{(100.0 - remainingPercent):F0}% used";
                     }
                     else
                     {
-                        var remaining = usage.RequestsAvailable - usage.RequestsUsed;
-                        statusText = $"{remaining:F0}% remaining";
+                        statusText = $"{remainingPercent:F0}% remaining";
                     }
                 }
             }
             else if (usage.PlanType == PlanType.Usage && usage.RequestsAvailable > 0)
             {
-                statusText = $"${usage.RequestsUsed:F2} / ${usage.RequestsAvailable:F2}";
+                var showUsedPercent = ShowUsedToggle?.IsChecked ?? false;
+                var usedPercent = UsageMath.ClampPercent(usage.RequestsPercentage);
+                statusText = showUsedPercent
+                    ? $"{usedPercent:F0}% used"
+                    : $"{(100.0 - usedPercent):F0}% remaining";
             }
             else if (usage.IsQuotaBased || usage.PlanType == PlanType.Coding)
             {
@@ -638,12 +715,10 @@ public partial class MainWindow : Window
         contentPanel.Children.Add(rightBlock);
 
         // Name (gets remaining space)
-        var accountPart = string.IsNullOrWhiteSpace(usage.AccountName) ? "" : $" [{(_isPrivacyMode ? MaskProviderName(usage.AccountName) : usage.AccountName)}]";
+        var accountPart = string.IsNullOrWhiteSpace(usage.AccountName) ? "" : $" [{(_isPrivacyMode ? MaskAccountIdentifier(usage.AccountName) : usage.AccountName)}]";
         var nameBlock = new TextBlock
         {
-            Text = _isPrivacyMode 
-                ? $"{MaskProviderName(usage.ProviderName)}{accountPart}"
-                : $"{usage.ProviderName}{accountPart}",
+            Text = $"{usage.ProviderName}{accountPart}",
             FontWeight = isChild ? FontWeights.Normal : FontWeights.SemiBold,
             FontSize = 11,
             Foreground = isMissing ? GetResourceBrush("TertiaryText", Brushes.Gray) : GetResourceBrush("PrimaryText", Brushes.White),
@@ -818,10 +893,34 @@ public partial class MainWindow : Window
         return $"{diff.Minutes}m";
     }
 
-    private string MaskProviderName(string name)
+    private static string MaskAccountIdentifier(string name)
     {
         if (string.IsNullOrEmpty(name)) return name;
-        if (name.Length <= 2) return "**";
+
+        var atIndex = name.IndexOf('@');
+        if (atIndex > 0 && atIndex < name.Length - 1)
+        {
+            var local = name[..atIndex];
+            var domain = name[(atIndex + 1)..];
+            var maskedDomainChars = domain.ToCharArray();
+            for (var i = 0; i < maskedDomainChars.Length; i++)
+            {
+                if (maskedDomainChars[i] != '.')
+                {
+                    maskedDomainChars[i] = '*';
+                }
+            }
+
+            var maskedDomain = new string(maskedDomainChars);
+            if (local.Length <= 2)
+            {
+                return $"{new string('*', local.Length)}@{maskedDomain}";
+            }
+
+            return $"{local[0]}{new string('*', local.Length - 2)}{local[^1]}@{maskedDomain}";
+        }
+
+        if (name.Length <= 2) return new string('*', name.Length);
         return name[0] + new string('*', name.Length - 2) + name[^1];
     }
 
@@ -1206,16 +1305,6 @@ public partial class MainWindow : Window
             await _agentService.SavePreferencesAsync(_preferences);
     }
 
-    private async void ShowAllToggle_Checked(object sender, RoutedEventArgs e)
-    {
-        if (!IsLoaded) return;
-        
-        _preferences.ShowAll = ShowAllToggle.IsChecked ?? true;
-        if (_agentService != null)
-            await _agentService.SavePreferencesAsync(_preferences);
-        RenderProviders();
-    }
-
     private async void Compact_Checked(object sender, RoutedEventArgs e)
     {
        // No-op (Field removed from UI)
@@ -1347,7 +1436,7 @@ public partial class MainWindow : Window
     private async Task UpdateAgentToggleButtonStateAsync()
     {
         var (isRunning, _) = await AgentLauncher.IsAgentRunningWithPortAsync();
-        UpdateAgentToggleButton(isRunning);
+        Dispatcher.Invoke(() => UpdateAgentToggleButton(isRunning));
     }
 
     private void OnKeyDown(object sender, KeyEventArgs e)

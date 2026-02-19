@@ -66,16 +66,7 @@
                                    VerticalAlignment="Center" ToolTip="Last update: Never"/>
                     </StackPanel>
                     
-                    <CheckBox x:Name="ShowAllToggle" 
-                              Content="All" 
-                              IsChecked="True"
-                              Foreground="{DynamicResource SecondaryText}" 
-                              VerticalAlignment="Center"
-                              FontSize="11"
-                              Checked="RefreshData_NoArgs"
-                              Unchecked="RefreshData_NoArgs"/>
-                      
-                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <CheckBox x:Name="AlwaysOnTopCheck" 
                                   Content="Top" 
                                   IsChecked="True"

@@ -178,9 +178,21 @@ public class ProviderRefreshService : BackgroundService
 
             // Always include system providers that don't require API keys (mirrors ProviderManager.FetchAllUsageInternal)
             if (!configs.Any(c => c.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase)))
-                configs.Add(new ProviderConfig { ProviderId = "antigravity", ApiKey = "" });
+                configs.Add(new ProviderConfig
+                {
+                    ProviderId = "antigravity",
+                    ApiKey = "",
+                    Type = "quota-based",
+                    PlanType = PlanType.Coding
+                });
             if (!configs.Any(c => c.ProviderId.Equals("gemini-cli", StringComparison.OrdinalIgnoreCase)))
-                configs.Add(new ProviderConfig { ProviderId = "gemini-cli", ApiKey = "" });
+                configs.Add(new ProviderConfig
+                {
+                    ProviderId = "gemini-cli",
+                    ApiKey = "",
+                    Type = "quota-based",
+                    PlanType = PlanType.Coding
+                });
             if (!configs.Any(c => c.ProviderId.Equals("cloud-code", StringComparison.OrdinalIgnoreCase)))
                 configs.Add(new ProviderConfig { ProviderId = "cloud-code", ApiKey = "" });
 
@@ -303,9 +315,10 @@ public class ProviderRefreshService : BackgroundService
         foreach (var usage in usages)
         {
             var config = configs.FirstOrDefault(c => c.ProviderId.Equals(usage.ProviderId, StringComparison.OrdinalIgnoreCase));
-            if (config != null && config.EnableNotifications && usage.RequestsPercentage >= prefs.NotificationThreshold)
+            var usedPercentage = UsageMath.GetEffectiveUsedPercent(usage);
+            if (config != null && config.EnableNotifications && usedPercentage >= prefs.NotificationThreshold)
             {
-                _notificationService.ShowUsageAlert(usage.ProviderName, usage.RequestsPercentage);
+                _notificationService.ShowUsageAlert(usage.ProviderName, usedPercentage);
             }
         }
     }
@@ -358,10 +371,13 @@ public class ProviderRefreshService : BackgroundService
                 {
                     if (usage.IsQuotaBased)
                     {
-                        if (previous.RequestsPercentage > 50 && current.RequestsPercentage < previous.RequestsPercentage * 0.3)
+                        var previousUsedPercent = UsageMath.GetEffectiveUsedPercent(previous);
+                        var currentUsedPercent = UsageMath.GetEffectiveUsedPercent(current);
+
+                        if (previousUsedPercent > 50 && currentUsedPercent < previousUsedPercent * 0.3)
                         {
                             isReset = true;
-                            resetReason = $"Quota reset: {previous.RequestsPercentage:F1}% -> {current.RequestsPercentage:F1}%";
+                            resetReason = $"Quota reset: {previousUsedPercent:F1}% -> {currentUsedPercent:F1}% used";
                         }
                     }
                     else

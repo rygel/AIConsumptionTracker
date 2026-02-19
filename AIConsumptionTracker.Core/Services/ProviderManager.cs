@@ -104,11 +104,23 @@ public class ProviderManager : IDisposable
         // Check if they are already in config to avoid duplicates (though unlikely for these IDs)
         if (!configs.Any(c => c.ProviderId == "antigravity"))
         {
-            configs.Add(new ProviderConfig { ProviderId = "antigravity", ApiKey = "" });
+            configs.Add(new ProviderConfig
+            {
+                ProviderId = "antigravity",
+                ApiKey = "",
+                Type = "quota-based",
+                PlanType = PlanType.Coding
+            });
         }
         if (!configs.Any(c => c.ProviderId == "gemini-cli"))
         {
-            configs.Add(new ProviderConfig { ProviderId = "gemini-cli", ApiKey = "" });
+            configs.Add(new ProviderConfig
+            {
+                ProviderId = "gemini-cli",
+                ApiKey = "",
+                Type = "quota-based",
+                PlanType = PlanType.Coding
+            });
         }
         if (!configs.Any(c => c.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) || c.ProviderId.Equals("opencode-zen", StringComparison.OrdinalIgnoreCase)))
         {
@@ -272,4 +284,3 @@ public class ProviderManager : IDisposable
         }
     }
 }
-

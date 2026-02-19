@@ -22,7 +22,7 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
     private readonly ILogger<AntigravityProvider> _logger;
     private ProviderUsage? _cachedUsage;
     private DateTime _cacheTimestamp;
-    private List<(int Pid, string Token)>? _cachedProcessInfos;
+    private List<(int Pid, string Token, int? Port)>? _cachedProcessInfos;
     private DateTime _lastProcessCheck = DateTime.MinValue;
 
     public AntigravityProvider(ILogger<AntigravityProvider> logger)
@@ -128,6 +128,7 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                 }
                 else
                 {
+                    var appRunning = IsAntigravityDesktopRunning();
                     return new[] { new ProviderUsage
                     {
                         ProviderId = ProviderId,
@@ -136,7 +137,9 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                         RequestsPercentage = 0,
                         RequestsUsed = 0,
                         RequestsAvailable = 0,
-                        Description = "Application not running",
+                        Description = appRunning
+                            ? "Antigravity running, waiting for language server"
+                            : "Application not running",
                         IsQuotaBased = true,
                         PlanType = PlanType.Coding
                     }};
@@ -147,14 +150,31 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
             {
                 try
                 {
-                    var (pid, csrfToken) = info;
-                    _logger.LogDebug($"Checking Antigravity process: PID={pid}, CSRF={csrfToken[..8]}...");
+                    var (pid, csrfToken, commandLinePort) = info;
+                    var tokenPreview = csrfToken.Length > 8 ? csrfToken[..8] : csrfToken;
+                    _logger.LogDebug("Checking Antigravity process: PID={Pid}, CSRF={Csrf}, PortHint={PortHint}",
+                        pid, tokenPreview, commandLinePort?.ToString() ?? "none");
 
-                    // 2. Find Port
-                    var port = FindListeningPort(pid);
+                    // 2. Resolve port (prefer command-line hint, fallback to netstat)
+                    var port = commandLinePort ?? FindListeningPort(pid);
 
                     // 3. Request
-                    var usageItems = await FetchUsage(port, csrfToken, config);
+                    List<ProviderUsage> usageItems;
+                    try
+                    {
+                        usageItems = await FetchUsage(port, csrfToken, config);
+                    }
+                    catch when (commandLinePort.HasValue)
+                    {
+                        var fallbackPort = FindListeningPort(pid);
+                        if (fallbackPort == port)
+                        {
+                            throw;
+                        }
+
+                        _logger.LogDebug("Retrying Antigravity PID={Pid} on fallback port {Port}", pid, fallbackPort);
+                        usageItems = await FetchUsage(fallbackPort, csrfToken, config);
+                    }
 
                     // Check for duplicates based on AccountName (Email) for the MAIN item
                     // Assuming the first item is the summary
@@ -228,46 +248,56 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                 RequestsPercentage = 0,
                 RequestsUsed = 0,
                 RequestsAvailable = 0,
-                Description = "Application not running",
+                Description = IsAntigravityDesktopRunning()
+                    ? "Antigravity running, waiting for language server"
+                    : "Application not running",
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding
             }};
         }
     }
 
-    private List<(int Pid, string Token)> FindProcessInfos()
+    private List<(int Pid, string Token, int? Port)> FindProcessInfos()
     {
         if (DateTime.Now - _lastProcessCheck < TimeSpan.FromSeconds(30) && _cachedProcessInfos != null)
         {
             return _cachedProcessInfos;
         }
 
-        var candidates = new List<(int Pid, string Token)>();
+        var candidates = new List<(int Pid, string Token, int? Port)>();
 
         if (OperatingSystem.IsWindows())
         {
              try 
              {
-                // Find all language server processes
-                // Using a faster WMI query or just Process.GetProcessesByName if we can't get cmdline easily.
-                // But we NEED cmdline for the token.
-                using var searcher = new ManagementObjectSearcher("SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'language_server_windows.exe'");
+                using var searcher = new ManagementObjectSearcher(
+                    "SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name LIKE 'language_server%'");
                 using var collection = searcher.Get();
 
                 foreach (var obj in collection)
                 {
                     var cmdLine = obj["CommandLine"]?.ToString();
                     var pidVal = obj["ProcessId"];
-                    
-                    if (!string.IsNullOrEmpty(cmdLine) && cmdLine.Contains("antigravity"))
+
+                    if (string.IsNullOrWhiteSpace(cmdLine) || pidVal == null)
                     {
-                        var match = Regex.Match(cmdLine, @"--csrf_token[= ]+([a-zA-Z0-9-]+)");
-                        if (match.Success)
-                        {
-                            var pid = Convert.ToInt32(pidVal);
-                            candidates.Add((pid, match.Groups[1].Value));
-                        }
+                        continue;
                     }
+
+                    if (!cmdLine.Contains("antigravity", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var token = ParseCsrfToken(cmdLine);
+                    if (string.IsNullOrEmpty(token))
+                    {
+                        continue;
+                    }
+
+                    var pid = Convert.ToInt32(pidVal);
+                    var port = ParseExtensionServerPort(cmdLine);
+                    candidates.Add((pid, token, port));
                 }
              }
              catch (Exception ex)
@@ -276,9 +306,48 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
              }
         }
         
+        candidates = candidates
+            .GroupBy(c => c.Pid)
+            .Select(g => g.First())
+            .ToList();
+
         _cachedProcessInfos = candidates;
         _lastProcessCheck = DateTime.Now;
         return candidates;
+    }
+
+    private static string? ParseCsrfToken(string commandLine)
+    {
+        var match = Regex.Match(commandLine, @"--csrf[_-]token(?:=|\s+)([a-zA-Z0-9-]+)", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    private static int? ParseExtensionServerPort(string commandLine)
+    {
+        var match = Regex.Match(commandLine, @"--extension_server_port(?:=|\s+)(\d+)", RegexOptions.IgnoreCase);
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var port))
+        {
+            return port;
+        }
+
+        return null;
+    }
+
+    private static bool IsAntigravityDesktopRunning()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        try
+        {
+            return Process.GetProcessesByName("Antigravity").Any();
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private int FindListeningPort(int pid)
@@ -674,4 +743,3 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 }
-

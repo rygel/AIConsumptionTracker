@@ -69,6 +69,64 @@ public class ProviderRefreshServiceTests
     }
 
     [Fact]
+    public void CheckUsageAlertsAsync_QuotaRemainingLow_TriggersNotificationFromUsedPercent()
+    {
+        // Arrange
+        var prefs = new AppPreferences { EnableNotifications = true, NotificationThreshold = 90.0 };
+        var configs = new List<ProviderConfig>
+        {
+            new ProviderConfig { ProviderId = "test", EnableNotifications = true }
+        };
+        var usages = new List<ProviderUsage>
+        {
+            new ProviderUsage
+            {
+                ProviderId = "test",
+                ProviderName = "Test Provider",
+                RequestsPercentage = 5.0, // remaining %
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                IsAvailable = true
+            }
+        };
+
+        // Act
+        _service.CheckUsageAlerts(usages, prefs, configs);
+
+        // Assert
+        _mockNotificationService.Verify(n => n.ShowUsageAlert("Test Provider", 95.0), Times.Once);
+    }
+
+    [Fact]
+    public void CheckUsageAlertsAsync_QuotaRemainingHigh_DoesNotTriggerNotification()
+    {
+        // Arrange
+        var prefs = new AppPreferences { EnableNotifications = true, NotificationThreshold = 90.0 };
+        var configs = new List<ProviderConfig>
+        {
+            new ProviderConfig { ProviderId = "test", EnableNotifications = true }
+        };
+        var usages = new List<ProviderUsage>
+        {
+            new ProviderUsage
+            {
+                ProviderId = "test",
+                ProviderName = "Test Provider",
+                RequestsPercentage = 30.0, // remaining %, 70% used
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                IsAvailable = true
+            }
+        };
+
+        // Act
+        _service.CheckUsageAlerts(usages, prefs, configs);
+
+        // Assert
+        _mockNotificationService.Verify(n => n.ShowUsageAlert(It.IsAny<string>(), It.IsAny<double>()), Times.Never);
+    }
+
+    [Fact]
     public void CheckUsageAlertsAsync_NotificationsDisabledGlobally_DoesNotTrigger()
     {
         // Arrange

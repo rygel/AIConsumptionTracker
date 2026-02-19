@@ -48,10 +48,11 @@ public class GitHubCopilotProvider : IProviderService
         string description = "Authenticated";
         string username = "User";
         string planName = "";
-        DateTime? resetTime = null;
+        DateTime? resetTime = GetNextCopilotMonthlyResetLocal();
         double percentage = 0;
         double costUsed = 0;
         double costLimit = 0;
+        bool hasCopilotQuotaData = false;
         bool hasRateLimitData = false;
 
         try
@@ -103,65 +104,118 @@ public class GitHubCopilotProvider : IProviderService
                                      sku = skuProp.GetString() ?? "";
                                      
                                  // "copilot_individual", "copilot_business", etc.
-                                 planName = sku switch 
-                                 {
-                                     "copilot_individual" => "Copilot Individual",
-                                     "copilot_business" => "Copilot Business",
-                                     "copilot_enterprise" => "Copilot Enterprise",
-                                     _ => sku
-                                 };
-                             }
-                             description = $"Authenticated as {username} ({planName})";
-                         }
+                                  planName = NormalizeCopilotPlanName(sku);
+                              }
+                              description = $"Authenticated as {username} ({planName})";
+                          }
                          else 
                          {
                              description = $"Authenticated as {username}";
                          }
                      }
-                     catch 
-                     {
-                         description = $"Authenticated as {username}";
-                     }
-                 }
+                      catch 
+                      {
+                          description = $"Authenticated as {username}";
+                      }
+
+                      // Prefer Copilot quota snapshot data over generic GitHub core rate limits.
+                      try
+                      {
+                          var quotaRequest = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/copilot_internal/user");
+                          quotaRequest.Headers.TryAddWithoutValidation("Authorization", $"token {token}");
+                          quotaRequest.Headers.TryAddWithoutValidation("Accept", "application/json");
+                          quotaRequest.Headers.TryAddWithoutValidation("Editor-Version", "vscode/1.96.2");
+                          quotaRequest.Headers.TryAddWithoutValidation("X-Github-Api-Version", "2025-04-01");
+                          quotaRequest.Headers.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("AIConsumptionTracker", "1.0"));
+
+                          var quotaResponse = await _httpClient.SendAsync(quotaRequest);
+                          if (quotaResponse.IsSuccessStatusCode)
+                          {
+                              var quotaJson = await quotaResponse.Content.ReadAsStringAsync();
+                              using var quotaDoc = System.Text.Json.JsonDocument.Parse(quotaJson);
+                              var root = quotaDoc.RootElement;
+
+                              if (root.TryGetProperty("copilot_plan", out var planProp))
+                              {
+                                  var quotaPlan = NormalizeCopilotPlanName(planProp.GetString() ?? "");
+                                  if (!string.IsNullOrWhiteSpace(quotaPlan))
+                                  {
+                                      planName = quotaPlan;
+                                  }
+                              }
+
+                              if (root.TryGetProperty("quota_reset_date", out var resetProp))
+                              {
+                                  var resetText = resetProp.GetString();
+                                  if (!string.IsNullOrWhiteSpace(resetText) &&
+                                      DateTime.TryParse(
+                                          resetText,
+                                          System.Globalization.CultureInfo.InvariantCulture,
+                                          System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
+                                          out var parsedResetUtc))
+                                  {
+                                      resetTime = parsedResetUtc.ToLocalTime();
+                                  }
+                              }
+
+                              if (root.TryGetProperty("quota_snapshots", out var snapshots) &&
+                                  snapshots.TryGetProperty("premium_interactions", out var premium) &&
+                                  premium.TryGetProperty("entitlement", out var entitlementProp) &&
+                                  premium.TryGetProperty("remaining", out var remainingProp) &&
+                                  entitlementProp.TryGetDouble(out var entitlement) &&
+                                  remainingProp.TryGetDouble(out var remaining) &&
+                                  entitlement > 0)
+                              {
+                                  var normalizedRemaining = Math.Clamp(remaining, 0, entitlement);
+                                  var used = Math.Max(0, entitlement - normalizedRemaining);
+                                  costLimit = entitlement;
+                                  costUsed = used;
+                                  percentage = UsageMath.CalculateRemainingPercent(used, entitlement);
+                                  hasCopilotQuotaData = true;
+                              }
+                          }
+                      }
+                      catch
+                      {
+                          // Continue with fallback sources.
+                      }
+                  }
             }
             
-            // Fetch rate limits to show usage
-            try 
+            // Fallback: fetch generic GitHub core rate limits to show usage.
+            if (!hasCopilotQuotaData)
             {
-                var rateRequest = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/rate_limit");
-                rateRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-                rateRequest.Headers.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("AIConsumptionTracker", "1.0"));
-                
-                var rateResponse = await _httpClient.SendAsync(rateRequest);
-                if (rateResponse.IsSuccessStatusCode)
+                try 
                 {
-                    var rateJson = await rateResponse.Content.ReadAsStringAsync();
-                    using (var rateDoc = System.Text.Json.JsonDocument.Parse(rateJson))
+                    var rateRequest = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/rate_limit");
+                    rateRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                    rateRequest.Headers.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("AIConsumptionTracker", "1.0"));
+                    
+                    var rateResponse = await _httpClient.SendAsync(rateRequest);
+                    if (rateResponse.IsSuccessStatusCode)
                     {
-                        if (rateDoc.RootElement.TryGetProperty("resources", out var res) && 
-                            res.TryGetProperty("core", out var core))
+                        var rateJson = await rateResponse.Content.ReadAsStringAsync();
+                        using (var rateDoc = System.Text.Json.JsonDocument.Parse(rateJson))
                         {
-                            int limit = core.GetProperty("limit").GetInt32();
-                            int remaining = core.GetProperty("remaining").GetInt32();
-                            int used = limit - remaining;
-                            
-                            hasRateLimitData = true;
-                            
-                            // Show REMAINING percentage (like quota providers)
-                            costLimit = limit;
-                            costUsed = used;
-                            percentage = limit > 0 ? ((double)remaining / limit) * 100 : 100;  // REMAINING %
-                            
-                            if (core.TryGetProperty("reset", out var resetProp))
+                            if (rateDoc.RootElement.TryGetProperty("resources", out var res) && 
+                                res.TryGetProperty("core", out var core))
                             {
-                                var unixTime = resetProp.GetInt64();
-                                resetTime = DateTimeOffset.FromUnixTimeSeconds(unixTime).LocalDateTime;
+                                int limit = core.GetProperty("limit").GetInt32();
+                                int remaining = core.GetProperty("remaining").GetInt32();
+                                int used = Math.Max(0, limit - remaining);
+                                
+                                hasRateLimitData = true;
+                                
+                                // Show REMAINING percentage (like quota providers)
+                                costLimit = limit;
+                                costUsed = used;
+                                percentage = UsageMath.CalculateRemainingPercent(used, limit);  // REMAINING %
                             }
                         }
                     }
                 }
+                catch {} // Ignore fallback rate limit fetch errors
             }
-            catch {} // Ignore rate limit fetch errors
 
             if (!response.IsSuccessStatusCode)
             {
@@ -183,9 +237,17 @@ public class GitHubCopilotProvider : IProviderService
         }
 
         string finalDescription;
-        if (hasRateLimitData)
+        if (hasCopilotQuotaData)
         {
-             finalDescription = $"API Rate Limit: {costLimit - costUsed}/{costLimit} Remaining";
+             finalDescription = $"Premium Requests: {costLimit - costUsed:F0}/{costLimit:F0} Remaining";
+             if (!string.IsNullOrEmpty(planName))
+             {
+                 finalDescription += $" ({planName})";
+             }
+        }
+        else if (hasRateLimitData)
+        {
+             finalDescription = $"API Rate Limit: {costLimit - costUsed:F0}/{costLimit:F0} Remaining";
              if (!string.IsNullOrEmpty(planName))
              {
                  finalDescription += $" ({planName})";
@@ -212,5 +274,24 @@ public class GitHubCopilotProvider : IProviderService
             AuthSource = string.IsNullOrEmpty(planName) ? "Unknown" : planName,
             NextResetTime = resetTime
         }};
+    }
+
+    private static DateTime GetNextCopilotMonthlyResetLocal()
+    {
+        var utcNow = DateTime.UtcNow;
+        var nextResetUtc = new DateTime(utcNow.Year, utcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1);
+        return nextResetUtc.ToLocalTime();
+    }
+
+    private static string NormalizeCopilotPlanName(string plan)
+    {
+        return plan switch
+        {
+            "copilot_individual" => "Copilot Individual",
+            "copilot_business" => "Copilot Business",
+            "copilot_enterprise" => "Copilot Enterprise",
+            "copilot_free" => "Copilot Free",
+            _ => plan
+        };
     }
 }

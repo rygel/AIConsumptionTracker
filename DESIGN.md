@@ -349,21 +349,35 @@ if (_preferences.InvertProgressBar)
 | OpenAI | Usage-Based | Status only (no bar) | N/A |
 | Anthropic | Usage-Based | Status only (no bar) | N/A |
 
+### Classification Contract (MANDATORY)
+
+Provider classification drives Slim/Desktop grouping and Antigravity sub-provider rendering.
+
+Source-of-truth implementation points:
+
+- `AIConsumptionTracker.Core/Models/ProviderPlanClassifier.cs`
+- `AIConsumptionTracker.Infrastructure/Configuration/TokenDiscoveryService.cs` (default config classification)
+- `AIConsumptionTracker.Agent/Services/UsageDatabase.cs` (`/api/usage` response normalization)
+
+When classification changes for any provider, all three locations must be updated in the same PR.
+
 ### Special Case: GitHub Copilot
 
-GitHub Copilot uses the GitHub API `/rate_limit` endpoint to display usage. Although this endpoint technically shows hourly API limits (not monthly Copilot usage), it is treated as a **quota-based provider** to provide consistent UX:
+GitHub Copilot is treated as a **quota-based provider**. The provider prefers Copilot-specific quota data from `/copilot_internal/user` and falls back to GitHub `/rate_limit` only when that data is unavailable.
 
 **Implementation Details:**
 - Uses `PaymentType.Quota` and `IsQuotaBased = true`
-- Calculates **remaining percentage**: `(remaining / limit) * 100`
+- Primary data source mirrors `opencode-bar/scripts/query-copilot.sh`: `GET /copilot_internal/user` with Copilot-specific headers
+- Calculates **remaining percentage**: `(remaining / entitlement) * 100` from `quota_snapshots.premium_interactions`
+- Uses `quota_reset_date` for `NextResetTime` when available (fallback: next 1st day 00:00 UTC)
 - Shows full green bar when lots of quota remains
-- Shows text: "API Rate Limit: {used}/{limit} Used"
+- Shows text: "Premium Requests: {remaining}/{entitlement} Remaining" (fallback: "API Rate Limit: {remaining}/{limit} Remaining")
 
 **Example:**
-- Rate limit: 5000 requests/hour
-- Used: 50 requests
-- Remaining: 4950 (99%)
-- Bar displays: **~99% full, GREEN** (healthy)
+- Premium entitlement: 300 requests/month
+- Used: 60 requests
+- Remaining: 240 (80%)
+- Bar displays: **80% full, GREEN** (healthy)
 
 **Rationale:** Even though it's an hourly limit, users expect the same fuel-gauge metaphor as other quota providers. The bar depletes as they approach the limit, giving visual feedback on available capacity.
 
@@ -951,6 +965,27 @@ if (activeConfigs.Count > 0)
 
 ---
 
+## Agent API Contract (OpenAPI)
+
+The Agent HTTP API contract is defined in:
+
+- `AIConsumptionTracker.Agent/openapi.yaml`
+
+This OpenAPI document is the contract between the Agent and all consuming applications (Slim UI, Desktop UI, Web UI, and CLI).
+
+### Contract Maintenance Rule (MANDATORY)
+
+Whenever any Agent API change is made, the same PR **must** update `AIConsumptionTracker.Agent/openapi.yaml`, including:
+
+1. Endpoint paths and HTTP methods
+2. Request parameters and request bodies
+3. Response schemas and status codes
+4. Added/removed/renamed fields
+
+Changes to Agent endpoints are considered incomplete unless this contract file is updated.
+
+---
+
 ## Agent Status Detection
 
 ### Port Configuration
@@ -1097,6 +1132,13 @@ The application follows a strict separation between:
 | Usage percentages | SQLite database | Non-sensitive metrics |
 | Cost data | SQLite database | Non-sensitive metrics |
 | Auth source | SQLite database | Non-sensitive metadata (e.g., "manual", "env") |
+
+### Username Privacy Contract
+
+- `account_name` (e.g., GitHub username, Antigravity email) is part of the Agent API contract and should be returned by `/api/usage` whenever available.
+- UI clients must show `account_name` in normal mode and mask it in privacy mode.
+- Privacy masking must only redact the account identifier (e.g., email local-part/username), not provider/status titles, and this rule applies consistently in main dashboards and Settings dialogs (including Antigravity and GitHub Copilot rows).
+- Agent changes must not drop `account_name` from API responses unless the UI contract is updated in the same PR.
 
 ### Database Schema (V2+)
 

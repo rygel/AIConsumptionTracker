@@ -10,6 +10,7 @@ public class AgentLauncher
 {
     private const int DefaultPort = 5000;
     private const int MaxWaitSeconds = 30;
+    private const int StopWaitSeconds = 5;
 
 
     private static async Task<AgentInfo?> GetAgentInfoAsync()
@@ -167,39 +168,86 @@ public class AgentLauncher
         try
         {
             var info = await GetAgentInfoAsync();
+            var targetPort = info?.Port > 0 ? info.Port : await GetAgentPortAsync();
             if (info?.ProcessId > 0)
             {
-                try
+                if (await TryStopProcessAsync(info.ProcessId))
                 {
-                    var process = Process.GetProcessById(info.ProcessId);
-                    process.Kill();
-                    await process.WaitForExitAsync();
-                    return true;
-                }
-                catch (ArgumentException)
-                {
-                    // Process already exited
                     return true;
                 }
             }
             
             // Fallback: try to find and kill by process name
             var processes = Process.GetProcessesByName("AIConsumptionTracker.Agent");
+            var stoppedAny = false;
             foreach (var process in processes)
             {
-                try
+                using (process)
                 {
-                    process.Kill();
-                    await process.WaitForExitAsync();
+                    if (await TryStopProcessAsync(process))
+                    {
+                        stoppedAny = true;
+                    }
                 }
-                catch { /* Ignore errors */ }
             }
             
-            return processes.Length > 0;
+            if (stoppedAny)
+            {
+                return true;
+            }
+
+            return !await CheckHealthAsync(targetPort);
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Failed to stop Agent: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static async Task<bool> TryStopProcessAsync(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return await TryStopProcessAsync(process);
+        }
+        catch (ArgumentException)
+        {
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AgentService.LogDiagnostic($"Failed to stop process {processId}: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static async Task<bool> TryStopProcessAsync(Process process)
+    {
+        try
+        {
+            if (process.HasExited)
+            {
+                return true;
+            }
+
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(StopWaitSeconds));
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            AgentService.LogDiagnostic($"Timed out waiting for process {process.Id} to exit.");
+            return process.HasExited;
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AgentService.LogDiagnostic($"Failed to stop process {process.Id}: {ex.Message}");
             return false;
         }
     }
