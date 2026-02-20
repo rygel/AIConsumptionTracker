@@ -325,12 +325,18 @@ public partial class MainWindow : Window
 
         var filteredUsages = _usages.ToList();
 
-        // Filter out Antigravity completely if not available
-        // Also filter out Antigravity child items (antigravity.*) as they are shown inside the main card
+        // Filter out Antigravity completely if not available.
+        // Filter out antigravity.* items from API payload because model rows are rendered from Antigravity details.
         filteredUsages = filteredUsages.Where(u =>
             !(u.ProviderId == "antigravity" && !u.IsAvailable) &&
             !u.ProviderId.StartsWith("antigravity.")
         ).ToList();
+
+        // Guard against duplicate provider entries returned by the Agent.
+        filteredUsages = filteredUsages
+            .GroupBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
 
         // Separate providers by type and order alphabetically
         var quotaProviders = filteredUsages.Where(u => u.IsQuotaBased || u.PlanType == PlanType.Coding).OrderBy(u => u.ProviderName).ToList();
@@ -351,16 +357,18 @@ public partial class MainWindow : Window
 
             if (!_preferences.IsPlansAndQuotasCollapsed)
             {
-                // Add all quota providers with Antigravity model rows grouped by Antigravity groups
+                // Add all quota providers with Antigravity models listed as standalone cards.
                 foreach (var usage in quotaProviders.OrderBy(u => u.ProviderName))
                 {
-                    AddProviderCard(usage, plansContainer);
-
                     if (usage.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase))
                     {
-                        AddGroupedAntigravityModels(usage, plansContainer);
+                        AddAntigravityModels(usage, plansContainer);
+                        continue;
                     }
-                    else if (usage.Details?.Any() == true)
+
+                    AddProviderCard(usage, plansContainer);
+
+                    if (usage.Details?.Any() == true)
                     {
                         AddCollapsibleSubProviders(usage, plansContainer);
                     }
@@ -766,32 +774,21 @@ public partial class MainWindow : Window
         container.Children.Add(grid);
     }
 
-    private void AddGroupedAntigravityModels(ProviderUsage usage, StackPanel container)
+    private void AddAntigravityModels(ProviderUsage usage, StackPanel container)
     {
         if (usage.Details?.Any() != true)
         {
             return;
         }
 
-        var groupedDetails = usage.Details
+        var uniqueModelDetails = usage.Details
             .Where(d => !string.IsNullOrWhiteSpace(GetAntigravityModelDisplayName(d)) && !d.Name.StartsWith("[", StringComparison.Ordinal))
-            .GroupBy(ResolveAntigravityGroupHeader)
-            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+            .GroupBy(GetAntigravityModelDisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First());
 
-        foreach (var group in groupedDetails)
+        foreach (var detail in uniqueModelDetails.OrderBy(GetAntigravityModelDisplayName, StringComparer.OrdinalIgnoreCase))
         {
-            var groupHeader = CreateText(
-                group.Key!,
-                9.0,
-                GetResourceBrush("SecondaryText", Brushes.Gray),
-                FontWeights.SemiBold,
-                new Thickness(20, 4, 0, 2));
-            container.Children.Add(groupHeader);
-
-            foreach (var detail in group.OrderBy(GetAntigravityModelDisplayName, StringComparer.OrdinalIgnoreCase))
-            {
-                AddProviderCard(CreateAntigravityModelUsage(detail, usage), container, isChild: true);
-            }
+            AddProviderCard(CreateAntigravityModelUsage(detail, usage), container);
         }
     }
 
@@ -801,7 +798,7 @@ public partial class MainWindow : Window
         return new ProviderUsage
         {
             ProviderId = $"antigravity.{detail.Name.ToLowerInvariant().Replace(" ", "-")}",
-            ProviderName = GetAntigravityModelDisplayName(detail),
+            ProviderName = $"{GetAntigravityModelDisplayName(detail)} [Antigravity]",
             RequestsPercentage = remainingPercent,
             RequestsUsed = 100.0 - remainingPercent,
             RequestsAvailable = 100,
@@ -836,11 +833,6 @@ public partial class MainWindow : Window
     private static string GetDetailDisplayName(ProviderUsageDetail detail)
     {
         return string.IsNullOrWhiteSpace(detail.ModelName) ? detail.Name : detail.ModelName;
-    }
-
-    private static string ResolveAntigravityGroupHeader(ProviderUsageDetail detail)
-    {
-        return string.IsNullOrWhiteSpace(detail.GroupName) ? "Ungrouped Models" : detail.GroupName;
     }
 
     private void AddSubProviderCard(ProviderUsageDetail detail, StackPanel container)
@@ -1013,8 +1005,12 @@ public partial class MainWindow : Window
 
     private FrameworkElement CreateProviderIcon(string providerId)
     {
+        var normalizedProviderId = providerId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase)
+            ? "antigravity"
+            : providerId;
+
         // Check cache first
-        if (_iconCache.TryGetValue(providerId, out var cachedImage))
+        if (_iconCache.TryGetValue(normalizedProviderId, out var cachedImage))
         {
             return new Image
             {
@@ -1026,7 +1022,7 @@ public partial class MainWindow : Window
         }
 
         // Map provider IDs to filename
-        string filename = providerId.ToLower() switch
+        string filename = normalizedProviderId.ToLower() switch
         {
             "github-copilot" => "github",
             "gemini-cli" => "google",
@@ -1043,7 +1039,7 @@ public partial class MainWindow : Window
             "anthropic" => "anthropic",
             "google" => "google",
             "github" => "github",
-            _ => providerId.ToLower()
+            _ => normalizedProviderId.ToLower()
         };
 
         var appDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -1064,7 +1060,7 @@ public partial class MainWindow : Window
                 {
                     var image = new DrawingImage(drawing);
                     image.Freeze();
-                    _iconCache[providerId] = image;
+                    _iconCache[normalizedProviderId] = image;
 
                     return new Image
                     {
@@ -1082,7 +1078,7 @@ public partial class MainWindow : Window
         }
 
         // Fallback: colored circle with initial
-        return CreateFallbackIcon(providerId);
+        return CreateFallbackIcon(normalizedProviderId);
     }
 
     private FrameworkElement CreateFallbackIcon(string providerId)
