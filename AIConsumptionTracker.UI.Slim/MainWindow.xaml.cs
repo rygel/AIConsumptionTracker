@@ -31,6 +31,7 @@ public partial class MainWindow : Window
     private readonly IUpdateCheckerService _updateChecker;
     private AppPreferences _preferences = new();
     private List<ProviderUsage> _usages = new();
+    private List<ProviderConfig> _configs = new();
     private bool _isPrivacyMode = App.IsPrivacyMode;
     private bool _isLoading = false;
     private readonly Dictionary<string, ImageSource> _iconCache = new();
@@ -212,6 +213,7 @@ public partial class MainWindow : Window
                     // Data is available - render and stop rapid polling
                     _usages = usages.ToList();
                     RenderProviders();
+                    await UpdateTrayIconsAsync();
                     _lastAgentUpdate = DateTime.Now;
                     ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
                     return;
@@ -314,6 +316,7 @@ public partial class MainWindow : Window
 
             // Render providers
             RenderProviders();
+            await UpdateTrayIconsAsync();
 
             ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
         }
@@ -1212,6 +1215,7 @@ public partial class MainWindow : Window
                 {
                     _usages = usages.ToList();
                     RenderProviders();
+                    await UpdateTrayIconsAsync();
                     _lastAgentUpdate = DateTime.Now;
                     ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
                 }
@@ -1223,6 +1227,17 @@ public partial class MainWindow : Window
         };
 
         _pollingTimer.Start();
+    }
+
+    private async Task UpdateTrayIconsAsync()
+    {
+        if (Application.Current is not App app)
+        {
+            return;
+        }
+
+        _configs = await _agentService.GetConfigsAsync();
+        app.UpdateProviderTrayIcons(_usages, _configs, _preferences);
     }
 
     private void ShowStatus(string message, StatusType type)

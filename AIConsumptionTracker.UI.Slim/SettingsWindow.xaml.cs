@@ -45,6 +45,7 @@ public partial class SettingsWindow : Window
         UpdatePrivacyButtonState();
 
         PopulateProviders();
+        RefreshTrayIcons();
         PopulateLayoutSettings();
         await LoadHistoryAsync();
         await UpdateAgentStatusAsync();
@@ -216,8 +217,18 @@ public partial class SettingsWindow : Window
             Margin = new Thickness(12, 0, 0, 0)
         };
         trayCheckBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
-        trayCheckBox.Checked += (s, e) => { config.ShowInTray = true; };
-        trayCheckBox.Unchecked += (s, e) => { config.ShowInTray = false; };
+        trayCheckBox.Checked += (s, e) =>
+        {
+            config.ShowInTray = true;
+            SettingsChanged = true;
+            RefreshTrayIcons();
+        };
+        trayCheckBox.Unchecked += (s, e) =>
+        {
+            config.ShowInTray = false;
+            SettingsChanged = true;
+            RefreshTrayIcons();
+        };
         headerPanel.Children.Add(trayCheckBox);
 
         // Notification checkbox
@@ -231,8 +242,16 @@ public partial class SettingsWindow : Window
             Margin = new Thickness(8, 0, 0, 0)
         };
         notifyCheckBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
-        notifyCheckBox.Checked += (s, e) => { config.EnableNotifications = true; };
-        notifyCheckBox.Unchecked += (s, e) => { config.EnableNotifications = false; };
+        notifyCheckBox.Checked += (s, e) =>
+        {
+            config.EnableNotifications = true;
+            SettingsChanged = true;
+        };
+        notifyCheckBox.Unchecked += (s, e) =>
+        {
+            config.EnableNotifications = false;
+            SettingsChanged = true;
+        };
         headerPanel.Children.Add(notifyCheckBox);
 
         // Status badge if not configured
@@ -394,8 +413,87 @@ public partial class SettingsWindow : Window
         Grid.SetRow(keyPanel, 1);
         grid.Children.Add(keyPanel);
 
+        var subTrayDetails = usage?.Details?
+            .Where(d =>
+                !string.IsNullOrWhiteSpace(d.Name) &&
+                !d.Name.StartsWith("[", StringComparison.Ordinal))
+            .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (subTrayDetails is { Count: > 0 })
+        {
+            config.EnabledSubTrays ??= new List<string>();
+
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var separator = new Border
+            {
+                Height = 1,
+                Margin = new Thickness(0, 8, 0, 8)
+            };
+            separator.SetResourceReference(Border.BackgroundProperty, "Separator");
+            Grid.SetRow(separator, 2);
+            grid.Children.Add(separator);
+
+            var subTrayPanel = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
+
+            var subTrayTitle = new TextBlock
+            {
+                Text = "Sub-tray icons",
+                FontSize = 10,
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 0, 0, 4)
+            };
+            subTrayTitle.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
+            subTrayPanel.Children.Add(subTrayTitle);
+
+            foreach (var detail in subTrayDetails)
+            {
+                var subTrayCheckbox = new CheckBox
+                {
+                    Content = detail.Name,
+                    IsChecked = config.EnabledSubTrays.Contains(detail.Name, StringComparer.OrdinalIgnoreCase),
+                    FontSize = 10,
+                    Margin = new Thickness(0, 1, 0, 1),
+                    Cursor = Cursors.Hand
+                };
+                subTrayCheckbox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
+                subTrayCheckbox.Checked += (s, e) =>
+                {
+                    if (!config.EnabledSubTrays.Contains(detail.Name, StringComparer.OrdinalIgnoreCase))
+                    {
+                        config.EnabledSubTrays.Add(detail.Name);
+                    }
+
+                    SettingsChanged = true;
+                    RefreshTrayIcons();
+                };
+                subTrayCheckbox.Unchecked += (s, e) =>
+                {
+                    config.EnabledSubTrays.RemoveAll(name => name.Equals(detail.Name, StringComparison.OrdinalIgnoreCase));
+                    SettingsChanged = true;
+                    RefreshTrayIcons();
+                };
+                subTrayPanel.Children.Add(subTrayCheckbox);
+            }
+
+            Grid.SetRow(subTrayPanel, 3);
+            grid.Children.Add(subTrayPanel);
+        }
+
         card.Child = grid;
         ProvidersStack.Children.Add(card);
+    }
+
+    private void RefreshTrayIcons()
+    {
+        if (Application.Current is App app)
+        {
+            app.UpdateProviderTrayIcons(_usages, _configs, _preferences);
+        }
     }
 
     private FrameworkElement CreateProviderIcon(string providerId)
@@ -774,8 +872,39 @@ public partial class SettingsWindow : Window
         _preferences.FontBold = FontBoldCheck.IsChecked ?? false;
         _preferences.FontItalic = FontItalicCheck.IsChecked ?? false;
         _preferences.IsPrivacyMode = _isPrivacyMode;
-        
-        await _agentService.SavePreferencesAsync(_preferences);
+
+        var failedConfigs = new List<string>();
+        foreach (var config in _configs)
+        {
+            var saved = await _agentService.SaveConfigAsync(config);
+            if (!saved)
+            {
+                failedConfigs.Add(config.ProviderId);
+            }
+        }
+
+        if (failedConfigs.Count > 0)
+        {
+            MessageBox.Show(
+                $"Failed to save provider settings for: {string.Join(", ", failedConfigs)}",
+                "Save Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
+
+        var prefsSaved = await _agentService.SavePreferencesAsync(_preferences);
+        if (!prefsSaved)
+        {
+            MessageBox.Show(
+                "Failed to save preferences.",
+                "Save Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
+
+        RefreshTrayIcons();
         
         SettingsChanged = true;
         this.Close();
