@@ -325,8 +325,8 @@ public partial class MainWindow : Window
 
         var filteredUsages = _usages.ToList();
 
-        // Filter out Antigravity completely if not available
-        // Also filter out Antigravity child items (antigravity.*) as they are shown inside the main card
+        // Filter out Antigravity completely if not available.
+        // Filter out antigravity.* items from API payload because model rows are rendered from Antigravity details.
         filteredUsages = filteredUsages.Where(u =>
             !(u.ProviderId == "antigravity" && !u.IsAvailable) &&
             !u.ProviderId.StartsWith("antigravity.")
@@ -357,16 +357,18 @@ public partial class MainWindow : Window
 
             if (!_preferences.IsPlansAndQuotasCollapsed)
             {
-                // Add all quota providers with Antigravity models listed individually
+                // Add all quota providers with Antigravity models listed as standalone cards.
                 foreach (var usage in quotaProviders.OrderBy(u => u.ProviderName))
                 {
-                    AddProviderCard(usage, plansContainer);
-
                     if (usage.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase))
                     {
                         AddAntigravityModels(usage, plansContainer);
+                        continue;
                     }
-                    else if (usage.Details?.Any() == true)
+
+                    AddProviderCard(usage, plansContainer);
+
+                    if (usage.Details?.Any() == true)
                     {
                         AddCollapsibleSubProviders(usage, plansContainer);
                     }
@@ -786,7 +788,7 @@ public partial class MainWindow : Window
 
         foreach (var detail in uniqueModelDetails.OrderBy(GetAntigravityModelDisplayName, StringComparer.OrdinalIgnoreCase))
         {
-            AddProviderCard(CreateAntigravityModelUsage(detail, usage), container, isChild: true);
+            AddProviderCard(CreateAntigravityModelUsage(detail, usage), container);
         }
     }
 
@@ -1003,8 +1005,12 @@ public partial class MainWindow : Window
 
     private FrameworkElement CreateProviderIcon(string providerId)
     {
+        var normalizedProviderId = providerId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase)
+            ? "antigravity"
+            : providerId;
+
         // Check cache first
-        if (_iconCache.TryGetValue(providerId, out var cachedImage))
+        if (_iconCache.TryGetValue(normalizedProviderId, out var cachedImage))
         {
             return new Image
             {
@@ -1016,7 +1022,7 @@ public partial class MainWindow : Window
         }
 
         // Map provider IDs to filename
-        string filename = providerId.ToLower() switch
+        string filename = normalizedProviderId.ToLower() switch
         {
             "github-copilot" => "github",
             "gemini-cli" => "google",
@@ -1033,7 +1039,7 @@ public partial class MainWindow : Window
             "anthropic" => "anthropic",
             "google" => "google",
             "github" => "github",
-            _ => providerId.ToLower()
+            _ => normalizedProviderId.ToLower()
         };
 
         var appDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -1054,7 +1060,7 @@ public partial class MainWindow : Window
                 {
                     var image = new DrawingImage(drawing);
                     image.Freeze();
-                    _iconCache[providerId] = image;
+                    _iconCache[normalizedProviderId] = image;
 
                     return new Image
                     {
@@ -1072,7 +1078,7 @@ public partial class MainWindow : Window
         }
 
         // Fallback: colored circle with initial
-        return CreateFallbackIcon(providerId);
+        return CreateFallbackIcon(normalizedProviderId);
     }
 
     private FrameworkElement CreateFallbackIcon(string providerId)
