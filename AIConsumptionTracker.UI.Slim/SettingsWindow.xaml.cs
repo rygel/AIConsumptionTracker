@@ -615,7 +615,7 @@ public partial class SettingsWindow : Window
 
     private void ScanBtn_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show("API key scanning is not yet implemented in Slim UI.", 
+        MessageBox.Show("API key scanning is not yet implemented in AI Consumption Tracker.", 
             "Not Implemented", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 

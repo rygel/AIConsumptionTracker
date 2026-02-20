@@ -43,20 +43,13 @@ By requiring manual tag creation:
 
 Create a feature branch and update these files:
 
-#### 1.1 Project Files (.csproj)
-Update `Version` in all release project files. For projects that contain `AssemblyVersion` and `FileVersion`, use the numeric base version (without prerelease suffix) for those two fields.
-- `AIConsumptionTracker.Core/AIConsumptionTracker.Core.csproj`
-- `AIConsumptionTracker.Infrastructure/AIConsumptionTracker.Infrastructure.csproj`
-- `AIConsumptionTracker.UI/AIConsumptionTracker.UI.csproj`
-- `AIConsumptionTracker.CLI/AIConsumptionTracker.CLI.csproj`
-- `AIConsumptionTracker.UI.Slim/AIConsumptionTracker.UI.Slim.csproj`
-- `AIConsumptionTracker.Agent/AIConsumptionTracker.Agent.csproj`
+#### 1.1 Shared Version Source
+Update `Directory.Build.props`:
 
 Example changes:
 ```xml
-<Version>1.8.7-alpha.2</Version>
-<AssemblyVersion>1.8.7</AssemblyVersion>
-<FileVersion>1.8.7</FileVersion>
+<TrackerVersion>1.8.7-alpha.2</TrackerVersion>
+<TrackerAssemblyVersion>1.8.7</TrackerAssemblyVersion>
 ```
 
 #### 1.2 README.md
@@ -131,11 +124,12 @@ git push origin v1.8.7-alpha.2
 ### Step 4: Automatic Build and Release
 
 Pushing the tag automatically triggers the `Publish & Distribute` workflow which will:
-1. Build the application for all architectures (x64, x86, ARM64)
-2. Create Inno Setup installers
-3. Generate `appcast.xml` for NetSparkle auto-updater
-4. Create GitHub release with all artifacts including `appcast.xml`
-5. Upload release notes from CHANGELOG.md
+1. Run **pre-publish validation** (version/changelog consistency checks via `scripts/validate-release-consistency.sh`)
+2. Build the application for all architectures (x64, x86, ARM64)
+3. Create Inno Setup installers
+4. Generate `appcast.xml` for NetSparkle auto-updater
+5. Create GitHub release with all artifacts including `appcast.xml`
+6. Upload release notes from CHANGELOG.md
 
 **No manual steps required** - the workflow handles everything including the appcast file!
 
@@ -166,6 +160,11 @@ The changelog doesn't have an entry for this version.
 
 **Fix**: Add a changelog entry via PR before triggering the release.
 
+### Publish workflow fails during pre-publish validation
+The tag version and repository version files are out of sync.
+
+**Fix**: Ensure `Directory.Build.props`, `README.md` badge, `scripts/setup.iss`, `scripts/publish-app.ps1`, and `CHANGELOG.md` all match the tag version, then push a corrected tag.
+
 ## Files Managed by Release Workflow
 
 The release workflow automatically generates:
@@ -174,7 +173,7 @@ The release workflow automatically generates:
 - `appcast.xml` for NetSparkle auto-updater
 
 The following must be updated manually before triggering:
-- All `.csproj` files (Version, plus AssemblyVersion/FileVersion where present)
+- `Directory.Build.props` (`TrackerVersion`, `TrackerAssemblyVersion`)
 - `README.md` (version badge)
 - `scripts/setup.iss` (MyAppVersion)
 - `scripts/publish-app.ps1` (example version)
@@ -182,15 +181,11 @@ The following must be updated manually before triggering:
 
 ## Version Numbering
 
-We follow [Semantic Versioning](https://semver.org/):
-- **MAJOR** (X.0.0): Breaking changes
-- **MINOR** (0.X.0): New features, backwards compatible
-- **PATCH** (0.0.X): Bug fixes, backwards compatible
-- **PRERELEASE** (optional suffix): early builds such as `-alpha.2`, `-beta.1`, or `-rc.1`
+Use a consistent release string for `TrackerVersion` and use its base numeric part for `TrackerAssemblyVersion`.
 
 Examples:
-- `1.8.7` = Major 1, Minor 8, Patch 7
-- `1.8.7-alpha.2` = prerelease build of `1.8.7` (keep `AssemblyVersion`/`FileVersion` as `1.8.7`)
+- `1.8.7`
+- `1.8.7-alpha.2` (with `TrackerAssemblyVersion` set to `1.8.7`)
 
 ## Related Documentation
 

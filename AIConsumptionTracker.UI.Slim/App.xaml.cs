@@ -33,14 +33,14 @@ public partial class App : Application
             AllocConsole();
             Console.WriteLine("");
             Console.WriteLine("═══════════════════════════════════════════════════════════════");
-            Console.WriteLine("  AIConsumptionTracker.UI.Slim - DEBUG MODE");
+            Console.WriteLine("  AIConsumptionTracker.UI - DEBUG MODE");
             Console.WriteLine("═══════════════════════════════════════════════════════════════");
             Console.WriteLine($"  Started:    {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             Console.WriteLine($"  Process ID: {Environment.ProcessId}");
             Console.WriteLine("═══════════════════════════════════════════════════════════════");
             Console.WriteLine("");
             
-            AgentService.LogDiagnostic("Slim UI Debug Mode Enabled");
+            AgentService.LogDiagnostic("AI Consumption Tracker UI Debug Mode Enabled");
         }
 
         base.OnStartup(e);

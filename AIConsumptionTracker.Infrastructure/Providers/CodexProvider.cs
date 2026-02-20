@@ -48,70 +48,23 @@ public class CodexProvider : IProviderService
             var accountId = auth.Tokens.AccountId;
             var (email, jwtPlanType) = DecodeJwtClaims(accessToken);
 
-            using var request = new HttpRequestMessage(HttpMethod.Get, UsageEndpoint);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            if (!string.IsNullOrWhiteSpace(accountId))
-            {
-                request.Headers.TryAddWithoutValidation("ChatGPT-Account-Id", accountId);
-            }
-
+            using var request = CreateUsageRequest(accessToken, accountId);
             using var response = await _httpClient.SendAsync(request);
             var content = await response.Content.ReadAsStringAsync();
 
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            var unavailableFromStatus = CreateUnavailableUsageFromStatus(response);
+            if (unavailableFromStatus != null)
             {
-                return new[] { CreateUnavailableUsage($"Authentication failed ({(int)response.StatusCode})") };
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                return new[] { CreateUnavailableUsage($"Usage request failed ({(int)response.StatusCode})") };
+                return new[] { unavailableFromStatus };
             }
 
             using var jsonDoc = JsonDocument.Parse(content);
-            if (jsonDoc.RootElement.TryGetProperty("detail", out var detail) &&
-                detail.ValueKind == JsonValueKind.String &&
-                !string.IsNullOrWhiteSpace(detail.GetString()))
+            if (TryGetErrorDetailMessage(jsonDoc.RootElement, out var detailMessage))
             {
-                return new[] { CreateUnavailableUsage(detail.GetString()!) };
+                return new[] { CreateUnavailableUsage(detailMessage) };
             }
 
-            var planType = ReadString(jsonDoc.RootElement, "plan_type") ?? jwtPlanType ?? "unknown";
-            var primaryUsedPercent = ReadDouble(jsonDoc.RootElement, "rate_limit", "primary_window", "used_percent") ?? 0.0;
-            var primaryResetSeconds = ReadDouble(jsonDoc.RootElement, "rate_limit", "primary_window", "reset_after_seconds");
-            var secondaryUsedPercent = ReadDouble(jsonDoc.RootElement, "rate_limit", "secondary_window", "used_percent");
-            var secondaryResetSeconds = ReadDouble(jsonDoc.RootElement, "rate_limit", "secondary_window", "reset_after_seconds");
-            var sparkWindow = ExtractSparkWindow(jsonDoc.RootElement);
-
-            var remainingPercent = Math.Clamp(100.0 - primaryUsedPercent, 0.0, 100.0);
-            var details = BuildDetails(primaryUsedPercent, primaryResetSeconds, secondaryUsedPercent, secondaryResetSeconds, sparkWindow, jsonDoc.RootElement);
-            var nextResetTime = ResolveNextResetTime(primaryResetSeconds, sparkWindow.ResetAfterSeconds);
-
-            var description = $"{remainingPercent:F0}% remaining ({primaryUsedPercent:F0}% used) | Plan: {planType}";
-            if (sparkWindow.UsedPercent.HasValue)
-            {
-                description += $" | Spark: {sparkWindow.UsedPercent.Value:F0}% used";
-            }
-
-            var usage = new ProviderUsage
-            {
-                ProviderId = ProviderId,
-                ProviderName = "Codex",
-                RequestsPercentage = remainingPercent,
-                RequestsUsed = 100.0 - remainingPercent,
-                RequestsAvailable = 100.0,
-                UsageUnit = "Quota %",
-                IsQuotaBased = true,
-                PlanType = PlanType.Coding,
-                IsAvailable = true,
-                Description = description,
-                AccountName = email ?? string.Empty,
-                AuthSource = $"Codex Native ({planType})",
-                NextResetTime = nextResetTime,
-                Details = details
-            };
-
-            return new[] { usage };
+            return new[] { BuildUsage(jsonDoc.RootElement, email, jwtPlanType) };
         }
         catch (JsonException ex)
         {
@@ -123,6 +76,100 @@ public class CodexProvider : IProviderService
             _logger.LogWarning(ex, "Codex native usage lookup failed");
             return new[] { CreateUnavailableUsage($"Codex native lookup failed: {ex.Message}") };
         }
+    }
+
+    private static HttpRequestMessage CreateUsageRequest(string accessToken, string? accountId)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, UsageEndpoint)
+        {
+            Headers =
+            {
+                Authorization = new AuthenticationHeaderValue("Bearer", accessToken)
+            }
+        };
+
+        if (!string.IsNullOrWhiteSpace(accountId))
+        {
+            request.Headers.TryAddWithoutValidation("ChatGPT-Account-Id", accountId);
+        }
+
+        return request;
+    }
+
+    private ProviderUsage? CreateUnavailableUsageFromStatus(HttpResponseMessage response)
+    {
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            return CreateUnavailableUsage($"Authentication failed ({(int)response.StatusCode})");
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return CreateUnavailableUsage($"Usage request failed ({(int)response.StatusCode})");
+        }
+
+        return null;
+    }
+
+    private static bool TryGetErrorDetailMessage(JsonElement root, out string message)
+    {
+        if (root.TryGetProperty("detail", out var detail) &&
+            detail.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(detail.GetString()))
+        {
+            message = detail.GetString()!;
+            return true;
+        }
+
+        message = string.Empty;
+        return false;
+    }
+
+    private ProviderUsage BuildUsage(JsonElement root, string? email, string? jwtPlanType)
+    {
+        var planType = ReadString(root, "plan_type") ?? jwtPlanType ?? "unknown";
+        var primaryUsedPercent = ReadDouble(root, "rate_limit", "primary_window", "used_percent") ?? 0.0;
+        var primaryResetSeconds = ReadDouble(root, "rate_limit", "primary_window", "reset_after_seconds");
+        var secondaryUsedPercent = ReadDouble(root, "rate_limit", "secondary_window", "used_percent");
+        var secondaryResetSeconds = ReadDouble(root, "rate_limit", "secondary_window", "reset_after_seconds");
+        var sparkWindow = ExtractSparkWindow(root);
+
+        var remainingPercent = Math.Clamp(100.0 - primaryUsedPercent, 0.0, 100.0);
+        var details = BuildDetails(primaryUsedPercent, primaryResetSeconds, secondaryUsedPercent, secondaryResetSeconds, sparkWindow, root);
+        var nextResetTime = ResolveNextResetTime(primaryResetSeconds, sparkWindow.ResetAfterSeconds);
+
+        return new ProviderUsage
+        {
+            ProviderId = ProviderId,
+            ProviderName = "Codex",
+            RequestsPercentage = remainingPercent,
+            RequestsUsed = 100.0 - remainingPercent,
+            RequestsAvailable = 100.0,
+            UsageUnit = "Quota %",
+            IsQuotaBased = true,
+            PlanType = PlanType.Coding,
+            IsAvailable = true,
+            Description = BuildUsageDescription(remainingPercent, primaryUsedPercent, sparkWindow.UsedPercent, planType),
+            AccountName = email ?? string.Empty,
+            AuthSource = $"Codex Native ({planType})",
+            NextResetTime = nextResetTime,
+            Details = details
+        };
+    }
+
+    private static string BuildUsageDescription(
+        double remainingPercent,
+        double primaryUsedPercent,
+        double? sparkUsedPercent,
+        string planType)
+    {
+        var description = $"{remainingPercent:F0}% remaining ({primaryUsedPercent:F0}% used) | Plan: {planType}";
+        if (sparkUsedPercent.HasValue)
+        {
+            description += $" | Spark: {sparkUsedPercent.Value:F0}% used";
+        }
+
+        return description;
     }
 
     private async Task<CodexAuth?> LoadNativeAuthAsync()

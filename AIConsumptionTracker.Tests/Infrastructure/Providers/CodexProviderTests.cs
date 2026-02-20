@@ -116,6 +116,65 @@ public class CodexProviderTests
         }
     }
 
+    [Fact]
+    public async Task GetUsageAsync_WhamSnapshot_ParsesContractFields()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), $"codex-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var authPath = Path.Combine(tempDir, "auth.json");
+        var token = CreateJwt("snapshot@example.com", "pro");
+        var accountId = "acct_snapshot";
+        var snapshotJson = LoadFixture("codex_wham_usage.snapshot.json");
+
+        await File.WriteAllTextAsync(authPath, JsonSerializer.Serialize(new
+        {
+            tokens = new
+            {
+                access_token = token,
+                account_id = accountId
+            }
+        }));
+
+        _messageHandler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(request =>
+                    request.Method == HttpMethod.Get &&
+                    request.RequestUri!.ToString() == "https://chatgpt.com/backend-api/wham/usage" &&
+                    request.Headers.Authorization != null &&
+                    request.Headers.Authorization.Parameter == token),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(snapshotJson)
+            });
+
+        var provider = new CodexProvider(_httpClient, _logger.Object, authPath);
+
+        try
+        {
+            // Act
+            var usage = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).Single();
+
+            // Assert
+            Assert.True(usage.IsAvailable);
+            Assert.Equal("snapshot@example.com", usage.AccountName);
+            Assert.Equal(37.5, usage.RequestsPercentage);
+            Assert.Contains("Plan: pro", usage.Description);
+            Assert.Contains("Spark", usage.Description);
+            Assert.NotNull(usage.NextResetTime);
+            Assert.Contains(usage.Details!, d => d.Name == "Primary Window" && d.Used == "62% used");
+            Assert.Contains(usage.Details!, d => d.Name.StartsWith("Spark", StringComparison.OrdinalIgnoreCase) && d.Used == "40% used");
+            Assert.Contains(usage.Details!, d => d.Name == "Credits" && d.Used == "12.75");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     private static string CreateJwt(string email, string planType)
     {
         var headerJson = JsonSerializer.Serialize(new { alg = "HS256", typ = "JWT" });
@@ -142,5 +201,12 @@ public class CodexProviderTests
     {
         var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
         return encoded.TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+
+    private static string LoadFixture(string fileName)
+    {
+        var fixturePath = Path.Combine(AppContext.BaseDirectory, "TestData", "Providers", fileName);
+        Assert.True(File.Exists(fixturePath), $"Fixture file not found: {fixturePath}");
+        return File.ReadAllText(fixturePath);
     }
 }

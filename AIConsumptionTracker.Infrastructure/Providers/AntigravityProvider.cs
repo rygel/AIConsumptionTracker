@@ -26,17 +26,28 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
     private DateTime _lastProcessCheck = DateTime.MinValue;
 
     public AntigravityProvider(ILogger<AntigravityProvider> logger)
+        : this(CreateLocalhostClient(), logger)
     {
-        _logger = logger;
+    }
 
-        // Setup HttpClient with loose SSL validation for localhost
-        var handler = new HttpClientHandler();
-        handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>
+    internal AntigravityProvider(HttpClient httpClient, ILogger<AntigravityProvider> logger)
+    {
+        _httpClient = httpClient;
+        _logger = logger;
+    }
+
+    private static HttpClient CreateLocalhostClient()
+    {
+        var handler = new HttpClientHandler
         {
-             // Only allow localhost self-signed
-             return message.RequestUri?.Host == "127.0.0.1";
+            ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>
+            {
+                // Only allow localhost self-signed
+                return message.RequestUri?.Host == "127.0.0.1";
+            }
         };
-        _httpClient = new HttpClient(handler);
+
+        return new HttpClient(handler);
     }
 
     public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
@@ -385,13 +396,11 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
 
     private async Task<List<ProviderUsage>> FetchUsage(int port, string csrfToken, ProviderConfig config)
     {
-        var results = new List<ProviderUsage>();
         var url = $"https://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/GetUserStatus";
-        
-        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        using var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Headers.Add("X-Codeium-Csrf-Token", csrfToken);
         request.Headers.Add("Connect-Protocol-Version", "1");
-        
+
         var body = new { metadata = new { ideName = "antigravity", extensionName = "antigravity", ideVersion = "unknown", locale = "en" } };
         request.Content = JsonContent.Create(body);
 
@@ -402,15 +411,59 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
         _logger.LogDebug("[Antigravity] Raw response from port {Port}: {Response}", port, responseString[..Math.Min(500, responseString.Length)]);
         
         var data = JsonSerializer.Deserialize<AntigravityResponse>(responseString);
-        
+
         if (data?.UserStatus == null) throw new Exception("Invalid Antigravity response");
-        
+
         _logger.LogDebug("[Antigravity] Email: {Email}, Models: {ModelCount}", 
             PrivacyHelper.MaskContent(data.UserStatus.Email ?? ""), 
             data.UserStatus.CascadeModelConfigData?.ClientModelConfigs?.Count ?? 0);
 
         var modelConfigs = data.UserStatus.CascadeModelConfigData?.ClientModelConfigs ?? new List<ClientModelConfig>();
         var modelSorts = data.UserStatus.CascadeModelConfigData?.ClientModelSorts ?? new List<ClientModelSort>();
+        var (labelToGroup, masterModelLabels) = BuildGroupingMetadata(modelSorts, modelConfigs);
+        var configMap = BuildConfigMap(modelConfigs);
+
+        var details = new List<ProviderUsageDetail>();
+        var minRemaining = 100.0;
+        foreach (var label in masterModelLabels)
+        {
+            configMap.TryGetValue(label, out var modelConfig);
+            var remainingPct = ResolveRemainingPercentage(label, modelConfig);
+            var (resetDescription, nextResetTime) = ResolveResetInfo(modelConfig);
+            var modelName = ResolveDisplayModelName(modelConfig, label);
+
+            details.Add(new ProviderUsageDetail
+            {
+                Name = label,
+                ModelName = modelName,
+                GroupName = labelToGroup.TryGetValue(label, out var groupName)
+                    ? groupName
+                    : "Ungrouped Models",
+                Used = $"{remainingPct.ToString("F0", CultureInfo.InvariantCulture)}%",
+                Description = resetDescription,
+                NextResetTime = nextResetTime
+            });
+
+            minRemaining = Math.Min(minRemaining, remainingPct);
+        }
+
+        var sortedDetails = SortDetails(details);
+        var summary = BuildSummaryUsage(data.UserStatus, sortedDetails, minRemaining);
+        ApplySummaryRawNumbers(summary, configMap);
+
+        var results = BuildChildUsages(sortedDetails, configMap, config, data.UserStatus.Email ?? string.Empty);
+        results.Insert(0, summary);
+
+        _cachedUsage = summary;
+        _cacheTimestamp = DateTime.Now;
+
+        return results;
+    }
+
+    private static (Dictionary<string, string> LabelToGroup, List<string> MasterModelLabels) BuildGroupingMetadata(
+        List<ClientModelSort> modelSorts,
+        List<ClientModelConfig> modelConfigs)
+    {
         var labelToGroup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var masterModelLabelSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var masterModelLabels = new List<string>();
@@ -420,6 +473,7 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
             var modelSort = modelSorts[sortIndex];
             var sortName = ResolveModelSortName(modelSort, sortIndex);
             var modelGroups = modelSort.Groups ?? new List<ModelGroup>();
+
             for (var groupIndex = 0; groupIndex < modelGroups.Count; groupIndex++)
             {
                 var groupName = ResolveModelGroupName(modelGroups[groupIndex], sortName, groupIndex);
@@ -452,151 +506,121 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                 .ToList();
         }
 
-        var details = new List<ProviderUsageDetail>();
-        double minRemaining = 100.0;
+        return (labelToGroup, masterModelLabels);
+    }
 
-        // 1. Check Global Credits
-        var planStatus = data.UserStatus.PlanStatus;
-        // 1. Check Global Credits - REMOVED per user request
+    private static Dictionary<string, ClientModelConfig> BuildConfigMap(List<ClientModelConfig> modelConfigs)
+    {
+        return modelConfigs
+            .Where(c => !string.IsNullOrEmpty(c.Label))
+            .ToDictionary(c => c.Label!, c => c);
+    }
 
-        // Logic removed to hide Flow/Prompt credits
-        /* 
-        if (planStatus != null) ...
-        */
-
-        // 2. Map existing configs for easy lookup
-        var configMap = modelConfigs.Where(c => !string.IsNullOrEmpty(c.Label)).ToDictionary(c => c.Label!, c => c);
-
-        // 3. Process all known models (from sorts list) to ensure 0% is shown for exhausted ones
-        foreach (var label in masterModelLabels)
+    private double ResolveRemainingPercentage(string label, ClientModelConfig? modelConfig)
+    {
+        var remainingPct = 0.0;
+        if (modelConfig == null)
         {
-            double remainingPct = 0; // Assume exhausted (0% remaining) if missing
-            DateTime? itemResetDt = null;
-            
-            if (configMap.TryGetValue(label, out var modelConfig))
-            {
-                _logger.LogDebug("[Antigravity] Model {Label}: RemainingFraction={Rem}, TotalRequests={Total}, UsedRequests={Used}",
-                    label,
-                    modelConfig.QuotaInfo?.RemainingFraction?.ToString() ?? "null",
-                    modelConfig.QuotaInfo?.TotalRequests?.ToString() ?? "null",
-                    modelConfig.QuotaInfo?.UsedRequests?.ToString() ?? "null");
-                
-                if (modelConfig.QuotaInfo?.RemainingFraction.HasValue == true)
-                {
-                    remainingPct = modelConfig.QuotaInfo.RemainingFraction.Value * 100;
-                }
-                else if (modelConfig.QuotaInfo?.TotalRequests.HasValue == true && modelConfig.QuotaInfo.TotalRequests > 0)
-                {
-                    var used = modelConfig.QuotaInfo.UsedRequests ?? 0;
-                    var remaining = Math.Max(0, modelConfig.QuotaInfo.TotalRequests.Value - used);
-                    remainingPct = (remaining / (double)modelConfig.QuotaInfo.TotalRequests.Value) * 100;
-                }
-            }
-            else
-            {
-                _logger.LogDebug("[Antigravity] Model {Label} not found in config map, defaulting to 0%", label);
-            }
-
-            // Store REMAINING percentage for display (consistent with other quota providers)
-            // The UI will handle the inverted display logic
-            var detailRemainingPct = remainingPct;
-            
-            string resetStr = "";
-            if (!string.IsNullOrEmpty(modelConfig?.QuotaInfo?.ResetTime))
-            {
-                        if (DateTime.TryParse(modelConfig.QuotaInfo.ResetTime, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dt))
-                        {
-                            var diff = dt.ToLocalTime() - DateTime.Now;
-                    if (diff.TotalSeconds > 0)
-                    {
-                        resetStr = $" (Resets: ({dt.ToLocalTime():MMM dd HH:mm}))";
-                        itemResetDt = dt.ToLocalTime();
-                    }
-                        }
-            }
-
-            var displayModelName = modelConfig?.ModelOrAlias?.Model;
-            if (string.IsNullOrWhiteSpace(displayModelName))
-            {
-                displayModelName = modelConfig?.ModelOrAlias?.Alias;
-            }
-
-            if (string.IsNullOrWhiteSpace(displayModelName))
-            {
-                displayModelName = modelConfig?.ModelOrAlias?.Name;
-            }
-
-            if (string.IsNullOrWhiteSpace(displayModelName))
-            {
-                displayModelName = label;
-            }
-
-            details.Add(new ProviderUsageDetail
-            {
-                Name = label,
-                ModelName = displayModelName,
-                GroupName = labelToGroup.TryGetValue(label, out var groupName)
-                    ? groupName
-                    : "Ungrouped Models",
-                Used = $"{detailRemainingPct.ToString("F0", CultureInfo.InvariantCulture)}%",
-                Description = resetStr,
-                NextResetTime = itemResetDt
-            });
-            
-            minRemaining = Math.Min(minRemaining, remainingPct);
+            _logger.LogDebug("[Antigravity] Model {Label} not found in config map, defaulting to 0%", label);
+            return remainingPct;
         }
 
-        // Sort but keep [Credits] at the top
-        // details are already added in order (Credits first, then models by label order from master list which is usually sorted or fixed)
-        // If masterModelLabels is not sorted, we might want to sort models alphabetically.
-        
-        var modelDetails = details.Where(d => !d.Name.StartsWith("[Credits]")).OrderBy(d => d.Name).ToList();
-        var creditDetails = details.Where(d => !d.Name.StartsWith("[Credits]")).ToList(); 
-        // Wait, logic above separates them.
-        
-        // Let's just re-sort the whole list to be safe: Credits first, then Alphabetical Models
-        var sortedDetails = details.OrderBy(d => d.Name.StartsWith("[Credits]") ? "0" + d.Name : "1" + d.Name).ToList();
+        _logger.LogDebug("[Antigravity] Model {Label}: RemainingFraction={Rem}, TotalRequests={Total}, UsedRequests={Used}",
+            label,
+            modelConfig.QuotaInfo?.RemainingFraction?.ToString() ?? "null",
+            modelConfig.QuotaInfo?.TotalRequests?.ToString() ?? "null",
+            modelConfig.QuotaInfo?.UsedRequests?.ToString() ?? "null");
 
-        // Show Max Usage (since minRemaining is smallest remaining fraction)
-        var usedPctTotal = 100 - minRemaining;
-        
-        // Remove globalReset based on user feedback. Group-specific resets would be in Details.
+        if (modelConfig.QuotaInfo?.RemainingFraction.HasValue == true)
+        {
+            remainingPct = modelConfig.QuotaInfo.RemainingFraction.Value * 100;
+        }
+        else if (modelConfig.QuotaInfo?.TotalRequests.HasValue == true && modelConfig.QuotaInfo.TotalRequests > 0)
+        {
+            var used = modelConfig.QuotaInfo.UsedRequests ?? 0;
+            var remaining = Math.Max(0, modelConfig.QuotaInfo.TotalRequests.Value - used);
+            remainingPct = (remaining / (double)modelConfig.QuotaInfo.TotalRequests.Value) * 100;
+        }
 
-        // For quota-based providers: store remaining % in RequestsPercentage, used % in RequestsUsed
-        // This matches the pattern used by Z.AI and other quota providers
-        // For quota-based providers: store remaining % in RequestsPercentage, used % in RequestsUsed
-        // This matches the pattern used by Z.AI and other quota providers
-        var remainingPctTotal = minRemaining;
-        
-        var result = new ProviderUsage
+        return remainingPct;
+    }
+
+    private static (string Description, DateTime? NextResetTime) ResolveResetInfo(ClientModelConfig? modelConfig)
+    {
+        if (string.IsNullOrEmpty(modelConfig?.QuotaInfo?.ResetTime))
+        {
+            return (string.Empty, null);
+        }
+
+        if (!DateTime.TryParse(modelConfig.QuotaInfo.ResetTime, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dt))
+        {
+            return (string.Empty, null);
+        }
+
+        var localReset = dt.ToLocalTime();
+        var diff = localReset - DateTime.Now;
+        if (diff.TotalSeconds <= 0)
+        {
+            return (string.Empty, null);
+        }
+
+        return ($" (Resets: ({localReset:MMM dd HH:mm}))", localReset);
+    }
+
+    private static string ResolveDisplayModelName(ClientModelConfig? modelConfig, string label)
+    {
+        var displayModelName = modelConfig?.ModelOrAlias?.Model;
+        if (string.IsNullOrWhiteSpace(displayModelName))
+        {
+            displayModelName = modelConfig?.ModelOrAlias?.Alias;
+        }
+
+        if (string.IsNullOrWhiteSpace(displayModelName))
+        {
+            displayModelName = modelConfig?.ModelOrAlias?.Name;
+        }
+
+        if (string.IsNullOrWhiteSpace(displayModelName))
+        {
+            displayModelName = label;
+        }
+
+        return displayModelName;
+    }
+
+    private static List<ProviderUsageDetail> SortDetails(List<ProviderUsageDetail> details)
+    {
+        return details
+            .OrderBy(d => d.Name.StartsWith("[Credits]") ? "0" + d.Name : "1" + d.Name)
+            .ToList();
+    }
+
+    private ProviderUsage BuildSummaryUsage(UserStatus userStatus, List<ProviderUsageDetail> sortedDetails, double remainingPctTotal)
+    {
+        return new ProviderUsage
         {
             ProviderId = ProviderId,
             ProviderName = "Antigravity",
-            RequestsPercentage = remainingPctTotal,  // Remaining % for quota-based display
-            RequestsUsed = 100 - remainingPctTotal,   // Default to percentage
+            RequestsPercentage = remainingPctTotal,
+            RequestsUsed = 100 - remainingPctTotal,
             RequestsAvailable = 100,
             UsageUnit = "Quota %",
             IsQuotaBased = true,
             PlanType = PlanType.Coding,
             Description = $"{remainingPctTotal.ToString("F1", CultureInfo.InvariantCulture)}% Remaining",
-
             Details = sortedDetails,
-            AccountName = data.UserStatus?.Email ?? "",
+            AccountName = userStatus.Email ?? string.Empty,
             NextResetTime = sortedDetails.Where(d => d.NextResetTime.HasValue).OrderBy(d => d.NextResetTime).FirstOrDefault()?.NextResetTime
         };
-        
-        // Try to find a total limit to expose raw numbers
-        // We act as if the sum of all model quotas is the total, OR we pick the largest one.
-        // Antigravity is tricky because it has per-model quotas.
-        // But usually there's a "global" or "main" quota.
-        // Let's check if we have any TotalRequests in the configMap.
-        
+    }
+
+    private static void ApplySummaryRawNumbers(ProviderUsage summary, Dictionary<string, ClientModelConfig> configMap)
+    {
         long totalLimit = 0;
         long totalUsed = 0;
-        bool hasRawNumbers = false;
+        var hasRawNumbers = false;
 
-        // Sum up total requests if available (heuristic)
-        foreach(var cfg in configMap.Values)
+        foreach (var cfg in configMap.Values)
         {
             if (cfg.QuotaInfo?.TotalRequests.HasValue == true)
             {
@@ -605,65 +629,33 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                 hasRawNumbers = true;
             }
         }
-        
-        if (hasRawNumbers && totalLimit > 0)
+
+        if (!hasRawNumbers || totalLimit <= 0)
         {
-            result.RequestsAvailable = totalLimit;
-            result.RequestsUsed = totalUsed;
-            result.UsageUnit = "Tokens";
-            result.DisplayAsFraction = true; // Explicitly request fraction display if we have real numbers
-            
-            // If we have raw numbers, update description to show it
-            // result.Description += $" ({totalUsed}/{totalLimit})";
+            return;
         }
-        
-        // Create individual items for each model (child providers)
+
+        summary.RequestsAvailable = totalLimit;
+        summary.RequestsUsed = totalUsed;
+        summary.UsageUnit = "Tokens";
+        summary.DisplayAsFraction = true;
+    }
+
+    private List<ProviderUsage> BuildChildUsages(
+        List<ProviderUsageDetail> sortedDetails,
+        Dictionary<string, ClientModelConfig> configMap,
+        ProviderConfig config,
+        string accountName)
+    {
+        var results = new List<ProviderUsage>();
+
         foreach (var detail in sortedDetails)
         {
-            // Parse percentage from "Used" string (e.g. "80%")
-            double detailRemaining = 0;
-            if (detail.Used.EndsWith("%") && double.TryParse(detail.Used.TrimEnd('%'), NumberStyles.Any, CultureInfo.InvariantCulture, out double parsed))
-            {
-                detailRemaining = parsed;
-            }
+            var detailRemaining = ParseDetailRemainingPercentage(detail.Used);
+            var (childId, childName) = ResolveChildIdentity(detail, config);
 
-            var childId = $"{ProviderId}.{detail.Name.ToLowerInvariant().Replace(" ", "-")}";
-            // Default name
-            var childName = "Antigravity " + detail.Name;
-            
-            // Check for alias match
-            if (config.Models != null && config.Models.Any())
-            {
-                var match = config.Models.FirstOrDefault(m => 
-                    m.Id.Equals(detail.Name, StringComparison.OrdinalIgnoreCase) ||
-                    m.Name.Equals(detail.Name, StringComparison.OrdinalIgnoreCase) ||
-                    m.Matches.Any(x => x.Equals(detail.Name, StringComparison.OrdinalIgnoreCase)));
-
-                if (match != null)
-                {
-                    // Use configured ID if possible, but we need to be careful about changing IDs if users have data.
-                    // The user wants "aliases we can use in the database", implying the ID SHOULD change to the alias.
-                    // BUT, if we change the ID, old history is lost (detached).
-                    // For now, let's keep the ID generation consistent with the old way UNLESS the user explicitly provides an ID in config.
-                    // Actually, the user asked for "alias for every provider... in the database".
-                    // So we should use match.Id as the suffix if it's a valid ID.
-                    
-                    if (!string.IsNullOrWhiteSpace(match.Id))
-                    {
-                        childId = $"{ProviderId}.{match.Id}";
-                    }
-                    
-                    if (!string.IsNullOrWhiteSpace(match.Name))
-                    {
-                        childName = match.Name;
-                    }
-                }
-            }
-            
-            // Attempt to find specific config for this model to get raw numbers
             long? detailTotal = null;
             long? detailUsed = null;
-            
             if (configMap.TryGetValue(detail.Name, out var cfg) && cfg.QuotaInfo != null)
             {
                 detailTotal = cfg.QuotaInfo.TotalRequests;
@@ -681,11 +673,10 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
                 Description = $"{detailRemaining.ToString("F0", CultureInfo.InvariantCulture)}% Remaining",
-                AccountName = data.UserStatus?.Email ?? "",
+                AccountName = accountName,
                 IsAvailable = true,
                 FetchedAt = DateTime.UtcNow,
                 AuthSource = "antigravity",
-                // Inherit raw numbers if available
                 DisplayAsFraction = detailTotal.HasValue && detailTotal > 0,
                 NextResetTime = detail.NextResetTime
             };
@@ -700,13 +691,51 @@ namespace AIConsumptionTracker.Infrastructure.Providers;
             results.Add(childUsage);
         }
 
-        results.Insert(0, result); // Add summary as first item
-        
-        // Cache the summary result for next refresh (children distinct)
-        _cachedUsage = result;
-        _cacheTimestamp = DateTime.Now;
-
         return results;
+    }
+
+    private static double ParseDetailRemainingPercentage(string detailUsed)
+    {
+        if (detailUsed.EndsWith("%") &&
+            double.TryParse(detailUsed.TrimEnd('%'), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        return 0;
+    }
+
+    private (string ChildId, string ChildName) ResolveChildIdentity(ProviderUsageDetail detail, ProviderConfig config)
+    {
+        var childId = $"{ProviderId}.{detail.Name.ToLowerInvariant().Replace(" ", "-")}";
+        var childName = "Antigravity " + detail.Name;
+
+        if (config.Models == null || !config.Models.Any())
+        {
+            return (childId, childName);
+        }
+
+        var match = config.Models.FirstOrDefault(m =>
+            m.Id.Equals(detail.Name, StringComparison.OrdinalIgnoreCase) ||
+            m.Name.Equals(detail.Name, StringComparison.OrdinalIgnoreCase) ||
+            m.Matches.Any(x => x.Equals(detail.Name, StringComparison.OrdinalIgnoreCase)));
+
+        if (match == null)
+        {
+            return (childId, childName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(match.Id))
+        {
+            childId = $"{ProviderId}.{match.Id}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(match.Name))
+        {
+            childName = match.Name;
+        }
+
+        return (childId, childName);
     }
 
     private static List<string> GetModelLabels(ModelGroup group)

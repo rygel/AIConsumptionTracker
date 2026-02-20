@@ -94,7 +94,7 @@ public partial class MainWindow : Window
         {
             _isLoading = true;
             ShowStatus("Checking agent status...", StatusType.Info);
-            
+
             // Offload the expensive discovery/startup logic to a background thread
             // to prevent UI freezing during port scans or agent startup waits.
             var success = await Task.Run(async () => {
@@ -106,12 +106,12 @@ public partial class MainWindow : Window
                     if (!await AgentLauncher.IsAgentRunningAsync())
                     {
                         Dispatcher.Invoke(() => ShowStatus("Agent not running. Starting agent...", StatusType.Warning));
-                        
+
                         if (await AgentLauncher.StartAgentAsync())
                         {
                             Dispatcher.Invoke(() => ShowStatus("Waiting for agent...", StatusType.Warning));
                             var agentReady = await AgentLauncher.WaitForAgentAsync();
-                            
+
                             if (!agentReady)
                             {
                                 Dispatcher.Invoke(() => {
@@ -120,7 +120,7 @@ public partial class MainWindow : Window
                                 });
                                 return false;
                             }
-                            
+
                         }
                         else
                         {
@@ -158,7 +158,7 @@ public partial class MainWindow : Window
                 // Start polling timer - UI polls Agent every minute
                 StartPollingTimer();
 
-                ShowStatus("Ready", StatusType.Success);
+                ShowStatus("Connected", StatusType.Success);
             }
         }
         catch (Exception ex)
@@ -175,16 +175,16 @@ public partial class MainWindow : Window
     {
         const int maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
         const int pollIntervalMs = 2000; // 2 seconds between attempts
-        
+
         ShowStatus("Loading data...", StatusType.Info);
-        
+
         for (int attempt = 0; attempt < maxAttempts; attempt++)
         {
             try
             {
                 // Try to get cached data from agent
                 var usages = await _agentService.GetUsageAsync();
-                
+
                 if (usages.Any())
                 {
                     // Data is available - render and stop rapid polling
@@ -194,7 +194,7 @@ public partial class MainWindow : Window
                     ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
                     return;
                 }
-                
+
                 // No data yet - wait and try again
                 if (attempt < maxAttempts - 1)
                 {
@@ -211,7 +211,7 @@ public partial class MainWindow : Window
                 }
             }
         }
-        
+
         // Max attempts reached - show error or empty state
         ShowStatus("No data available", StatusType.Error);
         ShowErrorState("No provider data available.\n\nThe Agent may still be initializing.\nTry refreshing manually.");
@@ -274,7 +274,7 @@ public partial class MainWindow : Window
     }
 
     // UI Element Creation Helpers
-    private static TextBlock CreateText(string text, double fontSize, Brush foreground, 
+    private static TextBlock CreateText(string text, double fontSize, Brush foreground,
         FontWeight? fontWeight = null, Thickness? margin = null)
     {
         return new TextBlock
@@ -327,7 +327,7 @@ public partial class MainWindow : Window
 
         // Filter out Antigravity completely if not available
         // Also filter out Antigravity child items (antigravity.*) as they are shown inside the main card
-        filteredUsages = filteredUsages.Where(u => 
+        filteredUsages = filteredUsages.Where(u =>
             !(u.ProviderId == "antigravity" && !u.IsAvailable) &&
             !u.ProviderId.StartsWith("antigravity.")
         ).ToList();
@@ -345,7 +345,7 @@ public partial class MainWindow : Window
                 "PlansAndQuotas",
                 () => _preferences.IsPlansAndQuotasCollapsed,
                 v => _preferences.IsPlansAndQuotasCollapsed = v);
-            
+
             ProvidersList.Children.Add(plansHeader);
             ProvidersList.Children.Add(plansContainer);
 
@@ -377,7 +377,7 @@ public partial class MainWindow : Window
                 "PayAsYouGo",
                 () => _preferences.IsPayAsYouGoCollapsed,
                 v => _preferences.IsPayAsYouGoCollapsed = v);
-            
+
             ProvidersList.Children.Add(paygHeader);
             ProvidersList.Children.Add(paygContainer);
 
@@ -456,8 +456,8 @@ public partial class MainWindow : Window
         Func<bool> getCollapsed, Action<bool> setCollapsed)
     {
         // Group header has larger margins, sub-header is indented
-        var margin = isGroupHeader 
-            ? new Thickness(0, 8, 0, 4) 
+        var margin = isGroupHeader
+            ? new Thickness(0, 8, 0, 4)
             : new Thickness(20, 4, 0, 2);
         var fontSize = isGroupHeader ? 10.0 : 9.0;
         var titleFontWeight = isGroupHeader ? FontWeights.Bold : FontWeights.Normal;
@@ -566,7 +566,7 @@ public partial class MainWindow : Window
         // Determine which width to show based on toggle
         bool showUsed = ShowUsedToggle?.IsChecked ?? false;
         double indicatorWidth = showUsed ? pctUsed : pctRemaining;
-        
+
         // Clamp to 0-100
         indicatorWidth = Math.Max(0, Math.Min(100, indicatorWidth));
 
@@ -600,10 +600,10 @@ public partial class MainWindow : Window
         {
             var icon = new Border
             {
-                Width = 4, Height = 4, 
-                Background = GetResourceBrush("SecondaryText", Brushes.Gray), 
+                Width = 4, Height = 4,
+                Background = GetResourceBrush("SecondaryText", Brushes.Gray),
                 CornerRadius = new CornerRadius(2),
-                Margin = new Thickness(2, 0, 10, 0), 
+                Margin = new Thickness(2, 0, 10, 0),
                 VerticalAlignment = VerticalAlignment.Center
             };
             contentPanel.Children.Add(icon);
@@ -614,7 +614,7 @@ public partial class MainWindow : Window
             // Provider icon for parent items
             var providerIcon = CreateProviderIcon(usage.ProviderId);
             providerIcon.Margin = new Thickness(0, 0, 6, 0); // Reduced margin for specific alignment
-            providerIcon.Width = 14; 
+            providerIcon.Width = 14;
             providerIcon.Height = 14;
             providerIcon.VerticalAlignment = VerticalAlignment.Center;
             contentPanel.Children.Add(providerIcon);
@@ -628,10 +628,10 @@ public partial class MainWindow : Window
         if (isMissing) { statusText = "Key Missing"; statusBrush = Brushes.IndianRed; }
         else if (isError) { statusText = "Error"; statusBrush = Brushes.Red; }
         else if (isConsoleCheck) { statusText = "Check Console"; statusBrush = Brushes.Orange; }
-        else 
-        { 
+        else
+        {
             statusText = usage.Description;
-            
+
             if (isAntigravityParent)
             {
                 statusText = string.IsNullOrWhiteSpace(usage.Description)
@@ -641,7 +641,7 @@ public partial class MainWindow : Window
             else if (usage.PlanType == PlanType.Coding)
             {
                 var displayUsed = ShowUsedToggle?.IsChecked ?? false;
-                
+
                 // Check if we have raw numbers (limit > 100 serves as a heuristic for usage limits > 100%)
                 if (usage.DisplayAsFraction)
                 {
@@ -857,7 +857,7 @@ public partial class MainWindow : Window
         // Antigravity detail.Used comes as "80%" which represents REMAINING percentage
         double pctRemaining = 0;
         double pctUsed = 0;
-        
+
         // Try parse percentage
         var valueText = detail.Used?.Replace("%", "").Trim();
         if (double.TryParse(valueText, out double val))
@@ -870,7 +870,7 @@ public partial class MainWindow : Window
         bool showUsed = ShowUsedToggle?.IsChecked ?? false;
         double displayPct = showUsed ? pctUsed : pctRemaining;
         string displayStr = $"{displayPct:F0}%";
-        
+
         // Calculate Bar Width (normalized to 0-100)
         double indicatorWidth = Math.Max(0, Math.Min(100, displayPct));
 
@@ -890,13 +890,13 @@ public partial class MainWindow : Window
 
         // Content Overlay
         var bulletPanel = new DockPanel { LastChildFill = false, Margin = new Thickness(6, 0, 6, 0) };
-        
+
         var bullet = new Border
         {
-            Width = 4, Height = 4, 
-            Background = GetResourceBrush("SecondaryText", Brushes.Gray), 
+            Width = 4, Height = 4,
+            Background = GetResourceBrush("SecondaryText", Brushes.Gray),
             CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(2, 0, 10, 0), 
+            Margin = new Thickness(2, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
         bulletPanel.Children.Add(bullet);
@@ -973,7 +973,7 @@ public partial class MainWindow : Window
     private string GetRelativeTimeString(DateTime nextReset)
     {
         var diff = nextReset - DateTime.Now;
-        
+
         if (diff.TotalSeconds <= 0) return "Ready";
         if (diff.TotalDays >= 1) return $"{diff.Days}d {diff.Hours}h";
         if (diff.TotalHours >= 1) return $"{diff.Hours}h {diff.Minutes}m";
@@ -1016,10 +1016,10 @@ public partial class MainWindow : Window
         // Check cache first
         if (_iconCache.TryGetValue(providerId, out var cachedImage))
         {
-            return new Image 
-            { 
-                Source = cachedImage, 
-                Width = 16, 
+            return new Image
+            {
+                Source = cachedImage,
+                Width = 16,
                 Height = 16,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -1065,11 +1065,11 @@ public partial class MainWindow : Window
                     var image = new DrawingImage(drawing);
                     image.Freeze();
                     _iconCache[providerId] = image;
-                    
-                    return new Image 
-                    { 
-                        Source = image, 
-                        Width = 16, 
+
+                    return new Image
+                    {
+                        Source = image,
+                        Width = 16,
                         Height = 16,
                         VerticalAlignment = VerticalAlignment.Center
                     };
@@ -1108,7 +1108,7 @@ public partial class MainWindow : Window
         };
 
         var grid = new Grid { Width = 16, Height = 16 };
-        
+
         var circle = new Border
         {
             Width = 16,
@@ -1139,7 +1139,7 @@ public partial class MainWindow : Window
     {
         var yellowThreshold = _preferences.ColorThresholdYellow;
         var redThreshold = _preferences.ColorThresholdRed;
-        
+
         if (usedPercentage >= redThreshold) return GetResourceBrush("ProgressBarRed", Brushes.Crimson);
         if (usedPercentage >= yellowThreshold) return GetResourceBrush("ProgressBarYellow", Brushes.Gold);
         return GetResourceBrush("ProgressBarGreen", Brushes.MediumSeaGreen);
@@ -1151,7 +1151,7 @@ public partial class MainWindow : Window
         {
             Interval = TimeSpan.FromMinutes(1) // Poll every minute
         };
-        
+
         _pollingTimer.Tick += async (s, e) =>
         {
             // Poll agent every minute for fresh data
@@ -1171,7 +1171,7 @@ public partial class MainWindow : Window
                 Debug.WriteLine($"Polling error: {ex.Message}");
             }
         };
-        
+
         _pollingTimer.Start();
     }
 
@@ -1181,7 +1181,7 @@ public partial class MainWindow : Window
         {
             StatusText.Text = message;
         }
-        
+
         // Update LED color
         if (StatusLed != null)
         {
@@ -1193,17 +1193,17 @@ public partial class MainWindow : Window
                 _ => GetResourceBrush("SecondaryText", Brushes.Gray)
             };
         }
-        
+
         // Update tooltip with last agent update time
-        var tooltipText = _lastAgentUpdate == DateTime.MinValue 
-            ? "Last update: Never" 
+        var tooltipText = _lastAgentUpdate == DateTime.MinValue
+            ? "Last update: Never"
             : $"Last update: {_lastAgentUpdate:HH:mm:ss}";
-        
+
         if (StatusLed != null)
             StatusLed.ToolTip = tooltipText;
         if (StatusText != null)
             StatusText.ToolTip = tooltipText;
-        
+
         var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
         Debug.WriteLine($"[{timestamp}] [{type}] {message}");
         Console.WriteLine($"[{timestamp}] [{type}] {message}");
@@ -1237,7 +1237,7 @@ public partial class MainWindow : Window
     private void SettingsBtn_Click(object sender, RoutedEventArgs e)
     {
         var settingsWindow = new SettingsWindow();
-        
+
         // Handle non-modal window closed event
         settingsWindow.Closed += async (s, args) =>
         {
@@ -1247,7 +1247,7 @@ public partial class MainWindow : Window
                 await InitializeAsync();
             }
         };
-        
+
         settingsWindow.Show();
     }
 
@@ -1262,7 +1262,7 @@ public partial class MainWindow : Window
         {
             // Start the Web service if not running
             StartWebService();
-            
+
             // Open browser to the Web UI
             var webUrl = "http://localhost:5100";
             Process.Start(new ProcessStartInfo
@@ -1274,7 +1274,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Debug.WriteLine($"Failed to open Web UI: {ex.Message}");
-            MessageBox.Show($"Failed to open Web UI: {ex.Message}", "Error", 
+            MessageBox.Show($"Failed to open Web UI: {ex.Message}", "Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -1354,7 +1354,7 @@ public partial class MainWindow : Window
     {
         var currentDir = AppContext.BaseDirectory;
         var dir = new DirectoryInfo(currentDir);
-        
+
         while (dir != null)
         {
             var projectPath = Path.Combine(dir.FullName, projectName, $"{projectName}.csproj");
@@ -1364,7 +1364,7 @@ public partial class MainWindow : Window
             }
             dir = dir.Parent;
         }
-        
+
         return null;
     }
 
@@ -1385,7 +1385,7 @@ public partial class MainWindow : Window
     private async void AlwaysOnTop_Checked(object sender, RoutedEventArgs e)
     {
         if (!IsLoaded) return;
-        
+
         _preferences.AlwaysOnTop = AlwaysOnTopCheck.IsChecked ?? true;
         this.Topmost = _preferences.AlwaysOnTop;
         if (_agentService != null)
@@ -1401,11 +1401,11 @@ public partial class MainWindow : Window
     private async void ShowUsedToggle_Checked(object sender, RoutedEventArgs e)
     {
         if (!IsLoaded) return;
-        
+
         _preferences.InvertProgressBar = ShowUsedToggle.IsChecked ?? false;
         if (_agentService != null)
             await _agentService.SavePreferencesAsync(_preferences);
-            
+
         // Refresh the display to show used% vs remaining%
         RenderProviders();
     }
@@ -1441,7 +1441,7 @@ public partial class MainWindow : Window
         try
         {
             ShowStatus("Restarting agent...", StatusType.Warning);
-            
+
             // Try to start agent
             if (await AgentLauncher.StartAgentAsync())
             {
@@ -1467,7 +1467,7 @@ public partial class MainWindow : Window
     private async void AgentToggleBtn_Click(object sender, RoutedEventArgs e)
     {
         var (isRunning, _) = await AgentLauncher.IsAgentRunningWithPortAsync();
-        
+
         if (isRunning)
         {
             // Stop the agent

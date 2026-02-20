@@ -55,7 +55,7 @@
             </Border>
 
             <StackPanel Grid.Row="1" Margin="20">
-                <TextBlock Text="AI Consumption Tracker Slim" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{DynamicResource PrimaryText}"/>
+                <TextBlock Text="AI Consumption Tracker" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{DynamicResource PrimaryText}"/>
                 <TextBlock x:Name="InternalVersionText" Text="v..." FontSize="12" Foreground="{DynamicResource TertiaryText}" HorizontalAlignment="Center" Margin="0,0,0,20"/>
                 <TextBlock Text="A lightweight desktop application for tracking AI service usage and costs." FontSize="12" Foreground="{DynamicResource SecondaryText}" TextWrapping="Wrap" Margin="0,0,0,30" HorizontalAlignment="Center" Width="300"/>
 

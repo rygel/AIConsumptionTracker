@@ -1,13 +1,14 @@
 <Window x:Class="AIConsumptionTracker.UI.Slim.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="AI Consumption Slim" Height="400" Width="380"
+        Title="AI Consumption Tracker" Height="400" Width="380"
         MinWidth="320" MinHeight="300"
         WindowStyle="None" ResizeMode="CanResize"
         Background="{DynamicResource Background}"
         Foreground="{DynamicResource PrimaryText}"
         ShowInTaskbar="False"
         Topmost="True"
+        Icon="Assets/app_icon.ico"
         KeyDown="OnKeyDown">
 
     <WindowChrome.WindowChrome>
@@ -29,7 +30,8 @@
             <!-- Compact Header -->
             <Border x:Name="HeaderBorder" Background="{DynamicResource HeaderBackground}" Padding="8,6" Grid.Row="0">
                 <DockPanel>
-                    <TextBlock Text="AI Consumption Slim" FontSize="13" FontWeight="Bold" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryText}" DockPanel.Dock="Left"/>
+                    <Image Source="Assets/app_icon.ico" Width="16" Height="16" Margin="0,0,6,0" DockPanel.Dock="Left"/>
+                    <TextBlock Text="AI Consumption Tracker" FontSize="13" FontWeight="Bold" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryText}" DockPanel.Dock="Left"/>
                     <TextBlock x:Name="VersionText" Text="v1.8.6" FontSize="10" Foreground="{DynamicResource TertiaryText}" VerticalAlignment="Center" Margin="6,1,0,0" DockPanel.Dock="Left"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button x:Name="PrivacyBtn" Content="🔒" Click="PrivacyBtn_Click" Background="Transparent" Foreground="{DynamicResource SecondaryText}" Width="26" Margin="0,0,8,0" ToolTip="Toggle Privacy Mode (Ctrl+P)" WindowChrome.IsHitTestVisibleInChrome="True"/>
