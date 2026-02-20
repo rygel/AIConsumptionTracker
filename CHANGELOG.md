@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [2.0.8] - 2026-02-20
+
+### Added
+- Slim Settings now supports per-model sub-tray icon toggles for providers with detailed model usage.
+
+### Changed
+- Slim tray icon system now renders dynamic per-provider and per-model tray icons from `show_in_tray` and `enabled_sub_trays`.
+- Dynamic tray icons now refresh from live usage polling and manual refresh paths.
+
+### Fixed
+- Tray icon configuration changes are now persisted through Agent config saves, so tray selections survive app restarts.
+- Tray icon visuals now use dynamic quota/remaining-aware color states and bar heights.
+
 ## [2.0.7] - 2026-02-20
 
 ### Added
