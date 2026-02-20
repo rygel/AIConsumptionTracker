@@ -32,7 +32,7 @@ jobs:
         rm -f appcast.xml appcast_x64.xml appcast_x86.xml appcast_arm64.xml
 
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore AIConsumptionTracker.slnx
 
     - name: Build
       run: dotnet build AIConsumptionTracker.slnx --configuration Debug
