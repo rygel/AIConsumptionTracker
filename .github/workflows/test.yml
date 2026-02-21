@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  prepare:
     runs-on: windows-latest
 
     steps:
@@ -45,9 +45,66 @@ jobs:
       # run: dotnet format AIConsumptionTracker.slnx --verify-no-changes --verbosity diagnostic
       run: echo "Formatting check temporarily disabled - will be fixed in separate PR"
 
-    - name: Run Unit Tests
-      run: dotnet test AIConsumptionTracker.Tests\AIConsumptionTracker.Tests.csproj --configuration Debug --no-build --no-restore --verbosity normal
+    - name: Upload built test binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-binaries-debug
+        path: |
+          AIConsumptionTracker.Tests/bin/Debug/net8.0-windows10.0.17763.0/**
+          AIConsumptionTracker.Agent.Tests/bin/Debug/net8.0-windows10.0.17763.0/**
 
-    - name: Run Agent Unit Tests
-      run: dotnet test AIConsumptionTracker.Agent.Tests\AIConsumptionTracker.Agent.Tests.csproj --configuration Debug --no-build --no-restore --verbosity normal
+  core-tests:
+    needs: prepare
+    runs-on: windows-latest
+
+    steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Download built test binaries
+      uses: actions/download-artifact@v4
+      with:
+        name: test-binaries-debug
+        path: .\_ci_test_binaries
+
+    - name: Run Core unit tests
+      run: dotnet vstest .\_ci_test_binaries\AIConsumptionTracker.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIConsumptionTracker.Tests.dll --logger "console;verbosity=normal"
+
+  agent-tests:
+    needs: prepare
+    runs-on: windows-latest
+
+    steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Download built test binaries
+      uses: actions/download-artifact@v4
+      with:
+        name: test-binaries-debug
+        path: .\_ci_test_binaries
+
+    - name: Run Agent unit tests
+      run: dotnet vstest .\_ci_test_binaries\AIConsumptionTracker.Agent.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIConsumptionTracker.Agent.Tests.dll --logger "console;verbosity=normal"
+
+  test:
+    needs: [prepare, core-tests, agent-tests]
+    if: always()
+    runs-on: windows-latest
+
+    steps:
+    - name: Verify parallel test jobs
+      shell: pwsh
+      run: |
+        $prepare = "${{ needs.prepare.result }}"
+        $core = "${{ needs.core-tests.result }}"
+        $agent = "${{ needs.agent-tests.result }}"
+        Write-Host "prepare=$prepare core-tests=$core agent-tests=$agent"
+        if ($prepare -ne "success" -or $core -ne "success" -or $agent -ne "success") {
+          throw "One or more required jobs failed."
+        }
 

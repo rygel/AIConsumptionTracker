@@ -2,7 +2,8 @@
 # Delegates to the maintained generator script.
 
 param(
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,5 +14,13 @@ if (-not (Test-Path $generatorScript)) {
     exit 1
 }
 
-& $generatorScript -Configuration $Configuration
+$generatorArgs = @{
+    Configuration = $Configuration
+}
+
+if ($SkipBuild) {
+    $generatorArgs.SkipBuild = $true
+}
+
+& $generatorScript @generatorArgs
 exit $LASTEXITCODE

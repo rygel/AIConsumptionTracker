@@ -48,7 +48,7 @@ jobs:
         run: dotnet build AIConsumptionTracker.UI.Slim\AIConsumptionTracker.UI.Slim.csproj --configuration Debug --no-restore
 
       - name: Generate Slim UI screenshots (headless)
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\capture_screenshot.ps1 -Configuration Debug
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\capture_screenshot.ps1 -Configuration Debug -SkipBuild
         shell: pwsh
 
       - name: Verify screenshot baselines
