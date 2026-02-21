@@ -55,16 +55,24 @@ public partial class SettingsWindow : Window
         RefreshDiagnosticsLog();
     }
 
-    internal async Task PrepareForHeadlessScreenshotAsync()
+    internal async Task PrepareForHeadlessScreenshotAsync(bool deterministic = false)
     {
-        await LoadDataAsync();
+        if (deterministic)
+        {
+            PrepareDeterministicScreenshotData();
+        }
+        else
+        {
+            await LoadDataAsync();
+        }
+
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
         UpdateLayout();
     }
 
     internal async Task<IReadOnlyList<string>> CaptureHeadlessTabScreenshotsAsync(string outputDirectory)
     {
-        await PrepareForHeadlessScreenshotAsync();
+        await PrepareForHeadlessScreenshotAsync(deterministic: true);
 
         var capturedFiles = new List<string>();
         if (MainTabControl.Items.Count == 0)
@@ -97,6 +105,138 @@ public partial class SettingsWindow : Window
         capturedFiles.Add(legacyName);
 
         return capturedFiles;
+    }
+
+    private void PrepareDeterministicScreenshotData()
+    {
+        _preferences = new AppPreferences
+        {
+            AlwaysOnTop = true,
+            InvertProgressBar = true,
+            InvertCalculations = false,
+            ColorThresholdYellow = 60,
+            ColorThresholdRed = 80,
+            FontFamily = "Segoe UI",
+            FontSize = 12,
+            FontBold = false,
+            FontItalic = false,
+            IsPrivacyMode = true
+        };
+
+        App.Preferences = _preferences;
+        _isPrivacyMode = true;
+        App.SetPrivacyMode(true);
+        UpdatePrivacyButtonState();
+
+        _configs = new List<ProviderConfig>
+        {
+            new()
+            {
+                ProviderId = "github-copilot",
+                ApiKey = "ghp_demo_key",
+                ShowInTray = true,
+                EnableNotifications = true,
+                PlanType = PlanType.Coding,
+                Type = "quota-based"
+            },
+            new()
+            {
+                ProviderId = "openai",
+                ApiKey = "sk-demo-key",
+                ShowInTray = true,
+                EnableNotifications = false,
+                PlanType = PlanType.Usage,
+                Type = "pay-as-you-go"
+            },
+            new()
+            {
+                ProviderId = "antigravity",
+                ApiKey = "local-session",
+                ShowInTray = false,
+                EnableNotifications = false,
+                PlanType = PlanType.Coding,
+                Type = "quota-based"
+            }
+        };
+
+        _usages = new List<ProviderUsage>
+        {
+            new()
+            {
+                ProviderId = "github-copilot",
+                ProviderName = "GitHub Copilot",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                RequestsPercentage = 72.5,
+                Description = "72.5% Remaining",
+                AccountName = "dev@example.com"
+            },
+            new()
+            {
+                ProviderId = "openai",
+                ProviderName = "OpenAI",
+                IsAvailable = true,
+                IsQuotaBased = false,
+                PlanType = PlanType.Usage,
+                RequestsPercentage = 31.1,
+                Description = "$12.45 / $40.00",
+                AccountName = "project-team"
+            },
+            new()
+            {
+                ProviderId = "antigravity",
+                ProviderName = "Antigravity",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                RequestsPercentage = 55.0,
+                Description = "55.0% Remaining"
+            }
+        };
+
+        PopulateProviders();
+        PopulateLayoutSettings();
+
+        HistoryDataGrid.ItemsSource = new[]
+        {
+            new
+            {
+                ProviderName = "GitHub Copilot",
+                UsagePercentage = 27.5,
+                Used = 27.5,
+                Limit = 100.0,
+                PlanType = "Coding",
+                Description = "72.5% Remaining",
+                FetchedAt = new DateTime(2026, 2, 1, 12, 0, 0)
+            },
+            new
+            {
+                ProviderName = "OpenAI",
+                UsagePercentage = 31.1,
+                Used = 12.45,
+                Limit = 40.0,
+                PlanType = "Usage",
+                Description = "$12.45 / $40.00",
+                FetchedAt = new DateTime(2026, 2, 1, 12, 5, 0)
+            }
+        };
+
+        if (AgentStatusText != null)
+        {
+            AgentStatusText.Text = "Running";
+        }
+
+        if (AgentPortText != null)
+        {
+            AgentPortText.Text = "5000";
+        }
+
+        if (AgentLogsText != null)
+        {
+            AgentLogsText.Text = "Agent health check: OK" + Environment.NewLine +
+                                 "Diagnostics available in Settings > Agent.";
+        }
     }
 
     private static string BuildTabSlug(string? header, int index)

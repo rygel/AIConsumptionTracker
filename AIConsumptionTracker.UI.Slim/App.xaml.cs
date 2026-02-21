@@ -73,7 +73,19 @@ public partial class App : Application
     {
         try
         {
-            await LoadPreferencesAsync();
+            Preferences = new AppPreferences
+            {
+                AlwaysOnTop = true,
+                InvertProgressBar = true,
+                InvertCalculations = false,
+                ColorThresholdYellow = 60,
+                ColorThresholdRed = 80,
+                FontFamily = "Segoe UI",
+                FontSize = 12,
+                FontBold = false,
+                FontItalic = false,
+                IsPrivacyMode = true
+            };
             SetPrivacyMode(true);
 
             var screenshotsDir = ResolveScreenshotsDirectory();
@@ -181,7 +193,7 @@ public partial class App : Application
         var window = new MainWindow();
         try
         {
-            await window.PrepareForHeadlessScreenshotAsync();
+            await window.PrepareForHeadlessScreenshotAsync(deterministic: true);
             await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
             RenderWindowContent(window, outputPath);
         }
@@ -209,6 +221,7 @@ public partial class App : Application
         var window = new InfoDialog();
         try
         {
+            window.PrepareForHeadlessScreenshot();
             window.UpdateLayout();
             RenderWindowContent(window, outputPath);
         }

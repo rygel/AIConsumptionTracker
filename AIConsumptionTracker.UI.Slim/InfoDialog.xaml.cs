@@ -107,6 +107,21 @@ namespace AIConsumptionTracker.UI.Slim
             return Path.Combine("C:\\Users\\***\\...", filename);
         }
 
+        internal void PrepareForHeadlessScreenshot()
+        {
+            _isPrivacyMode = true;
+
+            InternalVersionText.Text = "v2.1.2";
+            DotNetVersionText.Text = ".NET 8.0";
+            OsVersionText.Text = "Windows 10 (x64)";
+            ArchitectureText.Text = "X64";
+            MachineNameText.Text = "WORKSTATION";
+            UserNameText.Text = "d***r";
+            ConfigDirText.Text = @"C:\Users\***\...\ai-consumption-tracker";
+            DataDirText.Text = @"C:\Users\***\...\AIConsumptionTracker\Agent";
+            PrivacyBtn.Foreground = Brushes.Gold;
+        }
+
         private async void PrivacyBtn_Click(object sender, RoutedEventArgs e) => await PrivacyBtn_ClickAsync(sender, e);
 
         internal async Task PrivacyBtn_ClickAsync(object sender, RoutedEventArgs e)
