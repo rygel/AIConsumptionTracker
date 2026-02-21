@@ -41,6 +41,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
+      - name: Restore Slim UI dependencies
+        run: dotnet restore AIConsumptionTracker.UI.Slim\AIConsumptionTracker.UI.Slim.csproj
+
+      - name: Build Slim UI
+        run: dotnet build AIConsumptionTracker.UI.Slim\AIConsumptionTracker.UI.Slim.csproj --configuration Debug --no-restore
+
       - name: Generate Slim UI screenshots (headless)
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\capture_screenshot.ps1 -Configuration Debug
         shell: pwsh
