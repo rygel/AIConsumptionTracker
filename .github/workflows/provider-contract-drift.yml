@@ -12,6 +12,10 @@ on:
       - "AIConsumptionTracker.Tests/TestData/Providers/**"
       - ".github/workflows/provider-contract-drift.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   provider-contract-tests:
     runs-on: windows-latest
@@ -33,7 +37,7 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore AIConsumptionTracker.slnx
+        run: dotnet restore AIConsumptionTracker.Tests\AIConsumptionTracker.Tests.csproj
 
       - name: Run provider contract tests
         run: >

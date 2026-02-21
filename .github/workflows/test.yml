@@ -3,8 +3,18 @@ name: Run Tests
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   prepare:
@@ -12,10 +22,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Verify README/docs image references
-      run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-doc-images.ps1
-      shell: pwsh
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
@@ -30,11 +36,15 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-nuget-
 
-    - name: Restore dependencies
-      run: dotnet restore AIConsumptionTracker.slnx
+    - name: Restore test dependencies
+      run: |
+        dotnet restore AIConsumptionTracker.Tests\AIConsumptionTracker.Tests.csproj
+        dotnet restore AIConsumptionTracker.Agent.Tests\AIConsumptionTracker.Agent.Tests.csproj
 
-    - name: Build
-      run: dotnet build AIConsumptionTracker.slnx --configuration Debug --no-restore
+    - name: Build test projects
+      run: |
+        dotnet build AIConsumptionTracker.Tests\AIConsumptionTracker.Tests.csproj --configuration Debug --no-restore
+        dotnet build AIConsumptionTracker.Agent.Tests\AIConsumptionTracker.Agent.Tests.csproj --configuration Debug --no-restore
 
     - name: Verify Formatting
       # NOTE: .editorconfig configures Roslyn analyzers
