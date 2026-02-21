@@ -1,8 +1,11 @@
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -27,6 +30,10 @@ public enum StatusType
 
 public partial class MainWindow : Window
 {
+    private static readonly Regex MarkdownTokenRegex = new(
+        @"(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*|\[[^\]]+\]\([^)]+\))",
+        RegexOptions.Compiled);
+
     private readonly AgentService _agentService;
     private readonly IUpdateCheckerService _updateChecker;
     private AppPreferences _preferences = new();
@@ -39,6 +46,7 @@ public partial class MainWindow : Window
     private DispatcherTimer? _pollingTimer;
     private readonly DispatcherTimer _updateCheckTimer;
     private UpdateInfo? _latestUpdate;
+    private bool _preferencesLoaded;
 
     public MainWindow()
     {
@@ -76,6 +84,14 @@ public partial class MainWindow : Window
         // Track window position changes
         LocationChanged += async (s, e) => await SaveWindowPositionAsync();
         SizeChanged += async (s, e) => await SaveWindowPositionAsync();
+        Activated += (s, e) => EnsureAlwaysOnTop();
+        StateChanged += (s, e) =>
+        {
+            if (WindowState == WindowState.Normal)
+            {
+                EnsureAlwaysOnTop();
+            }
+        };
     }
 
     private void PositionWindowNearTray()
@@ -95,7 +111,7 @@ public partial class MainWindow : Window
 
     private async Task SaveWindowPositionAsync()
     {
-        if (!IsLoaded || _agentService == null) return;
+        if (!IsLoaded || _agentService == null || !_preferencesLoaded) return;
 
         // Only save if position has changed meaningfully
         if (Math.Abs(_preferences.WindowLeft.GetValueOrDefault() - Left) > 1 ||
@@ -160,6 +176,7 @@ public partial class MainWindow : Window
                         _preferences = prefs;
                         _isPrivacyMode = _preferences.IsPrivacyMode;
                         App.SetPrivacyMode(_isPrivacyMode);
+                        _preferencesLoaded = true;
                         ApplyPreferences();
                     });
 
@@ -247,6 +264,7 @@ public partial class MainWindow : Window
         this.Topmost = _preferences.AlwaysOnTop;
         this.Width = _preferences.WindowWidth;
         this.Height = _preferences.WindowHeight;
+        PositionWindowNearTray();
 
         if (!string.IsNullOrWhiteSpace(_preferences.FontFamily))
         {
@@ -265,6 +283,32 @@ public partial class MainWindow : Window
         AlwaysOnTopCheck.IsChecked = _preferences.AlwaysOnTop;
         ShowUsedToggle.IsChecked = _preferences.InvertProgressBar;
         UpdatePrivacyButtonState();
+        EnsureAlwaysOnTop();
+    }
+
+    private void EnsureAlwaysOnTop()
+    {
+        if (!_preferences.AlwaysOnTop || !IsVisible || WindowState == WindowState.Minimized)
+        {
+            return;
+        }
+
+        if (!Topmost)
+        {
+            Topmost = true;
+        }
+
+        // Refresh Z-order to avoid occasional topmost drop after hide/show or focus transitions.
+        Topmost = false;
+        Topmost = true;
+    }
+
+    public void ShowAndActivate()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        EnsureAlwaysOnTop();
+        Activate();
     }
 
     private void OnPrivacyChanged(object? sender, bool isPrivacyMode)
@@ -1456,6 +1500,10 @@ public partial class MainWindow : Window
 
         _preferences.AlwaysOnTop = AlwaysOnTopCheck.IsChecked ?? true;
         this.Topmost = _preferences.AlwaysOnTop;
+        if (_preferences.AlwaysOnTop)
+        {
+            EnsureAlwaysOnTop();
+        }
         if (_agentService != null)
             await _agentService.SavePreferencesAsync(_preferences);
     }
@@ -1485,12 +1533,297 @@ public partial class MainWindow : Window
 
     private void ViewChangelogBtn_Click(object sender, RoutedEventArgs e)
     {
-        // Open changelog in browser or show dialog
-        Process.Start(new ProcessStartInfo
+        if (_latestUpdate == null)
         {
-            FileName = "https://github.com/rygel/AIConsumptionTracker/releases",
-            UseShellExecute = true
-        });
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://github.com/rygel/AIConsumptionTracker/releases",
+                UseShellExecute = true
+            });
+            return;
+        }
+
+        ShowChangelogWindow(_latestUpdate);
+    }
+
+    private void ShowChangelogWindow(UpdateInfo updateInfo)
+    {
+        var changelogWindow = new Window
+        {
+            Title = $"Changelog - Version {updateInfo.Version}",
+            Width = 680,
+            Height = 520,
+            MinWidth = 480,
+            MinHeight = 320,
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = GetResourceBrush("CardBackground", Brushes.Black),
+            Foreground = GetResourceBrush("PrimaryText", Brushes.White)
+        };
+
+        var viewer = new FlowDocumentScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            IsToolBarVisible = false,
+            Document = BuildMarkdownDocument(updateInfo.ReleaseNotes)
+        };
+
+        changelogWindow.Content = viewer;
+        changelogWindow.ShowDialog();
+    }
+
+    private FlowDocument BuildMarkdownDocument(string markdown)
+    {
+        var document = new FlowDocument
+        {
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize = 13,
+            PagePadding = new Thickness(16),
+            Background = Brushes.Transparent
+        };
+
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            var emptyParagraph = new Paragraph(new Run("No changelog available for this release."))
+            {
+                FontStyle = FontStyles.Italic
+            };
+            document.Blocks.Add(emptyParagraph);
+            return document;
+        }
+
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var inCodeBlock = false;
+        var codeBuilder = new StringBuilder();
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine ?? string.Empty;
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```", StringComparison.Ordinal))
+            {
+                if (inCodeBlock)
+                {
+                    AddCodeBlock(document, codeBuilder.ToString().TrimEnd());
+                    codeBuilder.Clear();
+                    inCodeBlock = false;
+                }
+                else
+                {
+                    inCodeBlock = true;
+                }
+
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                codeBuilder.AppendLine(line);
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                continue;
+            }
+
+            var headerLevel = GetHeaderLevel(trimmed);
+            if (headerLevel > 0)
+            {
+                var headerText = trimmed[(headerLevel + 1)..];
+                var header = new Paragraph
+                {
+                    Margin = new Thickness(0, headerLevel == 1 ? 10 : 6, 0, 4),
+                    FontWeight = FontWeights.SemiBold,
+                    FontSize = headerLevel switch
+                    {
+                        1 => 22,
+                        2 => 18,
+                        3 => 16,
+                        _ => 14
+                    }
+                };
+                AddMarkdownInlines(header, headerText);
+                document.Blocks.Add(header);
+                continue;
+            }
+
+            if (trimmed.StartsWith("- ", StringComparison.Ordinal) || trimmed.StartsWith("* ", StringComparison.Ordinal))
+            {
+                var bullet = new Paragraph
+                {
+                    Margin = new Thickness(0, 1, 0, 1)
+                };
+                bullet.Inlines.Add(new Run("• "));
+                AddMarkdownInlines(bullet, trimmed[2..]);
+                document.Blocks.Add(bullet);
+                continue;
+            }
+
+            if (TryParseNumberedItem(trimmed, out var numberedPrefix, out var numberedText))
+            {
+                var numbered = new Paragraph
+                {
+                    Margin = new Thickness(0, 1, 0, 1)
+                };
+                numbered.Inlines.Add(new Run($"{numberedPrefix}. "));
+                AddMarkdownInlines(numbered, numberedText);
+                document.Blocks.Add(numbered);
+                continue;
+            }
+
+            var paragraph = new Paragraph
+            {
+                Margin = new Thickness(0, 0, 0, 6),
+                LineHeight = 20
+            };
+            AddMarkdownInlines(paragraph, trimmed);
+            document.Blocks.Add(paragraph);
+        }
+
+        if (inCodeBlock && codeBuilder.Length > 0)
+        {
+            AddCodeBlock(document, codeBuilder.ToString().TrimEnd());
+        }
+
+        return document;
+    }
+
+    private static int GetHeaderLevel(string trimmedLine)
+    {
+        var level = 0;
+        while (level < trimmedLine.Length && trimmedLine[level] == '#')
+        {
+            level++;
+        }
+
+        return level > 0 && level < trimmedLine.Length && trimmedLine[level] == ' ' ? level : 0;
+    }
+
+    private static bool TryParseNumberedItem(string line, out int number, out string content)
+    {
+        number = 0;
+        content = string.Empty;
+
+        var dotIndex = line.IndexOf(". ", StringComparison.Ordinal);
+        if (dotIndex <= 0)
+        {
+            return false;
+        }
+
+        var prefix = line[..dotIndex];
+        if (!int.TryParse(prefix, out number))
+        {
+            return false;
+        }
+
+        content = line[(dotIndex + 2)..];
+        return !string.IsNullOrWhiteSpace(content);
+    }
+
+    private void AddCodeBlock(FlowDocument document, string codeText)
+    {
+        var codeParagraph = new Paragraph(new Run(codeText))
+        {
+            Margin = new Thickness(0, 6, 0, 10),
+            Padding = new Thickness(10, 8, 10, 8),
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 12,
+            Background = GetResourceBrush("FooterBackground", Brushes.Black),
+            Foreground = GetResourceBrush("PrimaryText", Brushes.White)
+        };
+        document.Blocks.Add(codeParagraph);
+    }
+
+    private void AddMarkdownInlines(Paragraph paragraph, string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        var matches = MarkdownTokenRegex.Matches(text);
+        var cursor = 0;
+
+        foreach (Match match in matches)
+        {
+            if (match.Index > cursor)
+            {
+                paragraph.Inlines.Add(new Run(text[cursor..match.Index]));
+            }
+
+            var token = match.Value;
+            if (TryCreateHyperlink(token, out var hyperlink))
+            {
+                paragraph.Inlines.Add(hyperlink);
+            }
+            else if (token.StartsWith("**", StringComparison.Ordinal) && token.EndsWith("**", StringComparison.Ordinal))
+            {
+                paragraph.Inlines.Add(new Bold(new Run(token[2..^2])));
+            }
+            else if (token.StartsWith("*", StringComparison.Ordinal) && token.EndsWith("*", StringComparison.Ordinal))
+            {
+                paragraph.Inlines.Add(new Italic(new Run(token[1..^1])));
+            }
+            else if (token.StartsWith("`", StringComparison.Ordinal) && token.EndsWith("`", StringComparison.Ordinal))
+            {
+                paragraph.Inlines.Add(new Run(token[1..^1])
+                {
+                    FontFamily = new FontFamily("Consolas"),
+                    Background = GetResourceBrush("FooterBackground", Brushes.Black)
+                });
+            }
+            else
+            {
+                paragraph.Inlines.Add(new Run(token));
+            }
+
+            cursor = match.Index + match.Length;
+        }
+
+        if (cursor < text.Length)
+        {
+            paragraph.Inlines.Add(new Run(text[cursor..]));
+        }
+    }
+
+    private bool TryCreateHyperlink(string token, out Hyperlink hyperlink)
+    {
+        hyperlink = null!;
+
+        if (!token.StartsWith("[", StringComparison.Ordinal) || !token.EndsWith(")", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var separator = token.IndexOf("](", StringComparison.Ordinal);
+        if (separator <= 1)
+        {
+            return false;
+        }
+
+        var text = token[1..separator];
+        var url = token[(separator + 2)..^1];
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        hyperlink = new Hyperlink(new Run(text))
+        {
+            NavigateUri = uri
+        };
+        hyperlink.Click += (s, e) =>
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        };
+
+        return true;
     }
 
     private async Task CheckForUpdatesAsync()

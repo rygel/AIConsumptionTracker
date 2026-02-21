@@ -45,6 +45,7 @@
                 <DockPanel>
                     <TextBlock x:Name="UpdateText" Text="Update available!" Foreground="White" FontSize="11" VerticalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Changelog" HorizontalAlignment="Right" Click="ViewChangelogBtn_Click" Background="{DynamicResource ButtonBackground}" Foreground="White" FontSize="10" Padding="6,2" Margin="8,0,0,0" Cursor="Hand" WindowChrome.IsHitTestVisibleInChrome="True"/>
                         <Button Content="Download" HorizontalAlignment="Right" Click="UpdateBtn_Click" Background="{DynamicResource ButtonBackground}" Foreground="White" FontSize="10" Padding="6,2" Margin="8,0,0,0" Cursor="Hand" WindowChrome.IsHitTestVisibleInChrome="True"/>
                     </StackPanel>
                 </DockPanel>

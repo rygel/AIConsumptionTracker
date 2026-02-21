@@ -865,6 +865,8 @@ protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 - On startup: Fetches cached data immediately from `/api/usage`
 - Status shows last refresh time (e.g., "14:32:15")
 - Refresh button triggers `/api/refresh` and updates display
+- Window position persistence: stores `WindowLeft`/`WindowTop` on move/resize and restores/clamps position on startup after preferences are loaded
+- Always-on-top reliability: when enabled, Slim reasserts topmost state on activation/tray restore to avoid occasional z-order drops
 - On startup (non-blocking): starts a NetSparkle (`NetSparkleUpdater.SparkleUpdater`) update check against architecture-specific appcast feeds
 - Periodic update check: re-checks for updates every 15 minutes while the app is running
 - When update is available: shows `UpdateNotificationBanner` with the target version
@@ -878,6 +880,8 @@ protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 - [ ] First refresh happens only after the configured interval
 - [ ] Manual refresh via `/api/refresh` works correctly
 - [ ] Database retains data across Agent restarts
+- [ ] Window position restores correctly across restarts without being overwritten during initialization
+- [ ] Always-on-top remains effective after tray show/hide and focus transitions
 - [ ] Slim startup and periodic update checks do not block usage loading
 - [ ] Update banner appears only when newer version is detected
 
