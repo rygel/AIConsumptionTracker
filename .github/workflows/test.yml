@@ -62,6 +62,8 @@ jobs:
         path: |
           AIConsumptionTracker.Tests/bin/Debug/net8.0-windows10.0.17763.0/**
           AIConsumptionTracker.Agent.Tests/bin/Debug/net8.0-windows10.0.17763.0/**
+          scripts/run-vstest-with-retry.ps1
+          .github/test-quarantine.txt
 
   core-tests:
     needs: prepare
@@ -79,8 +81,20 @@ jobs:
         name: test-binaries-debug
         path: .\_ci_test_binaries
 
-    - name: Run Core unit tests
-      run: dotnet vstest .\_ci_test_binaries\AIConsumptionTracker.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIConsumptionTracker.Tests.dll --logger "console;verbosity=normal"
+    - name: Run Core unit tests (retry once on failure)
+      shell: pwsh
+      run: >
+        powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1
+        -AssemblyPath .\_ci_test_binaries\AIConsumptionTracker.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIConsumptionTracker.Tests.dll
+        -SuiteName core-tests
+        -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt
+
+    - name: Upload Core test results
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: core-test-results
+        path: TestResults/core-tests*.trx
 
   agent-tests:
     needs: prepare
@@ -98,8 +112,20 @@ jobs:
         name: test-binaries-debug
         path: .\_ci_test_binaries
 
-    - name: Run Agent unit tests
-      run: dotnet vstest .\_ci_test_binaries\AIConsumptionTracker.Agent.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIConsumptionTracker.Agent.Tests.dll --logger "console;verbosity=normal"
+    - name: Run Agent unit tests (retry once on failure)
+      shell: pwsh
+      run: >
+        powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1
+        -AssemblyPath .\_ci_test_binaries\AIConsumptionTracker.Agent.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIConsumptionTracker.Agent.Tests.dll
+        -SuiteName agent-tests
+        -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt
+
+    - name: Upload Agent test results
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: agent-test-results
+        path: TestResults/agent-tests*.trx
 
   test:
     needs: [prepare, core-tests, agent-tests]

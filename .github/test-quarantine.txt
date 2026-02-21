@@ -1,0 +1,4 @@
+# Fully qualified test names to exclude from CI runs temporarily.
+# One test per line.
+# Example:
+# AIConsumptionTracker.Tests.Infrastructure.SomeTests.FlakyCase_ShouldBeQuarantined

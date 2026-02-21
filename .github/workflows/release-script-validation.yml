@@ -36,7 +36,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Detect Inno Setup
+        id: detect_inno
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+            "C:\Program Files\Inno Setup 6\ISCC.exe"
+          )
+
+          $iscc = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if ($iscc) {
+            "found=true" >> $env:GITHUB_OUTPUT
+            "path=$iscc" >> $env:GITHUB_OUTPUT
+            Write-Host "Found Inno Setup compiler at $iscc"
+          }
+          else {
+            "found=false" >> $env:GITHUB_OUTPUT
+            Write-Host "Inno Setup compiler not found."
+          }
+
       - name: Install Inno Setup
+        if: steps.detect_inno.outputs.found != 'true'
         run: choco install innosetup --yes
         shell: pwsh
 

@@ -49,7 +49,7 @@ jobs:
           --logger "trx;LogFileName=provider-contract-drift.trx"
 
       - name: Upload provider fixture test results
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: provider-contract-drift-results
