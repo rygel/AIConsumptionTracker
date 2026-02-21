@@ -8,7 +8,6 @@ using System.Runtime.InteropServices;
 using System.IO;
 using System.Threading.Tasks;
 using AIConsumptionTracker.Core.Models;
-using AIConsumptionTracker.Core.AgentClient;
 
 namespace AIConsumptionTracker.UI.Slim
 {
@@ -72,21 +71,6 @@ namespace AIConsumptionTracker.UI.Slim
             _realDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIConsumptionTracker", "Agent");
             
             UpdatePrivacyUI();
-            LoadDiagnostics();
-        }
-
-        private void LoadDiagnostics()
-        {
-            try
-            {
-                var logs = AgentService.DiagnosticsLog;
-                DiagnosticsLogText.Text = string.Join(Environment.NewLine, logs);
-                DiagnosticsLogText.ScrollToEnd();
-            }
-            catch (Exception ex)
-            {
-                DiagnosticsLogText.Text = $"Error loading diagnostics: {ex.Message}";
-            }
         }
 
         private void UpdatePrivacyUI()
@@ -186,17 +170,5 @@ namespace AIConsumptionTracker.UI.Slim
             }
         }
 
-        private void CopyLog_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                Clipboard.SetText(DiagnosticsLogText.Text);
-                MessageBox.Show("Diagnostics log copied to clipboard.", "Copied", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Failed to copy log: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
     }
 }

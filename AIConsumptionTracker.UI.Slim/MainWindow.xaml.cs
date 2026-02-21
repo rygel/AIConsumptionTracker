@@ -358,6 +358,13 @@ public partial class MainWindow : Window
         EnsureAlwaysOnTop();
     }
 
+    internal async Task PrepareForHeadlessScreenshotAsync()
+    {
+        await InitializeAsync();
+        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+        UpdateLayout();
+    }
+
     private void OnPrivacyChanged(object? sender, bool isPrivacyMode)
     {
         if (!Dispatcher.CheckAccess())

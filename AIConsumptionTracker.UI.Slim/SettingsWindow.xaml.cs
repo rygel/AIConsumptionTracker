@@ -1,10 +1,12 @@
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using AIConsumptionTracker.Core.Models;
 using AIConsumptionTracker.Core.AgentClient;
 
@@ -50,6 +52,77 @@ public partial class SettingsWindow : Window
         PopulateLayoutSettings();
         await LoadHistoryAsync();
         await UpdateAgentStatusAsync();
+        RefreshDiagnosticsLog();
+    }
+
+    internal async Task PrepareForHeadlessScreenshotAsync()
+    {
+        await LoadDataAsync();
+        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+        UpdateLayout();
+    }
+
+    internal async Task<IReadOnlyList<string>> CaptureHeadlessTabScreenshotsAsync(string outputDirectory)
+    {
+        await PrepareForHeadlessScreenshotAsync();
+
+        var capturedFiles = new List<string>();
+        if (MainTabControl.Items.Count == 0)
+        {
+            const string fallbackName = "screenshot_settings_privacy.png";
+            App.RenderWindowContent(this, Path.Combine(outputDirectory, fallbackName));
+            capturedFiles.Add(fallbackName);
+            return capturedFiles;
+        }
+
+        for (var index = 0; index < MainTabControl.Items.Count; index++)
+        {
+            MainTabControl.SelectedIndex = index;
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+            UpdateLayout();
+
+            var header = (MainTabControl.Items[index] as TabItem)?.Header?.ToString();
+            var tabSlug = BuildTabSlug(header, index);
+            var fileName = $"screenshot_settings_{tabSlug}_privacy.png";
+            App.RenderWindowContent(this, Path.Combine(outputDirectory, fileName));
+            capturedFiles.Add(fileName);
+        }
+
+        MainTabControl.SelectedIndex = 0;
+        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+        UpdateLayout();
+
+        const string legacyName = "screenshot_settings_privacy.png";
+        App.RenderWindowContent(this, Path.Combine(outputDirectory, legacyName));
+        capturedFiles.Add(legacyName);
+
+        return capturedFiles;
+    }
+
+    private static string BuildTabSlug(string? header, int index)
+    {
+        if (string.IsNullOrWhiteSpace(header))
+        {
+            return $"tab{index + 1}";
+        }
+
+        var builder = new StringBuilder();
+        foreach (var character in header.ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                builder.Append(character);
+            }
+            else if ((character == ' ' || character == '-' || character == '_') &&
+                     builder.Length > 0 &&
+                     builder[^1] != '-')
+            {
+                builder.Append('-');
+            }
+        }
+
+        var normalized = builder.ToString().Trim('-');
+        return string.IsNullOrWhiteSpace(normalized) ? $"tab{index + 1}" : normalized;
     }
 
     private void SettingsWindow_Closed(object? sender, EventArgs e)
@@ -113,6 +186,24 @@ public partial class SettingsWindow : Window
                 AgentStatusText.Text = "Error";
             }
         }
+        finally
+        {
+            RefreshDiagnosticsLog();
+        }
+    }
+
+    private void RefreshDiagnosticsLog()
+    {
+        if (AgentLogsText == null)
+        {
+            return;
+        }
+
+        var logs = AgentService.DiagnosticsLog;
+        AgentLogsText.Text = logs.Count == 0
+            ? "No diagnostics captured yet."
+            : string.Join(Environment.NewLine, logs);
+        AgentLogsText.ScrollToEnd();
     }
 
     private async Task LoadHistoryAsync()
@@ -855,6 +946,10 @@ public partial class SettingsWindow : Window
             MessageBox.Show($"Failed to restart Agent: {ex.Message}", "Restart Error", 
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
+        finally
+        {
+            RefreshDiagnosticsLog();
+        }
     }
 
     private async void CheckHealthBtn_Click(object sender, RoutedEventArgs e)
@@ -871,6 +966,10 @@ public partial class SettingsWindow : Window
         {
             MessageBox.Show($"Failed to check health: {ex.Message}", "Health Check Error", 
                 MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            RefreshDiagnosticsLog();
         }
     }
 
