@@ -66,15 +66,7 @@ public partial class App : Application
         
         // Show menu item
         var showMenuItem = new MenuItem { Header = "Show" };
-        showMenuItem.Click += (s, e) =>
-        {
-            if (_mainWindow != null)
-            {
-                _mainWindow.Show();
-                _mainWindow.WindowState = WindowState.Normal;
-                _mainWindow.Activate();
-            }
-        };
+        showMenuItem.Click += (s, e) => ShowMainWindow();
         contextMenu.Items.Add(showMenuItem);
         
         // Separator
@@ -127,9 +119,7 @@ public partial class App : Application
             return;
         }
 
-        _mainWindow.Show();
-        _mainWindow.WindowState = WindowState.Normal;
-        _mainWindow.Activate();
+        _mainWindow.ShowAndActivate();
     }
 
     public void UpdateProviderTrayIcons(List<ProviderUsage> usages, List<ProviderConfig> configs, AppPreferences? prefs = null)

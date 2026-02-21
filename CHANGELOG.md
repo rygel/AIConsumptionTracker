@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [2.0.9] - 2026-02-21
+
+### Added
+- Slim update banner now includes a visible `Changelog` button and in-app release-notes window.
+
+### Changed
+- Slim changelog view now renders markdown-style release notes (headings, lists, inline formatting, links, and code blocks) directly in-app.
+
+### Fixed
+- Always-on-top behavior is now reasserted after activation/tray restore to prevent occasional backgrounding.
+- Window position persistence now waits for loaded preferences before saving startup move/resize events.
+
 ## [2.0.8] - 2026-02-20
 
 ### Added
