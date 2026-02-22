@@ -432,7 +432,7 @@ public partial class MainWindow : Window
             };
 
             RenderProviders();
-            ShowStatus("Headless snapshot", StatusType.Success);
+            ShowStatus($"{_lastAgentUpdate:HH:mm:ss}", StatusType.Success);
         }
         else
         {

@@ -90,9 +90,12 @@ public partial class SettingsWindow : Window
         {
             MainTabControl.SelectedIndex = index;
             await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
-            UpdateLayout();
 
             var header = (MainTabControl.Items[index] as TabItem)?.Header?.ToString();
+            ApplyHeadlessCaptureWindowSize(header);
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+            UpdateLayout();
+
             var tabSlug = BuildTabSlug(header, index);
             var fileName = $"screenshot_settings_{tabSlug}_privacy.png";
             App.RenderWindowContent(this, Path.Combine(outputDirectory, fileName));
@@ -108,6 +111,27 @@ public partial class SettingsWindow : Window
         capturedFiles.Add(legacyName);
 
         return capturedFiles;
+    }
+
+    private void ApplyHeadlessCaptureWindowSize(string? tabHeader)
+    {
+        Width = 600;
+        Height = 600;
+
+        if (!_isDeterministicScreenshotMode)
+        {
+            return;
+        }
+
+        if (!string.Equals(tabHeader, "Providers", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Width = 760;
+        ProvidersStack.Measure(new Size(Width - 80, double.PositiveInfinity));
+        var desiredContentHeight = ProvidersStack.DesiredSize.Height;
+        Height = Math.Max(900, Math.Min(3200, desiredContentHeight + 260));
     }
 
     private void PrepareDeterministicScreenshotData()
@@ -132,39 +156,135 @@ public partial class SettingsWindow : Window
         App.SetPrivacyMode(true);
         UpdatePrivacyButtonState();
 
+        ProviderConfig CreateConfig(
+            string providerId,
+            string apiKey,
+            PlanType planType,
+            string type,
+            bool showInTray = false,
+            bool enableNotifications = false)
+        {
+            return new ProviderConfig
+            {
+                ProviderId = providerId,
+                ApiKey = apiKey,
+                ShowInTray = showInTray,
+                EnableNotifications = enableNotifications,
+                PlanType = planType,
+                Type = type
+            };
+        }
+
+        List<ProviderUsageDetail> CreateModels(params string[] modelNames)
+        {
+            var models = new List<ProviderUsageDetail>();
+            for (var i = 0; i < modelNames.Length; i++)
+            {
+                var usedPercent = Math.Min(95, 18 + (i * 9));
+                models.Add(new ProviderUsageDetail
+                {
+                    Name = modelNames[i],
+                    ModelName = modelNames[i],
+                    Used = $"{usedPercent}%",
+                    Description = $"{100 - usedPercent}% remaining"
+                });
+            }
+
+            return models;
+        }
+
         _configs = new List<ProviderConfig>
         {
-            new()
-            {
-                ProviderId = "github-copilot",
-                ApiKey = "ghp_demo_key",
-                ShowInTray = true,
-                EnableNotifications = true,
-                PlanType = PlanType.Coding,
-                Type = "quota-based"
-            },
-            new()
-            {
-                ProviderId = "openai",
-                ApiKey = "sk-demo-key",
-                ShowInTray = true,
-                EnableNotifications = false,
-                PlanType = PlanType.Usage,
-                Type = "pay-as-you-go"
-            },
-            new()
-            {
-                ProviderId = "antigravity",
-                ApiKey = "local-session",
-                ShowInTray = false,
-                EnableNotifications = false,
-                PlanType = PlanType.Coding,
-                Type = "quota-based"
-            }
+            CreateConfig("antigravity", "local-session", PlanType.Coding, "quota-based"),
+            CreateConfig("anthropic", "sk-ant-demo", PlanType.Usage, "pay-as-you-go", showInTray: true),
+            CreateConfig("claude-code", "cc-demo-key", PlanType.Usage, "pay-as-you-go"),
+            CreateConfig("codex", "codex-demo-key", PlanType.Coding, "quota-based", showInTray: true),
+            CreateConfig("deepseek", "sk-ds-demo", PlanType.Usage, "pay-as-you-go"),
+            CreateConfig("gemini-cli", "gemini-local-auth", PlanType.Coding, "quota-based"),
+            CreateConfig("github-copilot", "ghp_demo_key", PlanType.Coding, "quota-based", showInTray: true, enableNotifications: true),
+            CreateConfig("kimi", "kimi-demo-key", PlanType.Coding, "quota-based"),
+            CreateConfig("minimax", "mm-cn-demo", PlanType.Coding, "quota-based"),
+            CreateConfig("minimax-io", "mm-intl-demo", PlanType.Usage, "pay-as-you-go"),
+            CreateConfig("mistral", "mistral-demo-key", PlanType.Usage, "pay-as-you-go"),
+            CreateConfig("openai", "sk-openai-demo", PlanType.Usage, "pay-as-you-go", showInTray: true),
+            CreateConfig("opencode", "oc-demo-key", PlanType.Usage, "pay-as-you-go"),
+            CreateConfig("opencode-zen", "ocz-demo-key", PlanType.Usage, "pay-as-you-go"),
+            CreateConfig("openrouter", "or-demo-key", PlanType.Usage, "pay-as-you-go"),
+            CreateConfig("synthetic", "syn-demo-key", PlanType.Coding, "quota-based"),
+            CreateConfig("zai-coding-plan", "zai-demo-key", PlanType.Coding, "quota-based", showInTray: true)
         };
 
         _usages = new List<ProviderUsage>
         {
+            new()
+            {
+                ProviderId = "antigravity",
+                ProviderName = "Antigravity",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                RequestsPercentage = 58.0,
+                Description = "58.0% Remaining",
+                AccountName = "workspace-team",
+                Details = CreateModels("claude-sonnet-4", "gemini-2.5-pro", "gpt-5-codex")
+            },
+            new()
+            {
+                ProviderId = "anthropic",
+                ProviderName = "Anthropic",
+                IsAvailable = true,
+                IsQuotaBased = false,
+                PlanType = PlanType.Usage,
+                RequestsPercentage = 20.1,
+                Description = "$18.10 / $90.00",
+                AccountName = "project-team",
+                Details = CreateModels("claude-3-7-sonnet", "claude-3-5-haiku")
+            },
+            new()
+            {
+                ProviderId = "claude-code",
+                ProviderName = "Claude Code",
+                IsAvailable = true,
+                IsQuotaBased = false,
+                PlanType = PlanType.Usage,
+                RequestsPercentage = 22.4,
+                Description = "$22.40 / $100.00",
+                AccountName = "engineer@example.com"
+            },
+            new()
+            {
+                ProviderId = "codex",
+                ProviderName = "Codex",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                RequestsPercentage = 63.0,
+                Description = "63.0% Remaining",
+                Details = CreateModels("gpt-5.2-codex", "gpt-5.1-codex")
+            },
+            new()
+            {
+                ProviderId = "deepseek",
+                ProviderName = "DeepSeek",
+                IsAvailable = true,
+                IsQuotaBased = false,
+                PlanType = PlanType.Usage,
+                RequestsPercentage = 41.6,
+                Description = "$33.25 / $80.00",
+                Details = CreateModels("deepseek-chat", "deepseek-reasoner")
+            },
+            new()
+            {
+                ProviderId = "gemini-cli",
+                ProviderName = "Gemini CLI",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                RequestsPercentage = 84.0,
+                Description = "84.0% Remaining",
+                AccountName = "workspace-team",
+                Details = CreateModels("gemini-2.5-pro", "gemini-2.5-flash")
+            },
             new()
             {
                 ProviderId = "github-copilot",
@@ -174,7 +294,51 @@ public partial class SettingsWindow : Window
                 PlanType = PlanType.Coding,
                 RequestsPercentage = 72.5,
                 Description = "72.5% Remaining",
-                AccountName = "dev@example.com"
+                AccountName = "dev@example.com",
+                Details = CreateModels("gpt-4.1", "o3-mini")
+            },
+            new()
+            {
+                ProviderId = "kimi",
+                ProviderName = "Kimi",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                RequestsPercentage = 66.0,
+                Description = "66.0% Remaining",
+                Details = CreateModels("kimi-k2.5", "kimi-k2")
+            },
+            new()
+            {
+                ProviderId = "minimax",
+                ProviderName = "Minimax",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                RequestsPercentage = 61.0,
+                Description = "61.0% Remaining",
+                Details = CreateModels("minimax-m2.1", "minimax-text")
+            },
+            new()
+            {
+                ProviderId = "minimax-io",
+                ProviderName = "Minimax International",
+                IsAvailable = true,
+                IsQuotaBased = false,
+                PlanType = PlanType.Usage,
+                RequestsPercentage = 27.8,
+                Description = "$11.10 / $40.00"
+            },
+            new()
+            {
+                ProviderId = "mistral",
+                ProviderName = "Mistral",
+                IsAvailable = true,
+                IsQuotaBased = false,
+                PlanType = PlanType.Usage,
+                RequestsPercentage = 18.0,
+                Description = "$6.80 / $38.00",
+                Details = CreateModels("mistral-large", "mistral-medium")
             },
             new()
             {
@@ -185,17 +349,62 @@ public partial class SettingsWindow : Window
                 PlanType = PlanType.Usage,
                 RequestsPercentage = 31.1,
                 Description = "$12.45 / $40.00",
-                AccountName = "project-team"
+                AccountName = "project-team",
+                Details = CreateModels("gpt-5.1", "gpt-4.1-mini")
             },
             new()
             {
-                ProviderId = "antigravity",
-                ProviderName = "Antigravity",
+                ProviderId = "opencode",
+                ProviderName = "OpenCode",
+                IsAvailable = true,
+                IsQuotaBased = false,
+                PlanType = PlanType.Usage,
+                RequestsPercentage = 24.0,
+                Description = "$14.00 / $58.00"
+            },
+            new()
+            {
+                ProviderId = "opencode-zen",
+                ProviderName = "Opencode Zen",
+                IsAvailable = true,
+                IsQuotaBased = false,
+                PlanType = PlanType.Usage,
+                RequestsPercentage = 45.0,
+                Description = "$18.00 / $40.00",
+                Details = CreateModels("claude-sonnet-4", "gpt-4.1")
+            },
+            new()
+            {
+                ProviderId = "openrouter",
+                ProviderName = "OpenRouter",
+                IsAvailable = true,
+                IsQuotaBased = false,
+                PlanType = PlanType.Usage,
+                RequestsPercentage = 36.0,
+                Description = "$21.60 / $60.00",
+                Details = CreateModels("anthropic/claude-sonnet-4", "openai/gpt-4.1")
+            },
+            new()
+            {
+                ProviderId = "synthetic",
+                ProviderName = "Synthetic",
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
-                RequestsPercentage = 55.0,
-                Description = "55.0% Remaining"
+                RequestsPercentage = 79.0,
+                Description = "79.0% Remaining",
+                Details = CreateModels("kimi-k2.5", "glm-4.7")
+            },
+            new()
+            {
+                ProviderId = "zai-coding-plan",
+                ProviderName = "Z.AI",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                RequestsPercentage = 88.0,
+                Description = "88.0% Remaining",
+                Details = CreateModels("glm-4.7", "glm-4.7-flash")
             }
         };
 
