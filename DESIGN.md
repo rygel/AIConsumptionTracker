@@ -434,6 +434,11 @@ Users can customize the visual thresholds via settings:
       - Do NOT invent model names, account identifiers, or quota values for fixtures/docs
     - When in doubt, ask the developer what the real API behavior is
 
+7. **Do Not Store Empty Data (MANDATORY)**:
+    - **NEVER** log or persist usage history for unconfigured providers or providers that return completely empty usage data.
+    - The database should only store genuine usage values. If an API key is missing or usage cannot be determined, do not store a 0-usage placeholder record; simply omit it.
+    - This prevents cluttering the database and UI with meaningless empty values.
+
 ---
 
 ## Change Control Policy

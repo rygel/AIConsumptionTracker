@@ -229,12 +229,20 @@ public class ProviderRefreshService : BackgroundService
                     PlanType = PlanType.Coding
                 });
 
+            // "antigravity", "gemini-cli", "cloud-code", "codex" are known system providers that do not require an API key to work.
+            // Other providers MUST have an API key to be considered active.
+            var systemProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) 
+            { 
+                "antigravity", "gemini-cli", "cloud-code", "codex" 
+            };
+
             var activeConfigs = configs.Where(c =>
                 forceAll ||
-                string.IsNullOrEmpty(c.ApiKey) ||   // System providers (antigravity, gemini-cli, etc.)
+                systemProviders.Contains(c.ProviderId) ||
                 c.ProviderId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) ||
                 !string.IsNullOrEmpty(c.ApiKey)).ToList();
-            var skippedCount = 0; // All configs are now included
+
+            var skippedCount = configs.Count - activeConfigs.Count;
 
 
             _logger.LogInformation("Providers: {Available} available, {Initialized} initialized", configs.Count, activeConfigs.Count);
@@ -275,10 +283,13 @@ public class ProviderRefreshService : BackgroundService
 
                 var activeProviderIds = refreshableConfigs.Select(c => c.ProviderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 
-                // Allow dynamic children (e.g. antigravity.claude-3-5-sonnet) through the filter even if not in config explicitly yet
+                // Allow dynamic children (e.g. antigravity.claude-3-5-sonnet) through the filter even if not in config explicitly yet.
+                // Filter out entries where the API Key was missing to prevent logging empty data over and over.
                 var filteredUsages = usages.Where(u => 
-                    activeProviderIds.Contains(u.ProviderId) || 
-                    (u.ProviderId.StartsWith("antigravity.") && activeProviderIds.Contains("antigravity"))
+                    (activeProviderIds.Contains(u.ProviderId) || 
+                    (u.ProviderId.StartsWith("antigravity.") && activeProviderIds.Contains("antigravity"))) &&
+                    // Drop unconfigured providers that returned no usage
+                    !(u.RequestsAvailable == 0 && u.RequestsUsed == 0 && u.RequestsPercentage == 0 && !u.IsAvailable && (u.Description?.Contains("API Key", StringComparison.OrdinalIgnoreCase) == true || u.Description?.Contains("configured", StringComparison.OrdinalIgnoreCase) == true))
                 ).ToList();
 
                 _logger.LogDebug("Provider query results:");
@@ -345,6 +356,7 @@ public class ProviderRefreshService : BackgroundService
             }
 
             await _database.CleanupOldSnapshotsAsync();
+            await _database.CleanupEmptyHistoryAsync();
             await _database.OptimizeAsync();
             _logger.LogInformation("Cleanup complete");
             refreshSucceeded = true;
