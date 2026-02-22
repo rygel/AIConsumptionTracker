@@ -24,6 +24,7 @@ try
     builder.Host.UseSerilog();
 
     builder.Services.AddRazorPages();
+    builder.Services.AddMemoryCache();
     builder.Services.AddSingleton<WebDatabaseService>();
     builder.Services.AddSingleton<AgentProcessService>();
     builder.Services.AddSingleton<AIUsageTracker.Core.Interfaces.IConfigLoader, AIUsageTracker.Infrastructure.Configuration.JsonConfigLoader>();

@@ -45,7 +45,7 @@ public class WebDatabaseService
         return File.Exists(_dbPath);
     }
 
-    public async Task<List<ProviderUsage>> GetLatestUsageAsync()
+    public async Task<List<ProviderUsage>> GetLatestUsageAsync(bool includeInactive = false)
     {
         if (!IsDatabaseAvailable())
             return new List<ProviderUsage>();
@@ -56,7 +56,21 @@ public class WebDatabaseService
             using var connection = new SqliteConnection($"Data Source={_dbPath}");
             await connection.OpenAsync();
 
-            const string sql = @"
+            const string activeSql = @"
+                SELECT h.provider_id AS ProviderId, p.provider_name AS ProviderName,
+                       h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
+                       h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
+                       h.status_message AS Description, h.fetched_at AS FetchedAt,
+                       h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson
+                FROM provider_history h
+                JOIN providers p ON h.provider_id = p.provider_id
+                WHERE h.id IN (
+                    SELECT MAX(id) FROM provider_history GROUP BY provider_id
+                )
+                AND h.is_available = 1
+                ORDER BY p.provider_name";
+
+            const string allSql = @"
                 SELECT h.provider_id AS ProviderId, p.provider_name AS ProviderName,
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
@@ -69,6 +83,7 @@ public class WebDatabaseService
                 )
                 ORDER BY p.provider_name";
 
+            var sql = includeInactive ? allSql : activeSql;
             var results = await connection.QueryAsync<ProviderUsage>(sql);
             
             // Deserialize details from JSON

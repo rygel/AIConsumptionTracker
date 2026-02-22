@@ -66,7 +66,7 @@ public class IndexModel : PageModel
 
         if (IsDatabaseAvailable)
         {
-            LatestUsage = await _dbService.GetLatestUsageAsync();
+            LatestUsage = await _dbService.GetLatestUsageAsync(includeInactive: ShowInactiveProviders);
             Summary = await _dbService.GetUsageSummaryAsync();
         }
     }
