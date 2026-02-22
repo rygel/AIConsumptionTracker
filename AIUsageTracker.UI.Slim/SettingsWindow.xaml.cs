@@ -400,7 +400,7 @@ public partial class SettingsWindow : Window
             CreateConfig("zai-coding-plan", "zai-demo-key", PlanType.Coding, "quota-based", showInTray: true)
         };
 
-        var deterministicNow = DateTime.Now;
+        var deterministicNow = new DateTime(2026, 02, 01, 12, 00, 00, DateTimeKind.Local);
         _usages = new List<ProviderUsage>
         {
             new()
