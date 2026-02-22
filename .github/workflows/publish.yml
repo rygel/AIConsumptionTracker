@@ -170,7 +170,10 @@ jobs:
           }
 
           $previousAsset = $candidate.assets |
-            Where-Object { $_.name -like "AIUsageTracker_Setup_v*_win-x64.exe" } |
+            Where-Object {
+              $_.name -like "AIUsageTracker_Setup_v*_win-x64.exe" -or
+              $_.name -like "AIConsumptionTracker_Setup_v*_win-x64.exe"
+            } |
             Select-Object -First 1
 
           if (-not $previousAsset) {
