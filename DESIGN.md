@@ -420,16 +420,19 @@ Users can customize the visual thresholds via settings:
 
 5. **Inverted Flag**: Only affects visual bar direction, NEVER color determination
 
-6. **Use Real API Data**: 
+6. **Use Correct Source Data (MANDATORY)**:
     - **NEVER** hardcode assumptions about provider behavior (e.g., reset times, billing cycles)
-    - **ALWAYS** use actual data returned by the provider's API
+    - **ALWAYS** use verified real data from provider APIs, captured snapshots, or validated local telemetry
+    - This applies to runtime logic, tests, deterministic screenshot fixtures, and documentation examples
     - If usage metrics are missing/invalid, return an explicit unknown/unavailable state instead of synthesizing `0%` or `100%`
     - If the API does not provide certain information (e.g., reset time), set `NextResetTime = null` and do not display it
-   - Examples of what NOT to do:
-     - Do NOT assume all providers reset at UTC midnight
-     - Do NOT assume fixed billing cycles (e.g., monthly from signup)
-     - Do NOT make up data that the API doesn't provide
-   - When in doubt, ask the developer what the real API behavior is
+    - If correct data is unavailable, stale, or cannot be validated, **stop and ask** the developer/user before proceeding
+    - Examples of what NOT to do:
+      - Do NOT assume all providers reset at UTC midnight
+      - Do NOT assume fixed billing cycles (e.g., monthly from signup)
+      - Do NOT make up data that the API doesn't provide
+      - Do NOT invent model names, account identifiers, or quota values for fixtures/docs
+    - When in doubt, ask the developer what the real API behavior is
 
 ---
 
@@ -449,6 +452,7 @@ Users can customize the visual thresholds via settings:
    - Progress bar direction logic
    - Provider payment type classifications
    - Any logic documented in this file
+6. **NEVER fabricate data** in tests, fixtures, screenshots, or docs; if correct source data cannot be obtained or verified, ask the developer/user and wait for guidance
 
 ### Rules for Developers
 
