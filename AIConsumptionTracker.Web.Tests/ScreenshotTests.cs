@@ -6,7 +6,7 @@ namespace AIConsumptionTracker.Web.Tests;
 [TestClass]
 public class ScreenshotTests : PageTest
 {
-    private const string BaseUrl = "http://localhost:5100";
+    private const string BaseUrl = "http://127.0.0.1:5100";
     private readonly string _outputDir;
 
     public ScreenshotTests()

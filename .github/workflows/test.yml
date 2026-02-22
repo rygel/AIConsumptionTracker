@@ -149,43 +149,53 @@ jobs:
         # Build the Web project first to avoid build time in the background process
         dotnet build AIConsumptionTracker.Web\AIConsumptionTracker.Web.csproj --configuration Debug
         
-        # Start the Web server in the background and redirect output to a log
-        $process = Start-Process -FilePath "dotnet" -ArgumentList "run --project AIConsumptionTracker.Web\AIConsumptionTracker.Web.csproj --configuration Debug --no-build" -PassThru -WindowStyle Hidden -RedirectStandardOutput "web_server.log" -RedirectStandardError "web_server_error.log"
+        # Start the Web server in the background and bind to 127.0.0.1
+        $process = Start-Process -FilePath "dotnet" -ArgumentList "run --project AIConsumptionTracker.Web\AIConsumptionTracker.Web.csproj --configuration Debug --no-build --urls 'http://127.0.0.1:5100'" -PassThru -WindowStyle Hidden -RedirectStandardOutput "web_server.log" -RedirectStandardError "web_server_error.log"
         
         # Wait for the server to be responsive
         $maxRetries = 60
         $retryCount = 0
         $serverReady = $false
         
-        Write-Host "Waiting for Web server to start at http://localhost:5100..."
+        Write-Host "Waiting for Web server to start at http://127.0.0.1:5100..."
         while ($retryCount -lt $maxRetries) {
             try {
-                $response = Invoke-WebRequest -Uri "http://localhost:5100" -UseBasicParsing -TimeoutSec 1 -ErrorAction Stop
+                $response = Invoke-WebRequest -Uri "http://127.0.0.1:5100" -UseBasicParsing -TimeoutSec 1 -ErrorAction Stop
                 if ($response.StatusCode -eq 200) {
                     $serverReady = $true
+                    Write-Host "Web server is UP!"
                     break
                 }
             } catch {
                 # Server not ready yet
+            }
+            if ($retryCount -gt 0 -and $retryCount % 10 -eq 0) {
+                Write-Host "Still waiting ($retryCount/60)... Last few log lines:"
+                if (Test-Path "web_server.log") { Get-Content "web_server.log" -Tail 5 }
             }
             Start-Sleep -Seconds 1
             $retryCount++
         }
         
         if (-not $serverReady) {
-            Write-Error "Web server failed to start within the expected time."
             Write-Host "--- Web Server StdOut ---"
             if (Test-Path "web_server.log") { Get-Content "web_server.log" }
             Write-Host "--- Web Server StdErr ---"
             if (Test-Path "web_server_error.log") { Get-Content "web_server_error.log" }
             if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
-            exit 1
+            throw "Web server failed to start within the expected time."
         }
         
         # Give the server a few extra seconds to fully initialize razor pages and database connections
         Start-Sleep -Seconds 5
         
-        dotnet test AIConsumptionTracker.Web.Tests\AIConsumptionTracker.Web.Tests.csproj --configuration Debug
+        try {
+            dotnet test AIConsumptionTracker.Web.Tests\AIConsumptionTracker.Web.Tests.csproj --configuration Debug
+        } catch {
+            Write-Host "Tests FAILED. Web server log dump:"
+            if (Test-Path "web_server.log") { Get-Content "web_server.log" }
+            throw
+        }
         
         if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
       shell: pwsh
