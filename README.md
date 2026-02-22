@@ -7,7 +7,7 @@
 [![](https://dcbadge.limes.pink/api/server/AZtNQtWuJA?style=flat)](https://discord.gg/AZtNQtWuJA)
 ![Downloads](https://img.shields.io/github/downloads/rygel/AIConsumptionTracker/total)
 
-<img src="docs/screenshot_dashboard_privacy.png" alt="Dashboard" width="920" />
+<img src="docs/screenshot_dashboard_privacy.png" alt="Dashboard" width="50%" />
 
 A streamlined Windows dashboard and tray utility to monitor AI API usage, costs, and quotas across multiple providers.
 
@@ -69,25 +69,25 @@ Download the latest installer or .zip file from the [Release](https://github.com
 ### Screenshots
 
 **Dashboard**
-<img src="docs/screenshot_dashboard_privacy.png" alt="Dashboard" width="920" />
+<img src="docs/screenshot_dashboard_privacy.png" alt="Dashboard" width="50%" />
 
 **Settings (Overview)**
-<img src="docs/screenshot_settings_privacy.png" alt="Settings" width="920" />
+<img src="docs/screenshot_settings_privacy.png" alt="Settings" width="50%" />
 
 **Settings - Providers Tab**
-<img src="docs/screenshot_settings_providers_privacy.png" alt="Settings Providers" width="920" />
+<img src="docs/screenshot_settings_providers_privacy.png" alt="Settings Providers" width="50%" />
 
 **Settings - Layout Tab**
-<img src="docs/screenshot_settings_layout_privacy.png" alt="Settings Layout" width="920" />
+<img src="docs/screenshot_settings_layout_privacy.png" alt="Settings Layout" width="50%" />
 
 **Settings - History Tab**
-<img src="docs/screenshot_settings_history_privacy.png" alt="Settings History" width="920" />
+<img src="docs/screenshot_settings_history_privacy.png" alt="Settings History" width="50%" />
 
 **Settings - Agent Tab**
-<img src="docs/screenshot_settings_agent_privacy.png" alt="Settings Agent" width="920" />
+<img src="docs/screenshot_settings_agent_privacy.png" alt="Settings Agent" width="50%" />
 
 **Info Dialog**
-<img src="docs/screenshot_info_privacy.png" alt="Info" width="760" />
+<img src="docs/screenshot_info_privacy.png" alt="Info" width="50%" />
 
 **Tray Icons**
 Provider usage reflected in real-time with dynamic progress bars:
@@ -98,7 +98,7 @@ Provider usage reflected in real-time with dynamic progress bars:
 
 **Context Menu**
 Right-click system tray icon for quick access:
-<img src="docs/screenshot_context_menu_privacy.png" alt="Context Menu" width="420" />
+<img src="docs/screenshot_context_menu_privacy.png" alt="Context Menu" width="50%" />
 
 ## Installation
 
