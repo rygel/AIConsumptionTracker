@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
@@ -24,7 +25,22 @@ public class OpenAIProvider : IProviderService
 
     public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
-        if (string.IsNullOrWhiteSpace(config.ApiKey) || !IsApiKey(config.ApiKey))
+        if (!string.IsNullOrWhiteSpace(config.ApiKey) && IsApiKey(config.ApiKey))
+        {
+            return await GetApiKeyUsageAsync(config.ApiKey);
+        }
+
+        var accessToken = config.ApiKey;
+        string? accountId = null;
+
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            var nativeAuth = await LoadOpenCodeAuthAsync();
+            accessToken = nativeAuth?.Access;
+            accountId = nativeAuth?.AccountId;
+        }
+
+        if (string.IsNullOrWhiteSpace(accessToken))
         {
             return new[]
             {
@@ -33,14 +49,22 @@ public class OpenAIProvider : IProviderService
                     ProviderId = ProviderId,
                     ProviderName = "OpenAI",
                     IsAvailable = false,
-                    Description = "OpenAI API key missing. OpenCode session usage is tracked under Codex.",
+                    Description = "OpenAI API key or OpenCode session not found.",
                     IsQuotaBased = false,
                     PlanType = PlanType.Usage
                 }
             };
         }
 
-        return await GetApiKeyUsageAsync(config.ApiKey);
+        try
+        {
+            return new[] { await GetNativeUsageAsync(accessToken, accountId) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "OpenAI session check failed");
+            return new[] { CreateUnavailableUsage("Session lookup failed") };
+        }
     }
 
     private async Task<IEnumerable<ProviderUsage>> GetApiKeyUsageAsync(string apiKey)
@@ -152,7 +176,8 @@ public class OpenAIProvider : IProviderService
         return new ProviderUsage
         {
             ProviderId = ProviderId,
-            ProviderName = "OpenAI",
+            ProviderName = "OpenAI (Codex)",
+            AccountName = GetAccountIdentity(doc.RootElement, accessToken),
             IsAvailable = true,
             IsQuotaBased = true,
             PlanType = PlanType.Coding,
@@ -263,6 +288,66 @@ public class OpenAIProvider : IProviderService
         }
 
         return details;
+    }
+
+    private static string? GetAccountIdentity(JsonElement root, string accessToken)
+    {
+        if (root.TryGetProperty("email", out var emailElement) && emailElement.ValueKind == JsonValueKind.String)
+        {
+            var email = emailElement.GetString();
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                return email;
+            }
+        }
+
+        var claims = DecodeJwtClaims(accessToken);
+        return claims.Email;
+    }
+
+    private static (string? Email, string? PlanType) DecodeJwtClaims(string token)
+    {
+        try
+        {
+            var parts = token.Split('.');
+            if (parts.Length < 2)
+            {
+                return (null, null);
+            }
+
+            var payload = parts[1].Replace('-', '+').Replace('_', '/');
+            switch (payload.Length % 4)
+            {
+                case 2: payload += "=="; break;
+                case 3: payload += "="; break;
+            }
+
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+            using var doc = JsonDocument.Parse(json);
+
+            string? email = null;
+            foreach (var claim in new[] { "email", "upn", "preferred_username" })
+            {
+                if (doc.RootElement.TryGetProperty(claim, out var claimElement) && claimElement.ValueKind == JsonValueKind.String)
+                {
+                    var value = claimElement.GetString();
+                    if (!string.IsNullOrWhiteSpace(value) && value.Contains('@'))
+                    {
+                        email = value;
+                        break;
+                    }
+                }
+            }
+
+            var planType = ReadString(doc.RootElement, "https://api.openai.com/auth", "plan_type")
+                           ?? ReadString(doc.RootElement, "plan_type");
+
+            return (email, planType);
+        }
+        catch
+        {
+            return (null, null);
+        }
     }
 
     private static string? ReadString(JsonElement root, params string[] path)
