@@ -386,18 +386,43 @@ public partial class MainWindow : Window
             _preferencesLoaded = true;
             _lastAgentUpdate = new DateTime(2026, 2, 1, 12, 0, 0, DateTimeKind.Local);
             ApplyPreferences();
+            Width = 460;
+            Height = 860;
 
             _usages = new List<ProviderUsage>
             {
+                new()
+                {
+                    ProviderId = "antigravity",
+                    ProviderName = "Antigravity",
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Coding,
+                    DisplayAsFraction = true,
+                    RequestsPercentage = 64.0,
+                    RequestsUsed = 360,
+                    RequestsAvailable = 1000,
+                    Description = "64.0% Remaining",
+                    IsAvailable = true,
+                    AccountName = "primary-workspace",
+                    AuthSource = "local app",
+                    Details = new List<ProviderUsageDetail>
+                    {
+                        new() { Name = "claude-sonnet-4", ModelName = "Claude Sonnet 4", Used = "34%", Description = "66% remaining" },
+                        new() { Name = "gpt-5.2", ModelName = "GPT-5.2", Used = "41%", Description = "59% remaining" },
+                        new() { Name = "gemini-2.5-pro", ModelName = "Gemini 2.5 Pro", Used = "48%", Description = "52% remaining" },
+                        new() { Name = "deepseek-r1", ModelName = "DeepSeek R1", Used = "29%", Description = "71% remaining" }
+                    }
+                },
                 new()
                 {
                     ProviderId = "github-copilot",
                     ProviderName = "GitHub Copilot",
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
+                    DisplayAsFraction = true,
                     RequestsPercentage = 72.5,
-                    RequestsUsed = 27.5,
-                    RequestsAvailable = 100,
+                    RequestsUsed = 110,
+                    RequestsAvailable = 400,
                     Description = "72.5% Remaining",
                     IsAvailable = true,
                     AccountName = "dev@example.com",
@@ -405,16 +430,51 @@ public partial class MainWindow : Window
                 },
                 new()
                 {
-                    ProviderId = "antigravity.claude-sonnet-4",
-                    ProviderName = "Claude Sonnet 4 [Antigravity]",
+                    ProviderId = "zai-coding-plan",
+                    ProviderName = "Z.AI",
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
-                    RequestsPercentage = 55.0,
-                    RequestsUsed = 45.0,
-                    RequestsAvailable = 100,
-                    Description = "55.0% Remaining",
+                    DisplayAsFraction = true,
+                    RequestsPercentage = 82.0,
+                    RequestsUsed = 45,
+                    RequestsAvailable = 250,
+                    Description = "82.0% Remaining",
                     IsAvailable = true,
-                    AuthSource = "local app"
+                    AccountName = "coding-plan",
+                    AuthSource = "api key",
+                    NextResetTime = new DateTime(2026, 2, 5, 9, 0, 0, DateTimeKind.Local)
+                },
+                new()
+                {
+                    ProviderId = "claude-code",
+                    ProviderName = "Claude Code",
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Coding,
+                    DisplayAsFraction = true,
+                    RequestsPercentage = 58.0,
+                    RequestsUsed = 210,
+                    RequestsAvailable = 500,
+                    Description = "58.0% Remaining",
+                    IsAvailable = true,
+                    AccountName = "workspace-alpha",
+                    AuthSource = "local credentials",
+                    NextResetTime = new DateTime(2026, 2, 3, 0, 0, 0, DateTimeKind.Local)
+                },
+                new()
+                {
+                    ProviderId = "synthetic",
+                    ProviderName = "Synthetic",
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Coding,
+                    DisplayAsFraction = true,
+                    RequestsPercentage = 91.0,
+                    RequestsUsed = 18,
+                    RequestsAvailable = 200,
+                    Description = "91.0% Remaining",
+                    IsAvailable = true,
+                    AccountName = "team-subscription",
+                    AuthSource = "api key",
+                    NextResetTime = new DateTime(2026, 2, 2, 8, 0, 0, DateTimeKind.Local)
                 },
                 new()
                 {
@@ -426,6 +486,58 @@ public partial class MainWindow : Window
                     RequestsUsed = 12.45,
                     RequestsAvailable = 40.00,
                     Description = "$12.45 / $40.00",
+                    IsAvailable = true,
+                    AuthSource = "api key"
+                },
+                new()
+                {
+                    ProviderId = "deepseek",
+                    ProviderName = "DeepSeek",
+                    IsQuotaBased = false,
+                    PlanType = PlanType.Usage,
+                    RequestsPercentage = 24.0,
+                    RequestsUsed = 8.40,
+                    RequestsAvailable = 35.00,
+                    Description = "$8.40 / $35.00",
+                    IsAvailable = true,
+                    AuthSource = "api key"
+                },
+                new()
+                {
+                    ProviderId = "minimax-io",
+                    ProviderName = "Minimax (International)",
+                    IsQuotaBased = false,
+                    PlanType = PlanType.Usage,
+                    RequestsPercentage = 43.2,
+                    RequestsUsed = 12.96,
+                    RequestsAvailable = 30.00,
+                    Description = "$12.96 / $30.00",
+                    IsAvailable = true,
+                    AuthSource = "api key"
+                },
+                new()
+                {
+                    ProviderId = "openrouter",
+                    ProviderName = "OpenRouter",
+                    IsQuotaBased = false,
+                    PlanType = PlanType.Usage,
+                    RequestsPercentage = 16.0,
+                    RequestsUsed = 4.80,
+                    RequestsAvailable = 30.00,
+                    Description = "$4.80 / $30.00",
+                    IsAvailable = true,
+                    AuthSource = "api key"
+                },
+                new()
+                {
+                    ProviderId = "mistral",
+                    ProviderName = "Mistral",
+                    IsQuotaBased = false,
+                    PlanType = PlanType.Usage,
+                    RequestsPercentage = 6.7,
+                    RequestsUsed = 1.34,
+                    RequestsAvailable = 20.00,
+                    Description = "$1.34 / $20.00",
                     IsAvailable = true,
                     AuthSource = "api key"
                 }
