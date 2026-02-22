@@ -27,6 +27,7 @@ public class DatabaseMigrationService
                 _logger.LogWarning(
                     "Existing database found without applied Evolve metadata. Applying compatibility bootstrap and skipping Evolve migrations.");
                 EnsureSchemaCompatibility(connection);
+                ApplyPerformancePragmas(connection);
                 return;
             }
 
@@ -46,8 +47,11 @@ public class DatabaseMigrationService
                     "Evolve migration conflicted with an existing schema ({Message}). Applying compatibility bootstrap instead.",
                     ex.Message);
                 EnsureSchemaCompatibility(connection);
+                ApplyPerformancePragmas(connection);
                 return;
             }
+
+            ApplyPerformancePragmas(connection);
 
             _logger.LogInformation("DB migrated ({Count} applied)", evolve.NbMigration);
         }
@@ -203,6 +207,19 @@ public class DatabaseMigrationService
         }
 
         return false;
+    }
+
+    private void ApplyPerformancePragmas(SqliteConnection connection)
+    {
+        ExecuteNonQuery(connection, @"
+            PRAGMA journal_mode=WAL;
+            PRAGMA synchronous=NORMAL;
+            PRAGMA busy_timeout=5000;
+            PRAGMA temp_store=MEMORY;
+            PRAGMA foreign_keys=ON;
+        ");
+
+        _logger.LogInformation("SQLite performance pragmas applied (WAL/NORMAL/shared read optimization).");
     }
 }
 

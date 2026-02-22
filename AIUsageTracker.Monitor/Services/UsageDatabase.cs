@@ -20,7 +20,14 @@ public class UsageDatabase : IUsageDatabase
         var dbDir = ResolveDatabaseDirectory(appData);
         Directory.CreateDirectory(dbDir);
         _dbPath = Path.Combine(dbDir, "usage.db");
-        _connectionString = $"Data Source={_dbPath}";
+        _connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = _dbPath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Cache = SqliteCacheMode.Shared,
+            Pooling = true,
+            DefaultTimeout = 15
+        }.ToString();
     }
 
     private static string ResolveDatabaseDirectory(string appData)

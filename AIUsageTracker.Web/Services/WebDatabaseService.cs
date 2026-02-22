@@ -9,6 +9,7 @@ namespace AIUsageTracker.Web.Services;
 public class WebDatabaseService
 {
     private readonly string _dbPath;
+    private readonly string _readConnectionString;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private static int _chartIndexesEnsured;
 
@@ -17,6 +18,14 @@ public class WebDatabaseService
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var dbDir = ResolveDatabaseDirectory(appData);
         _dbPath = Path.Combine(dbDir, "usage.db");
+        _readConnectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = _dbPath,
+            Mode = SqliteOpenMode.ReadWrite,
+            Cache = SqliteCacheMode.Shared,
+            Pooling = true,
+            DefaultTimeout = 10
+        }.ToString();
     }
 
     private static string ResolveDatabaseDirectory(string appData)
@@ -50,7 +59,7 @@ public class WebDatabaseService
         if (!IsDatabaseAvailable())
             return new List<ProviderUsage>();
 
-        using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
             const string activeSql = @"
@@ -104,7 +113,7 @@ public class WebDatabaseService
         if (!IsDatabaseAvailable())
             return new List<ProviderUsage>();
 
-        using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
             var sql = $@"
@@ -127,7 +136,7 @@ public class WebDatabaseService
         if (!IsDatabaseAvailable())
             return new List<ProviderUsage>();
 
-        using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
             var sql = $@"
@@ -151,7 +160,7 @@ public class WebDatabaseService
         if (!IsDatabaseAvailable())
             return new List<ProviderInfo>();
 
-        using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
             const string sql = @"
@@ -177,7 +186,7 @@ public class WebDatabaseService
         if (!IsDatabaseAvailable())
             return new List<ResetEvent>();
 
-        using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
             var sql = $@"
@@ -198,7 +207,7 @@ public class WebDatabaseService
         if (!IsDatabaseAvailable())
             return new UsageSummary();
 
-        using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
             const string sql = @"
@@ -220,7 +229,7 @@ public class WebDatabaseService
         if (!IsDatabaseAvailable())
             return new List<ChartDataPoint>();
 
-        using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        using var connection = CreateReadConnection();
         await connection.OpenAsync();
         await EnsureChartIndexesAsync(connection);
 
@@ -260,7 +269,7 @@ public class WebDatabaseService
         if (!IsDatabaseAvailable())
             return new List<ResetEvent>();
 
-        using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        using var connection = CreateReadConnection();
         await connection.OpenAsync();
         await EnsureChartIndexesAsync(connection);
 
@@ -311,7 +320,7 @@ public class WebDatabaseService
         await _semaphore.WaitAsync();
         try
         {
-            using var connection = new SqliteConnection($"Data Source={_dbPath}");
+            using var connection = CreateReadConnection();
             await connection.OpenAsync();
 
             var offset = (page - 1) * pageSize;
@@ -360,6 +369,11 @@ public class WebDatabaseService
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         await command.ExecuteNonQueryAsync();
+    }
+
+    private SqliteConnection CreateReadConnection()
+    {
+        return new SqliteConnection(_readConnectionString);
     }
 }
 
