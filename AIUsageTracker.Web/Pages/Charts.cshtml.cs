@@ -53,6 +53,28 @@ public class ChartsModel : PageModel
         return new JsonResult(events);
     }
 
+    public async Task<IActionResult> OnGetChartPayloadAsync(int hours = 24)
+    {
+        if (!IsDatabaseAvailable)
+        {
+            return new JsonResult(new
+            {
+                chartData = Array.Empty<ChartDataPoint>(),
+                resetEvents = Array.Empty<ResetEvent>()
+            });
+        }
+
+        var chartTask = _dbService.GetChartDataAsync(hours);
+        var resetTask = _dbService.GetRecentResetEventsAsync(hours);
+        await Task.WhenAll(chartTask, resetTask);
+
+        return new JsonResult(new
+        {
+            chartData = chartTask.Result,
+            resetEvents = resetTask.Result
+        });
+    }
+
     private Task<Dictionary<string, string>> GetProviderColorsAsync()
     {
         return _memoryCache.GetOrCreateAsync(ProviderColorsCacheKey, async entry =>
