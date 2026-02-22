@@ -79,7 +79,7 @@ For the complete screenshot set (all settings tabs, info dialog, tray states, an
 ## Installation
 
 ### Manual
-1. Download the latest `AIConsumptionTracker_Setup_v2.1.4.exe` from the [Releases](https://github.com/rygel/AIConsumptionTracker/releases) page.
+1. Download the latest `AIUsageTracker_Setup_v2.1.4.exe` from the [Releases](https://github.com/rygel/AIConsumptionTracker/releases) page.
 2. Run the installer.
 3. The app will launch and automatically scan for common API keys.
 

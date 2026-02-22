@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 
 if ([string]::IsNullOrWhiteSpace($AgentExecutablePath)) {
-    $defaultExe = Join-Path $projectRoot "AIConsumptionTracker.Agent\bin\Debug\net8.0-windows10.0.17763.0\AIConsumptionTracker.Agent.exe"
+    $defaultExe = Join-Path $projectRoot "AIConsumptionTracker.Agent\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Monitor.exe"
     if (-not (Test-Path -LiteralPath $defaultExe)) {
         throw "Agent executable not found at $defaultExe. Build the solution before running this check."
     }

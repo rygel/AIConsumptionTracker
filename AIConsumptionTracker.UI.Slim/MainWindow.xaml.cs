@@ -1742,6 +1742,10 @@ public partial class MainWindow : Window
             // Find Web executable
             var possiblePaths = new[]
             {
+                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIConsumptionTracker.Web", "bin", "Debug", "net8.0", "AIUsageTracker.Web.exe"),
+                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIConsumptionTracker.Web", "bin", "Release", "net8.0", "AIUsageTracker.Web.exe"),
+                Path.Combine(AppContext.BaseDirectory, "AIUsageTracker.Web.exe"),
+                // Legacy compatibility
                 Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIConsumptionTracker.Web", "bin", "Debug", "net8.0", "AIConsumptionTracker.Web.exe"),
                 Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIConsumptionTracker.Web", "bin", "Release", "net8.0", "AIConsumptionTracker.Web.exe"),
                 Path.Combine(AppContext.BaseDirectory, "AIConsumptionTracker.Web.exe"),

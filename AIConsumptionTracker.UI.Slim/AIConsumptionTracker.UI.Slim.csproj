@@ -10,7 +10,7 @@
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <ApplicationIcon></ApplicationIcon>
-    <AssemblyName>AIConsumptionTracker</AssemblyName>
+    <AssemblyName>AIUsageTracker</AssemblyName>
     <RootNamespace>AIConsumptionTracker.UI.Slim</RootNamespace>
   </PropertyGroup>
 

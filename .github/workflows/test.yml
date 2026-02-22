@@ -56,7 +56,7 @@ jobs:
       # Unlike Java/Maven, .NET analyzers don't run automatically during build
       # Developers can run locally: dotnet format . or dotnet format --verify-no-changes
       # TEMPORARILY DISABLED: Codebase has whitespace formatting issues to be fixed separately
-      # run: dotnet format AIConsumptionTracker.slnx --verify-no-changes --verbosity diagnostic
+      # run: dotnet format AIUsageTracker.slnx --verify-no-changes --verbosity diagnostic
       run: echo "Formatting check temporarily disabled - will be fixed in separate PR"
 
     - name: Upload built test binaries

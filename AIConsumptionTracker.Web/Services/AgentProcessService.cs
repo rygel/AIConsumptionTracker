@@ -104,6 +104,10 @@ public class AgentProcessService
         
         var paths = new[]
         {
+            Path.Combine(baseDir, "..", "..", "..", "..", "AIConsumptionTracker.Agent", "bin", "Debug", "net8.0", "AIUsageTracker.Monitor.exe"),
+            Path.Combine(baseDir, "..", "..", "..", "..", "AIConsumptionTracker.Agent", "bin", "Release", "net8.0", "AIUsageTracker.Monitor.exe"),
+            Path.Combine(baseDir, "AIUsageTracker.Monitor.exe"),
+            // Legacy compatibility
             Path.Combine(baseDir, "..", "..", "..", "..", "AIConsumptionTracker.Agent", "bin", "Debug", "net8.0", "AIConsumptionTracker.Agent.exe"),
             Path.Combine(baseDir, "..", "..", "..", "..", "AIConsumptionTracker.Agent", "bin", "Release", "net8.0", "AIConsumptionTracker.Agent.exe"),
             Path.Combine(baseDir, "AIConsumptionTracker.Agent.exe"),

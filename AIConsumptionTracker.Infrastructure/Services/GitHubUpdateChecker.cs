@@ -118,7 +118,7 @@ public class GitHubUpdateChecker : IUpdateCheckerService
             // Create temp directory for download
             var tempDir = Path.Combine(Path.GetTempPath(), "AIConsumptionTracker_Updates");
             Directory.CreateDirectory(tempDir);
-            var downloadPath = Path.Combine(tempDir, $"AIConsumptionTracker_Setup_{updateInfo.Version}.exe");
+            var downloadPath = Path.Combine(tempDir, $"AIUsageTracker_Setup_{updateInfo.Version}.exe");
 
             // Download the file
             _logger.LogInformation("Downloading from {Url} to {Path}", updateInfo.DownloadUrl, downloadPath);

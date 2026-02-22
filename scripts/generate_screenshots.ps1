@@ -1,4 +1,4 @@
-# Screenshot Capture Script for AI Consumption Tracker
+# Screenshot Capture Script for AI Usage Tracker
 # This script runs the application in headless mode and captures screenshots automatically
 
 param(
@@ -9,14 +9,14 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "AI Consumption Tracker Screenshot Capture" -ForegroundColor Cyan
+Write-Host "AI Usage Tracker Screenshot Capture" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Determine the correct paths
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $binPath = Join-Path $projectRoot "AIConsumptionTracker.UI.Slim\bin\$Configuration\net8.0-windows10.0.17763.0"
-$exePath = Join-Path $binPath "AIConsumptionTracker.exe"
+$exePath = Join-Path $binPath "AIUsageTracker.exe"
 
 # Check if executable exists before optional build
 if (-not (Test-Path $exePath) -and $SkipBuild) {
@@ -55,7 +55,7 @@ Write-Host "Privacy Mode: ENABLED (hardcoded for screenshots)" -ForegroundColor 
 Write-Host ""
 
 # Kill any existing instances
-$existingProcesses = Get-Process -Name "AIConsumptionTracker" -ErrorAction SilentlyContinue
+$existingProcesses = Get-Process -Name "AIUsageTracker" -ErrorAction SilentlyContinue
 if ($existingProcesses) {
     Write-Host "Stopping existing instances..." -ForegroundColor Yellow
     $existingProcesses | Stop-Process -Force

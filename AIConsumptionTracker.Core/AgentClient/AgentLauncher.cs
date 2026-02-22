@@ -101,9 +101,13 @@ public class AgentLauncher
             var possiblePaths = new[]
             {
                 // Development paths
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIConsumptionTracker.Agent", "bin", "Debug", "net8.0-windows10.0.17763.0", "AIConsumptionTracker.Agent.exe"),
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIConsumptionTracker.Agent", "bin", "Release", "net8.0-windows10.0.17763.0", "AIConsumptionTracker.Agent.exe"),
+                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIConsumptionTracker.Agent", "bin", "Debug", "net8.0-windows10.0.17763.0", "AIUsageTracker.Monitor.exe"),
+                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIConsumptionTracker.Agent", "bin", "Release", "net8.0-windows10.0.17763.0", "AIUsageTracker.Monitor.exe"),
                 // Installed paths
+                Path.Combine(AppContext.BaseDirectory, "AIUsageTracker.Monitor.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "AIConsumptionTracker", "AIUsageTracker.Monitor.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIConsumptionTracker", "AIUsageTracker.Monitor.exe"),
+                // Legacy compatibility
                 Path.Combine(AppContext.BaseDirectory, "AIConsumptionTracker.Agent.exe"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "AIConsumptionTracker", "AIConsumptionTracker.Agent.exe"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIConsumptionTracker", "AIConsumptionTracker.Agent.exe"),
@@ -180,7 +184,9 @@ public class AgentLauncher
             }
             
             // Fallback: try to find and kill by process name
-            var processes = Process.GetProcessesByName("AIConsumptionTracker.Agent");
+            var processes = Process.GetProcessesByName("AIUsageTracker.Monitor")
+                .Concat(Process.GetProcessesByName("AIConsumptionTracker.Agent"))
+                .ToArray();
             var stoppedAny = false;
             foreach (var process in processes)
             {

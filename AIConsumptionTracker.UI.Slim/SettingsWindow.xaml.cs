@@ -1344,7 +1344,8 @@ public partial class SettingsWindow : Window
         try
         {
             // Kill any running agent process
-            foreach (var process in System.Diagnostics.Process.GetProcessesByName("AIConsumptionTracker.Agent"))
+            foreach (var process in System.Diagnostics.Process.GetProcessesByName("AIUsageTracker.Monitor")
+                .Concat(System.Diagnostics.Process.GetProcessesByName("AIConsumptionTracker.Agent")))
             {
                 try { process.Kill(); } catch { }
             }

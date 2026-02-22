@@ -26,7 +26,7 @@ This document provides essential information for agentic coding assistants worki
 ### Building
 ```bash
 # Build entire solution
-dotnet build AIConsumptionTracker.slnx --configuration Debug
+dotnet build AIUsageTracker.slnx --configuration Debug
 
 # Build specific project
 dotnet build AIConsumptionTracker.UI.Slim/AIConsumptionTracker.UI.Slim.csproj
@@ -52,7 +52,7 @@ dotnet test --filter "FullyQualifiedName~ProviderManagerTests"
 
 ### Running the Agent
 ```bash
-# Run the Agent service
+# Run the Monitor service
 dotnet run --project AIConsumptionTracker.Agent
 
 # Agent runs on port 5000 by default (auto-discovers available port 5000-5010)
@@ -81,7 +81,7 @@ dotnet run --project AIConsumptionTracker.UI.Slim
 To generate updated screenshots for documentation (headless and in Privacy Mode):
 ```bash
 # Run from the UI bin directory or project root
-AIConsumptionTracker.exe --test --screenshot
+AIUsageTracker.exe --test --screenshot
 ```
 > [!NOTE]
 > The `--test` flag enables explicit UI initialization required for headless rendering. This logic is gated to avoid performance overhead for normal users.

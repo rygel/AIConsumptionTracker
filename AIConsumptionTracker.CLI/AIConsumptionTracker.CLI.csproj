@@ -16,6 +16,7 @@
     <Version>$(TrackerVersion)</Version>
     <AssemblyVersion>$(TrackerAssemblyVersion)</AssemblyVersion>
     <FileVersion>$(TrackerAssemblyVersion)</FileVersion>
+    <AssemblyName>AIUsageTracker.CLI</AssemblyName>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
