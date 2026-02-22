@@ -403,7 +403,6 @@ public partial class MainWindow : Window
                     RequestsAvailable = 1000,
                     Description = "64.0% Remaining",
                     IsAvailable = true,
-                    AccountName = "primary-workspace",
                     AuthSource = "local app",
                     Details = new List<ProviderUsageDetail>
                     {
@@ -425,7 +424,6 @@ public partial class MainWindow : Window
                     RequestsAvailable = 400,
                     Description = "72.5% Remaining",
                     IsAvailable = true,
-                    AccountName = "dev@example.com",
                     AuthSource = "oauth"
                 },
                 new()
@@ -440,7 +438,6 @@ public partial class MainWindow : Window
                     RequestsAvailable = 250,
                     Description = "82.0% Remaining",
                     IsAvailable = true,
-                    AccountName = "coding-plan",
                     AuthSource = "api key",
                     NextResetTime = new DateTime(2026, 2, 5, 9, 0, 0, DateTimeKind.Local)
                 },
@@ -456,7 +453,6 @@ public partial class MainWindow : Window
                     RequestsAvailable = 500,
                     Description = "58.0% Remaining",
                     IsAvailable = true,
-                    AccountName = "workspace-alpha",
                     AuthSource = "local credentials",
                     NextResetTime = new DateTime(2026, 2, 3, 0, 0, 0, DateTimeKind.Local)
                 },
@@ -472,7 +468,6 @@ public partial class MainWindow : Window
                     RequestsAvailable = 200,
                     Description = "91.0% Remaining",
                     IsAvailable = true,
-                    AccountName = "team-subscription",
                     AuthSource = "api key",
                     NextResetTime = new DateTime(2026, 2, 2, 8, 0, 0, DateTimeKind.Local)
                 },
