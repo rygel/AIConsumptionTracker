@@ -1,6 +1,8 @@
 using AIUsageTracker.Web.Services;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.FileProviders;
 using Serilog;
+using System.IO.Compression;
 
 var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 var logDir = Path.Combine(appData, "AIUsageTracker", "Web", "logs");
@@ -25,6 +27,28 @@ try
 
     builder.Services.AddRazorPages();
     builder.Services.AddMemoryCache();
+    builder.Services.AddResponseCompression(options =>
+    {
+        options.EnableForHttps = true;
+        options.Providers.Add<BrotliCompressionProvider>();
+        options.Providers.Add<GzipCompressionProvider>();
+        options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[]
+        {
+            "application/javascript",
+            "application/json",
+            "text/css",
+            "text/html",
+            "image/svg+xml"
+        });
+    });
+    builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+    {
+        options.Level = CompressionLevel.Fastest;
+    });
+    builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+    {
+        options.Level = CompressionLevel.Fastest;
+    });
     builder.Services.AddSingleton<WebDatabaseService>();
     builder.Services.AddSingleton<AgentProcessService>();
     builder.Services.AddSingleton<AIUsageTracker.Core.Interfaces.IConfigLoader, AIUsageTracker.Infrastructure.Configuration.JsonConfigLoader>();
@@ -64,6 +88,7 @@ try
     });
 
     app.UseHttpsRedirection();
+    app.UseResponseCompression();
 
     var webRootCandidates = new[]
     {
@@ -76,7 +101,21 @@ try
     {
         app.UseStaticFiles(new StaticFileOptions
         {
-            FileProvider = new PhysicalFileProvider(webRootPath)
+            FileProvider = new PhysicalFileProvider(webRootPath),
+            OnPrepareResponse = context =>
+            {
+                var extension = Path.GetExtension(context.File.Name);
+                if (string.Equals(extension, ".css", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(extension, ".js", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(extension, ".png", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(extension, ".jpg", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(extension, ".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(extension, ".svg", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(extension, ".ico", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Context.Response.Headers.CacheControl = "public,max-age=604800";
+                }
+            }
         });
         Log.Information("Serving static assets from: {WebRootPath}", webRootPath);
     }

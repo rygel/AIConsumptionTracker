@@ -66,8 +66,13 @@ public class IndexModel : PageModel
 
         if (IsDatabaseAvailable)
         {
-            LatestUsage = await _dbService.GetLatestUsageAsync(includeInactive: ShowInactiveProviders);
-            Summary = await _dbService.GetUsageSummaryAsync();
+            var latestUsageTask = _dbService.GetLatestUsageAsync(includeInactive: ShowInactiveProviders);
+            var summaryTask = _dbService.GetUsageSummaryAsync();
+
+            await Task.WhenAll(latestUsageTask, summaryTask);
+
+            LatestUsage = latestUsageTask.Result;
+            Summary = summaryTask.Result;
         }
     }
 }
