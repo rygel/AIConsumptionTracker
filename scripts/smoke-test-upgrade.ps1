@@ -60,8 +60,13 @@ try {
         throw "Old installer exited with code $($oldInstall.ExitCode)"
     }
 
-    if (-not (Test-Path -LiteralPath (Join-Path $installDir "AIUsageTracker.exe"))) {
-        throw "Old installation did not produce AIUsageTracker.exe"
+    $legacyOrCurrentUiExe = @(
+        Join-Path $installDir "AIUsageTracker.exe"
+        Join-Path $installDir "AIConsumptionTracker.exe"
+    ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+
+    if (-not $legacyOrCurrentUiExe) {
+        throw "Old installation did not produce a recognized UI executable (AIUsageTracker.exe or AIConsumptionTracker.exe)."
     }
 
     New-Item -Path $trackerConfigDir -ItemType Directory -Force | Out-Null
