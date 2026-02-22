@@ -53,7 +53,7 @@ class Program
         ");
 
         // Helper
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
         
         void AddProvider(string id, string name, string plan, string auth, bool active)
         {
@@ -65,8 +65,8 @@ class Program
 
         void AddHistory(string id, double used, double avail, double perc, bool isAvail, string msg, int? nextResetHours, int hoursAgo, string detailsJson = null)
         {
-            var fetched = now.AddHours(-hoursAgo).ToString("O");
-            string nextReset = nextResetHours.HasValue ? now.AddHours(nextResetHours.Value).ToString("O") : null;
+            var fetched = now.AddHours(-hoursAgo).ToString("yyyy-MM-dd HH:mm:ss");
+            string nextReset = nextResetHours.HasValue ? now.AddHours(nextResetHours.Value).ToString("yyyy-MM-dd HH:mm:ss") : null;
 
             connection.Execute(@"
                 INSERT INTO provider_history (provider_id, requests_used, requests_available, requests_percentage, is_available, status_message, next_reset_time, fetched_at, details_json) 

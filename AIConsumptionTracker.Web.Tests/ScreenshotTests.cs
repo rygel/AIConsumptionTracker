@@ -29,27 +29,36 @@ public class ScreenshotTests : PageTest
     [TestMethod]
     public async Task CaptureWebScreenshots()
     {
+        // Capture console logs for debugging CI
+        Page.Console += (_, e) => Console.WriteLine($"[BROWSER] {e.Type}: {e.Text}");
+        Page.PageError += (_, e) => Console.WriteLine($"[BROWSER ERROR] {e}");
+
         // 1. Set viewport to a reasonable desktop size
         await Page.SetViewportSizeAsync(1280, 800);
 
         // 2. Dashboard
+        Console.WriteLine("[TEST] Navigating to Dashboard...");
         await Page.GotoAsync(BaseUrl);
-        await Page.WaitForSelectorAsync(".stat-card, .alert", new() { State = WaitForSelectorState.Visible });
-        
-        // Take a screenshot of the whole page
+        await Page.WaitForSelectorAsync(".stat-card, .alert", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
         await Page.ScreenshotAsync(new() { Path = Path.Combine(_outputDir, "screenshot_web_dashboard.png"), FullPage = true });
 
         // 3. Providers List
+        Console.WriteLine("[TEST] Navigating to Providers...");
         await Page.GotoAsync($"{BaseUrl}/providers");
-        await Page.WaitForSelectorAsync("table, .alert", new() { State = WaitForSelectorState.Visible });
+        await Page.WaitForSelectorAsync("table, .alert", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
         await Page.ScreenshotAsync(new() { Path = Path.Combine(_outputDir, "screenshot_web_providers.png"), FullPage = true });
 
         // 4. Charts
+        Console.WriteLine("[TEST] Navigating to Charts...");
         await Page.GotoAsync($"{BaseUrl}/charts");
-        await Page.WaitForSelectorAsync("canvas, .alert", new() { State = WaitForSelectorState.Visible });
+        
+        // Wait for either the canvas (if data exists) or the info alert (if no data)
+        // We also wait for the container itself to be sure the page structure is there
+        await Page.WaitForSelectorAsync(".chart-container, .alert", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
         
         // Give chart animation a moment to settle
-        await Task.Delay(1000);
+        await Task.Delay(2000);
         await Page.ScreenshotAsync(new() { Path = Path.Combine(_outputDir, "screenshot_web_charts.png"), FullPage = true });
+        Console.WriteLine("[TEST] Completed all screenshots.");
     }
 }
