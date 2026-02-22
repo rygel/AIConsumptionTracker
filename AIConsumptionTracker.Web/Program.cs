@@ -1,4 +1,5 @@
 using AIConsumptionTracker.Web.Services;
+using Microsoft.Extensions.FileProviders;
 using Serilog;
 
 var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -62,7 +63,28 @@ try
     });
 
     app.UseHttpsRedirection();
-    app.UseStaticFiles();
+
+    var webRootCandidates = new[]
+    {
+        Path.Combine(app.Environment.ContentRootPath, "wwwroot"),
+        Path.Combine(AppContext.BaseDirectory, "wwwroot")
+    };
+    var webRootPath = webRootCandidates.FirstOrDefault(Directory.Exists);
+
+    if (!string.IsNullOrWhiteSpace(webRootPath))
+    {
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new PhysicalFileProvider(webRootPath)
+        });
+        Log.Information("Serving static assets from: {WebRootPath}", webRootPath);
+    }
+    else
+    {
+        Log.Warning("No wwwroot directory found; static assets may be unavailable.");
+        app.UseStaticFiles();
+    }
+
     app.UseRouting();
 
     app.MapGet("/api/agent/status", async (AgentProcessService agentService) =>

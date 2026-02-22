@@ -1,3 +1,10 @@
+@{
+    var version = typeof(AIConsumptionTracker.Web.Services.WebDatabaseService)
+        .Assembly
+        .GetName()
+        .Version?
+        .ToString(3) ?? "dev";
+}
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -63,7 +70,7 @@
                         <option value="midnight">Midnight</option>
                     </select>
                 </div>
-                <div class="sidebar-footer-text">&copy; @DateTime.Now.Year</div>
+                <div class="sidebar-footer-text">&copy; @DateTime.Now.Year - v@version</div>
             </div>
         </aside>
 
