@@ -1,6 +1,9 @@
 using Dapper;
 using Microsoft.Data.Sqlite;
 using AIUsageTracker.Core.Models;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 
@@ -10,11 +13,15 @@ public class WebDatabaseService
 {
     private readonly string _dbPath;
     private readonly string _readConnectionString;
+    private readonly IMemoryCache _cache;
+    private readonly ILogger<WebDatabaseService> _logger;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private static int _chartIndexesEnsured;
 
-    public WebDatabaseService()
+    public WebDatabaseService(IMemoryCache cache, ILogger<WebDatabaseService> logger)
     {
+        _cache = cache;
+        _logger = logger;
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var dbDir = ResolveDatabaseDirectory(appData);
         _dbPath = Path.Combine(dbDir, "usage.db");
@@ -58,6 +65,16 @@ public class WebDatabaseService
     {
         if (!IsDatabaseAvailable())
             return new List<ProviderUsage>();
+
+        var cacheKey = $"db:latest-usage:{includeInactive}";
+        if (_cache.TryGetValue<List<ProviderUsage>>(cacheKey, out var cached) && cached != null)
+        {
+            _logger.LogDebug("WebDB cache hit for GetLatestUsageAsync(includeInactive={IncludeInactive}) count={Count}",
+                includeInactive, cached.Count);
+            return cached;
+        }
+
+        var sw = Stopwatch.StartNew();
 
         using var connection = CreateReadConnection();
         await connection.OpenAsync();
@@ -105,7 +122,11 @@ public class WebDatabaseService
             }
         }
 
-        return results.ToList();
+        var list = results.ToList();
+        _cache.Set(cacheKey, list, TimeSpan.FromSeconds(8));
+        _logger.LogInformation("WebDB GetLatestUsageAsync(includeInactive={IncludeInactive}) rows={Count} elapsedMs={ElapsedMs}",
+            includeInactive, list.Count, sw.ElapsedMilliseconds);
+        return list;
     }
 
     public async Task<List<ProviderUsage>> GetHistoryAsync(int limit = 100)
@@ -207,6 +228,15 @@ public class WebDatabaseService
         if (!IsDatabaseAvailable())
             return new UsageSummary();
 
+        const string cacheKey = "db:usage-summary";
+        if (_cache.TryGetValue<UsageSummary>(cacheKey, out var cached) && cached != null)
+        {
+            _logger.LogDebug("WebDB cache hit for GetUsageSummaryAsync");
+            return cached;
+        }
+
+        var sw = Stopwatch.StartNew();
+
         using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
@@ -220,14 +250,19 @@ public class WebDatabaseService
                     SELECT MAX(id) FROM provider_history GROUP BY provider_id
                 )";
 
-        var result = await connection.QuerySingleOrDefaultAsync<UsageSummary>(sql);
-        return result ?? new UsageSummary();
+        var result = await connection.QuerySingleOrDefaultAsync<UsageSummary>(sql) ?? new UsageSummary();
+        _cache.Set(cacheKey, result, TimeSpan.FromSeconds(12));
+        _logger.LogInformation("WebDB GetUsageSummaryAsync providerCount={ProviderCount} elapsedMs={ElapsedMs}",
+            result.ProviderCount, sw.ElapsedMilliseconds);
+        return result;
     }
 
     public async Task<List<ChartDataPoint>> GetChartDataAsync(int hours = 24)
     {
         if (!IsDatabaseAvailable())
             return new List<ChartDataPoint>();
+
+        var sw = Stopwatch.StartNew();
 
         using var connection = CreateReadConnection();
         await connection.OpenAsync();
@@ -261,13 +296,26 @@ public class WebDatabaseService
             CutoffUtc = cutoffUtc,
             BucketSeconds = bucketSeconds
         });
-        return results.ToList();
+        var list = results.ToList();
+        _logger.LogInformation("WebDB GetChartDataAsync hours={Hours} bucketMinutes={BucketMinutes} rows={Count} elapsedMs={ElapsedMs}",
+            hours, bucketMinutes, list.Count, sw.ElapsedMilliseconds);
+        return list;
     }
 
     public async Task<List<ResetEvent>> GetRecentResetEventsAsync(int hours = 24)
     {
         if (!IsDatabaseAvailable())
             return new List<ResetEvent>();
+
+        var cacheKey = $"db:recent-reset-events:{hours}";
+        if (_cache.TryGetValue<List<ResetEvent>>(cacheKey, out var cached) && cached != null)
+        {
+            _logger.LogDebug("WebDB cache hit for GetRecentResetEventsAsync(hours={Hours}) count={Count}",
+                hours, cached.Count);
+            return cached;
+        }
+
+        var sw = Stopwatch.StartNew();
 
         using var connection = CreateReadConnection();
         await connection.OpenAsync();
@@ -288,8 +336,11 @@ public class WebDatabaseService
             WHERE timestamp >= @CutoffUtc
             ORDER BY timestamp ASC";
 
-        var results = await connection.QueryAsync<ResetEvent>(sql, new { CutoffUtc = cutoffUtc });
-        return results.ToList();
+        var results = (await connection.QueryAsync<ResetEvent>(sql, new { CutoffUtc = cutoffUtc })).ToList();
+        _cache.Set(cacheKey, results, TimeSpan.FromSeconds(15));
+        _logger.LogInformation("WebDB GetRecentResetEventsAsync hours={Hours} rows={Count} elapsedMs={ElapsedMs}",
+            hours, results.Count, sw.ElapsedMilliseconds);
+        return results;
     }
 
     public async Task<(List<Dictionary<string, object?>> rows, int totalCount)> GetProvidersRawAsync(int page = 1, int pageSize = 100)

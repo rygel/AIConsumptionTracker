@@ -40,8 +40,8 @@ else
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         const chartData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ChartData ?? new List<AIUsageTracker.Web.Services.ChartDataPoint>()));
-        const resetEvents = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ResetEvents ?? new List<AIUsageTracker.Web.Services.ResetEvent>()));
         const providerColors = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ProviderColors ?? new Dictionary<string, string>()));
+        let resetEvents = [];
         
         function initChart(hours) {
             const ctx = document.getElementById('usageChart');
@@ -189,10 +189,26 @@ else
         document.getElementById('timeRange')?.addEventListener('change', e => {
             const hours = parseInt(e.target.value);
             initChart(hours);
+            loadResetEvents(hours);
         });
+
+        async function loadResetEvents(hours) {
+            try {
+                const response = await fetch(`/charts?handler=ResetEvents&hours=${hours}`, { cache: 'no-store' });
+                if (!response.ok) {
+                    return;
+                }
+
+                resetEvents = await response.json();
+                initChart(hours);
+            } catch {
+                // Keep chart rendered with usage series even if reset events fail to load.
+            }
+        }
         
         // Initialize with default 24 hours
         initChart(24);
+        loadResetEvents(24);
     </script>
 }
 

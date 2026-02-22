@@ -191,6 +191,38 @@ jobs:
         
         # Give the server a few extra seconds to fully initialize razor pages and database connections
         Start-Sleep -Seconds 5
+
+        function Measure-EndpointLatency {
+            param(
+                [string]$Url,
+                [int]$Attempts = 3
+            )
+
+            $durations = @()
+            for ($i = 0; $i -lt $Attempts; $i++) {
+                $sw = [System.Diagnostics.Stopwatch]::StartNew()
+                $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 20 -ErrorAction Stop
+                $sw.Stop()
+
+                if ($resp.StatusCode -ne 200) {
+                    throw "Unexpected status $($resp.StatusCode) for $Url"
+                }
+
+                $durations += $sw.ElapsedMilliseconds
+                Start-Sleep -Milliseconds 200
+            }
+
+            $avg = [math]::Round((($durations | Measure-Object -Average).Average), 2)
+            Write-Host "Perf smoke: $Url avg=${avg}ms samples=$($durations -join ',')"
+            return [double]$avg
+        }
+
+        # CI perf smoke guardrail (kept generous to avoid flaky failures on hosted runners)
+        $dashboardAvgMs = Measure-EndpointLatency -Url "http://127.0.0.1:5100/"
+        $chartsAvgMs = Measure-EndpointLatency -Url "http://127.0.0.1:5100/charts"
+        if ($dashboardAvgMs -gt 3000 -or $chartsAvgMs -gt 3500) {
+            throw "Web perf smoke failed: dashboard=${dashboardAvgMs}ms charts=${chartsAvgMs}ms"
+        }
         
         try {
             dotnet test AIUsageTracker.Web.Tests\AIUsageTracker.Web.Tests.csproj --configuration Debug

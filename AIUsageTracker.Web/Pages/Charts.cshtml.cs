@@ -1,4 +1,5 @@
 using AIUsageTracker.Web.Services;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Caching.Memory;
@@ -24,7 +25,6 @@ public class ChartsModel : PageModel
     }
 
     public List<ChartDataPoint>? ChartData { get; set; }
-    public List<ResetEvent>? ResetEvents { get; set; }
     public Dictionary<string, string> ProviderColors { get; set; } = new();
     public bool IsDatabaseAvailable => _dbService.IsDatabaseAvailable();
 
@@ -33,15 +33,24 @@ public class ChartsModel : PageModel
         if (IsDatabaseAvailable)
         {
             var chartTask = _dbService.GetChartDataAsync(hours);
-            var resetTask = _dbService.GetRecentResetEventsAsync(hours);
             var colorTask = GetProviderColorsAsync();
 
-            await Task.WhenAll(chartTask, resetTask, colorTask);
+            await Task.WhenAll(chartTask, colorTask);
 
             ChartData = chartTask.Result;
-            ResetEvents = resetTask.Result;
             ProviderColors = colorTask.Result;
         }
+    }
+
+    public async Task<IActionResult> OnGetResetEventsAsync(int hours = 24)
+    {
+        if (!IsDatabaseAvailable)
+        {
+            return new JsonResult(Array.Empty<ResetEvent>());
+        }
+
+        var events = await _dbService.GetRecentResetEventsAsync(hours);
+        return new JsonResult(events);
     }
 
     private Task<Dictionary<string, string>> GetProviderColorsAsync()
