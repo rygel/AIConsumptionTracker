@@ -8,12 +8,12 @@ AI Consumption Tracker is a .NET 8.0 WPF desktop application designed to monitor
 
 ```
 AIConsumptionTracker/
-├── AIConsumptionTracker.Core/          # Domain layer
-├── AIConsumptionTracker.Infrastructure/ # Infrastructure layer
-├── AIConsumptionTracker.UI.Slim/       # Presentation layer (WPF)
-├── AIConsumptionTracker.CLI/           # Console interface
-├── AIConsumptionTracker.Tests/         # Unit tests
-└── AIConsumptionTracker.Web.Tests/     # Web tests
+├── AIUsageTracker.Core/          # Domain layer
+├── AIUsageTracker.Infrastructure/ # Infrastructure layer
+├── AIUsageTracker.UI.Slim/       # Presentation layer (WPF)
+├── AIUsageTracker.CLI/           # Console interface
+├── AIUsageTracker.Tests/         # Unit tests
+└── AIUsageTracker.Web.Tests/     # Web tests
 ```
 
 ## Architectural Patterns
@@ -239,7 +239,7 @@ While not strict MVVM, the architecture separates concerns:
 
 3. Add logo to `Assets/ProviderLogos/`
 
-4. Add tests in `AIConsumptionTracker.Tests/`
+4. Add tests in `AIUsageTracker.Tests/`
 
 ### Adding a New Configuration Source
 
@@ -337,3 +337,4 @@ The architecture supports:
 - Web dashboard
 - Mobile companion app
 - Additional notification channels
+

@@ -83,7 +83,7 @@ SolidCompression=yes
 CloseApplications=yes
 DisableDirPage=auto
 DirExistsWarning=no
-SetupIconFile=..\AIConsumptionTracker.UI.Slim\Assets\app_icon.ico
+SetupIconFile=..\AIUsageTracker.UI.Slim\Assets\app_icon.ico
 UninstallDisplayIcon={app}\app_icon.ico
 PrivilegesRequired=lowest
 
@@ -115,7 +115,7 @@ Name: "desktopicontracker"; Description: "Create AI Usage Tracker UI desktop ico
 Name: "startupmonitor"; Description: "Run AI Usage Tracker Monitor at Windows Startup"; GroupDescription: "Additional options:"; Flags: unchecked; Components: apps\monitor
 
 [Files]
-Source: "..\AIConsumptionTracker.UI.Slim\Assets\app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\AIUsageTracker.UI.Slim\Assets\app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourcePath}\README.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#SourcePath}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#SourcePath}\Tracker\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: apps\tracker
@@ -134,4 +134,5 @@ Name: "{userstartup}\AI Usage Tracker Monitor"; Filename: "{app}\AIUsageTracker.
 
 [Run]
 Filename: "{app}\AIUsageTracker.exe"; Description: "{cm:LaunchProgram,AI Usage Tracker UI}"; Flags: nowait postinstall skipifsilent; Components: apps\tracker; Check: ShouldRunApplication
+
 

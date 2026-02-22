@@ -62,11 +62,11 @@
 
 ## Key Files Touched Recently
 
-- `AIConsumptionTracker.UI.Slim/MainWindow.xaml.cs`
-- `AIConsumptionTracker.UI.Slim/SettingsWindow.xaml.cs`
-- `AIConsumptionTracker.Web/Pages/Index.cshtml`
-- `AIConsumptionTracker.Tests/TestData/Providers/antigravity_user_status.snapshot.json`
-- `AIConsumptionTracker.Tests/Infrastructure/Providers/AntigravityProviderTests.cs`
+- `AIUsageTracker.UI.Slim/MainWindow.xaml.cs`
+- `AIUsageTracker.UI.Slim/SettingsWindow.xaml.cs`
+- `AIUsageTracker.Web/Pages/Index.cshtml`
+- `AIUsageTracker.Tests/TestData/Providers/antigravity_user_status.snapshot.json`
+- `AIUsageTracker.Tests/Infrastructure/Providers/AntigravityProviderTests.cs`
 - `docs/test_fixture_sync.md`
 - `DESIGN.md`
 - `README.md`
@@ -77,3 +77,4 @@
 ## Known Workspace Note
 
 - Untracked file `nul` exists at repo root. Avoid root-wide search commands that touch it.
+

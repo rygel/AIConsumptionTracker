@@ -355,9 +355,9 @@ Provider classification drives Slim/Desktop grouping and Antigravity sub-provide
 
 Source-of-truth implementation points:
 
-- `AIConsumptionTracker.Core/Models/ProviderPlanClassifier.cs`
-- `AIConsumptionTracker.Infrastructure/Configuration/TokenDiscoveryService.cs` (default config classification)
-- `AIConsumptionTracker.Agent/Services/UsageDatabase.cs` (`/api/usage` response normalization)
+- `AIUsageTracker.Core/Models/ProviderPlanClassifier.cs`
+- `AIUsageTracker.Infrastructure/Configuration/TokenDiscoveryService.cs` (default config classification)
+- `AIUsageTracker.Monitor/Services/UsageDatabase.cs` (`/api/usage` response normalization)
 
 When classification changes for any provider, all three locations must be updated in the same PR.
 
@@ -1007,7 +1007,7 @@ if (activeConfigs.Count > 0)
 
 The Agent HTTP API contract is defined in:
 
-- `AIConsumptionTracker.Agent/openapi.yaml`
+- `AIUsageTracker.Monitor/openapi.yaml`
 
 This OpenAPI document is the contract between the Agent and all consuming applications (Slim UI, Desktop UI, Web UI, and CLI).
 
@@ -1019,7 +1019,7 @@ This OpenAPI document is the contract between the Agent and all consuming applic
 
 ### Contract Maintenance Rule (MANDATORY)
 
-Whenever any Agent API change is made, the same PR **must** update `AIConsumptionTracker.Agent/openapi.yaml`, including:
+Whenever any Agent API change is made, the same PR **must** update `AIUsageTracker.Monitor/openapi.yaml`, including:
 
 1. Endpoint paths and HTTP methods
 2. Request parameters and request bodies
@@ -1238,3 +1238,5 @@ Before merging any database-related code, verify:
 3. **NEVER serialize** full `ProviderConfig` objects to `config_json` - always exclude sensitive fields
 4. **ALWAYS ask** the developer before adding any column that could contain sensitive data
 5. **ALWAYS** create a safe anonymous object when serializing config for database storage
+
+

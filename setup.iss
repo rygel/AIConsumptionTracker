@@ -5,7 +5,7 @@
 #define MyAppVersion "1.7.3"
 #define MyAppPublisher "Alexander Brandt"
 #define MyAppURL "https://github.com/Starttoaster/opencode-tracker"
-#define MyAppExeName "AIConsumptionTracker.UI.exe"
+#define MyAppExeName "AIUsageTracker.UI.exe"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -29,7 +29,7 @@ OutputBaseFilename=AIConsumptionTracker_Setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile=AIConsumptionTracker.UI\Assets\app_icon.ico
+SetupIconFile=AIUsageTracker.UI\Assets\app_icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]
@@ -49,3 +49,4 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+

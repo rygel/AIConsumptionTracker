@@ -1,6 +1,6 @@
 param(
     [string]$AgentExecutablePath = "",
-    [string]$OpenApiPath = "AIConsumptionTracker.Agent\openapi.yaml",
+    [string]$OpenApiPath = "AIUsageTracker.Monitor\openapi.yaml",
     [int]$StartupTimeoutSeconds = 45
 )
 
@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 
 if ([string]::IsNullOrWhiteSpace($AgentExecutablePath)) {
-    $defaultExe = Join-Path $projectRoot "AIConsumptionTracker.Agent\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Monitor.exe"
+    $defaultExe = Join-Path $projectRoot "AIUsageTracker.Monitor\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Monitor.exe"
     if (-not (Test-Path -LiteralPath $defaultExe)) {
         throw "Agent executable not found at $defaultExe. Build the solution before running this check."
     }
@@ -161,3 +161,5 @@ finally {
         Stop-Process -Id $agentProcess.Id
     }
 }
+
+

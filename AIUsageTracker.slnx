@@ -1,13 +1,15 @@
 <Solution>
-  <Project Path="AIConsumptionTracker.Agent.Tests/AIConsumptionTracker.Agent.Tests.csproj" />
-  <Project Path="AIConsumptionTracker.Agent/AIConsumptionTracker.Agent.csproj" />
-  <Project Path="AIConsumptionTracker.CLI/AIConsumptionTracker.CLI.csproj" />
-  <Project Path="AIConsumptionTracker.Core/AIConsumptionTracker.Core.csproj" />
-  <Project Path="AIConsumptionTracker.Infrastructure/AIConsumptionTracker.Infrastructure.csproj" />
-  <Project Path="AIConsumptionTracker.Tests/AIConsumptionTracker.Tests.csproj" />
-  <Project Path="AIConsumptionTracker.UI.Slim/AIConsumptionTracker.UI.Slim.csproj" />
-  <Project Path="AIConsumptionTracker.Web.Tests/AIConsumptionTracker.Web.Tests.csproj" />
-  <Project Path="AIConsumptionTracker.Web/AIConsumptionTracker.Web.csproj" />
+  <Project Path="AIUsageTracker.Monitor.Tests/AIUsageTracker.Monitor.Tests.csproj" />
+  <Project Path="AIUsageTracker.Monitor/AIUsageTracker.Monitor.csproj" />
+  <Project Path="AIUsageTracker.CLI/AIUsageTracker.CLI.csproj" />
+  <Project Path="AIUsageTracker.Core/AIUsageTracker.Core.csproj" />
+  <Project Path="AIUsageTracker.Infrastructure/AIUsageTracker.Infrastructure.csproj" />
+  <Project Path="AIUsageTracker.Tests/AIUsageTracker.Tests.csproj" />
+  <Project Path="AIUsageTracker.UI.Slim/AIUsageTracker.UI.Slim.csproj" />
+  <Project Path="AIUsageTracker.Web.Tests/AIUsageTracker.Web.Tests.csproj" />
+  <Project Path="AIUsageTracker.Web/AIUsageTracker.Web.csproj" />
 </Solution>
+
+
 
 

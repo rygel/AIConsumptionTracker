@@ -8,7 +8,7 @@ param(
 
 $isWinPlatform = $Runtime.StartsWith("win-")
 $projectName = if ($isWinPlatform) { "AIUsageTracker" } else { "AIUsageTracker.CLI" }
-$projectPath = if ($isWinPlatform) { ".\AIConsumptionTracker.UI.Slim\AIConsumptionTracker.UI.Slim.csproj" } else { ".\AIConsumptionTracker.CLI\AIConsumptionTracker.CLI.csproj" }
+$projectPath = if ($isWinPlatform) { ".\AIUsageTracker.UI.Slim\AIUsageTracker.UI.Slim.csproj" } else { ".\AIUsageTracker.CLI\AIUsageTracker.CLI.csproj" }
 $publishDir = ".\dist\publish-$Runtime"
 
 # If Version passed, synchronize it across all files
@@ -95,10 +95,10 @@ New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
 
 if ($isWinPlatform) {
     $windowsProjects = @(
-        @{ Name = "Tracker"; ProjectPath = ".\AIConsumptionTracker.UI.Slim\AIConsumptionTracker.UI.Slim.csproj"; ExeName = "AIUsageTracker.exe" },
-        @{ Name = "Monitor"; ProjectPath = ".\AIConsumptionTracker.Agent\AIConsumptionTracker.Agent.csproj"; ExeName = "AIUsageTracker.Monitor.exe" },
-        @{ Name = "Web"; ProjectPath = ".\AIConsumptionTracker.Web\AIConsumptionTracker.Web.csproj"; ExeName = "AIUsageTracker.Web.exe" },
-        @{ Name = "CLI"; ProjectPath = ".\AIConsumptionTracker.CLI\AIConsumptionTracker.CLI.csproj"; ExeName = "AIUsageTracker.CLI.exe" }
+        @{ Name = "Tracker"; ProjectPath = ".\AIUsageTracker.UI.Slim\AIUsageTracker.UI.Slim.csproj"; ExeName = "AIUsageTracker.exe" },
+        @{ Name = "Monitor"; ProjectPath = ".\AIUsageTracker.Monitor\AIUsageTracker.Monitor.csproj"; ExeName = "AIUsageTracker.Monitor.exe" },
+        @{ Name = "Web"; ProjectPath = ".\AIUsageTracker.Web\AIUsageTracker.Web.csproj"; ExeName = "AIUsageTracker.Web.exe" },
+        @{ Name = "CLI"; ProjectPath = ".\AIUsageTracker.CLI\AIUsageTracker.CLI.csproj"; ExeName = "AIUsageTracker.CLI.exe" }
     )
 
     foreach ($app in $windowsProjects) {
@@ -211,4 +211,6 @@ Write-Host "--------------------------------------------------" -ForegroundColor
 Write-Host "Distribution ready at: $zipPath" -ForegroundColor Green
 Write-Host "Size: $((Get-Item $zipPath).Length / 1MB) MB" -ForegroundColor Gray
 Write-Host "--------------------------------------------------" -ForegroundColor Yellow
+
+
 

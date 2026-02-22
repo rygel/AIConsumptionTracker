@@ -15,7 +15,7 @@ Write-Host ""
 
 # Determine the correct paths
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$binPath = Join-Path $projectRoot "AIConsumptionTracker.UI.Slim\bin\$Configuration\net8.0-windows10.0.17763.0"
+$binPath = Join-Path $projectRoot "AIUsageTracker.UI.Slim\bin\$Configuration\net8.0-windows10.0.17763.0"
 $exePath = Join-Path $binPath "AIUsageTracker.exe"
 
 # Check if executable exists before optional build
@@ -64,7 +64,7 @@ if ($existingProcesses) {
 
 if (-not $SkipBuild) {
     Write-Host "Building project..." -ForegroundColor Cyan
-    $buildOutput = & dotnet build (Join-Path $projectRoot "AIConsumptionTracker.UI.Slim\AIConsumptionTracker.UI.Slim.csproj") --configuration $Configuration 2>&1
+    $buildOutput = & dotnet build (Join-Path $projectRoot "AIUsageTracker.UI.Slim\AIUsageTracker.UI.Slim.csproj") --configuration $Configuration 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Build failed!" -ForegroundColor Red
         $buildOutput | ForEach-Object { Write-Host $_ }
@@ -160,3 +160,4 @@ if ($successCount -eq $expectedScreenshots.Count) {
     Write-Host "  %LOCALAPPDATA%\AIConsumptionTracker\logs\app_*.log" -ForegroundColor Gray
     exit 1
 }
+

@@ -2,9 +2,9 @@
 # Kills all running instances of AIConsumptionTracker Agent and UIs.
 
 $targets = @(
-    "AIConsumptionTracker.Agent",
-    "AIConsumptionTracker.UI",
-    "AIConsumptionTracker.UI.Slim"
+    "AIUsageTracker.Monitor",
+    "AIUsageTracker.UI",
+    "AIUsageTracker.UI.Slim"
 )
 
 $killed = 0
@@ -25,3 +25,5 @@ if ($killed -eq 0) {
 } else {
     Write-Host "Done. Killed $killed process(es)."
 }
+
+
