@@ -1,12 +1,29 @@
 # Changelog
 
-## [Unreleased]
+## [2.2.0] - 2026-02-22
 
-## [2.1.4] - 2026-02-22
+### Added
+- **Architectural Rename**: Completed the Systematic transition from `AIConsumptionTracker` to **`AIUsageTracker`** across all components, including a legacy data migration path for user preferences.
+- **Web Dashboard Performance**:
+    - Parallelized upstream API queries for near-instant dashboard interactivity.
+    - Multi-tier caching system (Memory + Output cache) to minimize SQLite contention.
+    - Intelligent data downsampling for historical charts.
+    - Brotli/Gzip compression for all web assets.
+- **"Polite" Update Checker**:
+    - Increased auto-update interval to **4 hours** to prevent GitHub API rate-limiting.
+    - Prioritized release notes fetching from the `appcast.xml` over direct GitHub API calls.
+    - Standardized descriptive User-Agent (`AIUsageTracker/1.0`) for all outbound GitHub requests.
+    - Graceful 403 Forbidden handling with informative logging.
+- **Modernized CI/CD**:
+    - High-speed PowerShell-based database seeder (`seed_mock_database.ps1`) for deterministic testing.
+    - Performance Smoke Tests in GitHub Actions to prevent dashboard latency regressions.
+- **Token-Based Authentication Discovery**: Introduced `CodexAuthService` for automatic discovery of session tokens and account IDs from local configuration files.
 
 ### Fixed
-- **Chart Rendering**: Resolved Content-Security-Policy blocking Chart.js scripts in the Web UI, and increased point radius to ensure single data points are visible for fresh provider history.
-- **Data Hygiene**: Stopped the Agent from logging zero-usage placeholder rows for unconfigured providers, preventing database clutter and blank chart series.
+- **Chart Rendering**: Resolved Content-Security-Policy blocking Chart.js scripts in the Web UI, and increased point radius for better visibility of single data points.
+- **Data Hygiene**: Stopped the Agent from logging zero-usage placeholder rows for unconfigured providers.
+
+## [2.1.4] - 2026-02-22
 
 ## [2.1.3] - 2026-02-21
 

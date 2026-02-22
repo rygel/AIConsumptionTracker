@@ -144,5 +144,5 @@ Click **"Scan for Keys"** in Settings or run `act scan` to trigger discovery fro
 
 ---
 
-*Version: 1.8.6 | Author: Alexander Brandt*
+*Version: 2.2.0 | Author: Alexander Brandt*
 

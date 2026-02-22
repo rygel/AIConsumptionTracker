@@ -398,12 +398,12 @@ var brush = isQuota
 ## Release Process
 
 IMPORTANT: **All release-related changes MUST be made via pull request**. Never trigger the release workflow directly on main. Always:
-1. Create a feature branch (e.g., `feature/v1.7.13-release`)
+1. Create a feature branch (e.g., `feature/v2.2.0-release`)
 2. Update version files on that branch
 3. Create a pull request to main
 4. After PR is merged, trigger the release workflow with `skip_file_updates=true`
 
-When preparing a new release (e.g., v1.5.0), ensure the following files are updated with the new version number:
+When preparing a new release (e.g., v2.2.0), ensure the following files are updated with the new version number:
 
 ### 1. Project Files (.csproj)
 Update the `<Version>` tag in all project files:
@@ -413,21 +413,21 @@ Update the `<Version>` tag in all project files:
 - `AIUsageTracker.CLI/AIUsageTracker.CLI.csproj`
 
 ### 2. Changelog
-- Update `CHANGELOG.md`: Move the `## Unreleased` section to a new version header with the current date (e.g., `## [1.5.0] - 2026-02-06`).
+- Update `CHANGELOG.md`: Move the `## Unreleased` section to a new version header with the current date (e.g., `## [2.2.0] - 2026-02-22`).
 - Ensure a new empty `## Unreleased` section is created at the top if needed for future tracking.
 
 ### 3. Documentation
-- `README.md`: Update the version badge at the top: `![Version](https://img.shields.io/badge/version-1.5.0-blue)`
-- `scripts/publish-app.ps1`: Update the example usage comment: `# Usage: .\scripts\publish-app.ps1 -Runtime win-x64 -Version 1.5.0`
+- `README.md`: Update the version badge at the top: `![Version](https://img.shields.io/badge/version-2.2.0-orange)`
+- `scripts/publish-app.ps1`: Update the example usage comment: `# Usage: .\scripts\publish-app.ps1 -Runtime win-x64 -Version 2.2.0`
 
 ### 4. Installer Setup
-- `scripts/setup.iss`: Update the `MyAppVersion` definition: `#define MyAppVersion "1.5.0"`
+- `scripts/setup.iss`: Update the `MyAppVersion` definition: `#define MyAppVersion "2.2.0"`
 
 ### 5. Git Tagging
 Once all files are committed and pushed to `main`, create a git tag to trigger the CI/CD release workflow:
 ```bash
-git tag v1.5.0
-git push origin v1.5.0
+git tag v2.2.0
+git push origin v2.2.0
 ```
 
 ### 6. Appcast Files (Updater)
@@ -442,21 +442,21 @@ After the release workflow completes and assets are published, update the appcas
 **Important: Match the exact asset filenames from the release:**
 ```bash
 # Check release assets
-gh release view v1.5.0 --json assets --jq '.assets[].name'
+gh release view v2.2.0 --json assets --jq '.assets[].name'
 ```
 
-**URL pattern:** `https://github.com/rygel/AIConsumptionTracker/releases/download/v1.5.5/AIUsageTracker_Setup_v1.5.5_win-x64.exe`
+**URL pattern:** `https://github.com/rygel/AIConsumptionTracker/releases/download/v2.2.0/AIUsageTracker_Setup_v2.2.0_win-x64.exe`
 
 Note: Release assets use `-win-x64`, `-win-arm64`, `-win-x86` suffixes (NOT `-x64`, `-arm64`, `-x86`).
 
 **Update appcast entries:**
 ```xml
 <item>
-    <title>Version 1.5.0</title>
-    <sparkle:releaseNotesLink>https://github.com/rygel/AIConsumptionTracker/releases/tag/v1.5.0</sparkle:releaseNotesLink>
-    <pubDate>Wed, 11 Feb 2026 19:45:00 +0000</pubDate>
-    <enclosure url="https://github.com/rygel/AIConsumptionTracker/releases/download/v1.5.0/AIUsageTracker_Setup_v1.5.0_win-x64.exe"
-               sparkle:version="1.5.0"
+    <title>Version 2.2.0</title>
+    <sparkle:releaseNotesLink>https://github.com/rygel/AIConsumptionTracker/releases/tag/v2.2.0</sparkle:releaseNotesLink>
+    <pubDate>Sun, 22 Feb 2026 15:30:00 +0000</pubDate>
+    <enclosure url="https://github.com/rygel/AIConsumptionTracker/releases/download/v2.2.0/AIUsageTracker_Setup_v2.2.0_win-x64.exe"
+               sparkle:version="2.2.0"
                sparkle:os="windows"
                length="0"
                type="application/octet-stream" />
