@@ -170,7 +170,8 @@ public class OpenAIProvider : IProviderService
 
         var planType = ReadString(doc.RootElement, "plan_type") ?? "chatgpt";
         var used = ReadDouble(doc.RootElement, "rate_limit", "primary_window", "used_percent") ?? 0.0;
-        var resetSeconds = ReadDouble(doc.RootElement, "rate_limit", "primary_window", "reset_after_seconds");
+        var resetSeconds = ReadDouble(doc.RootElement, "rate_limit", "primary_window", "reset_after_seconds")
+                          ?? ReadDouble(doc.RootElement, "rate_limit", "secondary_window", "reset_after_seconds");
         var remaining = Math.Clamp(100.0 - used, 0.0, 100.0);
 
         return new ProviderUsage
@@ -378,6 +379,16 @@ public class OpenAIProvider : IProviderService
         if (current.ValueKind == JsonValueKind.Number && current.TryGetDouble(out var number))
         {
             return number;
+        }
+
+        if (current.ValueKind == JsonValueKind.String)
+        {
+            var raw = current.GetString();
+            if (!string.IsNullOrWhiteSpace(raw) &&
+                double.TryParse(raw, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+            {
+                return parsed;
+            }
         }
 
         return null;
