@@ -570,6 +570,15 @@ return new[] { new ProviderUsage
 - [ ] All return statements in the method set PaymentType
 - [ ] Unit test verifies PaymentType in all scenarios
 
+### Error Visibility Rule
+
+UI and Agent behavior must never silently fall back when required provider data is missing.
+
+- If model-level quota details are unavailable, the UI must show a clear actionable error/warning message.
+- Do not silently replace missing model-level data with a provider summary card that looks healthy.
+- Startup or refresh flows that can serve stale cached data must trigger an immediate provider refresh when live model data is required (Antigravity is mandatory).
+- Error text should tell the user what happened and what to do next (for example: refresh now, verify provider app is running).
+
 ---
 
 ### API Key Discovery Requirements

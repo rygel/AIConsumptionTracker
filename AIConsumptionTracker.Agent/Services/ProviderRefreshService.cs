@@ -96,6 +96,23 @@ public class ProviderRefreshService : BackgroundService
             // Database has existing data — serve it immediately.
             // Do NOT refresh on startup; the scheduled interval will refresh on time.
             _logger.LogInformation("Startup: serving cached data from database (next refresh in {Minutes}m).", _refreshInterval.TotalMinutes);
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    _logger.LogInformation("Startup: forcing immediate Antigravity refresh for live model quotas.");
+                    await TriggerRefreshAsync(
+                        forceAll: true,
+                        includeProviderIds: new[] { "antigravity" },
+                        bypassCircuitBreaker: true);
+                    _logger.LogInformation("Startup: Antigravity refresh complete.");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Startup Antigravity refresh failed: {Message}", ex.Message);
+                }
+            }, stoppingToken);
         }
 
 
@@ -170,7 +187,10 @@ public class ProviderRefreshService : BackgroundService
         _logger.LogInformation("Loaded {Count} providers", providers.Count);
     }
 
-    public async Task TriggerRefreshAsync(bool forceAll = false)
+    public async Task TriggerRefreshAsync(
+        bool forceAll = false,
+        IReadOnlyCollection<string>? includeProviderIds = null,
+        bool bypassCircuitBreaker = false)
     {
         var refreshStopwatch = Stopwatch.StartNew();
         var refreshSucceeded = false;
@@ -242,6 +262,16 @@ public class ProviderRefreshService : BackgroundService
                 c.ProviderId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) ||
                 !string.IsNullOrEmpty(c.ApiKey)).ToList();
 
+            if (includeProviderIds != null && includeProviderIds.Count > 0)
+            {
+                var includeSet = includeProviderIds
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                activeConfigs = activeConfigs
+                    .Where(c => includeSet.Contains(c.ProviderId))
+                    .ToList();
+            }
+
             var skippedCount = configs.Count - activeConfigs.Count;
 
 
@@ -257,7 +287,9 @@ public class ProviderRefreshService : BackgroundService
                 await _database.StoreProviderAsync(config);
             }
 
-            var refreshableConfigs = GetRefreshableConfigs(activeConfigs, forceAll);
+            var refreshableConfigs = bypassCircuitBreaker
+                ? activeConfigs
+                : GetRefreshableConfigs(activeConfigs, forceAll);
             var circuitSkippedCount = activeConfigs.Count - refreshableConfigs.Count;
             if (circuitSkippedCount > 0)
             {
@@ -269,7 +301,7 @@ public class ProviderRefreshService : BackgroundService
                 _logger.LogDebug("Querying {Count} providers with API keys...", refreshableConfigs.Count);
                 _logger.LogInformation("Querying {Count} providers", refreshableConfigs.Count);
 
-                var includeProviderIds = refreshableConfigs
+                var providerIdsToQuery = refreshableConfigs
                     .Select(c => c.ProviderId)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray();
@@ -277,7 +309,7 @@ public class ProviderRefreshService : BackgroundService
                 var usages = await _providerManager.GetAllUsageAsync(
                     forceRefresh: true,
                     progressCallback: _ => { },
-                    includeProviderIds: includeProviderIds);
+                    includeProviderIds: providerIdsToQuery);
 
                 _logger.LogDebug("Received {Count} total usage results", usages.Count());
 

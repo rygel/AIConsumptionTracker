@@ -745,7 +745,7 @@ public partial class MainWindow : Window
                         }
                         else
                         {
-                            AddProviderCard(usage, plansContainer);
+                            AddAntigravityUnavailableNotice(usage, plansContainer);
                         }
 
                         continue;
@@ -1180,6 +1180,19 @@ public partial class MainWindow : Window
         {
             AddProviderCard(CreateAntigravityModelUsage(detail, usage), container);
         }
+    }
+
+    private void AddAntigravityUnavailableNotice(ProviderUsage usage, StackPanel container)
+    {
+        var reason = string.IsNullOrWhiteSpace(usage.Description)
+            ? "Model quota details are missing from the latest agent refresh."
+            : usage.Description;
+
+        var message =
+            "Antigravity model quotas unavailable. " +
+            $"{reason} Use Refresh to request live data from Antigravity.";
+
+        container.Children.Add(CreateInfoTextBlock(message));
     }
 
     private static ProviderUsage CreateAntigravityModelUsage(ProviderUsageDetail detail, ProviderUsage parentUsage)
