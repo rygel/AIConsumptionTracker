@@ -25,6 +25,7 @@ public class ScreenshotTests : PageTest
         "catppuccin-latte"
     };
     private readonly string _outputDir;
+    private readonly string _themeOutputDir;
 
     public ScreenshotTests()
     {
@@ -34,12 +35,18 @@ public class ScreenshotTests : PageTest
         // So we need to go up 4 levels to get to Solution Root.
         var projectRoot = Path.GetFullPath(Path.Combine(binPath, "../../../../")); 
         _outputDir = Path.Combine(projectRoot, "docs");
+        _themeOutputDir = Path.Combine(Path.GetTempPath(), "AIUsageTracker", "web-theme-smoke");
         
         Console.WriteLine($"[TEST] Output directory: {_outputDir}");
         
         if (!Directory.Exists(_outputDir))
         {
             Directory.CreateDirectory(_outputDir);
+        }
+
+        if (!Directory.Exists(_themeOutputDir))
+        {
+            Directory.CreateDirectory(_themeOutputDir);
         }
     }
 
@@ -157,6 +164,58 @@ public class ScreenshotTests : PageTest
             Assert.AreEqual(theme, appliedTheme, $"Theme '{theme}' was not applied to data-theme.");
             Assert.IsFalse(string.IsNullOrWhiteSpace(bgPrimary), $"Theme '{theme}' did not resolve --bg-primary.");
         }
+    }
+
+    [TestMethod]
+    public async Task RepresentativeThemes_RenderDistinctVisualSnapshots()
+    {
+        await Page.SetViewportSizeAsync(1280, 800);
+        await Page.GotoAsync(BaseUrl);
+        await Page.WaitForSelectorAsync("#theme-select", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
+
+        var representativeThemes = new[] { "dark", "light", "dracula", "catppuccin-latte" };
+        var screenshotPaths = new List<string>();
+
+        foreach (var theme in representativeThemes)
+        {
+            await Page.EvaluateAsync("""
+                (theme) => {
+                    const select = document.getElementById('theme-select');
+                    if (!select) {
+                        throw new Error('theme-select not found');
+                    }
+
+                    select.value = theme;
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                """, theme);
+
+            await Task.Delay(300);
+
+            var appliedTheme = await Page.EvaluateAsync<string>("""
+                () => document.documentElement.getAttribute('data-theme') || ''
+                """);
+            Assert.AreEqual(theme, appliedTheme, $"Theme '{theme}' was not applied before screenshot capture.");
+
+            var filePath = Path.Combine(_themeOutputDir, $"screenshot_web_theme_{theme}.png");
+            await Page.ScreenshotAsync(new() { Path = filePath, FullPage = true });
+            screenshotPaths.Add(filePath);
+
+            var fileInfo = new FileInfo(filePath);
+            Assert.IsTrue(fileInfo.Exists, $"Screenshot not created for theme '{theme}'.");
+            Assert.IsTrue(fileInfo.Length > 25_000, $"Screenshot too small for theme '{theme}', likely render failure.");
+        }
+
+        var distinctHashes = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var path in screenshotPaths)
+        {
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            var bytes = await File.ReadAllBytesAsync(path);
+            var hash = Convert.ToHexString(sha.ComputeHash(bytes));
+            distinctHashes.Add(hash);
+        }
+
+        Assert.AreEqual(screenshotPaths.Count, distinctHashes.Count, "Representative theme screenshots should be visually distinct.");
     }
 }
 
