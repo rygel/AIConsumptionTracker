@@ -23,6 +23,13 @@ public partial class App : Application
     private TaskbarIcon? _trayIcon;
     private readonly Dictionary<string, TaskbarIcon> _providerTrayIcons = new();
     private MainWindow? _mainWindow;
+    internal Func<Window> InfoDialogFactory { get; set; } = static () => new InfoDialog();
+    internal Func<MainWindow, bool> IsMainWindowVisible { get; set; } = static mainWindow => mainWindow.IsVisible;
+    internal Action<Window> ShowInfoDialogAction { get; set; } = static dialog =>
+    {
+        dialog.Show();
+        dialog.Activate();
+    };
 
     public static event EventHandler<bool>? PrivacyChanged;
 
@@ -764,18 +771,7 @@ public partial class App : Application
         
         // Info menu item
         var infoMenuItem = new MenuItem { Header = "Info" };
-        infoMenuItem.Click += (s, e) =>
-        {
-            var infoDialog = new InfoDialog();
-            // If main window is visible, center over it, otherwise center screen (default)
-            if (_mainWindow != null && _mainWindow.IsVisible)
-            {
-                infoDialog.Owner = _mainWindow;
-                infoDialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
-            }
-            infoDialog.Show();
-            infoDialog.Activate();
-        };
+        infoMenuItem.Click += (s, e) => OpenInfoDialog();
         contextMenu.Items.Add(infoMenuItem);
         
         // Separator
@@ -853,6 +849,23 @@ public partial class App : Application
         }
 
         _mainWindow.ShowAndActivate();
+    }
+
+    internal void OpenInfoDialog()
+    {
+        var infoDialog = InfoDialogFactory();
+        if (_mainWindow != null && IsMainWindowVisible(_mainWindow))
+        {
+            infoDialog.Owner = _mainWindow;
+            infoDialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        }
+
+        ShowInfoDialogAction(infoDialog);
+    }
+
+    internal void SetMainWindowForTesting(MainWindow? mainWindow)
+    {
+        _mainWindow = mainWindow;
     }
 
     public void UpdateProviderTrayIcons(List<ProviderUsage> usages, List<ProviderConfig> configs, AppPreferences? prefs = null)

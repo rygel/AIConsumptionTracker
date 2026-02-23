@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## [2.2.6] - 2026-02-23
+
+### Added
+- Added Slim UI regression tests for dialog open flows to verify settings and info dialogs invoke the expected host behavior and keep topmost handling stable.
+
+### Changed
+- Refactored Slim dialog opening paths into testable methods with injectable dialog factories/handlers so dialog behavior can be validated without launching real modal UI.
+
+### Fixed
+- Slim dashboard no longer reasserts always-on-top while the Settings dialog is open, preventing z-order flicker where the main window appears in front of settings.
+- Settings initialization and autosave event guards are hardened to avoid early event churn during window setup.
+
 ## [2.2.5] - 2026-02-23
 
 ### Added

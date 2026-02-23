@@ -40,13 +40,14 @@ public partial class SettingsWindow : Window
 
     public SettingsWindow()
     {
-        InitializeComponent();
-        _agentService = new AgentService();
         _autoSaveTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(600)
         };
         _autoSaveTimer.Tick += AutoSaveTimer_Tick;
+
+        InitializeComponent();
+        _agentService = new AgentService();
         App.PrivacyChanged += OnPrivacyChanged;
         Closed += SettingsWindow_Closed;
         Loaded += SettingsWindow_Loaded;
@@ -55,31 +56,50 @@ public partial class SettingsWindow : Window
 
     private async void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        await LoadDataAsync();
+        try
+        {
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Settings load failed: {ex.Message}");
+            MessageBox.Show(
+                $"Failed to load Settings: {ex.Message}",
+                "Settings Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Close();
+        }
     }
 
     private async Task LoadDataAsync()
     {
         _isLoadingSettings = true;
-        _isDeterministicScreenshotMode = false;
-        _configs = await _agentService.GetConfigsAsync();
-        _usages = await _agentService.GetUsageAsync();
-        _gitHubAuthUsername = await TryGetGitHubUsernameFromAuthAsync();
-        _openAiAuthUsername = await TryGetOpenAiUsernameFromAuthAsync();
-        _preferences = await UiPreferencesStore.LoadAsync();
-        _agentPreferences = await _agentService.GetPreferencesAsync();
-        App.Preferences = _preferences;
-        _isPrivacyMode = _preferences.IsPrivacyMode;
-        App.SetPrivacyMode(_isPrivacyMode);
-        UpdatePrivacyButtonState();
+        try
+        {
+            _isDeterministicScreenshotMode = false;
+            _configs = await _agentService.GetConfigsAsync();
+            _usages = await _agentService.GetUsageAsync();
+            _gitHubAuthUsername = await TryGetGitHubUsernameFromAuthAsync();
+            _openAiAuthUsername = await TryGetOpenAiUsernameFromAuthAsync();
+            _preferences = await UiPreferencesStore.LoadAsync();
+            _agentPreferences = await _agentService.GetPreferencesAsync();
+            App.Preferences = _preferences;
+            _isPrivacyMode = _preferences.IsPrivacyMode;
+            App.SetPrivacyMode(_isPrivacyMode);
+            UpdatePrivacyButtonState();
 
-        PopulateProviders();
-        RefreshTrayIcons();
-        PopulateLayoutSettings();
-        await LoadHistoryAsync();
-        await UpdateAgentStatusAsync();
-        RefreshDiagnosticsLog();
-        _isLoadingSettings = false;
+            PopulateProviders();
+            RefreshTrayIcons();
+            PopulateLayoutSettings();
+            await LoadHistoryAsync();
+            await UpdateAgentStatusAsync();
+            RefreshDiagnosticsLog();
+        }
+        finally
+        {
+            _isLoadingSettings = false;
+        }
     }
 
     private static async Task<string?> TryGetGitHubUsernameFromAuthAsync()
@@ -2095,23 +2115,43 @@ public partial class SettingsWindow : Window
 
     private void LayoutSetting_Changed(object sender, RoutedEventArgs e)
     {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
         ApplyNotificationControlsState();
         ScheduleAutoSave();
     }
 
     private void LayoutSetting_TextChanged(object sender, TextChangedEventArgs e)
     {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
         ScheduleAutoSave();
     }
 
     private void EnableWindowsNotificationsCheck_Changed(object sender, RoutedEventArgs e)
     {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
         ApplyNotificationControlsState();
         ScheduleAutoSave();
     }
 
     private void ApplyNotificationControlsState()
     {
+        if (EnableWindowsNotificationsCheck == null)
+        {
+            return;
+        }
+
         var enabled = EnableWindowsNotificationsCheck.IsChecked ?? false;
         if (NotificationThresholdBox != null)
         {

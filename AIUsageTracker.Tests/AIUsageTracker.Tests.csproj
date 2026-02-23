@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AIUsageTracker.Infrastructure\AIUsageTracker.Infrastructure.csproj" />
     <ProjectReference Include="..\AIUsageTracker.Core\AIUsageTracker.Core.csproj" />
+    <ProjectReference Include="..\AIUsageTracker.UI.Slim\AIUsageTracker.UI.Slim.csproj" />
   </ItemGroup>
 
   <ItemGroup>

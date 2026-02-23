@@ -12,6 +12,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.AgentClient;
 using AIUsageTracker.Core.Interfaces;
@@ -48,8 +49,12 @@ public partial class MainWindow : Window
     private DispatcherTimer? _pollingTimer;
     private string? _agentContractWarningMessage;
     private readonly DispatcherTimer _updateCheckTimer;
+    private HwndSource? _windowSource;
     private UpdateInfo? _latestUpdate;
     private bool _preferencesLoaded;
+    private bool _suppressAlwaysOnTopReassert;
+    internal Func<(Window Dialog, Func<bool> HasChanges)> SettingsDialogFactory { get; set; } = CreateDefaultSettingsDialog;
+    internal Func<Window, bool?> ShowOwnedDialog { get; set; } = static dialog => dialog.ShowDialog();
     private static readonly IntPtr HwndTopmost = new(-1);
     private static readonly IntPtr HwndNoTopmost = new(-2);
     private const uint SwpNoSize = 0x0001;
@@ -69,21 +74,49 @@ public partial class MainWindow : Window
         uint uFlags);
 
     public MainWindow()
+        : this(skipUiInitialization: false)
     {
-        InitializeComponent();
+    }
+
+    internal MainWindow(bool skipUiInitialization)
+    {
+        if (!skipUiInitialization)
+        {
+            InitializeComponent();
+        }
+
         _agentService = new AgentService();
         _updateChecker = new GitHubUpdateChecker(NullLogger<GitHubUpdateChecker>.Instance);
         _updateCheckTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMinutes(15)
         };
+
+        if (skipUiInitialization)
+        {
+            return;
+        }
+
         _updateCheckTimer.Tick += async (s, e) => await CheckForUpdatesAsync();
         _updateCheckTimer.Start();
+
+        SourceInitialized += OnSourceInitialized;
+        SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        SystemEvents.SessionSwitch += OnSessionSwitch;
+
         App.PrivacyChanged += OnPrivacyChanged;
         Closed += (s, e) =>
         {
             App.PrivacyChanged -= OnPrivacyChanged;
             _updateCheckTimer.Stop();
+            SourceInitialized -= OnSourceInitialized;
+            SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+            SystemEvents.SessionSwitch -= OnSessionSwitch;
+            if (_windowSource is not null)
+            {
+                _windowSource.RemoveHook(WndProc);
+                _windowSource = null;
+            }
         };
         UpdatePrivacyButtonState();
 
@@ -329,12 +362,70 @@ public partial class MainWindow : Window
 
     private void EnsureAlwaysOnTop()
     {
-        if (!_preferences.AlwaysOnTop || !IsVisible || WindowState == WindowState.Minimized)
+        if (_suppressAlwaysOnTopReassert || !_preferences.AlwaysOnTop || !IsVisible || WindowState == WindowState.Minimized)
         {
             return;
         }
 
-        ApplyTopmostState(true);
+        ReassertTopmostState();
+    }
+
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        _windowSource = PresentationSource.FromVisual(this) as HwndSource;
+        _windowSource?.AddHook(WndProc);
+        EnsureAlwaysOnTop();
+    }
+
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(EnsureAlwaysOnTop, DispatcherPriority.Background);
+    }
+
+    private void OnSessionSwitch(object? sender, SessionSwitchEventArgs e)
+    {
+        if (e.Reason == SessionSwitchReason.SessionUnlock || e.Reason == SessionSwitchReason.ConsoleConnect)
+        {
+            Dispatcher.BeginInvoke(EnsureAlwaysOnTop, DispatcherPriority.Background);
+        }
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        const int WM_ACTIVATEAPP = 0x001C;
+        const int WM_WINDOWPOSCHANGED = 0x0047;
+        const int WM_DISPLAYCHANGE = 0x007E;
+        const int WM_EXITSIZEMOVE = 0x0232;
+
+        switch (msg)
+        {
+            case WM_ACTIVATEAPP:
+            case WM_WINDOWPOSCHANGED:
+            case WM_DISPLAYCHANGE:
+            case WM_EXITSIZEMOVE:
+                Dispatcher.BeginInvoke(EnsureAlwaysOnTop, DispatcherPriority.Background);
+                break;
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private void ReassertTopmostState()
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        if (!Topmost)
+        {
+            Topmost = true;
+        }
+
+        // Reassert z-order robustly in case other windows pulled us back.
+        _ = SetWindowPos(handle, HwndNoTopmost, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpNoActivate | SwpNoOwnerZOrder);
+        _ = SetWindowPos(handle, HwndTopmost, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpNoActivate | SwpNoOwnerZOrder);
     }
 
     private void ApplyTopmostState(bool alwaysOnTop)
@@ -1733,23 +1824,48 @@ public partial class MainWindow : Window
         await RefreshDataAsync();
     }
 
-    private void SettingsBtn_Click(object sender, RoutedEventArgs e)
+    private async void SettingsBtn_Click(object sender, RoutedEventArgs e)
     {
-        var settingsWindow = new SettingsWindow();
-        settingsWindow.Owner = this;
-        settingsWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        await OpenSettingsDialogAsync();
+    }
 
-        // Handle non-modal window closed event
-        settingsWindow.Closed += async (s, args) =>
+    internal async Task OpenSettingsDialogAsync()
+    {
+        var settingsDialog = SettingsDialogFactory();
+        var settingsWindow = settingsDialog.Dialog;
+        if (IsVisible)
         {
-            if (settingsWindow.SettingsChanged)
+            settingsWindow.Owner = this;
+            settingsWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        }
+
+        _suppressAlwaysOnTopReassert = true;
+        try
+        {
+            if (Topmost)
+            {
+                ApplyTopmostState(false);
+            }
+
+            _ = ShowOwnedDialog(settingsWindow);
+
+            if (settingsDialog.HasChanges())
             {
                 // Reload preferences and refresh data
                 await InitializeAsync();
             }
-        };
+        }
+        finally
+        {
+            _suppressAlwaysOnTopReassert = false;
+            ApplyTopmostState(_preferences.AlwaysOnTop);
+        }
+    }
 
-        settingsWindow.Show();
+    private static (Window Dialog, Func<bool> HasChanges) CreateDefaultSettingsDialog()
+    {
+        var settingsWindow = new SettingsWindow();
+        return (settingsWindow, () => settingsWindow.SettingsChanged);
     }
 
     private void WebBtn_Click(object sender, RoutedEventArgs e)
