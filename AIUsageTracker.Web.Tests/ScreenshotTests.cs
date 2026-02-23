@@ -24,6 +24,15 @@ public class ScreenshotTests : PageTest
         "catppuccin-mocha",
         "catppuccin-latte"
     };
+
+    private static readonly Dictionary<string, (string BgPrimary, string AccentPrimary)> ExpectedRepresentativeThemeTokens =
+        new(StringComparer.Ordinal)
+        {
+            ["dark"] = ("#1a1a1a", "#3b82f6"),
+            ["light"] = ("#f5f5f5", "#2563eb"),
+            ["dracula"] = ("#282a36", "#ff79c6"),
+            ["catppuccin-latte"] = ("#eff1f5", "#8839ef")
+        };
     private readonly string _outputDir;
     private readonly string _themeOutputDir;
 
@@ -216,6 +225,48 @@ public class ScreenshotTests : PageTest
         }
 
         Assert.AreEqual(screenshotPaths.Count, distinctHashes.Count, "Representative theme screenshots should be visually distinct.");
+    }
+
+    [TestMethod]
+    public async Task RepresentativeThemes_ExposeExpectedCssTokens()
+    {
+        await Page.SetViewportSizeAsync(1280, 800);
+        await Page.GotoAsync(BaseUrl);
+        await Page.WaitForSelectorAsync("#theme-select", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
+
+        foreach (var (theme, expectedTokens) in ExpectedRepresentativeThemeTokens)
+        {
+            await Page.EvaluateAsync("""
+                (theme) => {
+                    const select = document.getElementById('theme-select');
+                    if (!select) {
+                        throw new Error('theme-select not found');
+                    }
+
+                    select.value = theme;
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                """, theme);
+
+            var appliedTheme = await Page.EvaluateAsync<string>("""
+                () => document.documentElement.getAttribute('data-theme') || ''
+                """);
+            Assert.AreEqual(theme, appliedTheme, $"Theme '{theme}' was not applied before CSS token assertions.");
+
+            var tokens = await Page.EvaluateAsync<string[]?>("""
+                () => {
+                    const rootStyle = getComputedStyle(document.documentElement);
+                    const bg = rootStyle.getPropertyValue('--bg-primary').trim().toLowerCase();
+                    const accent = rootStyle.getPropertyValue('--accent-primary').trim().toLowerCase();
+                    return [bg, accent];
+                }
+                """);
+
+            Assert.IsNotNull(tokens, $"Theme '{theme}' token payload should not be null.");
+            Assert.AreEqual(2, tokens.Length, $"Theme '{theme}' should return two token values.");
+            Assert.AreEqual(expectedTokens.BgPrimary, tokens[0], $"Theme '{theme}' unexpected --bg-primary.");
+            Assert.AreEqual(expectedTokens.AccentPrimary, tokens[1], $"Theme '{theme}' unexpected --accent-primary.");
+        }
     }
 }
 
