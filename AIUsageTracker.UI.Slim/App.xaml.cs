@@ -542,7 +542,7 @@ public partial class App : Application
             e.Args.Contains("--screenshot", StringComparer.OrdinalIgnoreCase))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            _ = RunHeadlessScreenshotCaptureAsync();
+            _ = RunHeadlessScreenshotCaptureAsync(e.Args);
             return;
         }
         
@@ -558,10 +558,19 @@ public partial class App : Application
         _mainWindow.Show();
     }
 
-    private async Task RunHeadlessScreenshotCaptureAsync()
+    private async Task RunHeadlessScreenshotCaptureAsync(string[] args)
     {
         try
         {
+            var selectedTheme = AppTheme.Dark;
+            var themeArg = GetArgumentValue(args, "--theme");
+            if (!string.IsNullOrWhiteSpace(themeArg) && !Enum.TryParse<AppTheme>(themeArg, ignoreCase: true, out selectedTheme))
+            {
+                throw new ArgumentException($"Unknown theme '{themeArg}'.", nameof(args));
+            }
+
+            var isThemeSmokeMode = args.Contains("--theme-smoke", StringComparer.OrdinalIgnoreCase);
+
             Preferences = new AppPreferences
             {
                 AlwaysOnTop = true,
@@ -574,13 +583,23 @@ public partial class App : Application
                 FontBold = false,
                 FontItalic = false,
                 IsPrivacyMode = true,
-                Theme = AppTheme.Dark
+                Theme = selectedTheme
             };
             ApplyTheme(Preferences.Theme);
             SetPrivacyMode(true);
 
-            var screenshotsDir = ResolveScreenshotsDirectory();
+            var outputDirectoryArg = GetArgumentValue(args, "--output-dir");
+            var screenshotsDir = string.IsNullOrWhiteSpace(outputDirectoryArg)
+                ? ResolveScreenshotsDirectory()
+                : outputDirectoryArg;
             Directory.CreateDirectory(screenshotsDir);
+
+            if (isThemeSmokeMode)
+            {
+                var smokeFileName = $"theme_smoke_{selectedTheme.ToString().ToLowerInvariant()}.png";
+                await CaptureMainWindowScreenshotAsync(Path.Combine(screenshotsDir, smokeFileName));
+                return;
+            }
 
             await CaptureMainWindowScreenshotAsync(Path.Combine(screenshotsDir, "screenshot_dashboard_privacy.png"));
             await CaptureSettingsScreenshotsAsync(screenshotsDir);
@@ -791,6 +810,19 @@ public partial class App : Application
         {
             AgentService.LogDiagnostic($"Tray icon not found at expected paths. Falling back to system icon. Tried: {trayIconPath}");
         }
+    }
+
+    private static string? GetArgumentValue(IReadOnlyList<string> args, string argumentName)
+    {
+        for (var i = 0; i < args.Count - 1; i++)
+        {
+            if (string.Equals(args[i], argumentName, StringComparison.OrdinalIgnoreCase))
+            {
+                return args[i + 1];
+            }
+        }
+
+        return null;
     }
 
     private static string ResolveTrayIconPath()
