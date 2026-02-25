@@ -1,7 +1,7 @@
 ; AI Usage Tracker - Inno Setup Script
 
 #ifndef MyAppVersion
-  #define MyAppVersion "2.2.9"
+  #define MyAppVersion "2.2.10"
 #endif
 #ifndef SourcePath
   #define SourcePath "..\dist\publish-win-x64"
@@ -84,7 +84,7 @@ CloseApplications=yes
 DisableDirPage=auto
 DirExistsWarning=no
 SetupIconFile=..\AIUsageTracker.UI.Slim\Assets\app_icon.ico
-UninstallDisplayIcon={app}\app_icon.ico
+UninstallDisplayIcon={app}\AIUsageTracker.exe
 PrivilegesRequired=lowest
 
 #if MyAppArch == "x64"

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [2.2.10] - 2026-02-25
+
+### Fixed
+- **Slim UI Tooltips**: Tooltips no longer disappear behind the main window when always-on-top mode is enabled.
+- **GitHub Copilot Reset Times**: Removed misleading fallback to API rate limits. Now displays only the accurate monthly quota reset date from Copilot's official endpoint.
+- **Progress Bar Colors**: Fixed color calculation for dual-window providers (Copex) when showing percentage used. Progress bars now correctly turn red when usage reaches high thresholds instead of staying gray/green.
+- **Start Menu Icon**: Application icon is now properly embedded in the executable so it displays correctly in the Windows Start Menu and Taskbar.
+
 ## [2.2.9] - 2026-02-24
 
 ### Added
