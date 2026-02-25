@@ -1580,6 +1580,21 @@ public partial class MainWindow : Window
             return null;
         }
 
+        // First try to find percentage followed by "used" (e.g., "100% used")
+        var usedMatch = Regex.Match(used, @"(?<percent>\d+(?:\.\d+)?)\s*%\s*used", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        if (usedMatch.Success)
+        {
+            if (double.TryParse(
+                    usedMatch.Groups["percent"].Value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var percent))
+            {
+                return Math.Clamp(percent, 0, 100);
+            }
+        }
+
+        // Fallback: match first percentage (for backwards compatibility)
         var match = Regex.Match(used, @"(?<percent>\d+(?:\.\d+)?)\s*%", RegexOptions.CultureInvariant);
         if (!match.Success)
         {
@@ -1590,12 +1605,12 @@ public partial class MainWindow : Window
                 match.Groups["percent"].Value,
                 System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture,
-                out var percent))
+                out var fallbackPercent))
         {
             return null;
         }
 
-        return Math.Clamp(percent, 0, 100);
+        return Math.Clamp(fallbackPercent, 0, 100);
     }
 
     private Grid CreateProgressLayer(double usedPercent, bool showUsed, double opacity)
