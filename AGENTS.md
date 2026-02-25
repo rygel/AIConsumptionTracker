@@ -246,6 +246,31 @@ The Slim UI automatically discovers the Agent port:
 - `AgentLauncher.IsAgentRunningWithPortAsync()` - Returns (isRunning, port)
 - Port is cached but refreshed on initialization
 
+### Slim UI Window Behavior
+
+**Always-On-Top Handling:**
+The Slim UI supports always-on-top mode via `Topmost` property and Win32 `SetWindowPos` API. When enabled, the window aggressively reasserts its z-order to prevent other applications from stealing focus.
+
+**Tooltip Coordination:**
+When tooltips are visible, the aggressive z-order reassertion is temporarily disabled to prevent tooltips from being pushed behind the main window:
+- `_isTooltipOpen` flag tracks tooltip visibility state
+- `ReassertTopmostWithoutFocus()` skips reassertion when `_isTooltipOpen` is true
+- `EnsureAlwaysOnTop()` also checks `_isTooltipOpen` before reasserting
+- Tooltips set their own `Topmost = true` when opened
+
+**Implementation:**
+```csharp
+// Tooltip tracking in MainWindow.xaml.cs
+toolTip.Opened += (s, e) => _isTooltipOpen = true;
+toolTip.Closed += (s, e) => _isTooltipOpen = false;
+
+// Guard in topmost reassertion methods
+if (_isSettingsDialogOpen || _isTooltipOpen || !Topmost) return;
+```
+
+**Settings Dialog Coordination:**
+Similar to tooltips, the Settings dialog sets `_isSettingsDialogOpen = true` when shown to prevent the main window from fighting for z-order while a modal dialog is active.
+
 ### Content Security Policy
 
 CSP is configured in `Program.cs` with different policies for Development vs Production:
