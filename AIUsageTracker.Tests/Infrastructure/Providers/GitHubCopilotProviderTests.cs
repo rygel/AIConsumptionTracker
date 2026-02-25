@@ -171,12 +171,11 @@ public class GitHubCopilotProviderTests
     }
 
     [Fact]
-    public async Task GetUsageAsync_CopilotQuotaUnavailable_UsesRateLimitFixtureFallback()
+    public async Task GetUsageAsync_CopilotQuotaUnavailable_ReturnsAuthenticatedWithoutRateData()
     {
         // Arrange
         _authService.Setup(x => x.GetCurrentToken()).Returns("valid-token");
         var config = new ProviderConfig { ProviderId = "github-copilot" };
-        var rateLimitSnapshot = LoadFixture("github_copilot_rate_limit.snapshot.json");
 
         _msgHandler.Protected()
             .Setup<Task<HttpResponseMessage>>(
@@ -209,24 +208,13 @@ public class GitHubCopilotProviderTests
                 StatusCode = HttpStatusCode.Forbidden
             });
 
-        _msgHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(r => r.RequestUri!.ToString() == "https://api.github.com/rate_limit"),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage
-            {
-                StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(rateLimitSnapshot)
-            });
-
         // Act
         var result = await _provider.GetUsageAsync(config);
 
         // Assert
         var usage = result.Single();
         Assert.True(usage.IsAvailable);
-        Assert.Contains("API Rate Limit", usage.Description);
+        Assert.Contains("Authenticated as anonymized-user", usage.Description);
         Assert.Equal(0.0, usage.RequestsPercentage);
     }
 
