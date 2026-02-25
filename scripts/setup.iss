@@ -74,15 +74,15 @@ begin
   Result := True;
   DeleteDatabase := False;
   
-  // Check if database exists
-  DatabasePath := ExpandConstant('{localappdata}\AIUsageTracker\Agent');
+  // Check if data directory exists (contains Agent database and UI.Slim preferences)
+  DatabasePath := ExpandConstant('{localappdata}\AIUsageTracker');
   DatabaseExists := DirExists(DatabasePath);
   
   if DatabaseExists and not UninstallSilent then
   begin
-    if MsgBox('Do you want to delete your AI Usage Tracker database? This contains all your usage history and settings.' + #13#10#13#10 + 
+    if MsgBox('Do you want to delete your AI Usage Tracker data? This includes your usage history, settings, and preferences.' + #13#10#13#10 + 
               'Location: ' + DatabasePath + #13#10#13#10 + 
-              'Click Yes to delete the database, or No to keep it for future use.', 
+              'Click Yes to delete all data, or No to keep it for future use.', 
               mbConfirmation, MB_YESNO) = IDYES then
     begin
       DeleteDatabase := True;
@@ -92,21 +92,15 @@ end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  DatabasePath: String;
+  DataPath: String;
 begin
   if (CurUninstallStep = usPostUninstall) and DeleteDatabase then
   begin
-    DatabasePath := ExpandConstant('{localappdata}\AIUsageTracker\Agent');
-    if DirExists(DatabasePath) then
+    // Delete the entire AIUsageTracker directory including Agent and UI.Slim subdirectories
+    DataPath := ExpandConstant('{localappdata}\AIUsageTracker');
+    if DirExists(DataPath) then
     begin
-      DelTree(DatabasePath, True, True, True);
-    end;
-    
-    // Also try to remove the parent directory if empty
-    DatabasePath := ExpandConstant('{localappdata}\AIUsageTracker');
-    if DirExists(DatabasePath) then
-    begin
-      RemoveDir(DatabasePath);
+      DelTree(DataPath, True, True, True);
     end;
   end;
 end;
