@@ -16,6 +16,7 @@
 
 ### Changed
 - **Data Directory Structure**: Restructured data storage to use a flat directory layout. All data files (database, preferences, agent info, logs) are now stored directly in `%LOCALAPPDATA%\AIUsageTracker\` instead of subdirectories. This makes backups and data management easier.
+- **Agent Info File**: Removed deprecated `agent.json` file. Agent information is now stored only in `monitor.json`. This simplifies the data structure by having a single source of truth.
 
 ### Fixed
 - **Slim UI Tooltips**: Tooltips no longer disappear behind the main window when always-on-top mode is enabled.
