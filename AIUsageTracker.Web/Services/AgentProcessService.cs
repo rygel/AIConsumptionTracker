@@ -196,10 +196,10 @@ public class MonitorProcessService
 
     private static string ResolveAgentInfoPath(string appData)
     {
-        var primaryMonitorPath = Path.Combine(appData, "AIUsageTracker", "Agent", "monitor.json");
-        var primaryPath = Path.Combine(appData, "AIUsageTracker", "Agent", "agent.json");
-        var legacyMonitorPath = Path.Combine(appData, "AIConsumptionTracker", "Agent", "monitor.json");
-        var legacyPath = Path.Combine(appData, "AIConsumptionTracker", "Agent", "agent.json");
+        var primaryMonitorPath = Path.Combine(appData, "AIUsageTracker", "monitor.json");
+        var primaryPath = Path.Combine(appData, "AIUsageTracker", "agent.json");
+        var legacyMonitorPath = Path.Combine(appData, "AIConsumptionTracker", "monitor.json");
+        var legacyPath = Path.Combine(appData, "AIConsumptionTracker", "agent.json");
 
         if (File.Exists(primaryMonitorPath))
         {

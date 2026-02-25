@@ -430,13 +430,13 @@ public partial class Program
     private static string GetPrimaryAgentDir()
     {
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(appData, "AIUsageTracker", "Agent");
+        return Path.Combine(appData, "AIUsageTracker");
     }
 
     private static string GetLegacyAgentDir()
     {
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(appData, "AIConsumptionTracker", "Agent");
+        return Path.Combine(appData, "AIConsumptionTracker");
     }
 
     private static string? GetExistingAgentInfoPath()
