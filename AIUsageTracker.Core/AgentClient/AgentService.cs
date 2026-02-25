@@ -152,9 +152,7 @@ public class AgentService
         var candidates = new[]
         {
             Path.Combine(appData, "AIUsageTracker", "monitor.json"),
-            Path.Combine(appData, "AIUsageTracker", "agent.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "agent.json")
+            Path.Combine(appData, "AIConsumptionTracker", "monitor.json")
         };
 
         return candidates.FirstOrDefault(File.Exists);
