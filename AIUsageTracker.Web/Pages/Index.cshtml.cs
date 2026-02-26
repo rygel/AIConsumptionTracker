@@ -20,6 +20,8 @@ public class IndexModel : PageModel
     public UsageSummary? Summary { get; set; }
     public IReadOnlyDictionary<string, BurnRateForecast> ForecastsByProvider { get; private set; }
         = new Dictionary<string, BurnRateForecast>(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyDictionary<string, ProviderReliabilitySnapshot> ReliabilityByProvider { get; private set; }
+        = new Dictionary<string, ProviderReliabilitySnapshot>(StringComparer.OrdinalIgnoreCase);
     public bool IsDatabaseAvailable => _dbService.IsDatabaseAvailable();
     public bool ShowUsedPercentage { get; set; }
     public bool ShowInactiveProviders { get; set; }
@@ -80,8 +82,13 @@ public class IndexModel : PageModel
 
             if (LatestUsage.Count > 0)
             {
-                ForecastsByProvider = await _dbService.GetBurnRateForecastsAsync(
-                    LatestUsage.Select(x => x.ProviderId));
+                var providerIds = LatestUsage.Select(x => x.ProviderId).ToList();
+                var forecastTask = _dbService.GetBurnRateForecastsAsync(providerIds);
+                var reliabilityTask = _dbService.GetProviderReliabilityAsync(providerIds);
+                await Task.WhenAll(forecastTask, reliabilityTask);
+
+                ForecastsByProvider = forecastTask.Result;
+                ReliabilityByProvider = reliabilityTask.Result;
             }
         }
     }

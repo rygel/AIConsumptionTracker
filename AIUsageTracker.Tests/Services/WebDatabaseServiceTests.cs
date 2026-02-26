@@ -25,4 +25,24 @@ public class WebDatabaseServiceTests
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
             await service.GetBurnRateForecastsAsync(new[] { "openai" }, lookbackHours: 72, maxSamplesPerProvider: 0));
     }
+
+    [Fact]
+    public async Task GetProviderReliabilityAsync_WithNonPositiveLookbackHours_Throws()
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = new WebDatabaseService(cache, NullLogger<WebDatabaseService>.Instance);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+            await service.GetProviderReliabilityAsync(new[] { "openai" }, lookbackHours: 0, maxSamplesPerProvider: 1000));
+    }
+
+    [Fact]
+    public async Task GetProviderReliabilityAsync_WithNonPositiveMaxSamples_Throws()
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = new WebDatabaseService(cache, NullLogger<WebDatabaseService>.Instance);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+            await service.GetProviderReliabilityAsync(new[] { "openai" }, lookbackHours: 168, maxSamplesPerProvider: 0));
+    }
 }

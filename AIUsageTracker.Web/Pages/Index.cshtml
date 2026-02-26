@@ -33,6 +33,55 @@
             </div>
         }
 
+        @{
+            var visibleUsage = (Model.LatestUsage ?? new List<AIUsageTracker.Core.Models.ProviderUsage>())
+                .Where(u => u.ProviderId != "antigravity" && (Model.ShowInactiveProviders || u.IsAvailable))
+                .ToList();
+        }
+
+        @if (visibleUsage.Count > 0)
+        {
+            <div class="section-header">
+                <h2 class="mb-2">Provider Reliability</h2>
+            </div>
+            <div class="reliability-grid">
+                @foreach (var usage in visibleUsage)
+                {
+                    var hasReliability = Model.ReliabilityByProvider.TryGetValue(usage.ProviderId, out var reliability);
+                    var snapshot = hasReliability && reliability != null
+                        ? reliability
+                        : AIUsageTracker.Core.Models.ProviderReliabilitySnapshot.Unavailable("No history");
+                    var successRate = snapshot.IsAvailable
+                        ? Math.Clamp(100 - snapshot.FailureRatePercent, 0, 100)
+                        : 0;
+                    <div class="reliability-card">
+                        <div class="reliability-header">
+                            <span class="provider-name">@usage.ProviderName</span>
+                            <span class="reliability-badge @GetReliabilityClass(snapshot)">
+                                @GetReliabilityLabel(snapshot)
+                            </span>
+                        </div>
+                        <div class="reliability-row">
+                            <span>Success</span>
+                            <span>@(snapshot.IsAvailable ? $"{successRate:F1}%" : "n/a")</span>
+                        </div>
+                        <div class="reliability-row">
+                            <span>Failure</span>
+                            <span>@(snapshot.IsAvailable ? $"{snapshot.FailureRatePercent:F1}%" : "n/a")</span>
+                        </div>
+                        <div class="reliability-row">
+                            <span>Avg cadence</span>
+                            <span>@GetCadenceText(snapshot)</span>
+                        </div>
+                        <div class="reliability-row">
+                            <span>Last success</span>
+                            <span>@GetLastSuccessText(snapshot)</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
         <div class="section-header">
             <h2 class="mb-2">Current Usage</h2>
             <div class="d-flex gap-2">
@@ -44,12 +93,6 @@
                 </a>
             </div>
         </div>
-
-        @{
-            var visibleUsage = (Model.LatestUsage ?? new List<AIUsageTracker.Core.Models.ProviderUsage>())
-                .Where(u => u.ProviderId != "antigravity" && (Model.ShowInactiveProviders || u.IsAvailable))
-                .ToList();
-        }
 
         @if (visibleUsage.Count == 0)
         {
@@ -322,5 +365,71 @@
 
         var hours = Math.Max(1, (int)Math.Ceiling(forecast.DaysUntilExhausted * 24));
         return $"~{hours}h left ({burnRateText}/day)";
+    }
+
+    string GetReliabilityClass(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
+    {
+        if (!snapshot.IsAvailable)
+        {
+            return "unknown";
+        }
+
+        return snapshot.FailureRatePercent switch
+        {
+            <= 5 => "healthy",
+            <= 20 => "warning",
+            _ => "critical"
+        };
+    }
+
+    string GetReliabilityLabel(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
+    {
+        if (!snapshot.IsAvailable)
+        {
+            return "No Data";
+        }
+
+        return snapshot.FailureRatePercent switch
+        {
+            <= 5 => "Healthy",
+            <= 20 => "Watch",
+            _ => "At Risk"
+        };
+    }
+
+    string GetCadenceText(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
+    {
+        if (!snapshot.IsAvailable || snapshot.SampleCount < 2 || snapshot.AverageSyncIntervalMinutes <= 0)
+        {
+            return "n/a";
+        }
+
+        if (snapshot.AverageSyncIntervalMinutes >= 60)
+        {
+            return $"{snapshot.AverageSyncIntervalMinutes / 60:F1}h";
+        }
+
+        return $"{snapshot.AverageSyncIntervalMinutes:F0}m";
+    }
+
+    string GetLastSuccessText(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
+    {
+        if (!snapshot.IsAvailable || !snapshot.LastSuccessfulSyncUtc.HasValue)
+        {
+            return "none in window";
+        }
+
+        var utc = snapshot.LastSuccessfulSyncUtc.Value;
+        return $"{utc.ToLocalTime():MMM d, HH:mm} ({GetElapsedSinceString(utc)})";
+    }
+
+    string GetElapsedSinceString(DateTime timestampUtc)
+    {
+        var diff = DateTime.UtcNow - timestampUtc.ToUniversalTime();
+
+        if (diff.TotalSeconds <= 0) return "just now";
+        if (diff.TotalDays >= 1) return $"{(int)diff.TotalDays}d {(int)diff.Hours}h ago";
+        if (diff.TotalHours >= 1) return $"{(int)diff.TotalHours}h {(int)diff.Minutes}m ago";
+        return $"{Math.Max(1, (int)Math.Ceiling(diff.TotalMinutes))}m ago";
     }
 }

@@ -111,6 +111,54 @@ public static class UsageMath
         };
     }
 
+    public static ProviderReliabilitySnapshot CalculateReliabilitySnapshot(IEnumerable<ProviderUsage> history)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+
+        var samples = history
+            .Where(x => x.FetchedAt != default)
+            .OrderBy(x => x.FetchedAt)
+            .ToList();
+
+        if (samples.Count == 0)
+        {
+            return ProviderReliabilitySnapshot.Unavailable("No history");
+        }
+
+        var successCount = samples.Count(x => x.IsAvailable);
+        var failureCount = samples.Count - successCount;
+        var failureRatePercent = (failureCount / (double)samples.Count) * 100.0;
+
+        double averageSyncIntervalMinutes = 0;
+        var intervalCount = 0;
+        for (var i = 1; i < samples.Count; i++)
+        {
+            var deltaMinutes = (samples[i].FetchedAt - samples[i - 1].FetchedAt).TotalMinutes;
+            if (deltaMinutes > 0)
+            {
+                averageSyncIntervalMinutes += deltaMinutes;
+                intervalCount++;
+            }
+        }
+
+        if (intervalCount > 0)
+        {
+            averageSyncIntervalMinutes /= intervalCount;
+        }
+
+        return new ProviderReliabilitySnapshot
+        {
+            IsAvailable = true,
+            SampleCount = samples.Count,
+            SuccessCount = successCount,
+            FailureCount = failureCount,
+            FailureRatePercent = failureRatePercent,
+            AverageSyncIntervalMinutes = averageSyncIntervalMinutes,
+            LastSuccessfulSyncUtc = samples.LastOrDefault(x => x.IsAvailable)?.FetchedAt.ToUniversalTime(),
+            LastSeenUtc = samples[^1].FetchedAt.ToUniversalTime()
+        };
+    }
+
     private static List<ProviderUsage> TrimToLatestCycle(List<ProviderUsage> orderedSamples)
     {
         if (orderedSamples.Count < 2)
@@ -154,6 +202,28 @@ public sealed class BurnRateForecast
     public static BurnRateForecast Unavailable(string reason)
     {
         return new BurnRateForecast
+        {
+            IsAvailable = false,
+            Reason = reason
+        };
+    }
+}
+
+public sealed class ProviderReliabilitySnapshot
+{
+    public bool IsAvailable { get; init; }
+    public int SampleCount { get; init; }
+    public int SuccessCount { get; init; }
+    public int FailureCount { get; init; }
+    public double FailureRatePercent { get; init; }
+    public double AverageSyncIntervalMinutes { get; init; }
+    public DateTime? LastSuccessfulSyncUtc { get; init; }
+    public DateTime? LastSeenUtc { get; init; }
+    public string? Reason { get; init; }
+
+    public static ProviderReliabilitySnapshot Unavailable(string reason)
+    {
+        return new ProviderReliabilitySnapshot
         {
             IsAvailable = false,
             Reason = reason

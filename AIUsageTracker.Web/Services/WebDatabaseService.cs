@@ -353,6 +353,95 @@ public class WebDatabaseService
         return forecasts;
     }
 
+    public async Task<Dictionary<string, ProviderReliabilitySnapshot>> GetProviderReliabilityAsync(
+        IEnumerable<string> providerIds,
+        int lookbackHours = 168,
+        int maxSamplesPerProvider = 1000)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(lookbackHours);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSamplesPerProvider);
+
+        if (!IsDatabaseAvailable())
+        {
+            return new Dictionary<string, ProviderReliabilitySnapshot>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        ArgumentNullException.ThrowIfNull(providerIds);
+
+        var normalizedProviderIds = providerIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (normalizedProviderIds.Count == 0)
+        {
+            return new Dictionary<string, ProviderReliabilitySnapshot>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var cacheKey = $"db:reliability:{lookbackHours}:{maxSamplesPerProvider}:{string.Join(",", normalizedProviderIds)}";
+        if (_cache.TryGetValue<Dictionary<string, ProviderReliabilitySnapshot>>(cacheKey, out var cached) && cached != null)
+        {
+            _logger.LogDebug("WebDB cache hit for GetProviderReliabilityAsync providers={Count}", normalizedProviderIds.Count);
+            return cached;
+        }
+
+        var sw = Stopwatch.StartNew();
+        using var connection = CreateReadConnection();
+        await connection.OpenAsync();
+
+        var cutoffUtc = DateTime.UtcNow
+            .AddHours(-lookbackHours)
+            .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        const string sql = @"
+            WITH ranked AS (
+                SELECT h.provider_id AS ProviderId,
+                       h.is_available AS IsAvailable,
+                       h.fetched_at AS FetchedAt,
+                       ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY h.fetched_at DESC) AS RowNum
+                FROM provider_history h
+                WHERE h.provider_id IN @ProviderIds
+                  AND datetime(h.fetched_at) >= datetime(@CutoffUtc)
+            )
+            SELECT ProviderId, IsAvailable, FetchedAt
+            FROM ranked
+            WHERE RowNum <= @MaxSamplesPerProvider
+            ORDER BY ProviderId, FetchedAt ASC";
+
+        var rows = (await connection.QueryAsync<ProviderReliabilityRow>(sql, new
+        {
+            ProviderIds = normalizedProviderIds,
+            CutoffUtc = cutoffUtc,
+            MaxSamplesPerProvider = maxSamplesPerProvider
+        })).ToList();
+
+        var snapshots = normalizedProviderIds.ToDictionary(
+            id => id,
+            _ => ProviderReliabilitySnapshot.Unavailable("No history"),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in rows.GroupBy(r => r.ProviderId, StringComparer.OrdinalIgnoreCase))
+        {
+            var samples = group.Select(x => new ProviderUsage
+            {
+                ProviderId = x.ProviderId,
+                IsAvailable = x.IsAvailable,
+                FetchedAt = x.FetchedAt
+            });
+
+            snapshots[group.Key] = UsageMath.CalculateReliabilitySnapshot(samples);
+        }
+
+        _cache.Set(cacheKey, snapshots, TimeSpan.FromSeconds(30));
+        _logger.LogInformation(
+            "WebDB GetProviderReliabilityAsync providers={ProviderCount} rows={RowCount} elapsedMs={ElapsedMs}",
+            normalizedProviderIds.Count,
+            rows.Count,
+            sw.ElapsedMilliseconds);
+
+        return snapshots;
+    }
+
     public async Task<List<ChartDataPoint>> GetChartDataAsync(int hours = 24)
     {
         if (!IsDatabaseAvailable())
@@ -528,6 +617,13 @@ public class WebDatabaseService
         public string ProviderId { get; set; } = string.Empty;
         public double RequestsUsed { get; set; }
         public double RequestsAvailable { get; set; }
+        public bool IsAvailable { get; set; }
+        public DateTime FetchedAt { get; set; }
+    }
+
+    private sealed class ProviderReliabilityRow
+    {
+        public string ProviderId { get; set; } = string.Empty;
         public bool IsAvailable { get; set; }
         public DateTime FetchedAt { get; set; }
     }

@@ -73,6 +73,60 @@ body {
     gap: 0.75rem;
 }
 
+.reliability-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.reliability-card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.65rem 0.75rem;
+}
+
+.reliability-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+}
+
+.reliability-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-weight: 500;
+    color: #fff;
+}
+
+.reliability-badge.healthy {
+    background-color: var(--accent-success);
+}
+
+.reliability-badge.warning {
+    background-color: var(--accent-warning);
+}
+
+.reliability-badge.critical {
+    background-color: var(--accent-danger);
+}
+
+.reliability-badge.unknown {
+    background-color: var(--text-muted);
+}
+
+.reliability-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    padding: 0.12rem 0;
+}
+
 .provider-card {
     background-color: var(--bg-secondary);
     border: 1px solid var(--border-color);

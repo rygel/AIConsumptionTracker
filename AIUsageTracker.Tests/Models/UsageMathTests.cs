@@ -153,6 +153,66 @@ public class UsageMathTests
         Assert.Equal(0, forecast.DaysUntilExhausted, 3);
     }
 
+    [Fact]
+    public void CalculateReliabilitySnapshot_WithMixedStatuses_ReturnsExpectedRates()
+    {
+        // Arrange
+        var start = new DateTime(2026, 2, 20, 0, 0, 0, DateTimeKind.Utc);
+        var history = new List<ProviderUsage>
+        {
+            CreateSample(start, used: 10, available: 100),
+            CreateUnavailableSample(start.AddMinutes(5)),
+            CreateSample(start.AddMinutes(10), used: 20, available: 100),
+            CreateUnavailableSample(start.AddMinutes(15))
+        };
+
+        // Act
+        var snapshot = UsageMath.CalculateReliabilitySnapshot(history);
+
+        // Assert
+        Assert.True(snapshot.IsAvailable);
+        Assert.Equal(4, snapshot.SampleCount);
+        Assert.Equal(2, snapshot.SuccessCount);
+        Assert.Equal(2, snapshot.FailureCount);
+        Assert.Equal(50, snapshot.FailureRatePercent, 3);
+        Assert.Equal(5, snapshot.AverageSyncIntervalMinutes, 3);
+        Assert.Equal(start.AddMinutes(10), snapshot.LastSuccessfulSyncUtc);
+        Assert.Equal(start.AddMinutes(15), snapshot.LastSeenUtc);
+    }
+
+    [Fact]
+    public void CalculateReliabilitySnapshot_WithNoHistory_ReturnsUnavailable()
+    {
+        // Arrange
+        var history = new List<ProviderUsage>();
+
+        // Act
+        var snapshot = UsageMath.CalculateReliabilitySnapshot(history);
+
+        // Assert
+        Assert.False(snapshot.IsAvailable);
+        Assert.Equal("No history", snapshot.Reason);
+    }
+
+    [Fact]
+    public void CalculateReliabilitySnapshot_WithSingleSample_HasZeroAverageInterval()
+    {
+        // Arrange
+        var start = new DateTime(2026, 2, 20, 0, 0, 0, DateTimeKind.Utc);
+        var history = new List<ProviderUsage>
+        {
+            CreateSample(start, used: 10, available: 100)
+        };
+
+        // Act
+        var snapshot = UsageMath.CalculateReliabilitySnapshot(history);
+
+        // Assert
+        Assert.True(snapshot.IsAvailable);
+        Assert.Equal(1, snapshot.SampleCount);
+        Assert.Equal(0, snapshot.AverageSyncIntervalMinutes, 3);
+    }
+
     private static ProviderUsage CreateSample(DateTime fetchedAt, double used, double available)
     {
         return new ProviderUsage
@@ -162,6 +222,19 @@ public class UsageMathTests
             RequestsAvailable = available,
             FetchedAt = fetchedAt,
             IsAvailable = true
+        };
+    }
+
+    private static ProviderUsage CreateUnavailableSample(DateTime fetchedAt)
+    {
+        return new ProviderUsage
+        {
+            ProviderId = "test-provider",
+            RequestsUsed = 0,
+            RequestsAvailable = 0,
+            FetchedAt = fetchedAt,
+            IsAvailable = false,
+            Description = "Connection failed"
         };
     }
 }
