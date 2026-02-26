@@ -155,12 +155,12 @@ public class UsageDatabase : IUsageDatabase
                     provider_id,
                     requests_used, requests_available, requests_percentage,
                     is_available, status_message, next_reset_time, fetched_at,
-                    details_json
+                    details_json, response_latency_ms
                 ) VALUES (
                     @ProviderId,
                     @RequestsUsed, @RequestsAvailable, @RequestsPercentage,
                     @IsAvailable, @StatusMessage, @NextResetTime, @FetchedAt,
-                    @DetailsJson
+                    @DetailsJson, @ResponseLatencyMs
                 )";
 
             var providerUpsertParameters = usages.Select(u => new
@@ -187,7 +187,8 @@ public class UsageDatabase : IUsageDatabase
                 FetchedAt = (u.FetchedAt == default ? DateTime.UtcNow : u.FetchedAt).ToString("O"),
                 DetailsJson = u.Details != null && u.Details.Any() 
                     ? JsonSerializer.Serialize(u.Details) 
-                    : null
+                    : null,
+                ResponseLatencyMs = u.ResponseLatencyMs
             });
 
             await connection.ExecuteAsync(sql, parameters);
@@ -335,6 +336,7 @@ public class UsageDatabase : IUsageDatabase
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
                        h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson,
+                       h.response_latency_ms AS ResponseLatencyMs,
                        COALESCE(p.account_name, '') AS AccountName,
                        COALESCE(p.auth_source, '') AS AuthSource,
                        CASE WHEN LOWER(COALESCE(p.plan_type, '')) = 'coding' THEN 1 ELSE 0 END AS PlanType
@@ -398,7 +400,8 @@ public class UsageDatabase : IUsageDatabase
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime
+                       h.next_reset_time AS NextResetTime,
+                       h.response_latency_ms AS ResponseLatencyMs
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.provider_id != 'antigravity'
@@ -427,7 +430,8 @@ public class UsageDatabase : IUsageDatabase
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime
+                       h.next_reset_time AS NextResetTime,
+                       h.response_latency_ms AS ResponseLatencyMs
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.provider_id = @ProviderId
@@ -458,12 +462,13 @@ public class UsageDatabase : IUsageDatabase
                            h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                            h.status_message AS Description, h.fetched_at AS FetchedAt,
                            h.next_reset_time AS NextResetTime,
+                           h.response_latency_ms AS ResponseLatencyMs,
                            ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY h.fetched_at DESC) as pos
                     FROM provider_history h
                     JOIN providers p ON h.provider_id = p.provider_id
                 )
                 SELECT ProviderId, ProviderName, RequestsUsed, RequestsAvailable, 
-                       RequestsPercentage, IsAvailable, Description, FetchedAt, NextResetTime
+                       RequestsPercentage, IsAvailable, Description, FetchedAt, NextResetTime, ResponseLatencyMs
                 FROM RankedHistory 
                 WHERE pos <= @Count
                 ORDER BY ProviderId, FetchedAt DESC";
