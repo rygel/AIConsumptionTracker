@@ -315,7 +315,7 @@ public partial class MainWindow : Window
                 ApplyPreferences();
             }
 
-            ShowStatus("Checking agent status...", StatusType.Info);
+            ShowStatus("Checking monitor status...", StatusType.Info);
 
             // Offload the expensive discovery/startup logic to a background thread
             // to prevent UI freezing during port scans or agent startup waits.
@@ -331,7 +331,7 @@ public partial class MainWindow : Window
 
                         if (await AgentLauncher.StartAgentAsync())
                         {
-                            Dispatcher.Invoke(() => ShowStatus("Waiting for agent...", StatusType.Warning));
+                            Dispatcher.Invoke(() => ShowStatus("Waiting for monitor...", StatusType.Warning));
                             var agentReady = await AgentLauncher.WaitForAgentAsync();
 
                             if (!agentReady)
@@ -347,7 +347,7 @@ public partial class MainWindow : Window
                         else
                         {
                             Dispatcher.Invoke(() => {
-                                ShowStatus("Could not start agent", StatusType.Error);
+                                ShowStatus("Could not start monitor", StatusType.Error);
                                 ShowErrorState("Could not start monitor automatically.\n\nPlease start it manually:\n\ndotnet run --project AIUsageTracker.Monitor");
                             });
                             return false;
@@ -1498,7 +1498,7 @@ public partial class MainWindow : Window
     private void AddAntigravityUnavailableNotice(ProviderUsage usage, StackPanel container)
     {
         var reason = string.IsNullOrWhiteSpace(usage.Description)
-            ? "Model quota details are missing from the latest agent refresh."
+            ? "Model quota details are missing from the latest monitor refresh."
             : usage.Description;
 
         var message =
@@ -2768,7 +2768,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            ShowStatus("Restarting agent...", StatusType.Warning);
+            ShowStatus("Restarting monitor...", StatusType.Warning);
 
             // Try to start agent
             if (await AgentLauncher.StartAgentAsync())
@@ -2799,7 +2799,7 @@ public partial class MainWindow : Window
         if (isRunning)
         {
             // Stop the agent
-            ShowStatus("Stopping agent...", StatusType.Warning);
+            ShowStatus("Stopping monitor...", StatusType.Warning);
             var stopped = await AgentLauncher.StopAgentAsync();
             if (stopped)
             {
@@ -2808,13 +2808,13 @@ public partial class MainWindow : Window
             }
             else
             {
-                ShowStatus("Failed to stop agent", StatusType.Error);
+                ShowStatus("Failed to stop monitor", StatusType.Error);
             }
         }
         else
         {
-            // Start the agent
-            ShowStatus("Starting agent...", StatusType.Warning);
+            // Start the monitor
+            ShowStatus("Starting monitor...", StatusType.Warning);
             if (await AgentLauncher.StartAgentAsync())
             {
                 var agentReady = await AgentLauncher.WaitForAgentAsync();
@@ -2832,7 +2832,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                ShowStatus("Could not start agent", StatusType.Error);
+                ShowStatus("Could not start monitor", StatusType.Error);
                 UpdateAgentToggleButton(false);
             }
         }
