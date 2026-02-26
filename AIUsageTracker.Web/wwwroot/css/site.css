@@ -201,6 +201,20 @@ body {
     text-align: right;
 }
 
+.forecast-time {
+    font-size: 0.75rem;
+    margin-top: 0.2rem;
+    text-align: right;
+}
+
+.forecast-time.available {
+    color: var(--text-secondary);
+}
+
+.forecast-time.unavailable {
+    color: var(--text-tertiary);
+}
+
 /* Table */
 .table-container {
     background-color: var(--bg-secondary);

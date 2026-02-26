@@ -71,6 +71,7 @@
                         isStatusOnlyProvider ||
                         string.Equals(usage.UsageUnit, "Status", StringComparison.OrdinalIgnoreCase);
                     var hasUsableMetrics = usage.IsAvailable && !isStatusOnly;
+                    var hasForecast = Model.ForecastsByProvider.TryGetValue(usage.ProviderId, out var forecast);
 
                     var displayPercentage = usage.IsQuotaBased
                         ? (Model.ShowUsedPercentage ? (100 - usage.RequestsPercentage) : usage.RequestsPercentage)
@@ -141,6 +142,12 @@
                             {
                                 <div class="reset-time">
                                     Resets: @usage.NextResetTime.Value.ToString("MMM d, HH:mm") (@GetRelativeTimeString(usage.NextResetTime.Value))
+                                </div>
+                            }
+                            @if (hasUsableMetrics && hasForecast && forecast != null)
+                            {
+                                <div class="forecast-time @(forecast.IsAvailable ? "available" : "unavailable")">
+                                    Forecast: @GetForecastText(forecast)
                                 </div>
                             }
                         </div>
@@ -285,5 +292,35 @@
         if (diff.TotalDays >= 1) return $"{diff.Days}d {diff.Hours}h";
         if (diff.TotalHours >= 1) return $"{diff.Hours}h {diff.Minutes}m";
         return $"{Math.Max(1, (int)Math.Ceiling(diff.TotalMinutes))}m";
+    }
+
+    string GetForecastText(AIUsageTracker.Core.Models.BurnRateForecast forecast)
+    {
+        if (!forecast.IsAvailable)
+        {
+            return "collecting trend data";
+        }
+
+        if (forecast.DaysUntilExhausted <= 0)
+        {
+            return "exhausted";
+        }
+
+        var burnRateText = forecast.BurnRatePerDay >= 1
+            ? forecast.BurnRatePerDay.ToString("F2")
+            : forecast.BurnRatePerDay.ToString("F3");
+
+        if (forecast.DaysUntilExhausted >= 3650)
+        {
+            return $"slow burn (~{burnRateText}/day)";
+        }
+
+        if (forecast.DaysUntilExhausted >= 2)
+        {
+            return $"~{forecast.DaysUntilExhausted:F1} days left ({burnRateText}/day)";
+        }
+
+        var hours = Math.Max(1, (int)Math.Ceiling(forecast.DaysUntilExhausted * 24));
+        return $"~{hours}h left ({burnRateText}/day)";
     }
 }
