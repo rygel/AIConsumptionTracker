@@ -75,7 +75,7 @@ body {
 
 .reliability-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 0.75rem;
     margin-bottom: 1rem;
 }
@@ -83,23 +83,27 @@ body {
 .reliability-card {
     background-color: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 0.65rem 0.75rem;
+    border-radius: 6px;
+    padding: 0.75rem;
 }
 
 .reliability-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .reliability-badge {
     font-size: 0.7rem;
-    padding: 0.15rem 0.4rem;
-    border-radius: 3px;
-    font-weight: 500;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 600;
     color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 }
 
 .reliability-badge.healthy {
@@ -121,10 +125,20 @@ body {
 .reliability-row {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 0.5rem;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--text-secondary);
-    padding: 0.12rem 0;
+    padding: 0.25rem 0;
+}
+
+.reliability-row span:first-child {
+    color: var(--text-muted);
+}
+
+.reliability-row span:last-child {
+    font-weight: 500;
+    color: var(--text-primary);
 }
 
 .provider-card {
@@ -143,7 +157,8 @@ body {
 
 .provider-name {
     font-size: 0.9rem;
-    font-weight: 500;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
 .provider-status {
