@@ -1045,6 +1045,41 @@ Changes to Agent endpoints are considered incomplete unless this contract file i
 
 ## Agent Status Detection
 
+### Port Discovery (Critical for UI Clients)
+
+**IMPORTANT:** All UI clients (Slim UI, Web UI, CLI) MUST call `RefreshPortAsync()` or `RefreshAgentInfoAsync()` before making API calls to the Monitor. This is critical because:
+
+1. **Dynamic Port Allocation**: The Monitor may run on any available port (5000-5010 or random) if the default port is busy
+2. **Persistence**: The port is saved to `monitor.json`, not a fixed location
+3. **Silent Failures**: Without port discovery, API calls fail silently and users see empty data
+
+**Port Discovery Flow:**
+```
+UI Client Startup:
+  1. Call RefreshPortAsync() or RefreshAgentInfoAsync()
+  2. Reads %LOCALAPPDATA%\AIUsageTracker\monitor.json
+  3. Extracts Port from MonitorInfo
+  4. Updates AgentUrl to http://localhost:{port}
+  5. Now API calls work correctly
+```
+
+**Files Read During Discovery:**
+- `%LOCALAPPDATA%\AIUsageTracker\monitor.json` (primary)
+- `%LOCALAPPDATA%\AIConsumptionTracker\monitor.json` (legacy compatibility)
+
+**monitor.json Structure:**
+```json
+{
+  "Port": 5000,
+  "StartedAt": "2026-02-27T10:30:00Z",
+  "ProcessId": 12345,
+  "DebugMode": false,
+  "MachineName": "DESKTOP-PC",
+  "UserName": "developer",
+  "Errors": []
+}
+```
+
 ### Port Configuration
 
 The Monitor supports dynamic port allocation to handle conflicts:

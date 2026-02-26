@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -77,11 +78,29 @@ public partial class SettingsWindow : Window
     private async Task LoadDataAsync()
     {
         _isLoadingSettings = true;
+        string? loadError = null;
+        
         try
         {
             _isDeterministicScreenshotMode = false;
-            _configs = await _agentService.GetConfigsAsync();
-            _usages = await _agentService.GetUsageAsync();
+            
+            var configsTask = _agentService.GetConfigsAsync();
+            var usagesTask = _agentService.GetUsageAsync();
+            
+            await Task.WhenAll(configsTask, usagesTask);
+            
+            _configs = configsTask.Result;
+            _usages = usagesTask.Result;
+            
+            if (_configs.Count == 0)
+            {
+                loadError = "No providers found. This may indicate:\n" +
+                           "- Monitor is not running\n" +
+                           "- Failed to connect to Monitor\n" +
+                           "- No providers configured in Monitor\n\n" +
+                           "Try clicking 'Refresh Data' or restarting the Monitor.";
+            }
+            
             _gitHubAuthUsername = await TryGetGitHubUsernameFromAuthAsync();
             _openAiAuthUsername = await TryGetOpenAiUsernameFromAuthAsync();
             _preferences = await UiPreferencesStore.LoadAsync();
@@ -98,9 +117,24 @@ public partial class SettingsWindow : Window
             await UpdateAgentStatusAsync();
             RefreshDiagnosticsLog();
         }
+        catch (HttpRequestException ex)
+        {
+            loadError = $"Failed to connect to Monitor: {ex.Message}\n\n" +
+                       "Ensure the Monitor is running and accessible.";
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Failed to load settings: {ex.Message}";
+        }
         finally
         {
             _isLoadingSettings = false;
+            
+            if (loadError != null)
+            {
+                MessageBox.Show(loadError, "Connection Error", 
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
     }
 
