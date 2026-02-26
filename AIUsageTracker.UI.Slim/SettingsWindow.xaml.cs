@@ -9,7 +9,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.AgentClient;
+using AIUsageTracker.Core.MonitorClient;
 using Microsoft.Win32;
 
 namespace AIUsageTracker.UI.Slim;
@@ -22,7 +22,7 @@ public partial class SettingsWindow : Window
         public string Label { get; init; } = string.Empty;
     }
 
-    private readonly AgentService _agentService;
+    private readonly MonitorService _agentService;
     private List<ProviderConfig> _configs = new();
     private List<ProviderUsage> _usages = new();
     private string? _gitHubAuthUsername;
@@ -47,7 +47,7 @@ public partial class SettingsWindow : Window
         _autoSaveTimer.Tick += AutoSaveTimer_Tick;
 
         InitializeComponent();
-        _agentService = new AgentService();
+        _agentService = new MonitorService();
         App.PrivacyChanged += OnPrivacyChanged;
         Closed += SettingsWindow_Closed;
         Loaded += SettingsWindow_Loaded;
@@ -841,10 +841,10 @@ public partial class SettingsWindow : Window
         try
         {
             // Check if agent is running
-            var isRunning = await AgentLauncher.IsAgentRunningAsync();
+            var isRunning = await MonitorLauncher.IsAgentRunningAsync();
             
             // Get the actual port from the agent
-            int port = await AgentLauncher.GetAgentPortAsync();
+            int port = await MonitorLauncher.GetAgentPortAsync();
             
             if (AgentStatusText != null)
             {
@@ -886,7 +886,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var logs = AgentService.DiagnosticsLog;
+        var logs = MonitorService.DiagnosticsLog;
         var lines = new List<string>();
         if (logs.Count == 0)
         {
@@ -897,7 +897,7 @@ public partial class SettingsWindow : Window
             lines.AddRange(logs);
         }
 
-        var telemetry = AgentService.GetTelemetrySnapshot();
+        var telemetry = MonitorService.GetTelemetrySnapshot();
         lines.Add("---- Slim Telemetry ----");
         lines.Add(
             $"Usage: count={telemetry.UsageRequestCount}, avg={telemetry.UsageAverageLatencyMs:F1}ms, last={telemetry.UsageLastLatencyMs}ms, errors={telemetry.UsageErrorCount} ({telemetry.UsageErrorRatePercent:F1}%)");
@@ -1757,7 +1757,7 @@ public partial class SettingsWindow : Window
             await Task.Delay(1000);
             
             // Restart agent
-            if (await AgentLauncher.StartAgentAsync())
+            if (await MonitorLauncher.StartAgentAsync())
             {
                 MessageBox.Show("Monitor restarted successfully.", "Restart Complete", 
                     MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1783,7 +1783,7 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            var (isRunning, port) = await AgentLauncher.IsAgentRunningWithPortAsync();
+            var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync();
             var status = isRunning ? "Running" : "Not Running";
             
             MessageBox.Show($"Monitor Status: {status}\n\nPort: {port}", "Health Check", 
@@ -1807,7 +1807,7 @@ public partial class SettingsWindow : Window
             await _agentService.RefreshPortAsync();
             await _agentService.RefreshAgentInfoAsync();
 
-            var (isRunning, port) = await AgentLauncher.IsAgentRunningWithPortAsync();
+            var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync();
             var healthDetails = await _agentService.GetHealthDetailsAsync();
             var diagnosticsDetails = await _agentService.GetDiagnosticsDetailsAsync();
 
@@ -1824,7 +1824,7 @@ public partial class SettingsWindow : Window
                 return;
             }
 
-            var telemetry = AgentService.GetTelemetrySnapshot();
+            var telemetry = MonitorService.GetTelemetrySnapshot();
             var bundle = new StringBuilder();
             bundle.AppendLine("AI Usage Tracker - Diagnostics Bundle");
             bundle.AppendLine($"GeneratedAtUtc: {DateTime.UtcNow:O}");
@@ -1864,7 +1864,7 @@ public partial class SettingsWindow : Window
             bundle.AppendLine();
 
             bundle.AppendLine("=== Slim Diagnostics Log ===");
-            var diagnosticsLog = AgentService.DiagnosticsLog;
+            var diagnosticsLog = MonitorService.DiagnosticsLog;
             if (diagnosticsLog.Count == 0)
             {
                 bundle.AppendLine("No diagnostics captured yet.");

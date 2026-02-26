@@ -14,7 +14,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.AgentClient;
+using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Infrastructure.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -37,7 +37,7 @@ public partial class MainWindow : Window
         @"(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*|\[[^\]]+\]\([^)]+\))",
         RegexOptions.Compiled);
 
-    private readonly AgentService _agentService;
+    private readonly MonitorService _agentService;
     private readonly IUpdateCheckerService _updateChecker;
     private AppPreferences _preferences = new();
     private List<ProviderUsage> _usages = new();
@@ -101,7 +101,7 @@ public partial class MainWindow : Window
             InitializeComponent();
         }
 
-        _agentService = new AgentService();
+        _agentService = new MonitorService();
         _updateChecker = new GitHubUpdateChecker(NullLogger<GitHubUpdateChecker>.Instance);
         _updateCheckTimer = new DispatcherTimer
         {
@@ -325,14 +325,14 @@ public partial class MainWindow : Window
                     await _agentService.RefreshPortAsync();
 
                     // Check if Agent is running, auto-start if needed
-                    if (!await AgentLauncher.IsAgentRunningAsync())
+                    if (!await MonitorLauncher.IsAgentRunningAsync())
                     {
                         Dispatcher.Invoke(() => ShowStatus("Monitor not running. Starting monitor...", StatusType.Warning));
 
-                        if (await AgentLauncher.StartAgentAsync())
+                        if (await MonitorLauncher.StartAgentAsync())
                         {
                             Dispatcher.Invoke(() => ShowStatus("Waiting for monitor...", StatusType.Warning));
-                            var agentReady = await AgentLauncher.WaitForAgentAsync();
+                            var agentReady = await MonitorLauncher.WaitForAgentAsync();
 
                             if (!agentReady)
                             {
@@ -2771,9 +2771,9 @@ public partial class MainWindow : Window
             ShowStatus("Restarting monitor...", StatusType.Warning);
 
             // Try to start agent
-            if (await AgentLauncher.StartAgentAsync())
+            if (await MonitorLauncher.StartAgentAsync())
             {
-                var agentReady = await AgentLauncher.WaitForAgentAsync();
+                var agentReady = await MonitorLauncher.WaitForAgentAsync();
                 if (agentReady)
                 {
                     ShowStatus("Monitor restarted", StatusType.Success);
@@ -2794,13 +2794,13 @@ public partial class MainWindow : Window
 
     private async void AgentToggleBtn_Click(object sender, RoutedEventArgs e)
     {
-        var (isRunning, _) = await AgentLauncher.IsAgentRunningWithPortAsync();
+        var (isRunning, _) = await MonitorLauncher.IsAgentRunningWithPortAsync();
 
         if (isRunning)
         {
             // Stop the agent
             ShowStatus("Stopping monitor...", StatusType.Warning);
-            var stopped = await AgentLauncher.StopAgentAsync();
+            var stopped = await MonitorLauncher.StopAgentAsync();
             if (stopped)
             {
                 ShowStatus("Monitor stopped", StatusType.Info);
@@ -2815,9 +2815,9 @@ public partial class MainWindow : Window
         {
             // Start the monitor
             ShowStatus("Starting monitor...", StatusType.Warning);
-            if (await AgentLauncher.StartAgentAsync())
+            if (await MonitorLauncher.StartAgentAsync())
             {
-                var agentReady = await AgentLauncher.WaitForAgentAsync();
+                var agentReady = await MonitorLauncher.WaitForAgentAsync();
                 if (agentReady)
                 {
                     ShowStatus("Monitor started", StatusType.Success);
@@ -2850,7 +2850,7 @@ public partial class MainWindow : Window
 
     private async Task UpdateAgentToggleButtonStateAsync()
     {
-        var (isRunning, _) = await AgentLauncher.IsAgentRunningWithPortAsync();
+        var (isRunning, _) = await MonitorLauncher.IsAgentRunningWithPortAsync();
         Dispatcher.Invoke(() => UpdateAgentToggleButton(isRunning));
     }
 

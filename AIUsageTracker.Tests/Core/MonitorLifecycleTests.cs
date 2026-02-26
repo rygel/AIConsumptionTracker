@@ -1,4 +1,4 @@
-using AIUsageTracker.Core.AgentClient;
+using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Web.Services;
 using System.Reflection;
 
@@ -7,9 +7,9 @@ namespace AIUsageTracker.Tests.Core;
 public class MonitorLifecycleTests
 {
     [Fact]
-    public void AgentLauncher_HasRequiredMethods_ForSlimUiStartStop()
+    public void MonitorLauncher_HasRequiredMethods_ForSlimUiStartStop()
     {
-        var type = typeof(AgentLauncher);
+        var type = typeof(MonitorLauncher);
         
         var startMethod = type.GetMethod("StartAgentAsync", BindingFlags.Public | BindingFlags.Static);
         var stopMethod = type.GetMethod("StopAgentAsync", BindingFlags.Public | BindingFlags.Static);
@@ -41,21 +41,21 @@ public class MonitorLifecycleTests
     [Fact]
     public async Task MonitorLifecycle_StartFromSlim_StopFromWeb_RestartFromSlim_Works()
     {
-        var isRunningBefore = await AgentLauncher.IsAgentRunningAsync();
+        var isRunningBefore = await MonitorLauncher.IsAgentRunningAsync();
         
-        var canStart = await AgentLauncher.StartAgentAsync();
+        var canStart = await MonitorLauncher.StartAgentAsync();
         
         if (canStart)
         {
-            var waited = await AgentLauncher.WaitForAgentAsync();
-            var isRunningAfterStart = await AgentLauncher.IsAgentRunningAsync();
+            var waited = await MonitorLauncher.WaitForAgentAsync();
+            var isRunningAfterStart = await MonitorLauncher.IsAgentRunningAsync();
             
             if (isRunningAfterStart)
             {
-                var stopped = await AgentLauncher.StopAgentAsync();
-                var isRunningAfterStop = await AgentLauncher.IsAgentRunningAsync();
+                var stopped = await MonitorLauncher.StopAgentAsync();
+                var isRunningAfterStop = await MonitorLauncher.IsAgentRunningAsync();
                 
-                var restarted = await AgentLauncher.StartAgentAsync();
+                var restarted = await MonitorLauncher.StartAgentAsync();
                 
                 Assert.True(isRunningBefore == false || isRunningBefore == true, "Initial state check");
                 Assert.True(canStart == true || canStart == false, "Start attempt");
