@@ -17,7 +17,6 @@ public static class ProviderMetadataService
         ["xiaomi"] = new ProviderMetadata { PlanType = PlanType.Coding, IsQuotaBased = true },
         ["minimax"] = new ProviderMetadata { PlanType = PlanType.Coding, IsQuotaBased = true },
         ["evolve-migrations"] = new ProviderMetadata { PlanType = PlanType.Coding, IsQuotaBased = true },
-        ["simulated"] = new ProviderMetadata { PlanType = PlanType.Coding, IsQuotaBased = true },
         ["synthetic"] = new ProviderMetadata { PlanType = PlanType.Coding, IsQuotaBased = true },
         
         // Pay-as-you-go providers (Usage plans)
