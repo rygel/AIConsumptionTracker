@@ -1,6 +1,7 @@
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace AIUsageTracker.Core.Services;
 
@@ -194,13 +195,16 @@ public class ProviderManager : IDisposable
         if (provider != null)
         {
             await _httpSemaphore.WaitAsync();
+            var stopwatch = Stopwatch.StartNew();
             try
             {
                 _logger.LogDebug($"Fetching usage for provider: {config.ProviderId}");
                 var usages = (await provider.GetUsageAsync(config, progressCallback)).ToList();
+                stopwatch.Stop();
                 foreach(var u in usages) 
                 {
                     u.AuthSource = config.AuthSource;
+                    u.ResponseLatencyMs = stopwatch.Elapsed.TotalMilliseconds;
                     progressCallback?.Invoke(u);
                 }
 
@@ -219,7 +223,8 @@ public class ProviderManager : IDisposable
                     RequestsPercentage = 0,
                     IsAvailable = false,
                     IsQuotaBased = isQuota,
-                    PlanType = planType
+                    PlanType = planType,
+                    ResponseLatencyMs = stopwatch.Elapsed.TotalMilliseconds
                 };
                 progressCallback?.Invoke(errorUsage);
                 return new List<ProviderUsage> { errorUsage };
@@ -237,7 +242,8 @@ public class ProviderManager : IDisposable
                     IsAvailable = true, // Still available, just failed to fetch
                     IsQuotaBased = isQuota,
                     PlanType = planType,
-                    HttpStatus = 500 // Mark as error
+                    HttpStatus = 500, // Mark as error
+                    ResponseLatencyMs = stopwatch.Elapsed.TotalMilliseconds
                 };
                 progressCallback?.Invoke(errorUsage);
                 // Throw exception here to let the caller know it failed (for Check command)
@@ -261,7 +267,8 @@ public class ProviderManager : IDisposable
             IsAvailable = false,
             UsageUnit = "Status",
             IsQuotaBased = isQuotaFallback,
-            PlanType = planTypeFallback
+            PlanType = planTypeFallback,
+            ResponseLatencyMs = 0
         };
         progressCallback?.Invoke(genericUsage);
         return new List<ProviderUsage> { genericUsage };

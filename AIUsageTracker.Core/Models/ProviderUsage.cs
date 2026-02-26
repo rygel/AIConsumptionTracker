@@ -25,6 +25,7 @@ public class ProviderUsage
     public string ConfigKey { get; set; } = string.Empty;
     public DateTime? NextResetTime { get; set; }
     public DateTime FetchedAt { get; set; } = DateTime.UtcNow;
+    public double ResponseLatencyMs { get; set; }
     public string? RawJson { get; set; }
     public int HttpStatus { get; set; } = 200;
 }

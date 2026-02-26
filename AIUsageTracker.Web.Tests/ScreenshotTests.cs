@@ -180,6 +180,46 @@ public class ScreenshotTests : PageTest
     }
 
     [TestMethod]
+    public async Task Dashboard_ReliabilityPanelStylesAndMarkupArePresent()
+    {
+        await Page.SetViewportSizeAsync(1280, 800);
+        await Page.GotoAsync(BaseUrl);
+        await Page.WaitForSelectorAsync(".sidebar", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
+
+        var cssText = await Page.EvaluateAsync<string>("""
+            async () => {
+                const res = await fetch('/css/site.css', { cache: 'no-store' });
+                return await res.text();
+            }
+            """);
+
+        StringAssert.Contains(cssText, ".reliability-grid", "Reliability grid CSS hook missing.");
+        StringAssert.Contains(cssText, ".reliability-card", "Reliability card CSS hook missing.");
+        StringAssert.Contains(cssText, ".reliability-badge", "Reliability badge CSS hook missing.");
+
+        var providerCardCount = await Page.EvaluateAsync<int>("""
+            () => document.querySelectorAll('.provider-card').length
+            """);
+
+        if (providerCardCount > 0)
+        {
+            var reliabilityCardCount = await Page.EvaluateAsync<int>("""
+                () => document.querySelectorAll('.reliability-card').length
+                """);
+            var reliabilityHeading = await Page.EvaluateAsync<string?>("""
+                () => {
+                    const heading = Array.from(document.querySelectorAll('h2'))
+                        .find(h => h.textContent?.trim() === 'Provider Reliability');
+                    return heading?.textContent?.trim() ?? null;
+                }
+                """);
+
+            Assert.IsTrue(reliabilityCardCount > 0, "Reliability cards should render when provider cards are present.");
+            Assert.AreEqual("Provider Reliability", reliabilityHeading, "Reliability section heading missing.");
+        }
+    }
+
+    [TestMethod]
     public async Task CaptureWebScreenshots()
     {
         // Capture console logs for debugging CI

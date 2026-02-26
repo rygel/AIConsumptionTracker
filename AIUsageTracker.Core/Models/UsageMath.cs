@@ -129,22 +129,12 @@ public static class UsageMath
         var failureCount = samples.Count - successCount;
         var failureRatePercent = (failureCount / (double)samples.Count) * 100.0;
 
-        double averageSyncIntervalMinutes = 0;
-        var intervalCount = 0;
-        for (var i = 1; i < samples.Count; i++)
-        {
-            var deltaMinutes = (samples[i].FetchedAt - samples[i - 1].FetchedAt).TotalMinutes;
-            if (deltaMinutes > 0)
-            {
-                averageSyncIntervalMinutes += deltaMinutes;
-                intervalCount++;
-            }
-        }
-
-        if (intervalCount > 0)
-        {
-            averageSyncIntervalMinutes /= intervalCount;
-        }
+        var latencySamples = samples
+            .Where(x => x.ResponseLatencyMs > 0)
+            .Select(x => x.ResponseLatencyMs)
+            .ToList();
+        var averageLatencyMs = latencySamples.Count == 0 ? 0 : latencySamples.Average();
+        var lastLatencyMs = latencySamples.Count == 0 ? 0 : latencySamples[^1];
 
         return new ProviderReliabilitySnapshot
         {
@@ -153,7 +143,8 @@ public static class UsageMath
             SuccessCount = successCount,
             FailureCount = failureCount,
             FailureRatePercent = failureRatePercent,
-            AverageSyncIntervalMinutes = averageSyncIntervalMinutes,
+            AverageLatencyMs = averageLatencyMs,
+            LastLatencyMs = lastLatencyMs,
             LastSuccessfulSyncUtc = samples.LastOrDefault(x => x.IsAvailable)?.FetchedAt.ToUniversalTime(),
             LastSeenUtc = samples[^1].FetchedAt.ToUniversalTime()
         };
@@ -216,7 +207,8 @@ public sealed class ProviderReliabilitySnapshot
     public int SuccessCount { get; init; }
     public int FailureCount { get; init; }
     public double FailureRatePercent { get; init; }
-    public double AverageSyncIntervalMinutes { get; init; }
+    public double AverageLatencyMs { get; init; }
+    public double LastLatencyMs { get; init; }
     public DateTime? LastSuccessfulSyncUtc { get; init; }
     public DateTime? LastSeenUtc { get; init; }
     public string? Reason { get; init; }

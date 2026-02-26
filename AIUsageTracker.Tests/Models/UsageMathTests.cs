@@ -160,10 +160,10 @@ public class UsageMathTests
         var start = new DateTime(2026, 2, 20, 0, 0, 0, DateTimeKind.Utc);
         var history = new List<ProviderUsage>
         {
-            CreateSample(start, used: 10, available: 100),
-            CreateUnavailableSample(start.AddMinutes(5)),
-            CreateSample(start.AddMinutes(10), used: 20, available: 100),
-            CreateUnavailableSample(start.AddMinutes(15))
+            CreateSample(start, used: 10, available: 100, latencyMs: 400),
+            CreateUnavailableSample(start.AddMinutes(5), latencyMs: 800),
+            CreateSample(start.AddMinutes(10), used: 20, available: 100, latencyMs: 600),
+            CreateUnavailableSample(start.AddMinutes(15), latencyMs: 1000)
         };
 
         // Act
@@ -175,7 +175,8 @@ public class UsageMathTests
         Assert.Equal(2, snapshot.SuccessCount);
         Assert.Equal(2, snapshot.FailureCount);
         Assert.Equal(50, snapshot.FailureRatePercent, 3);
-        Assert.Equal(5, snapshot.AverageSyncIntervalMinutes, 3);
+        Assert.Equal(700, snapshot.AverageLatencyMs, 3);
+        Assert.Equal(1000, snapshot.LastLatencyMs, 3);
         Assert.Equal(start.AddMinutes(10), snapshot.LastSuccessfulSyncUtc);
         Assert.Equal(start.AddMinutes(15), snapshot.LastSeenUtc);
     }
@@ -195,7 +196,7 @@ public class UsageMathTests
     }
 
     [Fact]
-    public void CalculateReliabilitySnapshot_WithSingleSample_HasZeroAverageInterval()
+    public void CalculateReliabilitySnapshot_WithSingleSample_HasZeroAverageLatency()
     {
         // Arrange
         var start = new DateTime(2026, 2, 20, 0, 0, 0, DateTimeKind.Utc);
@@ -210,10 +211,30 @@ public class UsageMathTests
         // Assert
         Assert.True(snapshot.IsAvailable);
         Assert.Equal(1, snapshot.SampleCount);
-        Assert.Equal(0, snapshot.AverageSyncIntervalMinutes, 3);
+        Assert.Equal(0, snapshot.AverageLatencyMs, 3);
     }
 
-    private static ProviderUsage CreateSample(DateTime fetchedAt, double used, double available)
+    [Fact]
+    public void CalculateReliabilitySnapshot_WithoutLatencySamples_ReturnsZeroLatency()
+    {
+        // Arrange
+        var start = new DateTime(2026, 2, 20, 0, 0, 0, DateTimeKind.Utc);
+        var history = new List<ProviderUsage>
+        {
+            CreateSample(start, used: 10, available: 100, latencyMs: 0),
+            CreateUnavailableSample(start.AddMinutes(5), latencyMs: 0)
+        };
+
+        // Act
+        var snapshot = UsageMath.CalculateReliabilitySnapshot(history);
+
+        // Assert
+        Assert.True(snapshot.IsAvailable);
+        Assert.Equal(0, snapshot.AverageLatencyMs, 3);
+        Assert.Equal(0, snapshot.LastLatencyMs, 3);
+    }
+
+    private static ProviderUsage CreateSample(DateTime fetchedAt, double used, double available, double latencyMs = 0)
     {
         return new ProviderUsage
         {
@@ -221,11 +242,12 @@ public class UsageMathTests
             RequestsUsed = used,
             RequestsAvailable = available,
             FetchedAt = fetchedAt,
-            IsAvailable = true
+            IsAvailable = true,
+            ResponseLatencyMs = latencyMs
         };
     }
 
-    private static ProviderUsage CreateUnavailableSample(DateTime fetchedAt)
+    private static ProviderUsage CreateUnavailableSample(DateTime fetchedAt, double latencyMs = 0)
     {
         return new ProviderUsage
         {
@@ -234,7 +256,8 @@ public class UsageMathTests
             RequestsAvailable = 0,
             FetchedAt = fetchedAt,
             IsAvailable = false,
-            Description = "Connection failed"
+            Description = "Connection failed",
+            ResponseLatencyMs = latencyMs
         };
     }
 }

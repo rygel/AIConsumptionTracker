@@ -19,12 +19,28 @@ public class WebDatabaseService
     private static int _chartIndexesEnsured;
 
     public WebDatabaseService(IMemoryCache cache, ILogger<WebDatabaseService> logger)
+        : this(cache, logger, databasePathOverride: null)
+    {
+    }
+
+    public WebDatabaseService(
+        IMemoryCache cache,
+        ILogger<WebDatabaseService> logger,
+        string? databasePathOverride)
     {
         _cache = cache;
         _logger = logger;
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var dbDir = ResolveDatabaseDirectory(appData);
-        _dbPath = Path.Combine(dbDir, "usage.db");
+        if (!string.IsNullOrWhiteSpace(databasePathOverride))
+        {
+            _dbPath = databasePathOverride;
+        }
+        else
+        {
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var dbDir = ResolveDatabaseDirectory(appData);
+            _dbPath = Path.Combine(dbDir, "usage.db");
+        }
+
         _readConnectionString = new SqliteConnectionStringBuilder
         {
             DataSource = _dbPath,
@@ -304,7 +320,7 @@ public class WebDatabaseService
                        h.requests_available AS RequestsAvailable,
                        h.is_available AS IsAvailable,
                        h.fetched_at AS FetchedAt,
-                       ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY h.fetched_at DESC) AS RowNum
+                       ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY datetime(h.fetched_at) DESC) AS RowNum
                 FROM provider_history h
                 WHERE h.provider_id IN @ProviderIds
                   AND datetime(h.fetched_at) >= datetime(@CutoffUtc)
@@ -312,7 +328,7 @@ public class WebDatabaseService
             SELECT ProviderId, RequestsUsed, RequestsAvailable, IsAvailable, FetchedAt
             FROM ranked
             WHERE RowNum <= @MaxSamplesPerProvider
-            ORDER BY ProviderId, FetchedAt ASC";
+            ORDER BY ProviderId, datetime(FetchedAt) ASC";
 
         var rows = (await connection.QueryAsync<BurnRateSampleRow>(sql, new
         {
@@ -393,27 +409,58 @@ public class WebDatabaseService
         var cutoffUtc = DateTime.UtcNow
             .AddHours(-lookbackHours)
             .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-        const string sql = @"
+        const string sqlWithLatency = @"
             WITH ranked AS (
                 SELECT h.provider_id AS ProviderId,
                        h.is_available AS IsAvailable,
+                       h.response_latency_ms AS ResponseLatencyMs,
                        h.fetched_at AS FetchedAt,
-                       ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY h.fetched_at DESC) AS RowNum
+                       ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY datetime(h.fetched_at) DESC) AS RowNum
                 FROM provider_history h
                 WHERE h.provider_id IN @ProviderIds
                   AND datetime(h.fetched_at) >= datetime(@CutoffUtc)
             )
-            SELECT ProviderId, IsAvailable, FetchedAt
+            SELECT ProviderId, IsAvailable, ResponseLatencyMs, FetchedAt
             FROM ranked
             WHERE RowNum <= @MaxSamplesPerProvider
-            ORDER BY ProviderId, FetchedAt ASC";
+            ORDER BY ProviderId, datetime(FetchedAt) ASC";
+        const string sqlWithoutLatency = @"
+            WITH ranked AS (
+                SELECT h.provider_id AS ProviderId,
+                       h.is_available AS IsAvailable,
+                       0 AS ResponseLatencyMs,
+                       h.fetched_at AS FetchedAt,
+                       ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY datetime(h.fetched_at) DESC) AS RowNum
+                FROM provider_history h
+                WHERE h.provider_id IN @ProviderIds
+                  AND datetime(h.fetched_at) >= datetime(@CutoffUtc)
+            )
+            SELECT ProviderId, IsAvailable, ResponseLatencyMs, FetchedAt
+            FROM ranked
+            WHERE RowNum <= @MaxSamplesPerProvider
+            ORDER BY ProviderId, datetime(FetchedAt) ASC";
 
-        var rows = (await connection.QueryAsync<ProviderReliabilityRow>(sql, new
+        List<ProviderReliabilityRow> rows;
+        try
         {
-            ProviderIds = normalizedProviderIds,
-            CutoffUtc = cutoffUtc,
-            MaxSamplesPerProvider = maxSamplesPerProvider
-        })).ToList();
+            rows = (await connection.QueryAsync<ProviderReliabilityRow>(sqlWithLatency, new
+            {
+                ProviderIds = normalizedProviderIds,
+                CutoffUtc = cutoffUtc,
+                MaxSamplesPerProvider = maxSamplesPerProvider
+            })).ToList();
+        }
+        catch (SqliteException ex) when (ex.Message.Contains("response_latency_ms", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "provider_history.response_latency_ms is unavailable; falling back to zero latency snapshots until migration runs.");
+            rows = (await connection.QueryAsync<ProviderReliabilityRow>(sqlWithoutLatency, new
+            {
+                ProviderIds = normalizedProviderIds,
+                CutoffUtc = cutoffUtc,
+                MaxSamplesPerProvider = maxSamplesPerProvider
+            })).ToList();
+        }
 
         var snapshots = normalizedProviderIds.ToDictionary(
             id => id,
@@ -426,6 +473,7 @@ public class WebDatabaseService
             {
                 ProviderId = x.ProviderId,
                 IsAvailable = x.IsAvailable,
+                ResponseLatencyMs = x.ResponseLatencyMs,
                 FetchedAt = x.FetchedAt
             });
 
@@ -625,6 +673,7 @@ public class WebDatabaseService
     {
         public string ProviderId { get; set; } = string.Empty;
         public bool IsAvailable { get; set; }
+        public double ResponseLatencyMs { get; set; }
         public DateTime FetchedAt { get; set; }
     }
 }

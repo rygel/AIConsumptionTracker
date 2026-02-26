@@ -70,8 +70,8 @@
                             <span>@(snapshot.IsAvailable ? $"{snapshot.FailureRatePercent:F1}%" : "n/a")</span>
                         </div>
                         <div class="reliability-row">
-                            <span>Avg cadence</span>
-                            <span>@GetCadenceText(snapshot)</span>
+                            <span>Avg latency</span>
+                            <span>@GetLatencyText(snapshot)</span>
                         </div>
                         <div class="reliability-row">
                             <span>Last success</span>
@@ -397,19 +397,19 @@
         };
     }
 
-    string GetCadenceText(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
+    string GetLatencyText(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
     {
-        if (!snapshot.IsAvailable || snapshot.SampleCount < 2 || snapshot.AverageSyncIntervalMinutes <= 0)
+        if (!snapshot.IsAvailable || snapshot.AverageLatencyMs <= 0)
         {
             return "n/a";
         }
 
-        if (snapshot.AverageSyncIntervalMinutes >= 60)
+        if (snapshot.AverageLatencyMs >= 1000)
         {
-            return $"{snapshot.AverageSyncIntervalMinutes / 60:F1}h";
+            return $"{snapshot.AverageLatencyMs / 1000:F2}s";
         }
 
-        return $"{snapshot.AverageSyncIntervalMinutes:F0}m";
+        return $"{snapshot.AverageLatencyMs:F0}ms";
     }
 
     string GetLastSuccessText(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
