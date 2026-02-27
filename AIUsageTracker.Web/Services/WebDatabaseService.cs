@@ -100,8 +100,7 @@ public class WebDatabaseService
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson,
-                       CASE WHEN LOWER(p.plan_type) = 'coding' THEN 1 ELSE 0 END AS IsQuotaBased
+                       h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.id IN (
@@ -115,8 +114,7 @@ public class WebDatabaseService
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson,
-                       CASE WHEN LOWER(p.plan_type) = 'coding' THEN 1 ELSE 0 END AS IsQuotaBased
+                       h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.id IN (
@@ -127,7 +125,7 @@ public class WebDatabaseService
         var sql = includeInactive ? allSql : activeSql;
         var results = await connection.QueryAsync<ProviderUsage>(sql);
             
-        // Deserialize details from JSON
+        // Deserialize details from JSON and set IsQuotaBased from provider class
         foreach (var usage in results)
         {
             if (!string.IsNullOrEmpty(usage.DetailsJson))
@@ -138,6 +136,9 @@ public class WebDatabaseService
                 }
                 catch { /* Ignore deserialization errors */ }
             }
+            
+            // Set IsQuotaBased using the existing ProviderPlanClassifier
+            usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
         }
 
         var list = results.ToList();
@@ -167,6 +168,12 @@ public class WebDatabaseService
                 LIMIT {limit}";
 
         var results = await connection.QueryAsync<ProviderUsage>(sql);
+        
+        foreach (var usage in results)
+        {
+            usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
+        }
+        
         return results.ToList();
     }
 
@@ -191,6 +198,12 @@ public class WebDatabaseService
                 LIMIT {limit}";
 
         var results = await connection.QueryAsync<ProviderUsage>(sql, new { ProviderId = providerId });
+        
+        foreach (var usage in results)
+        {
+            usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
+        }
+        
         return results.ToList();
     }
 
