@@ -565,6 +565,53 @@ public MyService(HttpClient httpClient) { }
 using var client = new HttpClient();
 ```
 
+### API Rate Limiting and Cooldowns
+**Rule**: Always implement cooldown periods when triggering third-party API calls to avoid hammering external services.
+
+**Rationale**: Third-party APIs have rate limits. Without cooldowns, rapid successive calls can:
+- Hit rate limits and get temporarily blocked
+- Waste API quota unnecessarily
+- Cause poor user experience with failed requests
+- Get the application banned from the service
+
+**Correct:**
+```csharp
+private const int RefreshCooldownSeconds = 120; // 2 minute cooldown
+private DateTime _lastRefreshTrigger = DateTime.MinValue;
+
+// Check cooldown before triggering refresh
+var secondsSinceLastRefresh = (DateTime.Now - _lastRefreshTrigger).TotalSeconds;
+if (attempt == 0 && secondsSinceLastRefresh >= RefreshCooldownSeconds)
+{
+    Debug.WriteLine("No data on first poll, triggering provider refresh...");
+    _lastRefreshTrigger = DateTime.Now; // Update timestamp
+    try
+    {
+        await _agentService.TriggerRefreshAsync();
+    }
+    catch (Exception ex)
+    {
+        Debug.WriteLine($"Trigger refresh failed: {ex.Message}");
+    }
+}
+```
+
+**Incorrect:**
+```csharp
+// No cooldown - can hammer APIs on every poll
+if (attempt == 0)
+{
+    await _agentService.TriggerRefreshAsync(); // Risk of rate limiting!
+}
+```
+
+**Guidelines:**
+- Use a minimum 2-minute (120 second) cooldown for refresh triggers
+- Track the last trigger time with a `DateTime` field
+- Only trigger when both conditions are met: first attempt AND cooldown expired
+- Update the timestamp immediately when triggering to prevent race conditions
+- Log when cooldown prevents a trigger for debugging
+
 ### Async All the Way
 **Rule**: Don't block on async code.
 
