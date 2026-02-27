@@ -594,6 +594,60 @@ Note: Release assets use `-win-x64`, `-win-arm64`, `-win-x86` suffixes (NOT `-x6
 
 Commit and push the appcast updates after the release assets are available.
 
+## Testing Guidelines
+
+### UI Startup Tests (CRITICAL)
+
+**Always add automated tests for UI startup sequences to prevent deadlocks and theme issues.**
+
+**Example tests in** `AIUsageTracker.Tests/UI/AppStartupTests.cs`:
+
+```csharp
+[Fact]
+public async Task LoadPreferencesAsync_DoesNotBlockThread()
+{
+    // Ensures async loading doesn't block the UI thread
+    var startTime = DateTime.UtcNow;
+    var loadTask = UiPreferencesStore.LoadAsync();
+    
+    var completed = await Task.WhenAny(loadTask, Task.Delay(TimeSpan.FromSeconds(5)));
+    
+    Assert.Same(loadTask, completed);
+    Assert.True(DateTime.UtcNow - startTime < TimeSpan.FromSeconds(5), 
+        "Loading preferences took too long - possible blocking call");
+}
+
+[Fact]
+public async Task PreferencesStore_SaveLoad_NoDeadlock()
+{
+    // Tests for deadlock in rapid save/load cycles
+    for (int i = 0; i < 10; i++)
+    {
+        await UiPreferencesStore.SaveAsync(preferences);
+        var loaded = await UiPreferencesStore.LoadAsync();
+        Assert.NotNull(loaded);
+    }
+}
+```
+
+**What these tests catch:**
+- Synchronous `.GetAwaiter().GetResult()` blocking calls
+- Deadlocks in preference save/load
+- Theme revert issues
+- Race conditions during startup
+
+**Run tests before committing:**
+```bash
+dotnet test AIUsageTracker.Tests/AIUsageTracker.Tests.csproj --filter "FullyQualifiedName~AppStartupTests"
+```
+
+### Testing Principles
+1. **Test async behavior** - Ensure async methods don't block
+2. **Test defaults** - Verify fallback values when files don't exist
+3. **Test persistence** - Round-trip save/load cycles
+4. **Test edge cases** - Null resources, corrupted files, rapid operations
+5. **Test themes** - Verify theme persistence across restarts
+
 ## CI/CD
 - GitHub Actions for testing on push/PR to main.
 - Release workflow creates installers for multiple platforms.
