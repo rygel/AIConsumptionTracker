@@ -236,8 +236,18 @@ public class ProviderRefreshService : BackgroundService
                     Type = "quota-based",
                     PlanType = PlanType.Coding
                 });
-            // Only query providers that have API keys configured
-            var activeConfigs = configs.Where(c => !string.IsNullOrEmpty(c.ApiKey)).ToList();
+            // System providers (antigravity, gemini-cli) work without API keys
+            // All other providers need an API key to be queried
+            var systemProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) 
+            { 
+                "antigravity", "gemini-cli" 
+            };
+
+            var activeConfigs = configs.Where(c =>
+                forceAll ||
+                systemProviders.Contains(c.ProviderId) ||
+                c.ProviderId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) ||
+                !string.IsNullOrEmpty(c.ApiKey)).ToList();
 
             if (includeProviderIds != null && includeProviderIds.Count > 0)
             {
