@@ -106,7 +106,6 @@ public class DatabaseMigrationService
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 is_active INTEGER NOT NULL DEFAULT 1,
                 config_json TEXT,
-                plan_type TEXT DEFAULT 'usage',
                 auth_source TEXT DEFAULT 'manual'
             );
 
@@ -145,7 +144,6 @@ public class DatabaseMigrationService
             );
         ");
 
-        EnsureColumn(connection, "providers", "plan_type", "TEXT DEFAULT 'usage'");
         EnsureColumn(connection, "providers", "auth_source", "TEXT DEFAULT 'manual'");
         EnsureColumn(connection, "provider_history", "details_json", "TEXT");
         EnsureColumn(connection, "provider_history", "response_latency_ms", "REAL NOT NULL DEFAULT 0");

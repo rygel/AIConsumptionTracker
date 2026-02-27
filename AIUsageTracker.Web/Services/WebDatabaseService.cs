@@ -161,7 +161,7 @@ public class WebDatabaseService
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime, p.plan_type AS PlanType
+                       h.next_reset_time AS NextResetTime
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
                 ORDER BY h.fetched_at DESC
@@ -190,7 +190,7 @@ public class WebDatabaseService
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime, p.plan_type AS PlanType
+                       h.next_reset_time AS NextResetTime
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.provider_id = @ProviderId
@@ -217,7 +217,7 @@ public class WebDatabaseService
 
             const string sql = @"
                 SELECT p.provider_id AS ProviderId, p.provider_name AS ProviderName,
-                       p.plan_type AS PlanType, p.is_active AS IsActive,
+                       p.is_active AS IsActive,
                        p.auth_source AS AuthSource, p.account_name AS AccountName,
                        (SELECT requests_percentage FROM provider_history 
                         WHERE provider_id = p.provider_id 

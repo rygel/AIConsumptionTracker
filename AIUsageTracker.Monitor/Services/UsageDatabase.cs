@@ -91,10 +91,10 @@ public class UsageDatabase : IUsageDatabase
 
             const string sql = @"
                 INSERT OR REPLACE INTO providers (
-                    provider_id, provider_name, plan_type, auth_source, 
+                    provider_id, provider_name, auth_source, 
                     account_name, updated_at, is_active, config_json
                 ) VALUES (
-                    @ProviderId, @ProviderName, @PlanType, @AuthSource,
+                    @ProviderId, @ProviderName, @AuthSource,
                     @AccountName, CURRENT_TIMESTAMP, @IsActive, @ConfigJson
                 )";
 
@@ -109,7 +109,6 @@ public class UsageDatabase : IUsageDatabase
             {
                 ProviderId = config.ProviderId,
                 ProviderName = !string.IsNullOrEmpty(friendlyName) ? friendlyName : config.ProviderId,
-                PlanType = config.PlanType.ToString().ToLower(),
                 AuthSource = config.AuthSource ?? "manual",
                 AccountName = (string?)null,
                 IsActive = !string.IsNullOrEmpty(config.ApiKey) ? 1 : 0,
@@ -149,20 +148,16 @@ public class UsageDatabase : IUsageDatabase
 
             const string providerUpsertSql = @"
                 INSERT INTO providers (
-                    provider_id, provider_name, plan_type, auth_source,
+                    provider_id, provider_name, auth_source,
                     account_name, updated_at, is_active, config_json
                 ) VALUES (
-                    @ProviderId, @ProviderName, @PlanType, @AuthSource,
+                    @ProviderId, @ProviderName, @AuthSource,
                     @AccountName, CURRENT_TIMESTAMP, @IsActive, '{}'
                 )
                 ON CONFLICT(provider_id) DO UPDATE SET
                     provider_name = CASE 
                         WHEN excluded.provider_name IS NOT NULL AND excluded.provider_name != '' THEN excluded.provider_name
                         ELSE providers.provider_name
-                    END,
-                    plan_type = CASE
-                        WHEN excluded.plan_type IS NOT NULL AND excluded.plan_type != '' THEN excluded.plan_type
-                        ELSE providers.plan_type
                     END,
                     auth_source = CASE
                         WHEN excluded.auth_source IS NOT NULL AND excluded.auth_source != '' THEN excluded.auth_source
@@ -192,7 +187,6 @@ public class UsageDatabase : IUsageDatabase
             {
                 ProviderId = u.ProviderId,
                 ProviderName = u.ProviderName,
-                PlanType = u.PlanType.ToString().ToLowerInvariant(),
                 AuthSource = u.AuthSource,
                 AccountName = u.AccountName,
                 IsActive = u.IsAvailable ? 1 : 0
@@ -333,8 +327,7 @@ public class UsageDatabase : IUsageDatabase
                        h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson,
                        h.response_latency_ms AS ResponseLatencyMs,
                        COALESCE(p.account_name, '') AS AccountName,
-                       COALESCE(p.auth_source, '') AS AuthSource,
-                       CASE WHEN LOWER(COALESCE(p.plan_type, '')) = 'coding' THEN 1 ELSE 0 END AS PlanType
+                       COALESCE(p.auth_source, '') AS AuthSource
                 FROM provider_history h
                 LEFT JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.id IN (
