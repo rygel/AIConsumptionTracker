@@ -412,6 +412,13 @@ public partial class MainWindow : Window
                 // Try to get cached data from agent
                 var usages = await _agentService.GetUsageAsync();
 
+                // Debug logging to diagnose empty data issues
+                Debug.WriteLine($"[RapidPoll] Attempt {attempt + 1}: Got {usages.Count} providers from Monitor");
+                foreach (var usage in usages)
+                {
+                    Debug.WriteLine($"  - {usage.ProviderId}: IsAvailable={usage.IsAvailable}, Desc={usage.Description}");
+                }
+
                 if (usages.Any())
                 {
                     // Data is available - render and stop rapid polling
@@ -428,6 +435,7 @@ public partial class MainWindow : Window
                 // so we need to explicitly trigger a refresh to get data
                 if (attempt == 0)
                 {
+                    Debug.WriteLine("[RapidPoll] No data available on first attempt, triggering refresh");
                     ShowStatus("Triggering data refresh...", StatusType.Info);
                     try
                     {
