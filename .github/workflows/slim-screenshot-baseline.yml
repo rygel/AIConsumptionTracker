@@ -77,13 +77,14 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add docs/screenshot_*_privacy.png
-          if git diff --staged --quiet; then
-            echo "No screenshot changes to commit"
-          else
+          $stagedFiles = git diff --staged --name-only
+          if ($stagedFiles -eq $null -or $stagedFiles -eq "") {
+            Write-Host "No screenshot changes to commit"
+          } else {
             git commit -m "chore: sync screenshot baselines from CI (windows-2025 runner)"
             git push
-            echo "Screenshot baselines synced successfully"
-          fi
+            Write-Host "Screenshot baselines synced successfully"
+          }
         shell: pwsh
 
       - name: Upload Slim UI screenshots
