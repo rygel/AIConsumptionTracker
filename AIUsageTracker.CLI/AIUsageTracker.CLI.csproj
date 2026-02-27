@@ -21,6 +21,7 @@
     <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ApplicationIcon>..\AIUsageTracker.UI.Slim\Assets\app_icon.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>

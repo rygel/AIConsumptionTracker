@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -9,7 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.AgentClient;
+using AIUsageTracker.Core.MonitorClient;
 using Microsoft.Win32;
 
 namespace AIUsageTracker.UI.Slim;
@@ -22,7 +23,7 @@ public partial class SettingsWindow : Window
         public string Label { get; init; } = string.Empty;
     }
 
-    private readonly AgentService _agentService;
+    private readonly MonitorService _agentService;
     private List<ProviderConfig> _configs = new();
     private List<ProviderUsage> _usages = new();
     private string? _gitHubAuthUsername;
@@ -47,7 +48,7 @@ public partial class SettingsWindow : Window
         _autoSaveTimer.Tick += AutoSaveTimer_Tick;
 
         InitializeComponent();
-        _agentService = new AgentService();
+        _agentService = new MonitorService();
         App.PrivacyChanged += OnPrivacyChanged;
         Closed += SettingsWindow_Closed;
         Loaded += SettingsWindow_Loaded;
@@ -58,6 +59,8 @@ public partial class SettingsWindow : Window
     {
         try
         {
+            await _agentService.RefreshPortAsync();
+            await _agentService.RefreshAgentInfoAsync();
             await LoadDataAsync();
         }
         catch (Exception ex)
@@ -75,11 +78,29 @@ public partial class SettingsWindow : Window
     private async Task LoadDataAsync()
     {
         _isLoadingSettings = true;
+        string? loadError = null;
+        
         try
         {
             _isDeterministicScreenshotMode = false;
-            _configs = await _agentService.GetConfigsAsync();
-            _usages = await _agentService.GetUsageAsync();
+            
+            var configsTask = _agentService.GetConfigsAsync();
+            var usagesTask = _agentService.GetUsageAsync();
+            
+            await Task.WhenAll(configsTask, usagesTask);
+            
+            _configs = configsTask.Result;
+            _usages = usagesTask.Result;
+            
+            if (_configs.Count == 0)
+            {
+                loadError = "No providers found. This may indicate:\n" +
+                           "- Monitor is not running\n" +
+                           "- Failed to connect to Monitor\n" +
+                           "- No providers configured in Monitor\n\n" +
+                           "Try clicking 'Refresh Data' or restarting the Monitor.";
+            }
+            
             _gitHubAuthUsername = await TryGetGitHubUsernameFromAuthAsync();
             _openAiAuthUsername = await TryGetOpenAiUsernameFromAuthAsync();
             _preferences = await UiPreferencesStore.LoadAsync();
@@ -96,9 +117,24 @@ public partial class SettingsWindow : Window
             await UpdateAgentStatusAsync();
             RefreshDiagnosticsLog();
         }
+        catch (HttpRequestException ex)
+        {
+            loadError = $"Failed to connect to Monitor: {ex.Message}\n\n" +
+                       "Ensure the Monitor is running and accessible.";
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Failed to load settings: {ex.Message}";
+        }
         finally
         {
             _isLoadingSettings = false;
+            
+            if (loadError != null)
+            {
+                MessageBox.Show(loadError, "Connection Error", 
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
     }
 
@@ -841,10 +877,10 @@ public partial class SettingsWindow : Window
         try
         {
             // Check if agent is running
-            var isRunning = await AgentLauncher.IsAgentRunningAsync();
+            var isRunning = await MonitorLauncher.IsAgentRunningAsync();
             
             // Get the actual port from the agent
-            int port = await AgentLauncher.GetAgentPortAsync();
+            int port = await MonitorLauncher.GetAgentPortAsync();
             
             if (AgentStatusText != null)
             {
@@ -886,7 +922,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var logs = AgentService.DiagnosticsLog;
+        var logs = MonitorService.DiagnosticsLog;
         var lines = new List<string>();
         if (logs.Count == 0)
         {
@@ -897,7 +933,7 @@ public partial class SettingsWindow : Window
             lines.AddRange(logs);
         }
 
-        var telemetry = AgentService.GetTelemetrySnapshot();
+        var telemetry = MonitorService.GetTelemetrySnapshot();
         lines.Add("---- Slim Telemetry ----");
         lines.Add(
             $"Usage: count={telemetry.UsageRequestCount}, avg={telemetry.UsageAverageLatencyMs:F1}ms, last={telemetry.UsageLastLatencyMs}ms, errors={telemetry.UsageErrorCount} ({telemetry.UsageErrorRatePercent:F1}%)");
@@ -1689,10 +1725,37 @@ public partial class SettingsWindow : Window
         this.Close();
     }
 
-    private void ScanBtn_Click(object sender, RoutedEventArgs e)
+    private async void ScanBtn_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show("API key scanning is not yet implemented in AI Usage Tracker.", 
-            "Not Implemented", MessageBoxButton.OK, MessageBoxImage.Information);
+        try
+        {
+            ScanBtn.IsEnabled = false;
+            ScanBtn.Content = "Scanning...";
+            
+            var (count, configs) = await _agentService.ScanForKeysAsync();
+            
+            if (count > 0)
+            {
+                MessageBox.Show($"Found {count} new API key(s). They have been added to your configuration.", 
+                    "Scan Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+                await LoadDataAsync();
+            }
+            else
+            {
+                MessageBox.Show("No new API keys found.", 
+                    "Scan Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to scan for keys: {ex.Message}", 
+                "Scan Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            ScanBtn.IsEnabled = true;
+            ScanBtn.Content = "Scan for Keys";
+        }
     }
 
     private async void RefreshBtn_Click(object sender, RoutedEventArgs e)
@@ -1757,7 +1820,7 @@ public partial class SettingsWindow : Window
             await Task.Delay(1000);
             
             // Restart agent
-            if (await AgentLauncher.StartAgentAsync())
+            if (await MonitorLauncher.StartAgentAsync())
             {
                 MessageBox.Show("Monitor restarted successfully.", "Restart Complete", 
                     MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1783,7 +1846,7 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            var (isRunning, port) = await AgentLauncher.IsAgentRunningWithPortAsync();
+            var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync();
             var status = isRunning ? "Running" : "Not Running";
             
             MessageBox.Show($"Monitor Status: {status}\n\nPort: {port}", "Health Check", 
@@ -1807,7 +1870,7 @@ public partial class SettingsWindow : Window
             await _agentService.RefreshPortAsync();
             await _agentService.RefreshAgentInfoAsync();
 
-            var (isRunning, port) = await AgentLauncher.IsAgentRunningWithPortAsync();
+            var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync();
             var healthDetails = await _agentService.GetHealthDetailsAsync();
             var diagnosticsDetails = await _agentService.GetDiagnosticsDetailsAsync();
 
@@ -1824,7 +1887,7 @@ public partial class SettingsWindow : Window
                 return;
             }
 
-            var telemetry = AgentService.GetTelemetrySnapshot();
+            var telemetry = MonitorService.GetTelemetrySnapshot();
             var bundle = new StringBuilder();
             bundle.AppendLine("AI Usage Tracker - Diagnostics Bundle");
             bundle.AppendLine($"GeneratedAtUtc: {DateTime.UtcNow:O}");
@@ -1864,7 +1927,7 @@ public partial class SettingsWindow : Window
             bundle.AppendLine();
 
             bundle.AppendLine("=== Slim Diagnostics Log ===");
-            var diagnosticsLog = AgentService.DiagnosticsLog;
+            var diagnosticsLog = MonitorService.DiagnosticsLog;
             if (diagnosticsLog.Count == 0)
             {
                 bundle.AppendLine("No diagnostics captured yet.");

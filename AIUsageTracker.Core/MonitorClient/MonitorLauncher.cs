@@ -4,9 +4,9 @@ using System.Net.Http;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
 
-namespace AIUsageTracker.Core.AgentClient;
+namespace AIUsageTracker.Core.MonitorClient;
 
-public class AgentLauncher
+public class MonitorLauncher
 {
     private const int DefaultPort = 5000;
     private const int MaxWaitSeconds = 30;
@@ -45,29 +45,29 @@ public class AgentLauncher
     public static async Task<bool> IsAgentRunningAsync()
     {
         var port = await GetAgentPortAsync();
-        AgentService.LogDiagnostic($"Checking Agent status on port: {port}");
+        MonitorService.LogDiagnostic($"Checking Agent status on port: {port}");
         
         if (await CheckHealthAsync(port))
         {
-            AgentService.LogDiagnostic($"Agent is running on port {port}");
+            MonitorService.LogDiagnostic($"Agent is running on port {port}");
             return true;
         }
         
-        AgentService.LogDiagnostic($"Agent not found on port {port}.");
+        MonitorService.LogDiagnostic($"Agent not found on port {port}.");
         return false;
     }
     
     public static async Task<(bool isRunning, int port)> IsAgentRunningWithPortAsync()
     {
         var port = await GetAgentPortAsync();
-        AgentService.LogDiagnostic($"Probing Agent port: {port}");
+        MonitorService.LogDiagnostic($"Probing Agent port: {port}");
         
         if (await CheckHealthAsync(port))
         {
             return (true, port);
         }
         
-        AgentService.LogDiagnostic($"Agent not found on port {port}.");
+        MonitorService.LogDiagnostic($"Agent not found on port {port}.");
         return (false, port);
     }
 
@@ -110,17 +110,17 @@ public class AgentLauncher
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIConsumptionTracker", "AIConsumptionTracker.Agent.exe"),
             };
 
-            AgentService.LogDiagnostic($"Searching for Agent executable. Tried {possiblePaths.Length} paths.");
+            MonitorService.LogDiagnostic($"Searching for Agent executable. Tried {possiblePaths.Length} paths.");
             var agentPath = possiblePaths.FirstOrDefault(File.Exists);
 
             if (agentPath == null)
             {
-                AgentService.LogDiagnostic("Agent executable not found. Searching for project directory for 'dotnet run'...");
+                MonitorService.LogDiagnostic("Agent executable not found. Searching for project directory for 'dotnet run'...");
                 // Try dotnet run in the Agent project directory
                 var agentProjectDir = FindAgentProjectDirectory();
                 if (agentProjectDir != null)
                 {
-                    AgentService.LogDiagnostic($"Found Agent project at: {agentProjectDir}. Launching via 'dotnet run'...");
+                    MonitorService.LogDiagnostic($"Found Agent project at: {agentProjectDir}. Launching via 'dotnet run'...");
                     var psi = new ProcessStartInfo
                     {
                         FileName = "dotnet",
@@ -139,11 +139,11 @@ public class AgentLauncher
                     return true;
                 }
 
-                AgentService.LogDiagnostic("Could not find Agent executable or project directory.");
+                MonitorService.LogDiagnostic("Could not find Agent executable or project directory.");
                 return false;
             }
 
-            AgentService.LogDiagnostic($"Agent executable found at: {agentPath}. Launching...");
+            MonitorService.LogDiagnostic($"Agent executable found at: {agentPath}. Launching...");
             var startInfo = new ProcessStartInfo
             {
                 FileName = agentPath,
@@ -155,12 +155,12 @@ public class AgentLauncher
             };
 
             Process.Start(startInfo);
-            AgentService.LogDiagnostic("Agent process started.");
+            MonitorService.LogDiagnostic("Agent process started.");
             return true;
         }
         catch (Exception ex)
         {
-            AgentService.LogDiagnostic($"Failed to start Agent: {ex.Message}");
+            MonitorService.LogDiagnostic($"Failed to start Agent: {ex.Message}");
             return false;
         }
     }
@@ -228,7 +228,7 @@ public class AgentLauncher
         }
         catch (Exception ex)
         {
-            AgentService.LogDiagnostic($"Failed to stop process {processId}: {ex.Message}");
+            MonitorService.LogDiagnostic($"Failed to stop process {processId}: {ex.Message}");
             return false;
         }
     }
@@ -248,7 +248,7 @@ public class AgentLauncher
         }
         catch (TimeoutException)
         {
-            AgentService.LogDiagnostic($"Timed out waiting for process {process.Id} to exit.");
+            MonitorService.LogDiagnostic($"Timed out waiting for process {process.Id} to exit.");
             return process.HasExited;
         }
         catch (InvalidOperationException)
@@ -257,7 +257,7 @@ public class AgentLauncher
         }
         catch (Exception ex)
         {
-            AgentService.LogDiagnostic($"Failed to stop process {process.Id}: {ex.Message}");
+            MonitorService.LogDiagnostic($"Failed to stop process {process.Id}: {ex.Message}");
             return false;
         }
     }
@@ -270,7 +270,7 @@ public class AgentLauncher
 
     public static async Task<bool> WaitForAgentAsync(CancellationToken cancellationToken = default)
     {
-        AgentService.LogDiagnostic($"Waiting for Agent to start (max {MaxWaitSeconds}s)...");
+        MonitorService.LogDiagnostic($"Waiting for Agent to start (max {MaxWaitSeconds}s)...");
         var startTime = DateTime.Now;
         int attempt = 0;
         while ((DateTime.Now - startTime).TotalSeconds < MaxWaitSeconds)
@@ -279,16 +279,16 @@ public class AgentLauncher
             var (isRunning, port) = await IsAgentRunningWithPortAsync();
             if (isRunning)
             {
-                AgentService.LogDiagnostic($"Agent is ready on port {port} after {(DateTime.Now - startTime).TotalSeconds:F1}s.");
+                MonitorService.LogDiagnostic($"Agent is ready on port {port} after {(DateTime.Now - startTime).TotalSeconds:F1}s.");
                 return true;
             }
 
             if (attempt % 5 == 0) // Log status every 1 second (5 * 200ms)
-                AgentService.LogDiagnostic($"Still waiting for Agent... (elapsed: {(DateTime.Now - startTime).TotalSeconds:F1}s)");
+                MonitorService.LogDiagnostic($"Still waiting for Agent... (elapsed: {(DateTime.Now - startTime).TotalSeconds:F1}s)");
 
             await Task.Delay(200, cancellationToken);
         }
-        AgentService.LogDiagnostic("Timed out waiting for Agent.");
+        MonitorService.LogDiagnostic("Timed out waiting for Agent.");
         return false;
     }
 

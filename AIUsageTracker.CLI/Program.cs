@@ -1,5 +1,5 @@
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.AgentClient;
+using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -15,13 +15,13 @@ class Program
         try 
         {
             // Ensure Agent is running
-            if (!await AgentLauncher.IsAgentRunningAsync())
+            if (!await MonitorLauncher.IsAgentRunningAsync())
             {
                 Console.WriteLine("Agent is not running. Attempting to start...");
-                if (await AgentLauncher.StartAgentAsync())
+                if (await MonitorLauncher.StartAgentAsync())
                 {
                     Console.Write("Waiting for Agent to initialize...");
-                    if (await AgentLauncher.WaitForAgentAsync())
+                    if (await MonitorLauncher.WaitForAgentAsync())
                     {
                         Console.WriteLine(" Done.");
                     }
@@ -81,10 +81,10 @@ class Program
         });
 
         services.AddHttpClient();
-        services.AddSingleton<AgentService>();
+        services.AddSingleton<MonitorService>();
 
         var serviceProvider = services.BuildServiceProvider();
-        var agentService = serviceProvider.GetRequiredService<AgentService>();
+        var agentService = serviceProvider.GetRequiredService<MonitorService>();
 
         switch (command)
         {
@@ -147,7 +147,7 @@ class Program
         }
     }
 
-    static async Task CheckProvider(AgentService service, string? providerId)
+    static async Task CheckProvider(MonitorService service, string? providerId)
     {
         if (string.IsNullOrEmpty(providerId))
         {
@@ -164,7 +164,7 @@ class Program
         }
     }
 
-    static async Task CheckSingleProvider(AgentService service, string providerId)
+    static async Task CheckSingleProvider(MonitorService service, string providerId)
     {
         Console.Write($"Checking {providerId}... ");
         var (success, message) = await service.CheckProviderAsync(providerId);
@@ -181,7 +181,7 @@ class Program
         Console.ResetColor();
     }
 
-    static async Task ExportData(AgentService service, string[] args)
+    static async Task ExportData(MonitorService service, string[] args)
     {
         string format = "csv";
         int days = 30;
@@ -212,7 +212,7 @@ class Program
         }
     }
 
-    static async Task ShowHistory(AgentService service, int days, bool json)
+    static async Task ShowHistory(MonitorService service, int days, bool json)
     {
         // For CLI simplicity, we'll just show the last N entries or a summary if possible.
         // The Agent API currently supports ?limit=N.
@@ -256,7 +256,7 @@ class Program
         }
     }
 
-    static async Task SetKey(AgentService service, string providerId, string apiKey)
+    static async Task SetKey(MonitorService service, string providerId, string apiKey)
     {
         Console.WriteLine($"Setting key for '{providerId}'...");
         
@@ -296,7 +296,7 @@ class Program
         }
     }
 
-    static async Task RemoveKey(AgentService service, string providerId)
+    static async Task RemoveKey(MonitorService service, string providerId)
     {
         Console.WriteLine($"Removing key for '{providerId}'...");
         if (await service.RemoveConfigAsync(providerId))
@@ -310,7 +310,7 @@ class Program
         }
     }
 
-    static async Task ScanKeys(AgentService service)
+    static async Task ScanKeys(MonitorService service)
     {
         Console.WriteLine("Scanning for API keys from known applications...");
         var (count, configs) = await service.ScanForKeysAsync();
@@ -331,14 +331,14 @@ class Program
         }
     }
 
-    static async Task ShowConfig(AgentService service)
+    static async Task ShowConfig(MonitorService service)
     {
         var prefs = await service.GetPreferencesAsync();
         Console.WriteLine("Current Configuration:");
         Console.WriteLine(JsonSerializer.Serialize(prefs, new JsonSerializerOptions { WriteIndented = true }));
     }
 
-    static async Task SetConfig(AgentService service, string key, string value)
+    static async Task SetConfig(MonitorService service, string key, string value)
     {
         var prefs = await service.GetPreferencesAsync();
         
@@ -380,35 +380,35 @@ class Program
         }
     }
 
-    static async Task ManageAgent(AgentService service, string action)
+    static async Task ManageAgent(MonitorService service, string action)
     {
         switch (action.ToLower())
         {
             case "info":
-                var port = await AgentLauncher.GetAgentPortAsync();
-                var running = await AgentLauncher.IsAgentRunningAsync();
+                var port = await MonitorLauncher.GetAgentPortAsync();
+                var running = await MonitorLauncher.IsAgentRunningAsync();
                 Console.WriteLine($"Agent Status: {(running ? "Running" : "Stopped")}");
                 Console.WriteLine($"Port: {port}");
                 break;
             case "stop":
                 Console.WriteLine("Stopping Agent...");
-                if (await AgentLauncher.StopAgentAsync())
+                if (await MonitorLauncher.StopAgentAsync())
                     Console.WriteLine("Agent stopped.");
                 else
                     Console.WriteLine("Failed to stop Agent.");
                 break;
             case "start":
                 Console.WriteLine("Starting Agent...");
-                if (await AgentLauncher.StartAgentAsync())
+                if (await MonitorLauncher.StartAgentAsync())
                     Console.WriteLine("Agent started.");
                 else
                     Console.WriteLine("Failed to start Agent.");
                 break;
             case "restart":
                 Console.WriteLine("Restarting Agent...");
-                await AgentLauncher.StopAgentAsync();
+                await MonitorLauncher.StopAgentAsync();
                 await Task.Delay(1000); // Wait a bit
-                if (await AgentLauncher.StartAgentAsync())
+                if (await MonitorLauncher.StartAgentAsync())
                     Console.WriteLine("Agent restarted.");
                 else
                     Console.WriteLine("Failed to restart Agent.");
@@ -419,7 +419,7 @@ class Program
         }
     }
 
-    static async Task ShowStatus(AgentService service, bool json, bool showAll)
+    static async Task ShowStatus(MonitorService service, bool json, bool showAll)
     {
         var usage = await service.GetUsageAsync();
         
@@ -488,7 +488,7 @@ class Program
         }
     }
 
-    static async Task ShowList(AgentService service, bool json)
+    static async Task ShowList(MonitorService service, bool json)
     {
         var configs = await service.GetConfigsAsync();
         if (json)

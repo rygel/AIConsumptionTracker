@@ -8,6 +8,7 @@
     <Nullable>enable</Nullable>
     <OutputType>WinExe</OutputType>
     <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
+    <ApplicationIcon>..\AIUsageTracker.UI.Slim\Assets\app_icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

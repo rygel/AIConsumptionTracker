@@ -1,4 +1,4 @@
-using AIUsageTracker.Core.AgentClient;
+using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Models;
 using Moq;
 using Moq.Protected;
@@ -8,20 +8,20 @@ using System.Text.Json;
 
 namespace AIUsageTracker.Tests.Core;
 
-public class AgentServiceTests
+public class MonitorServiceTests
 {
     private readonly Mock<HttpMessageHandler> _mockHandler;
     private readonly HttpClient _httpClient;
-    private readonly AgentService _service;
+    private readonly MonitorService _service;
 
-    public AgentServiceTests()
+    public MonitorServiceTests()
     {
         _mockHandler = new Mock<HttpMessageHandler>();
         _httpClient = new HttpClient(_mockHandler.Object)
         {
             BaseAddress = new Uri("http://localhost:5000")
         };
-        _service = new AgentService(_httpClient);
+        _service = new MonitorService(_httpClient);
         _service.AgentUrl = "http://localhost:5000";
     }
 
@@ -87,7 +87,7 @@ public class AgentServiceTests
     public async Task GetUsageAsync_RecordsUsageTelemetry()
     {
         // Arrange
-        var baseline = AgentService.GetTelemetrySnapshot();
+        var baseline = MonitorService.GetTelemetrySnapshot();
         var usage = new List<ProviderUsage>
         {
             new() { ProviderId = "openai", ProviderName = "OpenAI", IsAvailable = true }
@@ -96,7 +96,7 @@ public class AgentServiceTests
 
         // Act
         var result = await _service.GetUsageAsync();
-        var telemetry = AgentService.GetTelemetrySnapshot();
+        var telemetry = MonitorService.GetTelemetrySnapshot();
 
         // Assert
         Assert.Single(result);
@@ -108,7 +108,7 @@ public class AgentServiceTests
     public async Task TriggerRefreshAsync_RequestFails_RecordsRefreshErrorTelemetry()
     {
         // Arrange
-        var baseline = AgentService.GetTelemetrySnapshot();
+        var baseline = MonitorService.GetTelemetrySnapshot();
         _mockHandler.Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
@@ -118,7 +118,7 @@ public class AgentServiceTests
 
         // Act
         var success = await _service.TriggerRefreshAsync();
-        var telemetry = AgentService.GetTelemetrySnapshot();
+        var telemetry = MonitorService.GetTelemetrySnapshot();
 
         // Assert
         Assert.False(success);
@@ -133,7 +133,7 @@ public class AgentServiceTests
         var responseObj = new
         {
             status = "healthy",
-            apiContractVersion = AgentService.ExpectedApiContractVersion,
+            apiContractVersion = MonitorService.ExpectedApiContractVersion,
             agentVersion = "2.1.3"
         };
         SetupMockResponse(HttpStatusCode.OK, responseObj);
@@ -144,7 +144,7 @@ public class AgentServiceTests
         // Assert
         Assert.True(result.IsReachable);
         Assert.True(result.IsCompatible);
-        Assert.Equal(AgentService.ExpectedApiContractVersion, result.AgentContractVersion);
+        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.AgentContractVersion);
         VerifyPath("/api/health");
     }
 
@@ -197,7 +197,7 @@ public class AgentServiceTests
         var responseObj = new
         {
             status = "healthy",
-            apiContractVersion = AgentService.ExpectedApiContractVersion
+            apiContractVersion = MonitorService.ExpectedApiContractVersion
         };
         SetupMockResponse(HttpStatusCode.OK, responseObj);
 

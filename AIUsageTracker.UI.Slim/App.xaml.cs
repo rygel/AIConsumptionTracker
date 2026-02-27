@@ -3,7 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using Hardcodet.Wpf.TaskbarNotification;
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.AgentClient;
+using AIUsageTracker.Core.MonitorClient;
 using System.Runtime.InteropServices;
 using System.Globalization;
 using System.IO;
@@ -15,7 +15,7 @@ namespace AIUsageTracker.UI.Slim;
 
 public partial class App : Application
 {
-    public static AgentService AgentService { get; } = new();
+    public static MonitorService MonitorService { get; } = new();
     public static AppPreferences Preferences { get; set; } = new();
     public static bool IsPrivacyMode { get; set; } = false;
     private const double ScreenshotScaleFactor = 2.0;
@@ -540,7 +540,7 @@ public partial class App : Application
             Console.WriteLine("═══════════════════════════════════════════════════════════════");
             Console.WriteLine("");
             
-            AgentService.LogDiagnostic("AI Usage Tracker UI Debug Mode Enabled");
+            MonitorService.LogDiagnostic("AI Usage Tracker UI Debug Mode Enabled");
         }
 
         base.OnStartup(e);
@@ -614,7 +614,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            AgentService.LogDiagnostic($"Headless screenshot capture failed: {ex}");
+            MonitorService.LogDiagnostic($"Headless screenshot capture failed: {ex}");
             Environment.ExitCode = 1;
         }
         finally
@@ -804,7 +804,7 @@ public partial class App : Application
 
         if (!File.Exists(trayIconPath))
         {
-            AgentService.LogDiagnostic($"Tray icon not found at expected paths. Falling back to system icon. Tried: {trayIconPath}");
+            MonitorService.LogDiagnostic($"Tray icon not found at expected paths. Falling back to system icon. Tried: {trayIconPath}");
         }
     }
 

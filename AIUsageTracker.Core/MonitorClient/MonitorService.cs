@@ -6,9 +6,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Models;
 
-namespace AIUsageTracker.Core.AgentClient;
+namespace AIUsageTracker.Core.MonitorClient;
 
-public class AgentService
+public class MonitorService
 {
     private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -16,7 +16,7 @@ public class AgentService
     public const string ExpectedApiContractVersion = "1";
     public string AgentUrl { get; set; } = "http://localhost:5000";
 
-    public AgentService() : this(new HttpClient { Timeout = TimeSpan.FromSeconds(30) })
+    public MonitorService() : this(new HttpClient { Timeout = TimeSpan.FromSeconds(30) })
     {
     }
 
@@ -32,7 +32,7 @@ public class AgentService
     private static long _refreshTotalLatencyMs;
     private static long _refreshLastLatencyMs;
 
-    public AgentService(HttpClient httpClient)
+    public MonitorService(HttpClient httpClient)
     {
         _httpClient = httpClient;
         _jsonOptions = new JsonSerializerOptions
