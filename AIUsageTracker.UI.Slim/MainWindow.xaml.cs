@@ -2022,18 +2022,57 @@ public partial class MainWindow : Window
             try
             {
                 var usages = await _agentService.GetUsageAsync();
+                
                 if (usages.Any())
                 {
+                    // Fresh data received - update UI
                     _usages = usages.ToList();
                     RenderProviders();
                     await UpdateTrayIconsAsync();
                     _lastAgentUpdate = DateTime.Now;
                     ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
                 }
+                else if (_usages.Any())
+                {
+                    // We have previous data but now getting empty - Monitor may have restarted
+                    // Try refreshing the port and retry once
+                    Debug.WriteLine("Polling returned empty, attempting port refresh and retry...");
+                    await _agentService.RefreshPortAsync();
+                    
+                    var retryUsages = await _agentService.GetUsageAsync();
+                    if (retryUsages.Any())
+                    {
+                        _usages = retryUsages.ToList();
+                        RenderProviders();
+                        await UpdateTrayIconsAsync();
+                        _lastAgentUpdate = DateTime.Now;
+                        ShowStatus($"{DateTime.Now:HH:mm:ss} (refreshed)", StatusType.Success);
+                    }
+                    else
+                    {
+                        // Keep showing old data, show yellow warning
+                        ShowStatus("Last update: " + _lastAgentUpdate.ToString("HH:mm:ss") + " (stale)", StatusType.Warning);
+                    }
+                }
+                else
+                {
+                    // No current data and no previous data - show warning
+                    ShowStatus("No data - waiting for Monitor", StatusType.Warning);
+                }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Polling error: {ex.Message}");
+                if (_usages.Any())
+                {
+                    // Has old data - show yellow warning, keep displaying stale data
+                    ShowStatus("Connection lost - showing stale data", StatusType.Warning);
+                }
+                else
+                {
+                    // No old data - show red error
+                    ShowStatus("Connection error", StatusType.Error);
+                }
             }
         };
 
