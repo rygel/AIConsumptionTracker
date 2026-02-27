@@ -789,13 +789,6 @@ public partial class MainWindow : Window
         {
             await InitializeAsync();
         }
-
-        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
-        UpdateLayout();
-        if (deterministic)
-        {
-            FitWindowHeightForHeadlessScreenshot();
-        }
     }
 
     private void FitWindowHeightForHeadlessScreenshot()
