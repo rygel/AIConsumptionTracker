@@ -293,6 +293,32 @@ script-src 'self' https://unpkg.com;
 - **Listing**: The UI pre-populates a list of supported providers to allow users to easily add keys, but their underlying presence is merely structural until configured.
 - **Equality**: All supported providers are treated equally in terms of system integration and display logic.
 
+### Error Handling and Logging (CRITICAL)
+
+**NEVER use silent failures.** Every exception, error, or unexpected condition MUST be logged.
+
+**Rule**: All catch blocks must either:
+1. Re-throw the exception (if caller should handle it)
+2. Log the error with context
+
+**BAD:**
+```csharp
+catch 
+{
+    // Silent failure - user has no idea what went wrong
+}
+```
+
+**GOOD:**
+```csharp
+catch (Exception ex)
+{
+    _logger.LogDebug("GitHub CLI discovery failed: {Message}", ex.Message);
+}
+```
+
+**Why this matters**: Silent failures make debugging impossible. When users report "nothing works," we need logs to understand what failed.
+
 ### Provider Implementation Pattern
 ```csharp
 public class ExampleProvider : IProviderService
