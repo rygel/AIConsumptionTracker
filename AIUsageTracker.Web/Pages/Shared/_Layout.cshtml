@@ -32,6 +32,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a href="/reliability" class="nav-link @(Context.Request.Path.Value?.Contains("/reliability") == true ? "active" : "")">
+                            <span class="nav-text">Reliability</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="/charts" class="nav-link @(Context.Request.Path.Value?.Contains("/charts") == true ? "active" : "")">
                             <span class="nav-text">Charts</span>
                         </a>
