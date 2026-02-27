@@ -128,14 +128,12 @@ public class UsageDatabase : IUsageDatabase
     {
         // Filter out placeholder/unconfigured provider entries
         // These represent providers that were queried but have no API key configured
+        // Check regardless of description - if no usage data and not available, it's a placeholder
         var validUsages = usages.Where(u => 
             !(u.RequestsAvailable == 0 && 
               u.RequestsUsed == 0 && 
               u.RequestsPercentage == 0 && 
-              !u.IsAvailable && 
-              (u.Description?.Contains("API Key", StringComparison.OrdinalIgnoreCase) == true || 
-               u.Description?.Contains("configured", StringComparison.OrdinalIgnoreCase) == true ||
-               u.Description?.Contains("Configuration Required", StringComparison.OrdinalIgnoreCase) == true))
+              !u.IsAvailable)
         ).ToList();
         
         if (!validUsages.Any())
