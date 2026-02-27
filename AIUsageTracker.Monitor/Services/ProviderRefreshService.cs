@@ -236,17 +236,9 @@ public class ProviderRefreshService : BackgroundService
                     Type = "quota-based",
                     PlanType = PlanType.Coding
                 });
-            // "antigravity" and "gemini-cli" are known system providers that do not require an API key to work.
-            // Other providers MUST have an API key to be considered active.
-            var systemProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) 
-            { 
-                "antigravity", "gemini-cli" 
-            };
-
+            // Only query providers with API keys configured - skip empty ones
             var activeConfigs = configs.Where(c =>
                 forceAll ||
-                systemProviders.Contains(c.ProviderId) ||
-                c.ProviderId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) ||
                 !string.IsNullOrEmpty(c.ApiKey)).ToList();
 
             if (includeProviderIds != null && includeProviderIds.Count > 0)
@@ -262,7 +254,7 @@ public class ProviderRefreshService : BackgroundService
             var skippedCount = configs.Count - activeConfigs.Count;
 
 
-            _logger.LogInformation("Providers: {Available} available, {Initialized} initialized", configs.Count, activeConfigs.Count);
+            _logger.LogInformation("Providers: {Total} configured, {Active} with keys for refresh", configs.Count, activeConfigs.Count);
 
             if (skippedCount > 0)
             {

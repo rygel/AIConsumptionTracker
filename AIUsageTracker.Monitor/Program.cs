@@ -169,9 +169,16 @@ app.MapGet("/api/usage", async (UsageDatabase db, ConfigService configService) =
     if (isDebugMode) Console.WriteLine($"[API] GET /api/usage - {DateTime.Now:HH:mm:ss}");
     var usage = await db.GetLatestHistoryAsync();
     var configs = await configService.GetConfigsAsync();
-    var filteredUsage = UsageVisibilityFilter.FilterForConfiguredProviders(usage, configs);
-    if (isDebugMode) Console.WriteLine($"[API] Returning {filteredUsage.Count} providers");
-    return Results.Ok(filteredUsage);
+    // Only return providers that have API keys configured
+    var providersWithKeys = configs
+        .Where(c => !string.IsNullOrWhiteSpace(c.ApiKey))
+        .Select(c => c.ProviderId.ToLowerInvariant())
+        .ToHashSet();
+    var filtered = usage.Where(u => 
+        providersWithKeys.Contains(u.ProviderId.ToLowerInvariant()) ||
+        u.IsAvailable).ToList();
+    if (isDebugMode) Console.WriteLine($"[API] Returning {filtered.Count} providers with keys");
+    return Results.Ok(filtered);
 });
 
 app.MapGet("/api/usage/{providerId}", async (string providerId, UsageDatabase db) =>
