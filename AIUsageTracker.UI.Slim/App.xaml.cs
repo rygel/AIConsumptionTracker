@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -1044,9 +1045,11 @@ public partial class App : Application
             IsPrivacyMode = Preferences.IsPrivacyMode;
             ApplyTheme(Preferences.Theme);
         }
-        catch
+        catch (Exception ex)
         {
-            // Use defaults
+            // Log error before falling back to defaults
+            Debug.WriteLine($"Failed to load preferences: {ex.Message}");
+            Console.WriteLine($"[WARNING] Failed to load preferences: {ex.Message}");
             ApplyTheme(AppTheme.Dark);
         }
     }
