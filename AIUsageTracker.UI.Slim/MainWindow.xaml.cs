@@ -322,30 +322,11 @@ public partial class MainWindow : Window
             // to prevent UI freezing during port scans or agent startup waits.
             var success = await Task.Run(async () => {
                 try {
-                    // Refresh port discovery first
+                    // Full port discovery: check monitor.json, then scan 5000-5010
                     await _agentService.RefreshPortAsync();
                     
                     // Check if Monitor is running on the discovered port
-                    // Use _agentService.CheckHealthAsync() which uses the already-discovered port
-                    // instead of MonitorLauncher.IsAgentRunningAsync() which re-reads the file
                     var isRunning = await _agentService.CheckHealthAsync();
-                    
-                    if (!isRunning)
-                    {
-                        // Try fallback ports in case Monitor is running on a different port
-                        // but the monitor.json file hasn't been updated yet
-                        var fallbackPorts = new[] { 5000, 5001, 5002, 5003, 5004, 5005 };
-                        foreach (var port in fallbackPorts)
-                        {
-                            _agentService.AgentUrl = $"http://localhost:{port}";
-                            if (await _agentService.CheckHealthAsync())
-                            {
-                                MonitorService.LogDiagnostic($"Found Monitor running on fallback port {port}");
-                                isRunning = true;
-                                break;
-                            }
-                        }
-                    }
                     
                     if (!isRunning)
                     {

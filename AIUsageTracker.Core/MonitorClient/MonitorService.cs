@@ -161,7 +161,9 @@ public class MonitorService
     
     public async Task RefreshPortAsync()
     {
-        await RefreshAgentInfoAsync();
+        // Use full port discovery: check monitor.json, then scan 5000-5010
+        var port = await MonitorLauncher.DiscoverMonitorPortAsync();
+        AgentUrl = $"http://localhost:{port}";
     }
 
     // Provider usage endpoints
