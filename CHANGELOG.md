@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [2.2.23] - 2026-02-27
+
+### Fixed
+- Fixed compilation error in MainWindow.xaml.cs caused by orphaned code block referencing non-existent 'attempt' variable
+
 ## [2.2.22] - 2026-02-27
 
 ### Fixed
