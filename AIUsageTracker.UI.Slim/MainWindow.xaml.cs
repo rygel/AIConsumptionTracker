@@ -2025,6 +2025,7 @@ public partial class MainWindow : Window
                 
                 if (usages.Any())
                 {
+                    // Fresh data received - update UI
                     _usages = usages.ToList();
                     RenderProviders();
                     await UpdateTrayIconsAsync();
@@ -2049,9 +2050,14 @@ public partial class MainWindow : Window
                     }
                     else
                     {
-                        // Keep showing old data, just update status
+                        // Keep showing old data, show yellow warning
                         ShowStatus("Last update: " + _lastAgentUpdate.ToString("HH:mm:ss") + " (stale)", StatusType.Warning);
                     }
+                }
+                else
+                {
+                    // No current data and no previous data - show warning
+                    ShowStatus("No data - waiting for Monitor", StatusType.Warning);
                 }
             }
             catch (Exception ex)
@@ -2059,10 +2065,12 @@ public partial class MainWindow : Window
                 Debug.WriteLine($"Polling error: {ex.Message}");
                 if (_usages.Any())
                 {
+                    // Has old data - show yellow warning, keep displaying stale data
                     ShowStatus("Connection lost - showing stale data", StatusType.Warning);
                 }
                 else
                 {
+                    // No old data - show red error
                     ShowStatus("Connection error", StatusType.Error);
                 }
             }
