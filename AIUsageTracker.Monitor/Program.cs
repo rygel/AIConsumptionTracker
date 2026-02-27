@@ -164,12 +164,22 @@ app.MapGet("/api/diagnostics", (EndpointDataSource endpointDataSource, ProviderR
 });
 
 // Provider usage endpoints
-app.MapGet("/api/usage", async (UsageDatabase db) =>
+app.MapGet("/api/usage", async (UsageDatabase db, ConfigService configService) =>
 {
     if (isDebugMode) Console.WriteLine($"[API] GET /api/usage - {DateTime.Now:HH:mm:ss}");
     var usage = await db.GetLatestHistoryAsync();
-    if (isDebugMode) Console.WriteLine($"[API] Returning {usage.Count} providers");
-    return Results.Ok(usage);
+    var configs = await configService.GetConfigsAsync();
+    
+    // Only return providers that have API keys configured
+    var configuredProviderIds = configs
+        .Where(c => !string.IsNullOrWhiteSpace(c.ApiKey))
+        .Select(c => c.ProviderId.ToLowerInvariant())
+        .ToHashSet();
+    
+    var filtered = usage.Where(u => configuredProviderIds.Contains(u.ProviderId.ToLowerInvariant())).ToList();
+    
+    if (isDebugMode) Console.WriteLine($"[API] Returning {filtered.Count} configured providers");
+    return Results.Ok(filtered);
 });
 
 app.MapGet("/api/usage/{providerId}", async (string providerId, UsageDatabase db) =>

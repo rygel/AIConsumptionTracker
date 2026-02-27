@@ -236,8 +236,8 @@ public class ProviderRefreshService : BackgroundService
                     Type = "quota-based",
                     PlanType = PlanType.Coding
                 });
-            // Query ALL configured providers - no filtering
-            var activeConfigs = configs.ToList();
+            // Only query providers that have API keys configured
+            var activeConfigs = configs.Where(c => !string.IsNullOrEmpty(c.ApiKey)).ToList();
 
             if (includeProviderIds != null && includeProviderIds.Count > 0)
             {
