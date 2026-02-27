@@ -82,8 +82,8 @@ jobs:
             Write-Host "No screenshot changes to commit"
           } else {
             git commit -m "chore: sync screenshot baselines from CI (windows-2025 runner)"
-            git push
-            Write-Host "Screenshot baselines synced successfully"
+            git push origin HEAD:${{ github.head_ref }}
+            Write-Host "Screenshot baselines synced successfully to ${{ github.head_ref }}"
           }
         shell: pwsh
 
