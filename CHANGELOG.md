@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## [2.2.24] - 2026-02-27
+
+### Fixed
+- Filter placeholder data in Monitor to prevent storing unconfigured providers
+- Add safety filter in Slim UI to reject placeholder data
+- UI now shows graceful yellow warning instead of going blank when Monitor returns placeholder-only responses
+
+### Changes
+- Simplified placeholder detection: checks for actual usage data (RequestsAvailable/RequestsUsed/IsAvailable) instead of relying on Description text matching
+
 ## [2.2.23] - 2026-02-27
 
 ### Fixed
