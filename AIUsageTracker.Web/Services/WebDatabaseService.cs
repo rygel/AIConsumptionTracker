@@ -142,9 +142,8 @@ public class WebDatabaseService
         }
 
         var list = results.ToList();
-        _cache.Set(cacheKey, list, TimeSpan.FromSeconds(8));
-        _logger.LogInformation("WebDB GetLatestUsageAsync(includeInactive={IncludeInactive}) rows={Count} elapsedMs={ElapsedMs}",
-            includeInactive, list.Count, sw.ElapsedMilliseconds);
+        _cache.Set(cacheKey, list, TimeSpan.FromMinutes(5));
+        _logger.LogInformation("WebDB GetHistoryAsync rows={Count} elapsedMs={ElapsedMs}", list.Count, sw.ElapsedMilliseconds);
         return list;
     }
 
@@ -282,7 +281,7 @@ public class WebDatabaseService
                 )";
 
         var result = await connection.QuerySingleOrDefaultAsync<UsageSummary>(sql) ?? new UsageSummary();
-        _cache.Set(cacheKey, result, TimeSpan.FromSeconds(12));
+        _cache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
         _logger.LogInformation("WebDB GetUsageSummaryAsync providerCount={ProviderCount} elapsedMs={ElapsedMs}",
             result.ProviderCount, sw.ElapsedMilliseconds);
         return result;
@@ -374,7 +373,7 @@ public class WebDatabaseService
             forecasts[group.Key] = UsageMath.CalculateBurnRateForecast(samples);
         }
 
-        _cache.Set(cacheKey, forecasts, TimeSpan.FromSeconds(30));
+        _cache.Set(cacheKey, forecasts, TimeSpan.FromMinutes(10));
         _logger.LogInformation(
             "WebDB GetBurnRateForecastsAsync providers={ProviderCount} rows={RowCount} elapsedMs={ElapsedMs}",
             normalizedProviderIds.Count,
@@ -495,7 +494,7 @@ public class WebDatabaseService
             snapshots[group.Key] = UsageMath.CalculateReliabilitySnapshot(samples);
         }
 
-        _cache.Set(cacheKey, snapshots, TimeSpan.FromSeconds(30));
+        _cache.Set(cacheKey, snapshots, TimeSpan.FromMinutes(10));
         _logger.LogInformation(
             "WebDB GetProviderReliabilityAsync providers={ProviderCount} rows={RowCount} elapsedMs={ElapsedMs}",
             normalizedProviderIds.Count,
@@ -591,7 +590,7 @@ public class WebDatabaseService
             snapshots[group.Key] = UsageMath.CalculateUsageAnomalySnapshot(samples);
         }
 
-        _cache.Set(cacheKey, snapshots, TimeSpan.FromSeconds(30));
+        _cache.Set(cacheKey, snapshots, TimeSpan.FromMinutes(10));
         _logger.LogInformation(
             "WebDB GetUsageAnomaliesAsync providers={ProviderCount} rows={RowCount} elapsedMs={ElapsedMs}",
             normalizedProviderIds.Count,
@@ -681,7 +680,7 @@ public class WebDatabaseService
             ORDER BY timestamp ASC";
 
         var results = (await connection.QueryAsync<ResetEvent>(sql, new { CutoffUtc = cutoffUtc })).ToList();
-        _cache.Set(cacheKey, results, TimeSpan.FromSeconds(15));
+        _cache.Set(cacheKey, results, TimeSpan.FromMinutes(5));
         _logger.LogInformation("WebDB GetRecentResetEventsAsync hours={Hours} rows={Count} elapsedMs={ElapsedMs}",
             hours, results.Count, sw.ElapsedMilliseconds);
         return results;
