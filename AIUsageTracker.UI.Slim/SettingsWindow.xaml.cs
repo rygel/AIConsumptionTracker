@@ -23,7 +23,7 @@ public partial class SettingsWindow : Window
         public string Label { get; init; } = string.Empty;
     }
 
-    private readonly MonitorService _agentService;
+    private readonly MonitorService _monitorService;
     private List<ProviderConfig> _configs = new();
     private List<ProviderUsage> _usages = new();
     private string? _gitHubAuthUsername;
@@ -48,7 +48,7 @@ public partial class SettingsWindow : Window
         _autoSaveTimer.Tick += AutoSaveTimer_Tick;
 
         InitializeComponent();
-        _agentService = new MonitorService();
+        _monitorService = new MonitorService();
         App.PrivacyChanged += OnPrivacyChanged;
         Closed += SettingsWindow_Closed;
         Loaded += SettingsWindow_Loaded;
@@ -59,8 +59,8 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            await _agentService.RefreshPortAsync();
-            await _agentService.RefreshAgentInfoAsync();
+            await _monitorService.RefreshPortAsync();
+            await _monitorService.RefreshAgentInfoAsync();
             await LoadDataAsync();
         }
         catch (Exception ex)
@@ -84,8 +84,8 @@ public partial class SettingsWindow : Window
         {
             _isDeterministicScreenshotMode = false;
             
-            var configsTask = _agentService.GetConfigsAsync();
-            var usagesTask = _agentService.GetUsageAsync();
+            var configsTask = _monitorService.GetConfigsAsync();
+            var usagesTask = _monitorService.GetUsageAsync();
             
             await Task.WhenAll(configsTask, usagesTask);
             
@@ -104,7 +104,7 @@ public partial class SettingsWindow : Window
             _gitHubAuthUsername = await TryGetGitHubUsernameFromAuthAsync();
             _openAiAuthUsername = await TryGetOpenAiUsernameFromAuthAsync();
             _preferences = await UiPreferencesStore.LoadAsync();
-            _agentPreferences = await _agentService.GetPreferencesAsync();
+            _agentPreferences = await _monitorService.GetPreferencesAsync();
             App.Preferences = _preferences;
             _isPrivacyMode = _preferences.IsPrivacyMode;
             App.SetPrivacyMode(_isPrivacyMode);
@@ -114,7 +114,7 @@ public partial class SettingsWindow : Window
             RefreshTrayIcons();
             PopulateLayoutSettings();
             await LoadHistoryAsync();
-            await UpdateAgentStatusAsync();
+            await UpdateMonitorStatusAsync();
             RefreshDiagnosticsLog();
         }
         catch (HttpRequestException ex)
@@ -778,19 +778,19 @@ public partial class SettingsWindow : Window
             }
         };
 
-        if (AgentStatusText != null)
+        if (MonitorStatusText != null)
         {
-            AgentStatusText.Text = "Running";
+            MonitorStatusText.Text = "Running";
         }
 
-        if (AgentPortText != null)
+        if (MonitorPortText != null)
         {
-            AgentPortText.Text = "5000";
+            MonitorPortText.Text = "5000";
         }
 
-        if (AgentLogsText != null)
+        if (MonitorLogsText != null)
         {
-            AgentLogsText.Text = "Monitor health check: OK" + Environment.NewLine +
+            MonitorLogsText.Text = "Monitor health check: OK" + Environment.NewLine +
                                  "Diagnostics available in Settings > Monitor.";
         }
     }
@@ -872,7 +872,7 @@ public partial class SettingsWindow : Window
             : (TryFindResource("SecondaryText") as Brush ?? Brushes.Gray);
     }
 
-    private async Task UpdateAgentStatusAsync()
+    private async Task UpdateMonitorStatusAsync()
     {
         try
         {
@@ -882,13 +882,13 @@ public partial class SettingsWindow : Window
             // Get the actual port from the agent
             int port = await MonitorLauncher.GetAgentPortAsync();
             
-            if (AgentStatusText != null)
+            if (MonitorStatusText != null)
             {
-                AgentStatusText.Text = isRunning ? "Running" : "Not Running";
+                MonitorStatusText.Text = isRunning ? "Running" : "Not Running";
             }
             
             // Update port display
-            if (FindName("AgentPortText") is TextBlock portText)
+            if (FindName("MonitorPortText") is TextBlock portText)
             {
                 portText.Text = port.ToString();
             }
@@ -896,9 +896,9 @@ public partial class SettingsWindow : Window
         catch (Exception ex)
         {
             Debug.WriteLine($"Failed to update agent status: {ex.Message}");
-            if (AgentStatusText != null)
+            if (MonitorStatusText != null)
             {
-                AgentStatusText.Text = "Error";
+                MonitorStatusText.Text = "Error";
             }
         }
         finally
@@ -909,16 +909,16 @@ public partial class SettingsWindow : Window
 
     private void RefreshDiagnosticsLog()
     {
-        if (AgentLogsText == null)
+        if (MonitorLogsText == null)
         {
             return;
         }
 
         if (_isDeterministicScreenshotMode)
         {
-            AgentLogsText.Text = "Monitor health check: OK" + Environment.NewLine +
+            MonitorLogsText.Text = "Monitor health check: OK" + Environment.NewLine +
                                  "Diagnostics available in Settings > Monitor.";
-            AgentLogsText.ScrollToEnd();
+            MonitorLogsText.ScrollToEnd();
             return;
         }
 
@@ -940,15 +940,15 @@ public partial class SettingsWindow : Window
         lines.Add(
             $"Refresh: count={telemetry.RefreshRequestCount}, avg={telemetry.RefreshAverageLatencyMs:F1}ms, last={telemetry.RefreshLastLatencyMs}ms, errors={telemetry.RefreshErrorCount} ({telemetry.RefreshErrorRatePercent:F1}%)");
 
-        AgentLogsText.Text = string.Join(Environment.NewLine, lines);
-        AgentLogsText.ScrollToEnd();
+        MonitorLogsText.Text = string.Join(Environment.NewLine, lines);
+        MonitorLogsText.ScrollToEnd();
     }
 
     private async Task LoadHistoryAsync()
     {
         try
         {
-            var history = await _agentService.GetHistoryAsync(100);
+            var history = await _monitorService.GetHistoryAsync(100);
             HistoryDataGrid.ItemsSource = history;
         }
         catch (Exception ex)
@@ -1742,7 +1742,7 @@ public partial class SettingsWindow : Window
             ScanBtn.IsEnabled = false;
             ScanBtn.Content = "Scanning...";
             
-            var (count, configs) = await _agentService.ScanForKeysAsync();
+            var (count, configs) = await _monitorService.ScanForKeysAsync();
             
             if (count > 0)
             {
@@ -1773,7 +1773,7 @@ public partial class SettingsWindow : Window
         try
         {
             // Trigger refresh on agent
-            await _agentService.TriggerRefreshAsync();
+            await _monitorService.TriggerRefreshAsync();
             
             // Wait a moment for refresh to complete
             await Task.Delay(2000);
@@ -1795,7 +1795,7 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            var history = await _agentService.GetHistoryAsync(100);
+            var history = await _monitorService.GetHistoryAsync(100);
             HistoryDataGrid.ItemsSource = history;
             
             if (history.Count == 0)
@@ -1816,7 +1816,7 @@ public partial class SettingsWindow : Window
         HistoryDataGrid.ItemsSource = null;
     }
 
-    private async void RestartAgentBtn_Click(object sender, RoutedEventArgs e)
+    private async void RestartMonitorBtn_Click(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -1877,12 +1877,12 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            await _agentService.RefreshPortAsync();
-            await _agentService.RefreshAgentInfoAsync();
+            await _monitorService.RefreshPortAsync();
+            await _monitorService.RefreshAgentInfoAsync();
 
             var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync();
-            var healthDetails = await _agentService.GetHealthDetailsAsync();
-            var diagnosticsDetails = await _agentService.GetDiagnosticsDetailsAsync();
+            var healthDetails = await _monitorService.GetHealthDetailsAsync();
+            var diagnosticsDetails = await _monitorService.GetDiagnosticsDetailsAsync();
 
             var saveDialog = new SaveFileDialog
             {
@@ -1902,7 +1902,7 @@ public partial class SettingsWindow : Window
             bundle.AppendLine("AI Usage Tracker - Diagnostics Bundle");
             bundle.AppendLine($"GeneratedAtUtc: {DateTime.UtcNow:O}");
             bundle.AppendLine($"SlimVersion: {typeof(SettingsWindow).Assembly.GetName().Version?.ToString() ?? "unknown"}");
-            bundle.AppendLine($"AgentUrl: {_agentService.AgentUrl}");
+            bundle.AppendLine($"AgentUrl: {_monitorService.AgentUrl}");
             bundle.AppendLine($"AgentRunning: {isRunning}");
             bundle.AppendLine($"AgentPort: {port}");
             bundle.AppendLine();
@@ -1916,13 +1916,13 @@ public partial class SettingsWindow : Window
             bundle.AppendLine();
 
             bundle.AppendLine("=== Monitor Errors (monitor.json) ===");
-            if (_agentService.LastAgentErrors.Count == 0)
+            if (_monitorService.LastAgentErrors.Count == 0)
             {
                 bundle.AppendLine("None");
             }
             else
             {
-                foreach (var error in _agentService.LastAgentErrors)
+                foreach (var error in _monitorService.LastAgentErrors)
                 {
                     bundle.AppendLine($"- {error}");
                 }
@@ -2136,7 +2136,7 @@ public partial class SettingsWindow : Window
                 return;
             }
 
-            var agentPrefsSaved = await _agentService.SavePreferencesAsync(_agentPreferences);
+            var agentPrefsSaved = await _monitorService.SavePreferencesAsync(_agentPreferences);
             if (!agentPrefsSaved)
             {
                 if (showErrorDialog)
@@ -2154,7 +2154,7 @@ public partial class SettingsWindow : Window
             var failedConfigs = new List<string>();
             foreach (var config in _configs)
             {
-                var saved = await _agentService.SaveConfigAsync(config);
+                var saved = await _monitorService.SaveConfigAsync(config);
                 if (!saved)
                 {
                     failedConfigs.Add(config.ProviderId);
@@ -2318,7 +2318,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var result = await _agentService.SendTestNotificationDetailedAsync();
+        var result = await _monitorService.SendTestNotificationDetailedAsync();
         NotificationTestStatusText.Text = result.Message;
     }
 

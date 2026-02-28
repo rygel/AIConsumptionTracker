@@ -38,7 +38,7 @@ public partial class MainWindow : Window
         @"(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*|\[[^\]]+\]\([^)]+\))",
         RegexOptions.Compiled);
 
-    private readonly MonitorService _agentService;
+    private readonly MonitorService _monitorService;
     private IUpdateCheckerService _updateChecker;
     private AppPreferences _preferences = new();
     private List<ProviderUsage> _usages = new();
@@ -46,11 +46,11 @@ public partial class MainWindow : Window
     private bool _isPrivacyMode = App.IsPrivacyMode;
     private bool _isLoading = false;
     private readonly Dictionary<string, ImageSource> _iconCache = new();
-    private DateTime _lastAgentUpdate = DateTime.MinValue;
+    private DateTime _lastMonitorUpdate = DateTime.MinValue;
     private DateTime _lastRefreshTrigger = DateTime.MinValue;
     private const int RefreshCooldownSeconds = 120; // Only trigger refresh if 2 minutes since last attempt
     private DispatcherTimer? _pollingTimer;
-    private string? _agentContractWarningMessage;
+    private string? _monitorContractWarningMessage;
     private readonly DispatcherTimer _updateCheckTimer;
     private readonly DispatcherTimer _alwaysOnTopTimer;
     private HwndSource? _windowSource;
@@ -105,7 +105,7 @@ public partial class MainWindow : Window
             ApplyVersionDisplay();
         }
 
-        _agentService = new MonitorService();
+        _monitorService = new MonitorService();
         _updateChecker = new GitHubUpdateChecker(NullLogger<GitHubUpdateChecker>.Instance, UpdateChannel.Stable);
         _updateCheckTimer = new DispatcherTimer
         {
@@ -353,7 +353,7 @@ public partial class MainWindow : Window
 
     private async Task InitializeAsync()
     {
-        if (_isLoading || _agentService == null)
+        if (_isLoading || _monitorService == null)
             return;
 
         try
@@ -377,10 +377,10 @@ public partial class MainWindow : Window
             var success = await Task.Run(async () => {
                 try {
                     // Full port discovery: check monitor.json, then scan 5000-5010
-                    await _agentService.RefreshPortAsync();
+                    await _monitorService.RefreshPortAsync();
                     
                     // Check if Monitor is running on the discovered port
-                    var isRunning = await _agentService.CheckHealthAsync();
+                    var isRunning = await _monitorService.CheckHealthAsync();
                     
                     if (!isRunning)
                     {
@@ -389,9 +389,9 @@ public partial class MainWindow : Window
                         if (await MonitorLauncher.StartAgentAsync())
                         {
                             Dispatcher.Invoke(() => ShowStatus("Waiting for monitor...", StatusType.Warning));
-                            var agentReady = await MonitorLauncher.WaitForAgentAsync();
+                            var monitorReady = await MonitorLauncher.WaitForAgentAsync();
 
-                            if (!agentReady)
+                            if (!monitorReady)
                             {
                                 Dispatcher.Invoke(() => {
                                     ShowStatus("Monitor failed to start", StatusType.Error);
@@ -411,8 +411,8 @@ public partial class MainWindow : Window
                         }
                     }
 
-                    // Update agent toggle button state
-                    await UpdateAgentToggleButtonStateAsync();
+                    // Update monitor toggle button state
+                    await UpdateMonitorToggleButtonStateAsync();
 
                     return true;
                 } catch (Exception ex) {
@@ -423,8 +423,8 @@ public partial class MainWindow : Window
 
             if (success)
             {
-                var handshakeResult = await _agentService.CheckApiContractAsync();
-                ApplyAgentContractStatus(handshakeResult);
+                var handshakeResult = await _monitorService.CheckApiContractAsync();
+                ApplyMonitorContractStatus(handshakeResult);
 
                 // Rapid polling at startup until data is available
                 await RapidPollUntilDataAvailableAsync();
@@ -453,7 +453,7 @@ public partial class MainWindow : Window
         ShowStatus("Loading data...", StatusType.Info);
 
         // First, check if Monitor is reachable
-        var isHealthy = await _agentService.CheckHealthAsync();
+        var isHealthy = await _monitorService.CheckHealthAsync();
         if (!isHealthy)
         {
             ShowStatus("Monitor not reachable", StatusType.Error);
@@ -466,7 +466,7 @@ public partial class MainWindow : Window
             try
             {
                 // Try to get cached data from agent
-                var usages = await _agentService.GetUsageAsync();
+                var usages = await _monitorService.GetUsageAsync();
 
                 // Filter out placeholder data (safety filter)
                 var usableUsages = usages.Where(u => 
@@ -479,7 +479,7 @@ public partial class MainWindow : Window
                     _usages = usableUsages;
                     RenderProviders();
                     await UpdateTrayIconsAsync();
-                    _lastAgentUpdate = DateTime.Now;
+                    _lastMonitorUpdate = DateTime.Now;
                     ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
                     return;
                 }
@@ -493,7 +493,7 @@ public partial class MainWindow : Window
                     _lastRefreshTrigger = DateTime.Now;
                     try
                     {
-                        await _agentService.TriggerRefreshAsync();
+                        await _monitorService.TriggerRefreshAsync();
                     }
                     catch (Exception ex)
                     {
@@ -699,7 +699,7 @@ public partial class MainWindow : Window
             _isPrivacyMode = true;
             App.SetPrivacyMode(true);
             _preferencesLoaded = true;
-            _lastAgentUpdate = new DateTime(2026, 2, 1, 12, 0, 0, DateTimeKind.Local);
+            _lastMonitorUpdate = new DateTime(2026, 2, 1, 12, 0, 0, DateTimeKind.Local);
             var deterministicNow = DateTime.Now;
             ApplyPreferences();
             Width = 460;
@@ -852,7 +852,7 @@ public partial class MainWindow : Window
             };
 
             RenderProviders();
-            ShowStatus($"{_lastAgentUpdate:HH:mm:ss}", StatusType.Success);
+            ShowStatus($"{_lastMonitorUpdate:HH:mm:ss}", StatusType.Success);
         }
         else
         {
@@ -928,7 +928,7 @@ public partial class MainWindow : Window
 
     private async Task RefreshDataAsync()
     {
-        if (_isLoading || _agentService == null)
+        if (_isLoading || _monitorService == null)
             return;
 
         try
@@ -936,11 +936,11 @@ public partial class MainWindow : Window
             _isLoading = true;
             ShowStatus("Refreshing...", StatusType.Info);
 
-            // Trigger refresh on agent
-            await _agentService.TriggerRefreshAsync();
+            // Trigger refresh on monitor
+            await _monitorService.TriggerRefreshAsync();
 
             // Get updated usage data
-            _usages = await _agentService.GetUsageAsync();
+            _usages = await _monitorService.GetUsageAsync();
 
             // Render providers
             RenderProviders();
@@ -2099,10 +2099,10 @@ public partial class MainWindow : Window
 
         _pollingTimer.Tick += async (s, e) =>
         {
-            // Poll agent every minute for fresh data
+            // Poll monitor every minute for fresh data
             try
             {
-                var usages = await _agentService.GetUsageAsync();
+                var usages = await _monitorService.GetUsageAsync();
                 
                 // Filter out placeholder data (safety filter - handles edge cases where bad data reaches UI)
                 // Placeholder = no usage data AND not available
@@ -2116,7 +2116,7 @@ public partial class MainWindow : Window
                     _usages = usableUsages;
                     RenderProviders();
                     await UpdateTrayIconsAsync();
-                    _lastAgentUpdate = DateTime.Now;
+                    _lastMonitorUpdate = DateTime.Now;
                     ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
                 }
                 else
@@ -2130,7 +2130,7 @@ public partial class MainWindow : Window
                         _lastRefreshTrigger = DateTime.Now;
                         try
                         {
-                            await _agentService.TriggerRefreshAsync();
+                            await _monitorService.TriggerRefreshAsync();
                         }
                         catch (Exception ex)
                         {
@@ -2144,20 +2144,20 @@ public partial class MainWindow : Window
                     
                     // Wait a moment and retry getting data
                     await Task.Delay(1000);
-                    var retryUsages = await _agentService.GetUsageAsync();
+                    var retryUsages = await _monitorService.GetUsageAsync();
                     
                     if (retryUsages.Any())
                     {
                         _usages = retryUsages.ToList();
                         RenderProviders();
                         await UpdateTrayIconsAsync();
-                        _lastAgentUpdate = DateTime.Now;
+                        _lastMonitorUpdate = DateTime.Now;
                         ShowStatus($"{DateTime.Now:HH:mm:ss} (refreshed)", StatusType.Success);
                     }
                     else if (_usages.Any())
                     {
                         // Keep showing old data, show yellow warning
-                        ShowStatus("Last update: " + _lastAgentUpdate.ToString("HH:mm:ss") + " (stale)", StatusType.Warning);
+                        ShowStatus("Last update: " + _lastMonitorUpdate.ToString("HH:mm:ss") + " (stale)", StatusType.Warning);
                     }
                     else
                     {
@@ -2192,15 +2192,15 @@ public partial class MainWindow : Window
             return;
         }
 
-        _configs = await _agentService.GetConfigsAsync();
+        _configs = await _monitorService.GetConfigsAsync();
         app.UpdateProviderTrayIcons(_usages, _configs, _preferences);
     }
 
     private void ShowStatus(string message, StatusType type)
     {
-        if (type == StatusType.Success && !string.IsNullOrWhiteSpace(_agentContractWarningMessage))
+        if (type == StatusType.Success && !string.IsNullOrWhiteSpace(_monitorContractWarningMessage))
         {
-            message = _agentContractWarningMessage;
+            message = _monitorContractWarningMessage;
             type = StatusType.Warning;
         }
 
@@ -2222,9 +2222,9 @@ public partial class MainWindow : Window
         }
 
         // Update tooltip with last agent update time
-        var tooltipText = _lastAgentUpdate == DateTime.MinValue
+        var tooltipText = _lastMonitorUpdate == DateTime.MinValue
             ? "Last update: Never"
-            : $"Last update: {_lastAgentUpdate:HH:mm:ss}";
+            : $"Last update: {_lastMonitorUpdate:HH:mm:ss}";
 
         if (StatusLed != null)
         {
@@ -2278,15 +2278,15 @@ public partial class MainWindow : Window
         Console.WriteLine($"[{timestamp}] [{type}] {message}");
     }
 
-    private void ApplyAgentContractStatus(AgentContractHandshakeResult handshakeResult)
+    private void ApplyMonitorContractStatus(AgentContractHandshakeResult handshakeResult)
     {
         if (handshakeResult.IsCompatible)
         {
-            _agentContractWarningMessage = null;
+            _monitorContractWarningMessage = null;
             return;
         }
 
-        _agentContractWarningMessage = handshakeResult.Message;
+        _monitorContractWarningMessage = handshakeResult.Message;
         ShowStatus(handshakeResult.Message, StatusType.Warning);
     }
 
@@ -2933,7 +2933,7 @@ public partial class MainWindow : Window
     }
 
 
-    private async Task RestartAgentAsync()
+    private async Task RestartMonitorAsync()
     {
         try
         {
@@ -2942,8 +2942,8 @@ public partial class MainWindow : Window
             // Try to start agent
             if (await MonitorLauncher.StartAgentAsync())
             {
-                var agentReady = await MonitorLauncher.WaitForAgentAsync();
-                if (agentReady)
+                var monitorReady = await MonitorLauncher.WaitForAgentAsync();
+                if (monitorReady)
                 {
                     ShowStatus("Monitor restarted", StatusType.Success);
                     await RefreshDataAsync();
@@ -2961,7 +2961,7 @@ public partial class MainWindow : Window
     }
 
 
-    private async void AgentToggleBtn_Click(object sender, RoutedEventArgs e)
+    private async void MonitorToggleBtn_Click(object sender, RoutedEventArgs e)
     {
         var (isRunning, _) = await MonitorLauncher.IsAgentRunningWithPortAsync();
 
@@ -2973,7 +2973,7 @@ public partial class MainWindow : Window
             if (stopped)
             {
                 ShowStatus("Monitor stopped", StatusType.Info);
-                UpdateAgentToggleButton(false);
+                UpdateMonitorToggleButton(false);
             }
             else
             {
@@ -2986,41 +2986,41 @@ public partial class MainWindow : Window
             ShowStatus("Starting monitor...", StatusType.Warning);
             if (await MonitorLauncher.StartAgentAsync())
             {
-                var agentReady = await MonitorLauncher.WaitForAgentAsync();
-                if (agentReady)
+                var monitorReady = await MonitorLauncher.WaitForAgentAsync();
+                if (monitorReady)
                 {
                     ShowStatus("Monitor started", StatusType.Success);
-                    UpdateAgentToggleButton(true);
+                    UpdateMonitorToggleButton(true);
                     await RefreshDataAsync();
                 }
                 else
                 {
                     ShowStatus("Monitor failed to start", StatusType.Error);
-                    UpdateAgentToggleButton(false);
+                    UpdateMonitorToggleButton(false);
                 }
             }
             else
             {
                 ShowStatus("Could not start monitor", StatusType.Error);
-                UpdateAgentToggleButton(false);
+                UpdateMonitorToggleButton(false);
             }
         }
     }
 
-    private void UpdateAgentToggleButton(bool isRunning)
+    private void UpdateMonitorToggleButton(bool isRunning)
     {
-        if (AgentToggleBtn != null && AgentToggleIcon != null)
+        if (MonitorToggleBtn != null && MonitorToggleIcon != null)
         {
             // Update icon: Play (E768) when stopped, Stop (E71A) when running
-            AgentToggleIcon.Text = isRunning ? "\uE71A" : "\uE768";
-            AgentToggleBtn.ToolTip = isRunning ? "Stop Monitor" : "Start Monitor";
+            MonitorToggleIcon.Text = isRunning ? "\uE71A" : "\uE768";
+            MonitorToggleBtn.ToolTip = isRunning ? "Stop Monitor" : "Start Monitor";
         }
     }
 
-    private async Task UpdateAgentToggleButtonStateAsync()
+    private async Task UpdateMonitorToggleButtonStateAsync()
     {
         var (isRunning, _) = await MonitorLauncher.IsAgentRunningWithPortAsync();
-        Dispatcher.Invoke(() => UpdateAgentToggleButton(isRunning));
+        Dispatcher.Invoke(() => UpdateMonitorToggleButton(isRunning));
     }
 
     private void OnKeyDown(object sender, KeyEventArgs e)
