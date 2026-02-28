@@ -102,6 +102,10 @@ public partial class MainWindow : Window
         if (!skipUiInitialization)
         {
             InitializeComponent();
+            
+            // Set window title with version
+            var appVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            Title = $"AI Usage Tracker v{appVersion?.Major}.{appVersion?.Minor}.{appVersion?.Build}";
         }
 
         _agentService = new MonitorService();
