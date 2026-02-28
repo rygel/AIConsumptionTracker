@@ -110,10 +110,30 @@ public partial class MainWindow : Window
             // Check if this is a beta/prerelease version using InformationalVersion
             var informationalVersion = System.Reflection.Assembly.GetExecutingAssembly()
                 .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-            if (informationalVersion?.Contains("-beta", StringComparison.OrdinalIgnoreCase) == true ||
-                informationalVersion?.Contains("-alpha", StringComparison.OrdinalIgnoreCase) == true)
+            
+            // Extract prerelease identifier (e.g., "beta.3" from "2.2.27-beta.3")
+            if (!string.IsNullOrEmpty(informationalVersion))
             {
-                versionStr += " (Beta)";
+                var prereleaseMatch = System.Text.RegularExpressions.Regex.Match(informationalVersion, @"-(beta|alpha)\.[0-9]+");
+                if (prereleaseMatch.Success)
+                {
+                    // Capitalize first letter: "-beta.3" -> " (Beta 3)"
+                    var prerelease = prereleaseMatch.Value.Substring(1); // Remove leading "-"
+                    var parts = prerelease.Split('.');
+                    if (parts.Length >= 2)
+                    {
+                        var channel = char.ToUpper(parts[0][0]) + parts[0].Substring(1);
+                        versionStr += $" ({channel} {parts[1]})";
+                    }
+                    else
+                    {
+                        versionStr += $" ({char.ToUpper(prerelease[0]) + prerelease.Substring(1)})";
+                    }
+                }
+                else if (informationalVersion.Contains("-beta") || informationalVersion.Contains("-alpha"))
+                {
+                    versionStr += " (Beta)";
+                }
             }
             
             Title = $"AI Usage Tracker {versionStr}";
