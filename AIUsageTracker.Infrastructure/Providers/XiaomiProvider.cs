@@ -28,6 +28,8 @@ public class XiaomiProvider : IProviderService
                 ProviderId = config.ProviderId,
                 ProviderName = "Xiaomi",
                 IsAvailable = false,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
                 Description = "API Key missing"
             }};
         }
@@ -65,9 +67,9 @@ public class XiaomiProvider : IProviderService
                 RequestsPercentage = percentage,
                 RequestsUsed = used,
                 RequestsAvailable = quota > 0 ? quota : balance, 
-                UsageUnit = "Points", // or CNY
-                IsQuotaBased = quota > 0,
-                PlanType = quota > 0 ? PlanType.Coding : PlanType.Usage,
+                UsageUnit = "Points",
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
                 IsAvailable = true,
                 Description = quota > 0 
                     ? $"{balance} remaining / {quota} total" 
@@ -82,6 +84,8 @@ public class XiaomiProvider : IProviderService
                 ProviderId = config.ProviderId,
                 ProviderName = "Xiaomi",
                 IsAvailable = false,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
                 Description = $"Error: {ex.Message}"
             }};
         }
