@@ -416,10 +416,15 @@ public partial class MainWindow : Window
                 // Try to get cached data from agent
                 var usages = await _agentService.GetUsageAsync();
 
-                if (usages.Any())
+                // Filter out placeholder data (safety filter)
+                var usableUsages = usages.Where(u => 
+                    u.RequestsAvailable > 0 || u.RequestsUsed > 0 || u.IsAvailable
+                ).ToList();
+
+                if (usableUsages.Any())
                 {
                     // Data is available - render and stop rapid polling
-                    _usages = usages.ToList();
+                    _usages = usableUsages;
                     RenderProviders();
                     await UpdateTrayIconsAsync();
                     _lastAgentUpdate = DateTime.Now;
@@ -2035,10 +2040,16 @@ public partial class MainWindow : Window
             {
                 var usages = await _agentService.GetUsageAsync();
                 
-                if (usages.Any())
+                // Filter out placeholder data (safety filter - handles edge cases where bad data reaches UI)
+                // Placeholder = no usage data AND not available
+                var usableUsages = usages.Where(u => 
+                    u.RequestsAvailable > 0 || u.RequestsUsed > 0 || u.IsAvailable
+                ).ToList();
+                
+                if (usableUsages.Any())
                 {
                     // Fresh data received - update UI
-                    _usages = usages.ToList();
+                    _usages = usableUsages;
                     RenderProviders();
                     await UpdateTrayIconsAsync();
                     _lastAgentUpdate = DateTime.Now;

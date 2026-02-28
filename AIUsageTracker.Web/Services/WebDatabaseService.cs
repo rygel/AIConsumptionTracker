@@ -125,7 +125,7 @@ public class WebDatabaseService
         var sql = includeInactive ? allSql : activeSql;
         var results = await connection.QueryAsync<ProviderUsage>(sql);
             
-        // Deserialize details from JSON
+        // Deserialize details from JSON and set IsQuotaBased from provider class
         foreach (var usage in results)
         {
             if (!string.IsNullOrEmpty(usage.DetailsJson))
@@ -136,12 +136,14 @@ public class WebDatabaseService
                 }
                 catch { /* Ignore deserialization errors */ }
             }
+            
+            // Set IsQuotaBased using the existing ProviderPlanClassifier
+            usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
         }
 
         var list = results.ToList();
-        _cache.Set(cacheKey, list, TimeSpan.FromSeconds(8));
-        _logger.LogInformation("WebDB GetLatestUsageAsync(includeInactive={IncludeInactive}) rows={Count} elapsedMs={ElapsedMs}",
-            includeInactive, list.Count, sw.ElapsedMilliseconds);
+        _cache.Set(cacheKey, list, TimeSpan.FromMinutes(5));
+        _logger.LogInformation("WebDB GetHistoryAsync rows={Count} elapsedMs={ElapsedMs}", list.Count, sw.ElapsedMilliseconds);
         return list;
     }
 
@@ -158,13 +160,19 @@ public class WebDatabaseService
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime, p.plan_type AS PlanType
+                       h.next_reset_time AS NextResetTime
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
                 ORDER BY h.fetched_at DESC
                 LIMIT {limit}";
 
         var results = await connection.QueryAsync<ProviderUsage>(sql);
+        
+        foreach (var usage in results)
+        {
+            usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
+        }
+        
         return results.ToList();
     }
 
@@ -181,7 +189,7 @@ public class WebDatabaseService
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime, p.plan_type AS PlanType
+                       h.next_reset_time AS NextResetTime
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.provider_id = @ProviderId
@@ -189,6 +197,12 @@ public class WebDatabaseService
                 LIMIT {limit}";
 
         var results = await connection.QueryAsync<ProviderUsage>(sql, new { ProviderId = providerId });
+        
+        foreach (var usage in results)
+        {
+            usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
+        }
+        
         return results.ToList();
     }
 
@@ -202,7 +216,7 @@ public class WebDatabaseService
 
             const string sql = @"
                 SELECT p.provider_id AS ProviderId, p.provider_name AS ProviderName,
-                       p.plan_type AS PlanType, p.is_active AS IsActive,
+                       p.is_active AS IsActive,
                        p.auth_source AS AuthSource, p.account_name AS AccountName,
                        (SELECT requests_percentage FROM provider_history 
                         WHERE provider_id = p.provider_id 
@@ -267,7 +281,7 @@ public class WebDatabaseService
                 )";
 
         var result = await connection.QuerySingleOrDefaultAsync<UsageSummary>(sql) ?? new UsageSummary();
-        _cache.Set(cacheKey, result, TimeSpan.FromSeconds(12));
+        _cache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
         _logger.LogInformation("WebDB GetUsageSummaryAsync providerCount={ProviderCount} elapsedMs={ElapsedMs}",
             result.ProviderCount, sw.ElapsedMilliseconds);
         return result;
@@ -359,7 +373,7 @@ public class WebDatabaseService
             forecasts[group.Key] = UsageMath.CalculateBurnRateForecast(samples);
         }
 
-        _cache.Set(cacheKey, forecasts, TimeSpan.FromSeconds(30));
+        _cache.Set(cacheKey, forecasts, TimeSpan.FromMinutes(10));
         _logger.LogInformation(
             "WebDB GetBurnRateForecastsAsync providers={ProviderCount} rows={RowCount} elapsedMs={ElapsedMs}",
             normalizedProviderIds.Count,
@@ -480,7 +494,7 @@ public class WebDatabaseService
             snapshots[group.Key] = UsageMath.CalculateReliabilitySnapshot(samples);
         }
 
-        _cache.Set(cacheKey, snapshots, TimeSpan.FromSeconds(30));
+        _cache.Set(cacheKey, snapshots, TimeSpan.FromMinutes(10));
         _logger.LogInformation(
             "WebDB GetProviderReliabilityAsync providers={ProviderCount} rows={RowCount} elapsedMs={ElapsedMs}",
             normalizedProviderIds.Count,
@@ -576,7 +590,7 @@ public class WebDatabaseService
             snapshots[group.Key] = UsageMath.CalculateUsageAnomalySnapshot(samples);
         }
 
-        _cache.Set(cacheKey, snapshots, TimeSpan.FromSeconds(30));
+        _cache.Set(cacheKey, snapshots, TimeSpan.FromMinutes(10));
         _logger.LogInformation(
             "WebDB GetUsageAnomaliesAsync providers={ProviderCount} rows={RowCount} elapsedMs={ElapsedMs}",
             normalizedProviderIds.Count,
@@ -666,7 +680,7 @@ public class WebDatabaseService
             ORDER BY timestamp ASC";
 
         var results = (await connection.QueryAsync<ResetEvent>(sql, new { CutoffUtc = cutoffUtc })).ToList();
-        _cache.Set(cacheKey, results, TimeSpan.FromSeconds(15));
+        _cache.Set(cacheKey, results, TimeSpan.FromMinutes(5));
         _logger.LogInformation("WebDB GetRecentResetEventsAsync hours={Hours} rows={Count} elapsedMs={ElapsedMs}",
             hours, results.Count, sw.ElapsedMilliseconds);
         return results;

@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## [2.2.25] - 2026-02-27
+
+### Fixed
+- Filter placeholder data in Monitor to prevent storing unconfigured providers
+- Add safety filter in Slim UI to reject placeholder data
+- UI now shows graceful yellow warning instead of going blank when Monitor returns placeholder-only responses
+
+### Changes
+- Simplified placeholder detection: checks for actual usage data (RequestsAvailable/RequestsUsed/IsAvailable) instead of relying on Description text matching
+- Remove plan_type from database - use ProviderPlanClassifier instead
+
+### Performance
+- Add database indexes for is_available and provider_id+fetched_at
+- Increase Web UI cache times from 8-30 seconds to 5-10 minutes
+
+### Web UI
+- Add separate Reliability page accessible from sidebar
+- Improved reliability cards with progress bars
+- Dashboard no longer loads reliability data (moved to separate page)
+
+## [2.2.24] - 2026-02-27
+
+### Fixed
+- Filter placeholder data in Monitor to prevent storing unconfigured providers
+- Add safety filter in Slim UI to reject placeholder data
+- UI now shows graceful yellow warning instead of going blank when Monitor returns placeholder-only responses
+
+### Changes
+- Simplified placeholder detection: checks for actual usage data (RequestsAvailable/RequestsUsed/IsAvailable) instead of relying on Description text matching
+
 ## [2.2.23] - 2026-02-27
 
 ### Fixed

@@ -106,7 +106,6 @@ public class DatabaseMigrationService
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 is_active INTEGER NOT NULL DEFAULT 1,
                 config_json TEXT,
-                plan_type TEXT DEFAULT 'usage',
                 auth_source TEXT DEFAULT 'manual'
             );
 
@@ -145,7 +144,6 @@ public class DatabaseMigrationService
             );
         ");
 
-        EnsureColumn(connection, "providers", "plan_type", "TEXT DEFAULT 'usage'");
         EnsureColumn(connection, "providers", "auth_source", "TEXT DEFAULT 'manual'");
         EnsureColumn(connection, "provider_history", "details_json", "TEXT");
         EnsureColumn(connection, "provider_history", "response_latency_ms", "REAL NOT NULL DEFAULT 0");
@@ -156,6 +154,8 @@ public class DatabaseMigrationService
             CREATE INDEX IF NOT EXISTS idx_reset_provider_time ON reset_events(provider_id, timestamp);
             CREATE INDEX IF NOT EXISTS idx_history_fetched_time ON provider_history(fetched_at DESC);
             CREATE INDEX IF NOT EXISTS idx_history_provider_id_desc ON provider_history(provider_id, id DESC);
+            CREATE INDEX IF NOT EXISTS idx_history_is_available ON provider_history(is_available);
+            CREATE INDEX IF NOT EXISTS idx_history_provider_fetched_desc ON provider_history(provider_id, fetched_at DESC);
         ");
 
         _logger.LogInformation("Legacy database compatibility bootstrap completed.");

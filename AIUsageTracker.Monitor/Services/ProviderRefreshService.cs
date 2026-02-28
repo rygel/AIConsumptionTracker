@@ -301,7 +301,8 @@ public class ProviderRefreshService : BackgroundService
                     (activeProviderIds.Contains(u.ProviderId) || 
                     (u.ProviderId.StartsWith("antigravity.") && activeProviderIds.Contains("antigravity"))) &&
                     // Drop unconfigured providers that returned no usage
-                    !(u.RequestsAvailable == 0 && u.RequestsUsed == 0 && u.RequestsPercentage == 0 && !u.IsAvailable && (u.Description?.Contains("API Key", StringComparison.OrdinalIgnoreCase) == true || u.Description?.Contains("configured", StringComparison.OrdinalIgnoreCase) == true))
+                    // Check regardless of description - if no usage data and not available, it's a placeholder
+                    !(u.RequestsAvailable == 0 && u.RequestsUsed == 0 && u.RequestsPercentage == 0 && !u.IsAvailable)
                 ).ToList();
 
                 _logger.LogDebug("Provider query results:");
