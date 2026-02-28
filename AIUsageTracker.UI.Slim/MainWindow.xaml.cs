@@ -447,7 +447,7 @@ public partial class MainWindow : Window
 
     private async Task RapidPollUntilDataAvailableAsync()
     {
-        const int maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
+        const int maxAttempts = 5; // Reduced from 30 to 5 (10 seconds max)
         const int pollIntervalMs = 2000; // 2 seconds between attempts
 
         ShowStatus("Loading data...", StatusType.Info);
@@ -480,21 +480,27 @@ public partial class MainWindow : Window
                     return;
                 }
 
-                // No data available - trigger refresh on first attempt if cooldown has passed
-                // This is needed for fresh installs where Monitor's background refresh hasn't completed yet
-                var secondsSinceLastRefresh = (DateTime.Now - _lastRefreshTrigger).TotalSeconds;
-                if (attempt == 0 && secondsSinceLastRefresh >= RefreshCooldownSeconds)
+                // No data yet - on first attempt, trigger a background refresh
+                // but don't wait for it - show UI immediately
+                if (attempt == 0)
                 {
-                    Debug.WriteLine("No data on first poll, triggering provider refresh...");
-                    _lastRefreshTrigger = DateTime.Now;
-                    try
+                    Debug.WriteLine("No cached data available, triggering background refresh...");
+                    _ = Task.Run(async () =>
                     {
-                        await _monitorService.TriggerRefreshAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Trigger refresh failed: {ex.Message}");
-                    }
+                        try
+                        {
+                            await _monitorService.TriggerRefreshAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Background refresh failed: {ex.Message}");
+                        }
+                    });
+                    
+                    // Show UI immediately with empty state
+                    ShowStatus("Scanning for providers...", StatusType.Info);
+                    RenderProviders(); // Will show empty or loading state
+                    return; // Exit rapid polling - data will arrive via polling timer
                 }
 
                 // No data yet - wait and try again
