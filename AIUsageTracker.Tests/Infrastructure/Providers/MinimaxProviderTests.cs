@@ -105,7 +105,7 @@ public class MinimaxProviderTests
     }
 
     [Fact]
-    public async Task GetUsageAsync_InvalidApiKey_ThrowsException()
+    public async Task GetUsageAsync_InvalidApiKey_ReturnsNotAuthenticated()
     {
          // Arrange
         var config = new ProviderConfig
@@ -114,12 +114,18 @@ public class MinimaxProviderTests
             ApiKey = "" // Empty key
         };
 
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => _provider.GetUsageAsync(config));
+        // Act
+        var result = await _provider.GetUsageAsync(config);
+        
+        // Assert
+        var usage = result.Single();
+        Assert.Equal("Minimax", usage.ProviderName);
+        Assert.False(usage.IsAvailable);
+        Assert.Contains("API Key not found", usage.Description);
     }
 
     [Fact]
-    public async Task GetUsageAsync_ApiError_ThrowsException()
+    public async Task GetUsageAsync_ApiError_ReturnsErrorStatus()
     {
         // Arrange
         var config = new ProviderConfig
@@ -140,8 +146,14 @@ public class MinimaxProviderTests
                 Content = new StringContent("Unauthorized")
             });
 
-        // Act & Assert
-        await Assert.ThrowsAsync<Exception>(() => _provider.GetUsageAsync(config));
+        // Act
+        var result = await _provider.GetUsageAsync(config);
+        
+        // Assert
+        var usage = result.Single();
+        Assert.Equal("Minimax", usage.ProviderName);
+        Assert.False(usage.IsAvailable);
+        Assert.Contains("Unauthorized", usage.Description);  // Changed from "401" to "Unauthorized"
     }
 }
 

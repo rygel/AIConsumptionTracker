@@ -94,14 +94,12 @@ public class XiaomiProviderTests
         var usage = result.Single();
         Assert.Equal("Xiaomi", usage.ProviderName);
         Assert.Equal(0, usage.RequestsPercentage);
-        Assert.Equal(0, usage.RequestsUsed); // Since quota is 0, cost used logic was quota - balance = -50 -> 0 clamped? No, logic is "quota > 0 ? quota - balance : 0"
+        Assert.Equal(0, usage.RequestsUsed);
         
-        // Recalculating expected based on code:
-        // Limit = quota > 0 ? quota : balance => 50
-        // PlanType = UsageBased
+        // Xiaomi is now always Coding plan (quota-based) regardless of API response
         Assert.Equal(50, usage.RequestsAvailable); 
-        Assert.False(usage.IsQuotaBased);
-        Assert.Contains("Balance: 50", usage.Description);
+        Assert.True(usage.IsQuotaBased);  // Changed: now always true
+        Assert.Contains("Balance: 50", usage.Description);  // When quota is 0, shows "Balance: X"
     }
 }
 
