@@ -30,15 +30,15 @@ public class GeminiProvider : IProviderService
         var accounts = LoadAntigravityAccounts();
         if (accounts == null || accounts.Accounts == null || !accounts.Accounts.Any())
         {
-             return new[] { new ProviderUsage
-             {
-                 ProviderId = ProviderId,
-                 ProviderName = "Gemini CLI",
-                 IsAvailable = false,
-                 IsQuotaBased = false,
-                 PlanType = PlanType.Usage,
-                 Description = "No Gemini accounts found"
-             }};
+            return new[] { new ProviderUsage
+            {
+                ProviderId = ProviderId,
+                ProviderName = "Gemini CLI",
+                IsAvailable = false,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                Description = "No Gemini accounts found"
+            }};
         }
 
         var results = new List<ProviderUsage>();
