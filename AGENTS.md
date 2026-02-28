@@ -11,6 +11,14 @@ This document provides essential information for agentic coding assistants worki
 - **You must explicitly tell me** when to create a release
 - **I will wait for your command** before any release-related action
 
+### Provider Visibility Requirement
+- **ALL configured providers MUST be visible** in the UI at all times
+- **NEVER** filter out providers just because they have `IsAvailable=false`
+- Providers with missing API keys should show as "Not Available" or "Configure Provider"
+- **DO NOT** wait for fresh data before showing providers - display cached data immediately
+- **DO NOT** show only a subset of providers (e.g., only antigravity) on startup
+- The UI must show provider cards immediately, even if data is stale or unavailable
+
 ### Development Workflow
 
 - **Never push directly to `main`**: All changes, including release preparations, MUST be done on a feature branch (e.g., `feature/branch-name`) and integrated via a Pull Request.
