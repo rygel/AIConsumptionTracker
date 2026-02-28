@@ -557,7 +557,7 @@
                             <TextBlock Text="Usage History" FontWeight="Bold" FontSize="14" 
                                        Margin="0,0,0,15" Foreground="{DynamicResource PrimaryText}"/>
                             
-                            <TextBlock Text="Raw historical data from the agent (last 24 hours)" 
+                            <TextBlock Text="Raw historical data from the monitor (last 24 hours)" 
                                        FontSize="11" Foreground="{DynamicResource SecondaryText}" 
                                        Margin="0,0,0,15"/>
                             
