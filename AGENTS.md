@@ -738,5 +738,17 @@ The Slim UI uses a dynamic polling strategy to ensure providers appear quickly w
 
 This algorithm ensures providers appear within 30 seconds while maintaining responsiveness.
 
+## Async/Await Best Practices
+
+See [WPF Async/Await Best Practices](docs/wpf_async_best_practices.md) for critical patterns to avoid UI blocking and deadlocks.
+
+Key rules:
+- **Never** use `.GetAwaiter().GetResult()` or `.Result` on the UI thread
+- **Never** create sync wrappers for async methods
+- Always add timeouts to HTTP calls (> 30s is too long for UI)
+- Use fire-and-forget (`_ =`) for non-critical background work
+- Add exception handling to all `async void` event handlers
+- Use `ConfigureAwait(false)` in library code (Core/Infrastructure projects)
+
 
 
