@@ -105,7 +105,18 @@ public partial class MainWindow : Window
             
             // Set window title with version
             var appVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            Title = $"AI Usage Tracker v{appVersion?.Major}.{appVersion?.Minor}.{appVersion?.Build}";
+            var versionStr = $"v{appVersion?.Major}.{appVersion?.Minor}.{appVersion?.Build}";
+            
+            // Check if this is a beta/prerelease version using InformationalVersion
+            var informationalVersion = System.Reflection.Assembly.GetExecutingAssembly()
+                .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+            if (informationalVersion?.Contains("-beta", StringComparison.OrdinalIgnoreCase) == true ||
+                informationalVersion?.Contains("-alpha", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                versionStr += " (Beta)";
+            }
+            
+            Title = $"AI Usage Tracker {versionStr}";
         }
 
         _agentService = new MonitorService();
