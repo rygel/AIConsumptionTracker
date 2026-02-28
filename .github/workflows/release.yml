@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g., 2.2.26, 2.3.0-beta.1, 2.3.0-alpha.1)'
+        description: 'Version to release (e.g., 2.2.26, 2.3.0-beta.1)'
         required: true
         type: string
       channel:
@@ -14,7 +14,6 @@ on:
         options:
           - stable
           - beta
-          - alpha
         default: stable
 
 permissions:
@@ -39,20 +38,14 @@ jobs:
           # Check version matches channel
           case "$channel" in
             stable)
-              if [[ "$version" =~ -beta ]] || [[ "$version" =~ -alpha ]]; then
-                echo "Error: Stable releases should not contain -beta or -alpha"
+              if [[ "$version" =~ -beta ]]; then
+                echo "Error: Stable releases should not contain -beta"
                 exit 1
               fi
               ;;
             beta)
               if [[ ! "$version" =~ -beta ]]; then
                 echo "Error: Beta releases must contain -beta"
-                exit 1
-              fi
-              ;;
-            alpha)
-              if [[ ! "$version" =~ -alpha ]]; then
-                echo "Error: Alpha releases must contain -alpha"
                 exit 1
               fi
               ;;

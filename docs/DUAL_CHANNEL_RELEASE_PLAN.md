@@ -20,7 +20,7 @@ Implement Stable and Beta release channels to allow users to opt-in to early acc
 ```
 feature branches → develop → main (stable releases)
                       ↓
-                 beta releases (tagged from develop)
+                   beta releases (tagged from develop)
 ```
 
 ### 1.2 Workflow Trigger Updates
@@ -37,14 +37,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (e.g., 2.2.25, 2.3.0-beta.1, 2.3.0-alpha.1)'
+        description: 'Version (e.g., 2.2.25, 2.3.0-beta.1)'
       channel:
         description: 'Release Channel'
         type: choice
         options:
           - stable
           - beta
-          - alpha
         default: stable
 ```
 
@@ -55,7 +54,6 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'        # Stable: v2.2.25
       - 'v[0-9]+.[0-9]+.[0-9]+-beta.*'  # Beta: v2.3.0-beta.1
-      - 'v[0-9]+.[0-9]+.[0-9]+-alpha.*' # Alpha: v2.3.0-alpha.1
 ```
 
 ---
@@ -93,7 +91,7 @@ on:
 **File to Modify:** `scripts/generate-appcast.sh`
 
 **Requirements:**
-- Accept `--channel stable|beta|alpha` parameter
+- Accept `--channel stable|beta` parameter
 - Generate appropriate appcast files based on channel
 - Handle prerelease versions correctly (strip channel suffix for comparison)
 - Update all 4 architecture variants per channel
@@ -110,7 +108,7 @@ case "$CHANNEL" in
   stable)
     APPCAST_PREFIX="appcast"
     ;;
-  beta|alpha)
+  beta)
     APPCAST_PREFIX="appcast_${CHANNEL}"
     ;;
   *)
@@ -157,7 +155,7 @@ done
 **File to Modify:** `.github/workflows/publish.yml`
 
 **Changes:**
-- Detect channel from tag pattern (stable vs beta vs alpha)
+- Detect channel from tag pattern (stable vs beta)
 - Generate channel-specific appcasts
 - Upload appropriate appcast files to release
 
@@ -167,9 +165,7 @@ done
   id: channel
   run: |
     VERSION="${{ steps.get_version.outputs.version }}"
-    if [[ "$VERSION" =~ -alpha ]]; then
-      echo "channel=alpha" >> $GITHUB_OUTPUT
-    elif [[ "$VERSION" =~ -beta ]]; then
+    if [[ "$VERSION" =~ -beta ]]; then
       echo "channel=beta" >> $GITHUB_OUTPUT
     else
       echo "channel=stable" >> $GITHUB_OUTPUT
@@ -203,8 +199,7 @@ namespace AIUsageTracker.Core.Models;
 public enum UpdateChannel
 {
     Stable,
-    Beta,
-    Alpha
+    Beta
 }
 
 public static class UpdateChannelExtensions
@@ -215,7 +210,6 @@ public static class UpdateChannelExtensions
         {
             UpdateChannel.Stable => "",
             UpdateChannel.Beta => "_beta",
-            UpdateChannel.Alpha => "_alpha",
             _ => ""
         };
     }
@@ -279,8 +273,7 @@ public class GitHubUpdateChecker : IUpdateCheckerService
         return _channel switch
         {
             UpdateChannel.Stable => $"https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_{arch}.xml",
-            UpdateChannel.Beta => $"https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_beta_{arch}.xml",
-            UpdateChannel.Alpha => $"https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_alpha_{arch}.xml"
+            UpdateChannel.Beta => $"https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_beta_{arch}.xml"
         };
     }
 }
@@ -421,7 +414,7 @@ private void SavePreferences()
 - What are release channels
 - How to switch channels
 - Channel stability expectations
-- How to report beta/alpha issues
+- How to report beta issues
 
 ### 5.2 Update Developer Documentation
 **Priority: Low | Effort: 30 min**
@@ -462,8 +455,6 @@ private void SavePreferences()
 - [ ] Verify beta appcast is generated correctly
 - [ ] Switch to beta channel in app
 - [ ] Verify app detects beta update
-- [ ] Create test alpha release (v2.3.0-alpha.1)
-- [ ] Verify alpha channel works
 - [ ] Switch back to stable
 - [ ] Verify stable updates still work
 - [ ] Verify channel preference persists after restart

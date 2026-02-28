@@ -5,7 +5,6 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'           # Stable releases: v2.2.25
       - 'v[0-9]+.[0-9]+.[0-9]+-beta.*'    # Beta releases: v2.3.0-beta.1
-      - 'v[0-9]+.[0-9]+.[0-9]+-alpha.*'   # Alpha releases: v2.3.0-alpha.1
 
 jobs:
   publish:

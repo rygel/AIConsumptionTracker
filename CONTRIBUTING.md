@@ -7,14 +7,14 @@ Thank you for your interest in contributing! This document outlines our developm
 We use a **Git Flow** style branching strategy with two main branches:
 
 - **`main`** - Production-ready stable releases
-- **`develop`** - Integration branch for beta/alpha releases
+- **`develop`** - Integration branch for beta releases
 
 ### Workflow
 
 ```
 feature branches → develop → main (stable releases)
                       ↓
-                 beta/alpha releases (tagged from develop)
+                   beta releases (tagged from develop)
 ```
 
 ### Branch Protection
@@ -77,19 +77,17 @@ git push origin main
 
 ## Release Channels
 
-We support three release channels:
+We support two release channels:
 
 | Channel | Description | Branch | Version Format |
 |---------|-------------|--------|----------------|
 | **Stable** | Production-ready, well-tested releases | main | `2.2.25`, `2.3.0` |
 | **Beta** | New features, may have minor bugs | develop | `2.3.0-beta.1` |
-| **Alpha** | Experimental features, frequent updates | develop | `2.3.0-alpha.1` |
 
 ### When to Use Each Channel
 
 - **Stable**: Use for production environments and general users
 - **Beta**: Use for early access to features, willing to report issues
-- **Alpha**: Use for testing bleeding-edge features, expect bugs
 
 ## Version Numbering
 
@@ -101,9 +99,7 @@ We follow [Semantic Versioning](https://semver.org/):
 
 ### Prerelease Tags
 
-- `-alpha.x` - Early development/POC
 - `-beta.x` - Feature complete, testing phase
-- `-rc.x` (optional) - Release candidates
 
 ## Commit Messages
 
