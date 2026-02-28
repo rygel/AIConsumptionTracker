@@ -824,8 +824,15 @@ public partial class SettingsWindow : Window
 
     private async void AutoSaveTimer_Tick(object? sender, EventArgs e)
     {
-        _autoSaveTimer.Stop();
-        await PersistAllSettingsAsync(showErrorDialog: false);
+        try
+        {
+            _autoSaveTimer.Stop();
+            await PersistAllSettingsAsync(showErrorDialog: false);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ERROR] AutoSaveTimer_Tick: {ex.Message}");
+        }
     }
 
     private void ScheduleAutoSave()
