@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## [2.2.27-beta.2] - 2026-02-28
+
+### Fixed
+- Update version in publish-app.ps1 script
+- Sync screenshot baselines
+
 ## [2.2.27-beta.1] - 2026-02-28
 
 ### Added
