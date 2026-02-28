@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## [2.2.27-beta.1] - 2026-02-28
+
+### Added
+- Dedicated Updates tab in Settings window
+- Update channel selector (Stable/Beta) with explanations
+
+### Changed
+- **BREAKING**: Removed GenericPayAsYouGoProvider fallback
+- All providers now have explicit class-level definitions
+- Provider plan types are now constants, not runtime logic
+
+### Fixed
+- OpenAI: Consistently Coding plan (was mixed Usage/Coding)
+- Gemini: Fixed inconsistent PlanType
+- Xiaomi: Always Coding plan (was runtime conditional)
+- Minimax: Coding plan with proper standalone implementation
+
+### UI
+- Move Update Channel from Layout tab to new Updates tab
+- Add explanatory text for Stable vs Beta channels
+
 ## [2.2.25] - 2026-02-27
 
 ### Fixed
