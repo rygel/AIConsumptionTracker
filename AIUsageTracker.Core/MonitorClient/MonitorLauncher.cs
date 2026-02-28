@@ -110,7 +110,7 @@ public class MonitorLauncher
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIConsumptionTracker", "AIConsumptionTracker.Agent.exe"),
             };
 
-            MonitorService.LogDiagnostic($"Searching for Monitor executable. Tried {possiblePaths.Length} paths.");
+            MonitorService.LogDiagnostic($"Locating Monitor executable (checked {possiblePaths.Length} common locations)...");
             var agentPath = possiblePaths.FirstOrDefault(File.Exists);
 
             if (agentPath == null)

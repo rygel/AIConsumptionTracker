@@ -167,8 +167,8 @@ public class MonitorService
         // Verify the Monitor is actually running on that port
         if (!await MonitorLauncher.IsAgentRunningAsync())
         {
-            // Only as very last resort, try scanning - but this should rarely happen
-            MonitorService.LogDiagnostic($"Monitor not found on port {port}, this should not happen");
+            // Monitor not responding on expected port, will need to locate or start it
+            MonitorService.LogDiagnostic($"Monitor not responding on port {port}. Attempting to locate...");
         }
         
         AgentUrl = $"http://localhost:{port}";
