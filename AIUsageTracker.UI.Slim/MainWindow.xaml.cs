@@ -127,7 +127,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        _updateCheckTimer.Tick += async (s, e) => await CheckForUpdatesAsync();
+        _updateCheckTimer.Tick += async (s, e) =>
+        {
+            try
+            {
+                await CheckForUpdatesAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ERROR] UpdateCheckTimer_Tick: {ex.Message}");
+            }
+        };
         _updateCheckTimer.Start();
         _alwaysOnTopTimer.Tick += (s, e) => EnsureAlwaysOnTop();
         _alwaysOnTopTimer.Start();
@@ -151,14 +161,29 @@ public partial class MainWindow : Window
 
         Loaded += async (s, e) =>
         {
-            PositionWindowNearTray();
-            await InitializeAsync();
-            _ = CheckForUpdatesAsync();
+            try
+            {
+                PositionWindowNearTray();
+                await InitializeAsync();
+                _ = CheckForUpdatesAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ERROR] Window_Loaded: {ex.Message}");
+            }
         };
 
         // Track window position changes
-        LocationChanged += async (s, e) => await SaveWindowPositionAsync();
-        SizeChanged += async (s, e) => await SaveWindowPositionAsync();
+        LocationChanged += async (s, e) =>
+        {
+            try { await SaveWindowPositionAsync(); }
+            catch (Exception ex) { Debug.WriteLine($"[ERROR] LocationChanged: {ex.Message}"); }
+        };
+        SizeChanged += async (s, e) =>
+        {
+            try { await SaveWindowPositionAsync(); }
+            catch (Exception ex) { Debug.WriteLine($"[ERROR] SizeChanged: {ex.Message}"); }
+        };
         Activated += (s, e) =>
         {
             _topmostRecoveryGeneration++;
@@ -2447,12 +2472,28 @@ public partial class MainWindow : Window
     // Event Handlers
     private async void RefreshBtn_Click(object sender, RoutedEventArgs e)
     {
-        await RefreshDataAsync();
+        try
+        {
+            await RefreshDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ERROR] RefreshBtn_Click: {ex.Message}");
+            ShowStatus("Refresh failed", StatusType.Error);
+        }
     }
 
     private async void SettingsBtn_Click(object sender, RoutedEventArgs e)
     {
-        await OpenSettingsDialogAsync();
+        try
+        {
+            await OpenSettingsDialogAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ERROR] SettingsBtn_Click: {ex.Message}");
+            ShowStatus("Settings failed", StatusType.Error);
+        }
     }
 
     internal async Task OpenSettingsDialogAsync()
@@ -2618,10 +2659,17 @@ public partial class MainWindow : Window
 
     private async void PrivacyBtn_Click(object sender, RoutedEventArgs e)
     {
-        var newPrivacyMode = !_isPrivacyMode;
-        _preferences.IsPrivacyMode = newPrivacyMode;
-        App.SetPrivacyMode(newPrivacyMode);
-        await SaveUiPreferencesAsync();
+        try
+        {
+            var newPrivacyMode = !_isPrivacyMode;
+            _preferences.IsPrivacyMode = newPrivacyMode;
+            App.SetPrivacyMode(newPrivacyMode);
+            await SaveUiPreferencesAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ERROR] PrivacyBtn_Click: {ex.Message}");
+        }
     }
 
     private void CloseBtn_Click(object sender, RoutedEventArgs e)
@@ -2631,18 +2679,25 @@ public partial class MainWindow : Window
 
     private async void AlwaysOnTop_Checked(object sender, RoutedEventArgs e)
     {
-        if (!IsLoaded) return;
+        try
+        {
+            if (!IsLoaded) return;
 
-        _preferences.AlwaysOnTop = AlwaysOnTopCheck.IsChecked ?? true;
-        if (_preferences.AlwaysOnTop)
-        {
-            EnsureAlwaysOnTop();
+            _preferences.AlwaysOnTop = AlwaysOnTopCheck.IsChecked ?? true;
+            if (_preferences.AlwaysOnTop)
+            {
+                EnsureAlwaysOnTop();
+            }
+            else
+            {
+                ApplyTopmostState(false);
+            }
+            await SaveUiPreferencesAsync();
         }
-        else
+        catch (Exception ex)
         {
-            ApplyTopmostState(false);
+            Debug.WriteLine($"[ERROR] AlwaysOnTop_Checked: {ex.Message}");
         }
-        await SaveUiPreferencesAsync();
     }
 
     private async void Compact_Checked(object sender, RoutedEventArgs e)
@@ -2653,13 +2708,20 @@ public partial class MainWindow : Window
 
     private async void ShowUsedToggle_Checked(object sender, RoutedEventArgs e)
     {
-        if (!IsLoaded) return;
+        try
+        {
+            if (!IsLoaded) return;
 
-        _preferences.InvertProgressBar = ShowUsedToggle.IsChecked ?? false;
-        await SaveUiPreferencesAsync();
+            _preferences.InvertProgressBar = ShowUsedToggle.IsChecked ?? false;
+            await SaveUiPreferencesAsync();
 
-        // Refresh the display to show used% vs remaining%
-        RenderProviders();
+            // Refresh the display to show used% vs remaining%
+            RenderProviders();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ERROR] ShowUsedToggle_Checked: {ex.Message}");
+        }
     }
 
     private void RefreshData_NoArgs(object sender, RoutedEventArgs e)
@@ -3098,47 +3160,55 @@ public partial class MainWindow : Window
 
     private async void MonitorToggleBtn_Click(object sender, RoutedEventArgs e)
     {
-        var (isRunning, _) = await MonitorLauncher.IsAgentRunningWithPortAsync();
+        try
+        {
+            var (isRunning, _) = await MonitorLauncher.IsAgentRunningWithPortAsync();
 
-        if (isRunning)
-        {
-            // Stop the agent
-            ShowStatus("Stopping monitor...", StatusType.Warning);
-            var stopped = await MonitorLauncher.StopAgentAsync();
-            if (stopped)
+            if (isRunning)
             {
-                ShowStatus("Monitor stopped", StatusType.Info);
-                UpdateMonitorToggleButton(false);
-            }
-            else
-            {
-                ShowStatus("Failed to stop monitor", StatusType.Error);
-            }
-        }
-        else
-        {
-            // Start the monitor
-            ShowStatus("Starting monitor...", StatusType.Warning);
-            if (await MonitorLauncher.StartAgentAsync())
-            {
-                var monitorReady = await MonitorLauncher.WaitForAgentAsync();
-                if (monitorReady)
+                // Stop the agent
+                ShowStatus("Stopping monitor...", StatusType.Warning);
+                var stopped = await MonitorLauncher.StopAgentAsync();
+                if (stopped)
                 {
-                    ShowStatus("Monitor started", StatusType.Success);
-                    UpdateMonitorToggleButton(true);
-                    await RefreshDataAsync();
+                    ShowStatus("Monitor stopped", StatusType.Info);
+                    UpdateMonitorToggleButton(false);
                 }
                 else
                 {
-                    ShowStatus("Monitor failed to start", StatusType.Error);
-                    UpdateMonitorToggleButton(false);
+                    ShowStatus("Failed to stop monitor", StatusType.Error);
                 }
             }
             else
             {
-                ShowStatus("Could not start monitor", StatusType.Error);
-                UpdateMonitorToggleButton(false);
+                // Start the monitor
+                ShowStatus("Starting monitor...", StatusType.Warning);
+                if (await MonitorLauncher.StartAgentAsync())
+                {
+                    var monitorReady = await MonitorLauncher.WaitForAgentAsync();
+                    if (monitorReady)
+                    {
+                        ShowStatus("Monitor started", StatusType.Success);
+                        UpdateMonitorToggleButton(true);
+                        await RefreshDataAsync();
+                    }
+                    else
+                    {
+                        ShowStatus("Monitor failed to start", StatusType.Error);
+                        UpdateMonitorToggleButton(false);
+                    }
+                }
+                else
+                {
+                    ShowStatus("Could not start monitor", StatusType.Error);
+                    UpdateMonitorToggleButton(false);
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ERROR] MonitorToggleBtn_Click: {ex.Message}");
+            ShowStatus("Monitor toggle failed", StatusType.Error);
         }
     }
 

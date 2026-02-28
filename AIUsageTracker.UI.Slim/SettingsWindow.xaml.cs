@@ -1718,11 +1718,19 @@ public partial class SettingsWindow : Window
 
     private async void PrivacyBtn_Click(object sender, RoutedEventArgs e)
     {
-        var newPrivacyMode = !_isPrivacyMode;
-        _preferences.IsPrivacyMode = newPrivacyMode;
-        App.SetPrivacyMode(newPrivacyMode);
-        await SaveUiPreferencesAsync();
-        SettingsChanged = true;
+        try
+        {
+            var newPrivacyMode = !_isPrivacyMode;
+            _preferences.IsPrivacyMode = newPrivacyMode;
+            App.SetPrivacyMode(newPrivacyMode);
+            await SaveUiPreferencesAsync();
+            SettingsChanged = true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ERROR] PrivacyBtn_Click: {ex.Message}");
+            MessageBox.Show($"Failed to update privacy mode: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void CloseBtn_Click(object sender, RoutedEventArgs e)
@@ -2181,9 +2189,17 @@ public partial class SettingsWindow : Window
 
     private async void CancelBtn_Click(object sender, RoutedEventArgs e)
     {
-        _autoSaveTimer.Stop();
-        await PersistAllSettingsAsync(showErrorDialog: false);
-        this.Close();
+        try
+        {
+            _autoSaveTimer.Stop();
+            await PersistAllSettingsAsync(showErrorDialog: false);
+            this.Close();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ERROR] CancelBtn_Click: {ex.Message}");
+            MessageBox.Show($"Failed to save settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void ThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -2305,16 +2321,24 @@ public partial class SettingsWindow : Window
 
     private async void SendTestNotificationBtn_Click(object sender, RoutedEventArgs e)
     {
-        NotificationTestStatusText.Text = "Sending...";
-
-        if (!(EnableWindowsNotificationsCheck.IsChecked ?? false))
+        try
         {
-            NotificationTestStatusText.Text = "Enable notifications first.";
-            return;
-        }
+            NotificationTestStatusText.Text = "Sending...";
 
-        var result = await _monitorService.SendTestNotificationDetailedAsync();
-        NotificationTestStatusText.Text = result.Message;
+            if (!(EnableWindowsNotificationsCheck.IsChecked ?? false))
+            {
+                NotificationTestStatusText.Text = "Enable notifications first.";
+                return;
+            }
+
+            var result = await _monitorService.SendTestNotificationDetailedAsync();
+            NotificationTestStatusText.Text = result.Message;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ERROR] SendTestNotificationBtn_Click: {ex.Message}");
+            NotificationTestStatusText.Text = $"Error: {ex.Message}";
+        }
     }
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
