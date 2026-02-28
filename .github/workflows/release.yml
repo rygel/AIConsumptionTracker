@@ -1,0 +1,145 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 2.2.26, 2.3.0-beta.1, 2.3.0-alpha.1)'
+        required: true
+        type: string
+      channel:
+        description: 'Release Channel'
+        required: true
+        type: choice
+        options:
+          - stable
+          - beta
+          - alpha
+        default: stable
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Validate Version Format
+        run: |
+          version="${{ inputs.version }}"
+          channel="${{ inputs.channel }}"
+          
+          # Check version matches channel
+          case "$channel" in
+            stable)
+              if [[ "$version" =~ -beta ]] || [[ "$version" =~ -alpha ]]; then
+                echo "Error: Stable releases should not contain -beta or -alpha"
+                exit 1
+              fi
+              ;;
+            beta)
+              if [[ ! "$version" =~ -beta ]]; then
+                echo "Error: Beta releases must contain -beta"
+                exit 1
+              fi
+              ;;
+            alpha)
+              if [[ ! "$version" =~ -alpha ]]; then
+                echo "Error: Alpha releases must contain -alpha"
+                exit 1
+              fi
+              ;;
+          esac
+          
+          echo "✓ Version $version matches channel $channel"
+
+      - name: Update Version Files
+        run: |
+          version="${{ inputs.version }}"
+          clean_version="${version%%-*}"
+          
+          echo "Updating version files to $version (clean: $clean_version)"
+          
+          # Update Directory.Build.props
+          if [ -f "Directory.Build.props" ]; then
+            sed -i "s|<TrackerVersion>.*</TrackerVersion>|<TrackerVersion>$version</TrackerVersion>|g" Directory.Build.props
+            sed -i "s|<TrackerAssemblyVersion>.*</TrackerAssemblyVersion>|<TrackerAssemblyVersion>$clean_version</TrackerAssemblyVersion>|g" Directory.Build.props
+            echo "✓ Updated Directory.Build.props"
+          fi
+          
+          # Update README.md badge
+          if [ -f "README.md" ]; then
+            escaped_version="${version//-/--}"
+            sed -i -E "s|!\[Version\]\(https://img\.shields\.io/badge/version-[^)]*\)|![Version](https://img.shields.io/badge/version-${escaped_version}-orange)|g" README.md
+            echo "✓ Updated README.md"
+          fi
+          
+          # Update setup.iss
+          if [ -f "scripts/setup.iss" ]; then
+            sed -i "s|#define MyAppVersion \".*\"|#define MyAppVersion \"$version\"|g" scripts/setup.iss
+            echo "✓ Updated scripts/setup.iss"
+          fi
+          
+          # Update publish-app.ps1
+          if [ -f "scripts/publish-app.ps1" ]; then
+            sed -i -E "s|Version [0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?|Version $version|g" scripts/publish-app.ps1
+            echo "✓ Updated scripts/publish-app.ps1"
+          fi
+
+      - name: Commit and Push Changes
+        run: |
+          version="${{ inputs.version }}"
+          channel="${{ inputs.channel }}"
+          
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+          git add Directory.Build.props README.md scripts/setup.iss scripts/publish-app.ps1 2>/dev/null || true
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(release): bump version to $version ($channel)"
+            
+            # Push to appropriate branch
+            if [ "$channel" = "stable" ]; then
+              git push origin HEAD:main
+              echo "✓ Pushed to main"
+            else
+              git push origin HEAD:develop
+              echo "✓ Pushed to develop"
+            fi
+          fi
+
+      - name: Create and Push Tag
+        run: |
+          version="${{ inputs.version }}"
+          tag="v$version"
+          
+          # Delete tag if it exists (for re-runs)
+          git push origin :refs/tags/$tag 2>/dev/null || true
+          
+          git tag -a "$tag" -m "Release $version (${{ inputs.channel }})"
+          git push origin "$tag"
+          echo "✓ Created and pushed tag $tag"
+
+      - name: Success Summary
+        run: |
+          echo "=========================================="
+          echo "Release ${{ inputs.version }} (${{ inputs.channel }}) prepared successfully!"
+          echo "=========================================="
+          echo ""
+          echo "Tag pushed: v${{ inputs.version }}"
+          echo ""
+          echo "Next steps:"
+          echo "1. The Publish workflow will automatically trigger"
+          echo "2. Check the Actions tab for build progress"
+          echo "3. Release will be created automatically once builds complete"
+          echo ""
