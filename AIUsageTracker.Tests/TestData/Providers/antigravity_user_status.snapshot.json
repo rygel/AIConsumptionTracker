@@ -1,0 +1,99 @@
+{
+  "userStatus": {
+    "email": "snapshot@example.com",
+    "cascadeModelConfigData": {
+      "clientModelConfigs": [
+        {
+          "label": "Claude Opus 4.6 (Thinking)",
+          "modelOrAlias": {
+            "model": "Claude Opus 4.6 (Thinking)"
+          },
+          "quotaInfo": {
+            "remainingFraction": 0.6,
+            "totalRequests": 100,
+            "usedRequests": 40,
+            "resetTime": "2099-12-31T23:59:59Z"
+          }
+        },
+        {
+          "label": "Claude Sonnet 4.6 (Thinking)",
+          "modelOrAlias": {
+            "model": "Claude Sonnet 4.6 (Thinking)"
+          },
+          "quotaInfo": {
+            "remainingFraction": 0.6,
+            "totalRequests": 100,
+            "usedRequests": 40,
+            "resetTime": "2099-12-31T23:59:59Z"
+          }
+        },
+        {
+          "label": "Gemini 3 Flash",
+          "modelOrAlias": {
+            "model": "Gemini 3 Flash"
+          },
+          "quotaInfo": {
+            "remainingFraction": 1.0,
+            "totalRequests": 100,
+            "usedRequests": 0,
+            "resetTime": "2099-12-31T23:59:59Z"
+          }
+        },
+        {
+          "label": "Gemini 3.1 Pro (High)",
+          "modelOrAlias": {
+            "model": "Gemini 3.1 Pro (High)"
+          },
+          "quotaInfo": {
+            "remainingFraction": 1.0,
+            "totalRequests": 100,
+            "usedRequests": 0,
+            "resetTime": "2099-12-31T23:59:59Z"
+          }
+        },
+        {
+          "label": "Gemini 3.1 Pro (Low)",
+          "modelOrAlias": {
+            "model": "Gemini 3.1 Pro (Low)"
+          },
+          "quotaInfo": {
+            "remainingFraction": 1.0,
+            "totalRequests": 100,
+            "usedRequests": 0,
+            "resetTime": "2099-12-31T23:59:59Z"
+          }
+        },
+        {
+          "label": "GPT-OSS 120B (Medium)",
+          "modelOrAlias": {
+            "model": "GPT-OSS 120B (Medium)"
+          },
+          "quotaInfo": {
+            "remainingFraction": 0.6,
+            "totalRequests": 100,
+            "usedRequests": 40,
+            "resetTime": "2099-12-31T23:59:59Z"
+          }
+        }
+      ],
+      "clientModelSorts": [
+        {
+          "name": "Recommended",
+          "groups": [
+            {
+              "name": "Recommended Group 1",
+              "modelLabels": [
+                "Claude Opus 4.6 (Thinking)",
+                "Claude Sonnet 4.6 (Thinking)",
+                "Gemini 3 Flash",
+                "Gemini 3.1 Pro (High)",
+                "Gemini 3.1 Pro (Low)",
+                "GPT-OSS 120B (Medium)"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
