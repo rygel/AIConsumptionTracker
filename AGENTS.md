@@ -2,7 +2,16 @@
 
 This document provides essential information for agentic coding assistants working on this .NET 8.0 WPF application.
 
-## Development Workflow
+## Critical Rules
+
+### NEVER Create Releases Without Explicit Permission
+- **I MUST NEVER** create git tags or releases without your explicit instruction
+- **I MUST NEVER** initiate CI/CD release workflows without your permission
+- **I MUST NEVER** create beta or stable releases on my own
+- **You must explicitly tell me** when to create a release
+- **I will wait for your command** before any release-related action
+
+### Development Workflow
 
 - **Never push directly to `main`**: All changes, including release preparations, MUST be done on a feature branch (e.g., `feature/branch-name`) and integrated via a Pull Request.
 - **Never force push to `main` without explicit user permission**: If you need to force push to main, ALWAYS ask for confirmation first.
