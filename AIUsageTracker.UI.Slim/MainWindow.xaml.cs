@@ -484,7 +484,8 @@ public partial class MainWindow : Window
         this.Topmost = _preferences.AlwaysOnTop;
         this.Width = _preferences.WindowWidth;
         this.Height = _preferences.WindowHeight;
-        PositionWindowNearTray();
+        // Note: PositionWindowNearTray() is only called on initial load, not here
+        // to prevent window from jumping when closing settings dialog
 
         if (!string.IsNullOrWhiteSpace(_preferences.FontFamily))
         {
