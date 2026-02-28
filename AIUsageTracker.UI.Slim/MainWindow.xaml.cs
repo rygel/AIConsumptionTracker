@@ -450,10 +450,14 @@ public partial class MainWindow : Window
         const int maxAttempts = 5; // Reduced from 30 to 5 (10 seconds max)
         const int pollIntervalMs = 2000; // 2 seconds between attempts
 
+        Debug.WriteLine("[DIAGNOSTIC] RapidPollUntilDataAvailableAsync starting...");
         ShowStatus("Loading data...", StatusType.Info);
 
         // First, check if Monitor is reachable
+        Debug.WriteLine("[DIAGNOSTIC] Checking Monitor health...");
         var isHealthy = await _monitorService.CheckHealthAsync();
+        Debug.WriteLine($"[DIAGNOSTIC] Monitor health: {isHealthy}");
+        
         if (!isHealthy)
         {
             ShowStatus("Monitor not reachable", StatusType.Error);
@@ -463,43 +467,55 @@ public partial class MainWindow : Window
 
         for (int attempt = 0; attempt < maxAttempts; attempt++)
         {
+            Debug.WriteLine($"[DIAGNOSTIC] Poll attempt {attempt + 1}/{maxAttempts}");
+            
             try
             {
                 // Try to get cached data from monitor
+                Debug.WriteLine("[DIAGNOSTIC] Calling GetUsageAsync...");
                 var usages = await _monitorService.GetUsageAsync();
+                Debug.WriteLine($"[DIAGNOSTIC] GetUsageAsync returned {usages.Count} providers");
 
                 // Show all providers from monitor (filtering already done in database)
                 if (usages.Any())
                 {
+                    Debug.WriteLine("[DIAGNOSTIC] Data available, rendering...");
                     // Data is available - render and stop rapid polling
                     _usages = usages;
                     RenderProviders();
                     await UpdateTrayIconsAsync();
                     _lastMonitorUpdate = DateTime.Now;
                     ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
+                    Debug.WriteLine("[DIAGNOSTIC] Data rendered successfully");
                     return;
                 }
 
+                Debug.WriteLine("[DIAGNOSTIC] No data available");
+                
                 // No data yet - on first attempt, trigger a background refresh
                 // but don't wait for it - show UI immediately
                 if (attempt == 0)
                 {
-                    Debug.WriteLine("No cached data available, triggering background refresh...");
+                    Debug.WriteLine("[DIAGNOSTIC] First attempt, no data - triggering background refresh...");
                     _ = Task.Run(async () =>
                     {
                         try
                         {
                             await _monitorService.TriggerRefreshAsync();
+                            Debug.WriteLine("[DIAGNOSTIC] Background refresh triggered");
                         }
                         catch (Exception ex)
                         {
-                            Debug.WriteLine($"Background refresh failed: {ex.Message}");
+                            Debug.WriteLine($"[DIAGNOSTIC] Background refresh failed: {ex.Message}");
                         }
                     });
                     
                     // Show UI immediately with empty state
+                    Debug.WriteLine("[DIAGNOSTIC] Showing empty state...");
                     ShowStatus("Scanning for providers...", StatusType.Info);
+                    Debug.WriteLine("[DIAGNOSTIC] About to call RenderProviders...");
                     RenderProviders(); // Will show empty or loading state
+                    Debug.WriteLine("[DIAGNOSTIC] RenderProviders completed");
                     return; // Exit rapid polling - data will arrive via polling timer
                 }
 
@@ -512,22 +528,22 @@ public partial class MainWindow : Window
             }
             catch (HttpRequestException ex)
             {
-                Debug.WriteLine($"Connection error during rapid polling: {ex.Message}");
+                Debug.WriteLine($"[DIAGNOSTIC] Connection error: {ex.Message}");
                 ShowStatus("Connection lost", StatusType.Error);
                 ShowErrorState($"Lost connection to Monitor:\n{ex.Message}\n\nTry refreshing or restarting the Monitor.");
                 return;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error during rapid polling: {ex.Message}");
+                Debug.WriteLine($"[DIAGNOSTIC] Error: {ex.Message}");
                 if (attempt < maxAttempts - 1)
                 {
                     await Task.Delay(pollIntervalMs);
                 }
             }
         }
-
-        // Max attempts reached - show error or empty state
+        
+        Debug.WriteLine("[DIAGNOSTIC] Max attempts reached, no data available");
         ShowStatus("No data available", StatusType.Error);
         ShowErrorState("No provider data available.\n\nThe Monitor may still be initializing.\nTry refreshing manually or check Settings > Monitor.");
     }
@@ -1001,15 +1017,29 @@ public partial class MainWindow : Window
 
     private void RenderProviders()
     {
+        Debug.WriteLine("[DIAGNOSTIC] RenderProviders called");
         ProvidersList.Children.Clear();
+        Debug.WriteLine($"[DIAGNOSTIC] ProvidersList cleared, _usages count: {_usages?.Count ?? 0}");
 
         if (!_usages.Any())
         {
-            ProvidersList.Children.Add(CreateInfoTextBlock("No provider data available."));
-            ApplyProviderListFontPreferences();
+            Debug.WriteLine("[DIAGNOSTIC] No usages, creating 'No provider data available' message");
+            try
+            {
+                var messageBlock = CreateInfoTextBlock("No provider data available.");
+                ProvidersList.Children.Add(messageBlock);
+                ApplyProviderListFontPreferences();
+                Debug.WriteLine("[DIAGNOSTIC] 'No provider data available' message added");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[DIAGNOSTIC] ERROR adding message: {ex.Message}");
+            }
             return;
         }
 
+        Debug.WriteLine($"[DIAGNOSTIC] Rendering {_usages.Count} providers...");
+        
         var filteredUsages = _usages.ToList();
 
         // Filter out Antigravity completely if not available.
