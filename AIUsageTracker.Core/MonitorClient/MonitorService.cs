@@ -110,7 +110,7 @@ public class MonitorService
     
     public async Task RefreshAgentInfoAsync()
     {
-        LogDiagnostic("Refreshing Agent Info from file...");
+        LogDiagnostic("Refreshing Monitor Info from file...");
         try
         {
             var path = GetExistingAgentInfoPath();
@@ -128,7 +128,7 @@ public class MonitorService
                     if (info.Port > 0) 
                     {
                         AgentUrl = $"http://localhost:{info.Port}";
-                        LogDiagnostic($"Found Agent running on port {info.Port} from monitor.json");
+                        LogDiagnostic($"Found Monitor running on port {info.Port} from monitor.json");
                     }
                     LastAgentErrors = info.Errors ?? new List<string>();
                     return;
@@ -140,7 +140,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error refreshing agent info: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Error refreshing monitor info: {ex.Message}");
             AgentUrl = "http://localhost:5000";
             LastAgentErrors = new List<string>();
         }
