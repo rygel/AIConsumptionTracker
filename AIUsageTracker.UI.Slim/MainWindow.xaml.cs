@@ -102,41 +102,7 @@ public partial class MainWindow : Window
         if (!skipUiInitialization)
         {
             InitializeComponent();
-            
-            // Set window title with version
-            var appVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            var versionStr = $"v{appVersion?.Major}.{appVersion?.Minor}.{appVersion?.Build}";
-            
-            // Check if this is a beta/prerelease version using InformationalVersion
-            var informationalVersion = System.Reflection.Assembly.GetExecutingAssembly()
-                .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-            
-            // Extract prerelease identifier (e.g., "beta.3" from "2.2.27-beta.3")
-            if (!string.IsNullOrEmpty(informationalVersion))
-            {
-                var prereleaseMatch = System.Text.RegularExpressions.Regex.Match(informationalVersion, @"-(beta|alpha)\.[0-9]+");
-                if (prereleaseMatch.Success)
-                {
-                    // Capitalize first letter: "-beta.3" -> " (Beta 3)"
-                    var prerelease = prereleaseMatch.Value.Substring(1); // Remove leading "-"
-                    var parts = prerelease.Split('.');
-                    if (parts.Length >= 2)
-                    {
-                        var channel = char.ToUpper(parts[0][0]) + parts[0].Substring(1);
-                        versionStr += $" ({channel} {parts[1]})";
-                    }
-                    else
-                    {
-                        versionStr += $" ({char.ToUpper(prerelease[0]) + prerelease.Substring(1)})";
-                    }
-                }
-                else if (informationalVersion.Contains("-beta") || informationalVersion.Contains("-alpha"))
-                {
-                    versionStr += " (Beta)";
-                }
-            }
-            
-            Title = $"AI Usage Tracker {versionStr}";
+            ApplyVersionDisplay();
         }
 
         _agentService = new MonitorService();
@@ -176,13 +142,6 @@ public partial class MainWindow : Window
             }
         };
         UpdatePrivacyButtonState();
-
-        // Set version text
-        var version = Assembly.GetEntryAssembly()?.GetName().Version;
-        if (version != null)
-        {
-            VersionText.Text = $"v{version.Major}.{version.Minor}.{version.Build}";
-        }
 
         Loaded += async (s, e) =>
         {
@@ -231,6 +190,64 @@ public partial class MainWindow : Window
 
             LogWindowFocusTransition($"IsVisibleChanged -> {IsVisible}");
         };
+    }
+
+    private void ApplyVersionDisplay()
+    {
+        var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
+        var appVersion = assembly.GetName().Version;
+        var versionCore = appVersion != null
+            ? $"{appVersion.Major}.{appVersion.Minor}.{appVersion.Build}"
+            : "0.0.0";
+
+        var suffix = GetPrereleaseLabel(assembly);
+        var displayVersion = string.IsNullOrWhiteSpace(suffix)
+            ? $"v{versionCore}"
+            : $"v{versionCore} {suffix}";
+
+        VersionText.Text = displayVersion;
+        Title = $"AI Usage Tracker {displayVersion}";
+    }
+
+    private static string? GetPrereleaseLabel(Assembly assembly)
+    {
+        var informationalVersion = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return null;
+        }
+
+        // Trim build metadata (e.g., +sha) and keep semantic pre-release suffix.
+        var normalized = informationalVersion.Split('+')[0];
+        var dashIndex = normalized.IndexOf('-');
+        if (dashIndex < 0 || dashIndex >= normalized.Length - 1)
+        {
+            return null;
+        }
+
+        var suffix = normalized[(dashIndex + 1)..];
+        if (suffix.StartsWith("beta.", StringComparison.OrdinalIgnoreCase))
+        {
+            var betaPart = suffix["beta.".Length..];
+            return string.IsNullOrWhiteSpace(betaPart) ? "Beta" : $"Beta {betaPart}";
+        }
+
+        if (suffix.StartsWith("alpha.", StringComparison.OrdinalIgnoreCase))
+        {
+            var alphaPart = suffix["alpha.".Length..];
+            return string.IsNullOrWhiteSpace(alphaPart) ? "Alpha" : $"Alpha {alphaPart}";
+        }
+
+        if (suffix.StartsWith("rc.", StringComparison.OrdinalIgnoreCase))
+        {
+            var rcPart = suffix["rc.".Length..];
+            return string.IsNullOrWhiteSpace(rcPart) ? "RC" : $"RC {rcPart}";
+        }
+
+        return suffix.Replace('.', ' ');
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
