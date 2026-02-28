@@ -38,7 +38,7 @@ public partial class MainWindow : Window
         @"(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*|\[[^\]]+\]\([^)]+\))",
         RegexOptions.Compiled);
 
-    private readonly MonitorService _agentService;
+    private readonly MonitorService _monitorService;
     private IUpdateCheckerService _updateChecker;
     private AppPreferences _preferences = new();
     private List<ProviderUsage> _usages = new();
@@ -46,11 +46,17 @@ public partial class MainWindow : Window
     private bool _isPrivacyMode = App.IsPrivacyMode;
     private bool _isLoading = false;
     private readonly Dictionary<string, ImageSource> _iconCache = new();
-    private DateTime _lastAgentUpdate = DateTime.MinValue;
+    private DateTime _lastMonitorUpdate = DateTime.MinValue;
     private DateTime _lastRefreshTrigger = DateTime.MinValue;
     private const int RefreshCooldownSeconds = 120; // Only trigger refresh if 2 minutes since last attempt
+    private static readonly TimeSpan StartupPollingInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan NormalPollingInterval = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan TrayConfigRefreshInterval = TimeSpan.FromMinutes(5);
+    private bool _isPollingInProgress;
+    private bool _isTrayIconUpdateInProgress;
     private DispatcherTimer? _pollingTimer;
-    private string? _agentContractWarningMessage;
+    private DateTime _lastTrayConfigRefresh = DateTime.MinValue;
+    private string? _monitorContractWarningMessage;
     private readonly DispatcherTimer _updateCheckTimer;
     private readonly DispatcherTimer _alwaysOnTopTimer;
     private HwndSource? _windowSource;
@@ -102,13 +108,10 @@ public partial class MainWindow : Window
         if (!skipUiInitialization)
         {
             InitializeComponent();
-            
-            // Set window title with version
-            var appVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            Title = $"AI Usage Tracker v{appVersion?.Major}.{appVersion?.Minor}.{appVersion?.Build}";
+            ApplyVersionDisplay();
         }
 
-        _agentService = new MonitorService();
+        _monitorService = new MonitorService();
         _updateChecker = new GitHubUpdateChecker(NullLogger<GitHubUpdateChecker>.Instance, UpdateChannel.Stable);
         _updateCheckTimer = new DispatcherTimer
         {
@@ -124,7 +127,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        _updateCheckTimer.Tick += async (s, e) => await CheckForUpdatesAsync();
+        _updateCheckTimer.Tick += async (s, e) =>
+        {
+            try
+            {
+                await CheckForUpdatesAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ERROR] UpdateCheckTimer_Tick: {ex.Message}");
+            }
+        };
         _updateCheckTimer.Start();
         _alwaysOnTopTimer.Tick += (s, e) => EnsureAlwaysOnTop();
         _alwaysOnTopTimer.Start();
@@ -146,23 +159,31 @@ public partial class MainWindow : Window
         };
         UpdatePrivacyButtonState();
 
-        // Set version text
-        var version = Assembly.GetEntryAssembly()?.GetName().Version;
-        if (version != null)
-        {
-            VersionText.Text = $"v{version.Major}.{version.Minor}.{version.Build}";
-        }
-
         Loaded += async (s, e) =>
         {
-            PositionWindowNearTray();
-            await InitializeAsync();
-            _ = CheckForUpdatesAsync();
+            try
+            {
+                PositionWindowNearTray();
+                await InitializeAsync();
+                _ = CheckForUpdatesAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ERROR] Window_Loaded: {ex.Message}");
+            }
         };
 
         // Track window position changes
-        LocationChanged += async (s, e) => await SaveWindowPositionAsync();
-        SizeChanged += async (s, e) => await SaveWindowPositionAsync();
+        LocationChanged += async (s, e) =>
+        {
+            try { await SaveWindowPositionAsync(); }
+            catch (Exception ex) { Debug.WriteLine($"[ERROR] LocationChanged: {ex.Message}"); }
+        };
+        SizeChanged += async (s, e) =>
+        {
+            try { await SaveWindowPositionAsync(); }
+            catch (Exception ex) { Debug.WriteLine($"[ERROR] SizeChanged: {ex.Message}"); }
+        };
         Activated += (s, e) =>
         {
             _topmostRecoveryGeneration++;
@@ -200,6 +221,64 @@ public partial class MainWindow : Window
 
             LogWindowFocusTransition($"IsVisibleChanged -> {IsVisible}");
         };
+    }
+
+    private void ApplyVersionDisplay()
+    {
+        var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
+        var appVersion = assembly.GetName().Version;
+        var versionCore = appVersion != null
+            ? $"{appVersion.Major}.{appVersion.Minor}.{appVersion.Build}"
+            : "0.0.0";
+
+        var suffix = GetPrereleaseLabel(assembly);
+        var displayVersion = string.IsNullOrWhiteSpace(suffix)
+            ? $"v{versionCore}"
+            : $"v{versionCore} {suffix}";
+
+        VersionText.Text = displayVersion;
+        Title = $"AI Usage Tracker {displayVersion}";
+    }
+
+    private static string? GetPrereleaseLabel(Assembly assembly)
+    {
+        var informationalVersion = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return null;
+        }
+
+        // Trim build metadata (e.g., +sha) and keep semantic pre-release suffix.
+        var normalized = informationalVersion.Split('+')[0];
+        var dashIndex = normalized.IndexOf('-');
+        if (dashIndex < 0 || dashIndex >= normalized.Length - 1)
+        {
+            return null;
+        }
+
+        var suffix = normalized[(dashIndex + 1)..];
+        if (suffix.StartsWith("beta.", StringComparison.OrdinalIgnoreCase))
+        {
+            var betaPart = suffix["beta.".Length..];
+            return string.IsNullOrWhiteSpace(betaPart) ? "Beta" : $"Beta {betaPart}";
+        }
+
+        if (suffix.StartsWith("alpha.", StringComparison.OrdinalIgnoreCase))
+        {
+            var alphaPart = suffix["alpha.".Length..];
+            return string.IsNullOrWhiteSpace(alphaPart) ? "Alpha" : $"Alpha {alphaPart}";
+        }
+
+        if (suffix.StartsWith("rc.", StringComparison.OrdinalIgnoreCase))
+        {
+            var rcPart = suffix["rc.".Length..];
+            return string.IsNullOrWhiteSpace(rcPart) ? "RC" : $"RC {rcPart}";
+        }
+
+        return suffix.Replace('.', ' ');
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -305,7 +384,7 @@ public partial class MainWindow : Window
 
     private async Task InitializeAsync()
     {
-        if (_isLoading || _agentService == null)
+        if (_isLoading || _monitorService == null)
             return;
 
         try
@@ -329,10 +408,10 @@ public partial class MainWindow : Window
             var success = await Task.Run(async () => {
                 try {
                     // Full port discovery: check monitor.json, then scan 5000-5010
-                    await _agentService.RefreshPortAsync();
+                    await _monitorService.RefreshPortAsync();
                     
                     // Check if Monitor is running on the discovered port
-                    var isRunning = await _agentService.CheckHealthAsync();
+                    var isRunning = await _monitorService.CheckHealthAsync();
                     
                     if (!isRunning)
                     {
@@ -341,9 +420,9 @@ public partial class MainWindow : Window
                         if (await MonitorLauncher.StartAgentAsync())
                         {
                             Dispatcher.Invoke(() => ShowStatus("Waiting for monitor...", StatusType.Warning));
-                            var agentReady = await MonitorLauncher.WaitForAgentAsync();
+                            var monitorReady = await MonitorLauncher.WaitForAgentAsync();
 
-                            if (!agentReady)
+                            if (!monitorReady)
                             {
                                 Dispatcher.Invoke(() => {
                                     ShowStatus("Monitor failed to start", StatusType.Error);
@@ -363,8 +442,8 @@ public partial class MainWindow : Window
                         }
                     }
 
-                    // Update agent toggle button state
-                    await UpdateAgentToggleButtonStateAsync();
+                    // Update monitor toggle button state
+                    await UpdateMonitorToggleButtonStateAsync();
 
                     return true;
                 } catch (Exception ex) {
@@ -375,8 +454,8 @@ public partial class MainWindow : Window
 
             if (success)
             {
-                var handshakeResult = await _agentService.CheckApiContractAsync();
-                ApplyAgentContractStatus(handshakeResult);
+                var handshakeResult = await _monitorService.CheckApiContractAsync();
+                ApplyMonitorContractStatus(handshakeResult);
 
                 // Rapid polling at startup until data is available
                 await RapidPollUntilDataAvailableAsync();
@@ -399,13 +478,17 @@ public partial class MainWindow : Window
 
     private async Task RapidPollUntilDataAvailableAsync()
     {
-        const int maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
+        const int maxAttempts = 15;
         const int pollIntervalMs = 2000; // 2 seconds between attempts
 
+        Debug.WriteLine("[DIAGNOSTIC] RapidPollUntilDataAvailableAsync starting...");
         ShowStatus("Loading data...", StatusType.Info);
 
         // First, check if Monitor is reachable
-        var isHealthy = await _agentService.CheckHealthAsync();
+        Debug.WriteLine("[DIAGNOSTIC] Checking Monitor health...");
+        var isHealthy = await _monitorService.CheckHealthAsync();
+        Debug.WriteLine($"[DIAGNOSTIC] Monitor health: {isHealthy}");
+        
         if (!isHealthy)
         {
             ShowStatus("Monitor not reachable", StatusType.Error);
@@ -415,42 +498,55 @@ public partial class MainWindow : Window
 
         for (int attempt = 0; attempt < maxAttempts; attempt++)
         {
+            Debug.WriteLine($"[DIAGNOSTIC] Poll attempt {attempt + 1}/{maxAttempts}");
+            
             try
             {
-                // Try to get cached data from agent
-                var usages = await _agentService.GetUsageAsync();
+                // Try to get cached data from monitor
+                Debug.WriteLine("[DIAGNOSTIC] Calling GetUsageAsync...");
+                var usages = await _monitorService.GetUsageAsync();
+                Debug.WriteLine($"[DIAGNOSTIC] GetUsageAsync returned {usages.Count} providers");
 
-                // Filter out placeholder data (safety filter)
-                var usableUsages = usages.Where(u => 
-                    u.RequestsAvailable > 0 || u.RequestsUsed > 0 || u.IsAvailable
-                ).ToList();
-
-                if (usableUsages.Any())
+                // Show all providers from monitor (filtering already done in database)
+                if (usages.Any())
                 {
+                    Debug.WriteLine("[DIAGNOSTIC] Data available, rendering...");
                     // Data is available - render and stop rapid polling
-                    _usages = usableUsages;
+                    _usages = usages;
                     RenderProviders();
-                    await UpdateTrayIconsAsync();
-                    _lastAgentUpdate = DateTime.Now;
+                    _lastMonitorUpdate = DateTime.Now;
                     ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
+                    _ = UpdateTrayIconsAsync();
+                    Debug.WriteLine("[DIAGNOSTIC] Data rendered successfully");
                     return;
                 }
 
-                // No data available - trigger refresh on first attempt if cooldown has passed
-                // This is needed for fresh installs where Monitor's background refresh hasn't completed yet
-                var secondsSinceLastRefresh = (DateTime.Now - _lastRefreshTrigger).TotalSeconds;
-                if (attempt == 0 && secondsSinceLastRefresh >= RefreshCooldownSeconds)
+                Debug.WriteLine("[DIAGNOSTIC] No data available");
+                
+                // No data yet - on first attempt, trigger a background refresh
+                // and keep polling so data appears as soon as refresh completes.
+                if (attempt == 0)
                 {
-                    Debug.WriteLine("No data on first poll, triggering provider refresh...");
-                    _lastRefreshTrigger = DateTime.Now;
-                    try
+                    Debug.WriteLine("[DIAGNOSTIC] First attempt, no data - triggering background refresh...");
+                    _ = Task.Run(async () =>
                     {
-                        await _agentService.TriggerRefreshAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Trigger refresh failed: {ex.Message}");
-                    }
+                        try
+                        {
+                            await _monitorService.TriggerRefreshAsync();
+                            Debug.WriteLine("[DIAGNOSTIC] Background refresh triggered");
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[DIAGNOSTIC] Background refresh failed: {ex.Message}");
+                        }
+                    });
+                    
+                    // Show UI immediately with empty state
+                    Debug.WriteLine("[DIAGNOSTIC] Showing empty state...");
+                    ShowStatus("Scanning for providers...", StatusType.Info);
+                    Debug.WriteLine("[DIAGNOSTIC] About to call RenderProviders...");
+                    RenderProviders(); // Will show empty or loading state
+                    Debug.WriteLine("[DIAGNOSTIC] RenderProviders completed");
                 }
 
                 // No data yet - wait and try again
@@ -462,22 +558,22 @@ public partial class MainWindow : Window
             }
             catch (HttpRequestException ex)
             {
-                Debug.WriteLine($"Connection error during rapid polling: {ex.Message}");
+                Debug.WriteLine($"[DIAGNOSTIC] Connection error: {ex.Message}");
                 ShowStatus("Connection lost", StatusType.Error);
                 ShowErrorState($"Lost connection to Monitor:\n{ex.Message}\n\nTry refreshing or restarting the Monitor.");
                 return;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error during rapid polling: {ex.Message}");
+                Debug.WriteLine($"[DIAGNOSTIC] Error: {ex.Message}");
                 if (attempt < maxAttempts - 1)
                 {
                     await Task.Delay(pollIntervalMs);
                 }
             }
         }
-
-        // Max attempts reached - show error or empty state
+        
+        Debug.WriteLine("[DIAGNOSTIC] Max attempts reached, no data available");
         ShowStatus("No data available", StatusType.Error);
         ShowErrorState("No provider data available.\n\nThe Monitor may still be initializing.\nTry refreshing manually or check Settings > Monitor.");
     }
@@ -651,7 +747,7 @@ public partial class MainWindow : Window
             _isPrivacyMode = true;
             App.SetPrivacyMode(true);
             _preferencesLoaded = true;
-            _lastAgentUpdate = new DateTime(2026, 2, 1, 12, 0, 0, DateTimeKind.Local);
+            _lastMonitorUpdate = new DateTime(2026, 2, 1, 12, 0, 0, DateTimeKind.Local);
             var deterministicNow = DateTime.Now;
             ApplyPreferences();
             Width = 460;
@@ -804,7 +900,7 @@ public partial class MainWindow : Window
             };
 
             RenderProviders();
-            ShowStatus($"{_lastAgentUpdate:HH:mm:ss}", StatusType.Success);
+            ShowStatus($"{_lastMonitorUpdate:HH:mm:ss}", StatusType.Success);
         }
         else
         {
@@ -880,7 +976,7 @@ public partial class MainWindow : Window
 
     private async Task RefreshDataAsync()
     {
-        if (_isLoading || _agentService == null)
+        if (_isLoading || _monitorService == null)
             return;
 
         try
@@ -888,17 +984,28 @@ public partial class MainWindow : Window
             _isLoading = true;
             ShowStatus("Refreshing...", StatusType.Info);
 
-            // Trigger refresh on agent
-            await _agentService.TriggerRefreshAsync();
+            // Trigger refresh on monitor
+            await _monitorService.TriggerRefreshAsync();
 
             // Get updated usage data
-            _usages = await _agentService.GetUsageAsync();
+            var latestUsages = await _monitorService.GetUsageAsync();
+            if (latestUsages.Any())
+            {
+                _usages = latestUsages;
+                RenderProviders();
+                _lastMonitorUpdate = DateTime.Now;
+                ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
+                _ = UpdateTrayIconsAsync();
+                return;
+            }
 
-            // Render providers
-            RenderProviders();
-            await UpdateTrayIconsAsync();
+            if (_usages.Any())
+            {
+                ShowStatus("Refresh returned no data, keeping last snapshot", StatusType.Warning);
+                return;
+            }
 
-            ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
+            ShowErrorState("No provider data available.\n\nMonitor may still be initializing.");
         }
         catch (Exception ex)
         {
@@ -951,107 +1058,147 @@ public partial class MainWindow : Window
 
     private void RenderProviders()
     {
+        Debug.WriteLine("[DIAGNOSTIC] RenderProviders called");
         ProvidersList.Children.Clear();
+        Debug.WriteLine($"[DIAGNOSTIC] ProvidersList cleared, _usages count: {_usages?.Count ?? 0}");
 
         if (!_usages.Any())
         {
-            ProvidersList.Children.Add(CreateInfoTextBlock("No provider data available."));
-            ApplyProviderListFontPreferences();
+            Debug.WriteLine("[DIAGNOSTIC] No usages, creating 'No provider data available' message");
+            try
+            {
+                var messageBlock = CreateInfoTextBlock("No provider data available.");
+                ProvidersList.Children.Add(messageBlock);
+                ApplyProviderListFontPreferences();
+                Debug.WriteLine("[DIAGNOSTIC] 'No provider data available' message added");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[DIAGNOSTIC] ERROR adding message: {ex.Message}");
+            }
             return;
         }
 
-        var filteredUsages = _usages.ToList();
-
-        // Filter out Antigravity completely if not available.
-        // Filter out antigravity.* items from API payload because model rows are rendered from Antigravity details.
-        filteredUsages = filteredUsages.Where(u =>
-            !(u.ProviderId == "antigravity" && !u.IsAvailable) &&
-            !u.ProviderId.StartsWith("antigravity.")
-        ).ToList();
-
-        // Guard against duplicate provider entries returned by the Agent.
-        filteredUsages = filteredUsages
-            .GroupBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
-            .ToList();
-
-        // Separate providers by type and order alphabetically
-        var quotaProviders = filteredUsages
-            .Where(u => u.IsQuotaBased || u.PlanType == PlanType.Coding)
-            .OrderBy(GetFriendlyProviderName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var paygProviders = filteredUsages
-            .Where(u => !u.IsQuotaBased && u.PlanType != PlanType.Coding)
-            .OrderBy(GetFriendlyProviderName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        // Plans & Quotas Section
-        if (quotaProviders.Any())
+        try
         {
-            var (plansHeader, plansContainer) = CreateCollapsibleGroupHeader(
-                "Plans & Quotas",
-                Brushes.DeepSkyBlue,
-                "PlansAndQuotas",
-                () => _preferences.IsPlansAndQuotasCollapsed,
-                v => _preferences.IsPlansAndQuotasCollapsed = v);
+            Debug.WriteLine($"[DIAGNOSTIC] Rendering {_usages.Count} providers...");
 
-            ProvidersList.Children.Add(plansHeader);
-            ProvidersList.Children.Add(plansContainer);
+            var filteredUsages = _usages.ToList();
+            var hasAntigravityParent = filteredUsages.Any(u =>
+                string.Equals(u.ProviderId, "antigravity", StringComparison.OrdinalIgnoreCase));
 
-            if (!_preferences.IsPlansAndQuotasCollapsed)
+            // Hide unavailable Antigravity parent, and hide antigravity.* rows only when parent exists
+            // because those rows are rendered from Antigravity details in that case.
+            filteredUsages = filteredUsages.Where(u =>
             {
-                // Add all quota providers with Antigravity models listed as standalone cards.
-                foreach (var usage in quotaProviders)
+                var providerId = u.ProviderId ?? string.Empty;
+                return !(string.Equals(providerId, "antigravity", StringComparison.OrdinalIgnoreCase) && !u.IsAvailable) &&
+                    (!providerId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) || !hasAntigravityParent);
+            }).ToList();
+
+            // Guard against duplicate provider entries returned by the Agent.
+            filteredUsages = filteredUsages
+                .GroupBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .ToList();
+
+            Debug.WriteLine(
+                $"[DIAGNOSTIC] Provider render counts: raw={_usages.Count}, filtered={filteredUsages.Count}, hasAntigravityParent={hasAntigravityParent}");
+
+            if (!filteredUsages.Any())
+            {
+                ProvidersList.Children.Add(CreateInfoTextBlock("Data received, but no displayable providers were found."));
+                ApplyProviderListFontPreferences();
+                return;
+            }
+
+            // Separate providers by type and order alphabetically
+            var quotaProviders = filteredUsages
+                .Where(u => u.IsQuotaBased || u.PlanType == PlanType.Coding)
+                .OrderBy(GetFriendlyProviderName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var paygProviders = filteredUsages
+                .Where(u => !u.IsQuotaBased && u.PlanType != PlanType.Coding)
+                .OrderBy(GetFriendlyProviderName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            Debug.WriteLine($"[DIAGNOSTIC] Provider render groups: quota={quotaProviders.Count}, payg={paygProviders.Count}");
+
+            // Plans & Quotas Section
+            if (quotaProviders.Any())
+            {
+                var (plansHeader, plansContainer) = CreateCollapsibleGroupHeader(
+                    "Plans & Quotas",
+                    Brushes.DeepSkyBlue,
+                    "PlansAndQuotas",
+                    () => _preferences.IsPlansAndQuotasCollapsed,
+                    v => _preferences.IsPlansAndQuotasCollapsed = v);
+
+                ProvidersList.Children.Add(plansHeader);
+                ProvidersList.Children.Add(plansContainer);
+
+                if (!_preferences.IsPlansAndQuotasCollapsed)
                 {
-                    if (usage.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase))
+                    // Add all quota providers with Antigravity models listed as standalone cards.
+                    foreach (var usage in quotaProviders)
                     {
+                        if (string.Equals(usage.ProviderId, "antigravity", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (usage.Details?.Any() == true)
+                            {
+                                AddAntigravityModels(usage, plansContainer);
+                            }
+                            else
+                            {
+                                AddAntigravityUnavailableNotice(usage, plansContainer);
+                            }
+
+                            continue;
+                        }
+
+                        AddProviderCard(usage, plansContainer);
+
                         if (usage.Details?.Any() == true)
                         {
-                            AddAntigravityModels(usage, plansContainer);
+                            AddCollapsibleSubProviders(usage, plansContainer);
                         }
-                        else
-                        {
-                            AddAntigravityUnavailableNotice(usage, plansContainer);
-                        }
-
-                        continue;
-                    }
-
-                    AddProviderCard(usage, plansContainer);
-
-                    if (usage.Details?.Any() == true)
-                    {
-                        AddCollapsibleSubProviders(usage, plansContainer);
                     }
                 }
             }
-        }
 
-        // Pay As You Go Section
-        if (paygProviders.Any())
-        {
-            var (paygHeader, paygContainer) = CreateCollapsibleGroupHeader(
-                "Pay As You Go",
-                Brushes.MediumSeaGreen,
-                "PayAsYouGo",
-                () => _preferences.IsPayAsYouGoCollapsed,
-                v => _preferences.IsPayAsYouGoCollapsed = v);
-
-            ProvidersList.Children.Add(paygHeader);
-            ProvidersList.Children.Add(paygContainer);
-
-            if (!_preferences.IsPayAsYouGoCollapsed)
+            // Pay As You Go Section
+            if (paygProviders.Any())
             {
-                foreach (var usage in paygProviders)
+                var (paygHeader, paygContainer) = CreateCollapsibleGroupHeader(
+                    "Pay As You Go",
+                    Brushes.MediumSeaGreen,
+                    "PayAsYouGo",
+                    () => _preferences.IsPayAsYouGoCollapsed,
+                    v => _preferences.IsPayAsYouGoCollapsed = v);
+
+                ProvidersList.Children.Add(paygHeader);
+                ProvidersList.Children.Add(paygContainer);
+
+                if (!_preferences.IsPayAsYouGoCollapsed)
                 {
-                    AddProviderCard(usage, paygContainer);
+                    foreach (var usage in paygProviders)
+                    {
+                        AddProviderCard(usage, paygContainer);
+                    }
                 }
             }
-        }
 
-        ApplyProviderListFontPreferences();
+            ApplyProviderListFontPreferences();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[DIAGNOSTIC] RenderProviders failed: {ex}");
+            ProvidersList.Children.Clear();
+            ProvidersList.Children.Add(CreateInfoTextBlock("Failed to render provider cards. Check logs for details."));
+            ApplyProviderListFontPreferences();
+        }
     }
 
     private void ApplyProviderListFontPreferences()
@@ -1196,14 +1343,16 @@ public partial class MainWindow : Window
 
     private void AddProviderCard(ProviderUsage usage, StackPanel container, bool isChild = false)
     {
+        var providerId = usage.ProviderId ?? string.Empty;
         var friendlyName = GetFriendlyProviderName(usage);
+        var description = usage.Description ?? string.Empty;
 
         // Compact horizontal bar similar to non-slim UI
-        bool isMissing = usage.Description.Contains("not found", StringComparison.OrdinalIgnoreCase);
-        bool isConsoleCheck = usage.Description.Contains("Check Console", StringComparison.OrdinalIgnoreCase);
-        bool isError = usage.Description.Contains("[Error]", StringComparison.OrdinalIgnoreCase);
-        bool isUnknown = usage.Description.Contains("unknown", StringComparison.OrdinalIgnoreCase);
-        bool isAntigravityParent = usage.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase);
+        bool isMissing = description.Contains("not found", StringComparison.OrdinalIgnoreCase);
+        bool isConsoleCheck = description.Contains("Check Console", StringComparison.OrdinalIgnoreCase);
+        bool isError = description.Contains("[Error]", StringComparison.OrdinalIgnoreCase);
+        bool isUnknown = description.Contains("unknown", StringComparison.OrdinalIgnoreCase);
+        bool isAntigravityParent = providerId.Equals("antigravity", StringComparison.OrdinalIgnoreCase);
 
         // Main Grid Container - single row layout
         var grid = new Grid
@@ -1211,7 +1360,7 @@ public partial class MainWindow : Window
             Margin = new Thickness(isChild ? 20 : 0, 0, 0, 2),
             Height = 24,
             Background = Brushes.Transparent,
-            Tag = usage.ProviderId
+            Tag = providerId
         };
 
         bool shouldHaveProgress = usage.IsAvailable &&
@@ -1297,7 +1446,7 @@ public partial class MainWindow : Window
         else
         {
             // Provider icon for parent items
-            var providerIcon = CreateProviderIcon(usage.ProviderId);
+            var providerIcon = CreateProviderIcon(providerId);
             providerIcon.Margin = new Thickness(0, 0, 6, 0); // Reduced margin for specific alignment
             providerIcon.Width = 14;
             providerIcon.Height = 14;
@@ -1315,17 +1464,17 @@ public partial class MainWindow : Window
         else if (isConsoleCheck) { statusText = "Check Console"; statusBrush = Brushes.Orange; }
         else
         {
-            statusText = usage.Description;
+            statusText = description;
             var isStatusOnlyProvider =
-                usage.ProviderId.Equals("mistral", StringComparison.OrdinalIgnoreCase) ||
-                usage.ProviderId.Equals("cloud-code", StringComparison.OrdinalIgnoreCase) ||
+                providerId.Equals("mistral", StringComparison.OrdinalIgnoreCase) ||
+                providerId.Equals("cloud-code", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(usage.UsageUnit, "Status", StringComparison.OrdinalIgnoreCase);
 
             if (isAntigravityParent)
             {
-                statusText = string.IsNullOrWhiteSpace(usage.Description)
+                statusText = string.IsNullOrWhiteSpace(description)
                     ? "Per-model quotas"
-                    : usage.Description;
+                    : description;
             }
             else if (!isUnknown && !isStatusOnlyProvider && usage.PlanType == PlanType.Coding)
             {
@@ -1506,14 +1655,15 @@ public partial class MainWindow : Window
 
     private static string GetFriendlyProviderName(ProviderUsage usage)
     {
+        var providerId = usage.ProviderId ?? string.Empty;
         var fromPayload = usage.ProviderName;
         if (!string.IsNullOrWhiteSpace(fromPayload) &&
-            !string.Equals(fromPayload, usage.ProviderId, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(fromPayload, providerId, StringComparison.OrdinalIgnoreCase))
         {
             return fromPayload;
         }
 
-        return usage.ProviderId.ToLowerInvariant() switch
+        return providerId.ToLowerInvariant() switch
         {
             "antigravity" => "Google Antigravity",
             "gemini-cli" => "Google Gemini",
@@ -1525,7 +1675,7 @@ public partial class MainWindow : Window
             "claude-code" => "Claude Code",
             "zai-coding-plan" => "Z.ai Coding Plan",
             _ => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(
-                usage.ProviderId.Replace("_", " ").Replace("-", " "))
+                providerId.Replace("_", " ").Replace("-", " "))
         };
     }
 
@@ -2044,32 +2194,39 @@ public partial class MainWindow : Window
 
     private void StartPollingTimer()
     {
+        _pollingTimer?.Stop();
+
         _pollingTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMinutes(1) // Poll every minute
+            Interval = _usages.Any() ? NormalPollingInterval : StartupPollingInterval
         };
 
         _pollingTimer.Tick += async (s, e) =>
         {
-            // Poll agent every minute for fresh data
+            if (_isPollingInProgress)
+            {
+                return;
+            }
+
+            _isPollingInProgress = true;
+            // Poll monitor every minute for fresh data
             try
             {
-                var usages = await _agentService.GetUsageAsync();
+                var usages = await _monitorService.GetUsageAsync();
                 
-                // Filter out placeholder data (safety filter - handles edge cases where bad data reaches UI)
-                // Placeholder = no usage data AND not available
-                var usableUsages = usages.Where(u => 
-                    u.RequestsAvailable > 0 || u.RequestsUsed > 0 || u.IsAvailable
-                ).ToList();
-                
-                if (usableUsages.Any())
+                // Show all providers from monitor (filtering already done in database)
+                if (usages.Any())
                 {
                     // Fresh data received - update UI
-                    _usages = usableUsages;
+                    _usages = usages;
                     RenderProviders();
-                    await UpdateTrayIconsAsync();
-                    _lastAgentUpdate = DateTime.Now;
+                    _lastMonitorUpdate = DateTime.Now;
                     ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
+                    _ = UpdateTrayIconsAsync();
+                    if (_pollingTimer != null && _pollingTimer.Interval != NormalPollingInterval)
+                    {
+                        _pollingTimer.Interval = NormalPollingInterval;
+                    }
                 }
                 else
                 {
@@ -2082,7 +2239,7 @@ public partial class MainWindow : Window
                         _lastRefreshTrigger = DateTime.Now;
                         try
                         {
-                            await _agentService.TriggerRefreshAsync();
+                            await _monitorService.TriggerRefreshAsync();
                         }
                         catch (Exception ex)
                         {
@@ -2096,25 +2253,33 @@ public partial class MainWindow : Window
                     
                     // Wait a moment and retry getting data
                     await Task.Delay(1000);
-                    var retryUsages = await _agentService.GetUsageAsync();
+                    var retryUsages = await _monitorService.GetUsageAsync();
                     
                     if (retryUsages.Any())
                     {
                         _usages = retryUsages.ToList();
                         RenderProviders();
-                        await UpdateTrayIconsAsync();
-                        _lastAgentUpdate = DateTime.Now;
+                        _lastMonitorUpdate = DateTime.Now;
                         ShowStatus($"{DateTime.Now:HH:mm:ss} (refreshed)", StatusType.Success);
+                        _ = UpdateTrayIconsAsync();
+                        if (_pollingTimer != null && _pollingTimer.Interval != NormalPollingInterval)
+                        {
+                            _pollingTimer.Interval = NormalPollingInterval;
+                        }
                     }
                     else if (_usages.Any())
                     {
                         // Keep showing old data, show yellow warning
-                        ShowStatus("Last update: " + _lastAgentUpdate.ToString("HH:mm:ss") + " (stale)", StatusType.Warning);
+                        ShowStatus("Last update: " + _lastMonitorUpdate.ToString("HH:mm:ss") + " (stale)", StatusType.Warning);
                     }
                     else
                     {
                         // No current data and no previous data - show warning
                         ShowStatus("No data - waiting for Monitor", StatusType.Warning);
+                        if (_pollingTimer != null && _pollingTimer.Interval != StartupPollingInterval)
+                        {
+                            _pollingTimer.Interval = StartupPollingInterval;
+                        }
                     }
                 }
             }
@@ -2130,7 +2295,15 @@ public partial class MainWindow : Window
                 {
                     // No old data - show red error
                     ShowStatus("Connection error", StatusType.Error);
+                    if (_pollingTimer != null && _pollingTimer.Interval != StartupPollingInterval)
+                    {
+                        _pollingTimer.Interval = StartupPollingInterval;
+                    }
                 }
+            }
+            finally
+            {
+                _isPollingInProgress = false;
             }
         };
 
@@ -2144,15 +2317,43 @@ public partial class MainWindow : Window
             return;
         }
 
-        _configs = await _agentService.GetConfigsAsync();
-        app.UpdateProviderTrayIcons(_usages, _configs, _preferences);
+        if (_isTrayIconUpdateInProgress)
+        {
+            return;
+        }
+
+        _isTrayIconUpdateInProgress = true;
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var shouldRefreshConfigs = !_configs.Any() ||
+                (DateTime.UtcNow - _lastTrayConfigRefresh) >= TrayConfigRefreshInterval;
+
+            if (shouldRefreshConfigs)
+            {
+                _configs = await _monitorService.GetConfigsAsync();
+                _lastTrayConfigRefresh = DateTime.UtcNow;
+            }
+
+            app.UpdateProviderTrayIcons(_usages, _configs, _preferences);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[DIAGNOSTIC] UpdateTrayIconsAsync failed: {ex.Message}");
+        }
+        finally
+        {
+            stopwatch.Stop();
+            Debug.WriteLine($"[DIAGNOSTIC] UpdateTrayIconsAsync completed in {stopwatch.ElapsedMilliseconds}ms");
+            _isTrayIconUpdateInProgress = false;
+        }
     }
 
     private void ShowStatus(string message, StatusType type)
     {
-        if (type == StatusType.Success && !string.IsNullOrWhiteSpace(_agentContractWarningMessage))
+        if (type == StatusType.Success && !string.IsNullOrWhiteSpace(_monitorContractWarningMessage))
         {
-            message = _agentContractWarningMessage;
+            message = _monitorContractWarningMessage;
             type = StatusType.Warning;
         }
 
@@ -2174,9 +2375,9 @@ public partial class MainWindow : Window
         }
 
         // Update tooltip with last agent update time
-        var tooltipText = _lastAgentUpdate == DateTime.MinValue
+        var tooltipText = _lastMonitorUpdate == DateTime.MinValue
             ? "Last update: Never"
-            : $"Last update: {_lastAgentUpdate:HH:mm:ss}";
+            : $"Last update: {_lastMonitorUpdate:HH:mm:ss}";
 
         if (StatusLed != null)
         {
@@ -2230,20 +2431,27 @@ public partial class MainWindow : Window
         Console.WriteLine($"[{timestamp}] [{type}] {message}");
     }
 
-    private void ApplyAgentContractStatus(AgentContractHandshakeResult handshakeResult)
+    private void ApplyMonitorContractStatus(AgentContractHandshakeResult handshakeResult)
     {
         if (handshakeResult.IsCompatible)
         {
-            _agentContractWarningMessage = null;
+            _monitorContractWarningMessage = null;
             return;
         }
 
-        _agentContractWarningMessage = handshakeResult.Message;
+        _monitorContractWarningMessage = handshakeResult.Message;
         ShowStatus(handshakeResult.Message, StatusType.Warning);
     }
 
     private void ShowErrorState(string message)
     {
+        if (_usages.Any())
+        {
+            // Preserve visible data and only surface status when we have a stale snapshot.
+            ShowStatus(message, StatusType.Warning);
+            return;
+        }
+
         ProvidersList.Children.Clear();
         ProvidersList.Children.Add(CreateInfoTextBlock(message));
         ShowStatus(message, StatusType.Error);
@@ -2264,12 +2472,28 @@ public partial class MainWindow : Window
     // Event Handlers
     private async void RefreshBtn_Click(object sender, RoutedEventArgs e)
     {
-        await RefreshDataAsync();
+        try
+        {
+            await RefreshDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ERROR] RefreshBtn_Click: {ex.Message}");
+            ShowStatus("Refresh failed", StatusType.Error);
+        }
     }
 
     private async void SettingsBtn_Click(object sender, RoutedEventArgs e)
     {
-        await OpenSettingsDialogAsync();
+        try
+        {
+            await OpenSettingsDialogAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ERROR] SettingsBtn_Click: {ex.Message}");
+            ShowStatus("Settings failed", StatusType.Error);
+        }
     }
 
     internal async Task OpenSettingsDialogAsync()
@@ -2312,17 +2536,17 @@ public partial class MainWindow : Window
         return (settingsWindow, () => settingsWindow.SettingsChanged);
     }
 
-    private void WebBtn_Click(object sender, RoutedEventArgs e)
+    private async void WebBtn_Click(object sender, RoutedEventArgs e)
     {
-        OpenWebUI();
+        await OpenWebUIAsync();
     }
 
-    private void OpenWebUI()
+    private async Task OpenWebUIAsync()
     {
         try
         {
             // Start the Web service if not running
-            StartWebService();
+            await StartWebServiceAsync();
 
             // Open browser to the Web UI
             var webUrl = "http://localhost:5100";
@@ -2340,7 +2564,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void StartWebService()
+    private async Task StartWebServiceAsync()
     {
         try
         {
@@ -2348,7 +2572,7 @@ public partial class MainWindow : Window
             using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(1) };
             try
             {
-                var response = client.GetAsync("http://localhost:5100").GetAwaiter().GetResult();
+                var response = await client.GetAsync("http://localhost:5100");
                 if (response.IsSuccessStatusCode)
                 {
                     Debug.WriteLine("Web service already running");
@@ -2435,10 +2659,17 @@ public partial class MainWindow : Window
 
     private async void PrivacyBtn_Click(object sender, RoutedEventArgs e)
     {
-        var newPrivacyMode = !_isPrivacyMode;
-        _preferences.IsPrivacyMode = newPrivacyMode;
-        App.SetPrivacyMode(newPrivacyMode);
-        await SaveUiPreferencesAsync();
+        try
+        {
+            var newPrivacyMode = !_isPrivacyMode;
+            _preferences.IsPrivacyMode = newPrivacyMode;
+            App.SetPrivacyMode(newPrivacyMode);
+            await SaveUiPreferencesAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ERROR] PrivacyBtn_Click: {ex.Message}");
+        }
     }
 
     private void CloseBtn_Click(object sender, RoutedEventArgs e)
@@ -2448,18 +2679,25 @@ public partial class MainWindow : Window
 
     private async void AlwaysOnTop_Checked(object sender, RoutedEventArgs e)
     {
-        if (!IsLoaded) return;
+        try
+        {
+            if (!IsLoaded) return;
 
-        _preferences.AlwaysOnTop = AlwaysOnTopCheck.IsChecked ?? true;
-        if (_preferences.AlwaysOnTop)
-        {
-            EnsureAlwaysOnTop();
+            _preferences.AlwaysOnTop = AlwaysOnTopCheck.IsChecked ?? true;
+            if (_preferences.AlwaysOnTop)
+            {
+                EnsureAlwaysOnTop();
+            }
+            else
+            {
+                ApplyTopmostState(false);
+            }
+            await SaveUiPreferencesAsync();
         }
-        else
+        catch (Exception ex)
         {
-            ApplyTopmostState(false);
+            Debug.WriteLine($"[ERROR] AlwaysOnTop_Checked: {ex.Message}");
         }
-        await SaveUiPreferencesAsync();
     }
 
     private async void Compact_Checked(object sender, RoutedEventArgs e)
@@ -2470,13 +2708,20 @@ public partial class MainWindow : Window
 
     private async void ShowUsedToggle_Checked(object sender, RoutedEventArgs e)
     {
-        if (!IsLoaded) return;
+        try
+        {
+            if (!IsLoaded) return;
 
-        _preferences.InvertProgressBar = ShowUsedToggle.IsChecked ?? false;
-        await SaveUiPreferencesAsync();
+            _preferences.InvertProgressBar = ShowUsedToggle.IsChecked ?? false;
+            await SaveUiPreferencesAsync();
 
-        // Refresh the display to show used% vs remaining%
-        RenderProviders();
+            // Refresh the display to show used% vs remaining%
+            RenderProviders();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[ERROR] ShowUsedToggle_Checked: {ex.Message}");
+        }
     }
 
     private void RefreshData_NoArgs(object sender, RoutedEventArgs e)
@@ -2885,7 +3130,7 @@ public partial class MainWindow : Window
     }
 
 
-    private async Task RestartAgentAsync()
+    private async Task RestartMonitorAsync()
     {
         try
         {
@@ -2894,8 +3139,8 @@ public partial class MainWindow : Window
             // Try to start agent
             if (await MonitorLauncher.StartAgentAsync())
             {
-                var agentReady = await MonitorLauncher.WaitForAgentAsync();
-                if (agentReady)
+                var monitorReady = await MonitorLauncher.WaitForAgentAsync();
+                if (monitorReady)
                 {
                     ShowStatus("Monitor restarted", StatusType.Success);
                     await RefreshDataAsync();
@@ -2913,66 +3158,74 @@ public partial class MainWindow : Window
     }
 
 
-    private async void AgentToggleBtn_Click(object sender, RoutedEventArgs e)
+    private async void MonitorToggleBtn_Click(object sender, RoutedEventArgs e)
     {
-        var (isRunning, _) = await MonitorLauncher.IsAgentRunningWithPortAsync();
+        try
+        {
+            var (isRunning, _) = await MonitorLauncher.IsAgentRunningWithPortAsync();
 
-        if (isRunning)
-        {
-            // Stop the agent
-            ShowStatus("Stopping monitor...", StatusType.Warning);
-            var stopped = await MonitorLauncher.StopAgentAsync();
-            if (stopped)
+            if (isRunning)
             {
-                ShowStatus("Monitor stopped", StatusType.Info);
-                UpdateAgentToggleButton(false);
-            }
-            else
-            {
-                ShowStatus("Failed to stop monitor", StatusType.Error);
-            }
-        }
-        else
-        {
-            // Start the monitor
-            ShowStatus("Starting monitor...", StatusType.Warning);
-            if (await MonitorLauncher.StartAgentAsync())
-            {
-                var agentReady = await MonitorLauncher.WaitForAgentAsync();
-                if (agentReady)
+                // Stop the agent
+                ShowStatus("Stopping monitor...", StatusType.Warning);
+                var stopped = await MonitorLauncher.StopAgentAsync();
+                if (stopped)
                 {
-                    ShowStatus("Monitor started", StatusType.Success);
-                    UpdateAgentToggleButton(true);
-                    await RefreshDataAsync();
+                    ShowStatus("Monitor stopped", StatusType.Info);
+                    UpdateMonitorToggleButton(false);
                 }
                 else
                 {
-                    ShowStatus("Monitor failed to start", StatusType.Error);
-                    UpdateAgentToggleButton(false);
+                    ShowStatus("Failed to stop monitor", StatusType.Error);
                 }
             }
             else
             {
-                ShowStatus("Could not start monitor", StatusType.Error);
-                UpdateAgentToggleButton(false);
+                // Start the monitor
+                ShowStatus("Starting monitor...", StatusType.Warning);
+                if (await MonitorLauncher.StartAgentAsync())
+                {
+                    var monitorReady = await MonitorLauncher.WaitForAgentAsync();
+                    if (monitorReady)
+                    {
+                        ShowStatus("Monitor started", StatusType.Success);
+                        UpdateMonitorToggleButton(true);
+                        await RefreshDataAsync();
+                    }
+                    else
+                    {
+                        ShowStatus("Monitor failed to start", StatusType.Error);
+                        UpdateMonitorToggleButton(false);
+                    }
+                }
+                else
+                {
+                    ShowStatus("Could not start monitor", StatusType.Error);
+                    UpdateMonitorToggleButton(false);
+                }
             }
         }
-    }
-
-    private void UpdateAgentToggleButton(bool isRunning)
-    {
-        if (AgentToggleBtn != null && AgentToggleIcon != null)
+        catch (Exception ex)
         {
-            // Update icon: Play (E768) when stopped, Stop (E71A) when running
-            AgentToggleIcon.Text = isRunning ? "\uE71A" : "\uE768";
-            AgentToggleBtn.ToolTip = isRunning ? "Stop Monitor" : "Start Monitor";
+            Debug.WriteLine($"[ERROR] MonitorToggleBtn_Click: {ex.Message}");
+            ShowStatus("Monitor toggle failed", StatusType.Error);
         }
     }
 
-    private async Task UpdateAgentToggleButtonStateAsync()
+    private void UpdateMonitorToggleButton(bool isRunning)
+    {
+        if (MonitorToggleBtn != null && MonitorToggleIcon != null)
+        {
+            // Update icon: Play (E768) when stopped, Stop (E71A) when running
+            MonitorToggleIcon.Text = isRunning ? "\uE71A" : "\uE768";
+            MonitorToggleBtn.ToolTip = isRunning ? "Stop Monitor" : "Start Monitor";
+        }
+    }
+
+    private async Task UpdateMonitorToggleButtonStateAsync()
     {
         var (isRunning, _) = await MonitorLauncher.IsAgentRunningWithPortAsync();
-        Dispatcher.Invoke(() => UpdateAgentToggleButton(isRunning));
+        Dispatcher.Invoke(() => UpdateMonitorToggleButton(isRunning));
     }
 
     private void OnKeyDown(object sender, KeyEventArgs e)

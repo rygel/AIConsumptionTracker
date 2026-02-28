@@ -2,7 +2,24 @@
 
 This document provides essential information for agentic coding assistants working on this .NET 8.0 WPF application.
 
-## Development Workflow
+## Critical Rules
+
+### NEVER Create Releases Without Explicit Permission
+- **I MUST NEVER** create git tags or releases without your explicit instruction
+- **I MUST NEVER** initiate CI/CD release workflows without your permission
+- **I MUST NEVER** create beta or stable releases on my own
+- **You must explicitly tell me** when to create a release
+- **I will wait for your command** before any release-related action
+
+### Provider Visibility Requirement
+- **ALL configured providers MUST be visible** in the UI at all times
+- **NEVER** filter out providers just because they have `IsAvailable=false`
+- Providers with missing API keys should show as "Not Available" or "Configure Provider"
+- **DO NOT** wait for fresh data before showing providers - display cached data immediately
+- **DO NOT** show only a subset of providers (e.g., only antigravity) on startup
+- The UI must show provider cards immediately, even if data is stale or unavailable
+
+### Development Workflow
 
 - **Never push directly to `main`**: All changes, including release preparations, MUST be done on a feature branch (e.g., `feature/branch-name`) and integrated via a Pull Request.
 - **Never force push to `main` without explicit user permission**: If you need to force push to main, ALWAYS ask for confirmation first.
@@ -692,5 +709,46 @@ dotnet test AIUsageTracker.Tests/AIUsageTracker.Tests.csproj --filter "FullyQual
 - Release workflow creates installers for multiple platforms.
 - Winget submission for Windows packages.
 - `Run Tests` includes a web endpoint perf smoke guardrail for `/` and `/charts` in CI.
+
+## UI Polling Algorithm
+
+The Slim UI uses a dynamic polling strategy to ensure providers appear quickly while minimizing resource usage:
+
+### Startup Phase
+1. **Rapid Polling**: Poll every 5 seconds until data is available
+2. **Max Attempts**: 15 attempts (75 seconds max)
+3. **On No Data**: Trigger background refresh and continue polling
+4. **Display**: Show cached data immediately, update when fresh data arrives
+
+### Normal Operation
+1. **Standard Interval**: Poll every 1 minute
+2. **Concurrent Prevention**: Skip poll if previous still in progress
+3. **Data Preservation**: Never overwrite existing data with empty results
+
+### Error Handling
+- **Connection Error**: Switch to rapid polling (5s)
+- **Monitor Unavailable**: Show error but preserve cached data
+- **Refresh Failure**: Keep last successful snapshot
+
+### Key Principles
+- Always show something (cached data or loading state)
+- Never block waiting for data
+- Prefer stale data over empty UI
+- Aggressive polling only during startup or errors
+
+This algorithm ensures providers appear within 30 seconds while maintaining responsiveness.
+
+## Async/Await Best Practices
+
+See [WPF Async/Await Best Practices](docs/wpf_async_best_practices.md) for critical patterns to avoid UI blocking and deadlocks.
+
+Key rules:
+- **Never** use `.GetAwaiter().GetResult()` or `.Result` on the UI thread
+- **Never** create sync wrappers for async methods
+- Always add timeouts to HTTP calls (> 30s is too long for UI)
+- Use fire-and-forget (`_ =`) for non-critical background work
+- Add exception handling to all `async void` event handlers
+- Use `ConfigureAwait(false)` in library code (Core/Infrastructure projects)
+
 
 

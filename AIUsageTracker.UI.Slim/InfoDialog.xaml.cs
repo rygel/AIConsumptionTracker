@@ -126,10 +126,17 @@ namespace AIUsageTracker.UI.Slim
 
         internal async Task PrivacyBtn_ClickAsync(object sender, RoutedEventArgs e)
         {
-            _isPrivacyMode = !_isPrivacyMode;
-            App.SetPrivacyMode(_isPrivacyMode); 
-            // App.PrivacyChanged event will handle UI update
-            await Task.CompletedTask;
+            try
+            {
+                _isPrivacyMode = !_isPrivacyMode;
+                App.SetPrivacyMode(_isPrivacyMode); 
+                // App.PrivacyChanged event will handle UI update
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ERROR] PrivacyBtn_ClickAsync: {ex.Message}");
+            }
         }
 
         private void CloseBtn_Click(object sender, RoutedEventArgs e)
