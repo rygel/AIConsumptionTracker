@@ -186,7 +186,7 @@ public class MonitorService
             var usage = await _httpClient.GetFromJsonAsync<List<ProviderUsage>>(
                 $"{AgentUrl}/api/usage", 
                 _jsonOptions,
-                requestTimeout.Token);
+                requestTimeout.Token).ConfigureAwait(false);
             LogDiagnostic($"Successfully fetched usage from {AgentUrl}");
             stopwatch.Stop();
             RecordUsageTelemetry(stopwatch.Elapsed, true);
