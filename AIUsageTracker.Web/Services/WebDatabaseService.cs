@@ -929,6 +929,110 @@ public class WebDatabaseService
         return comparisons;
     }
 
+    // ========== Data Export ==========
+
+    public async Task<string> ExportHistoryToCsvAsync()
+    {
+        if (!IsDatabaseAvailable())
+            return "";
+
+        try
+        {
+            using var connection = CreateReadConnection();
+            await connection.OpenAsync();
+
+            const string sql = @"
+                SELECT h.provider_id, p.provider_name, h.requests_used, h.requests_available,
+                       h.requests_percentage, h.is_available, h.status_message, h.fetched_at,
+                       h.next_reset_time, h.details_json
+                FROM provider_history h
+                JOIN providers p ON h.provider_id = p.provider_id
+                ORDER BY h.fetched_at DESC";
+
+            var rows = await connection.QueryAsync<dynamic>(sql);
+            
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("provider_id,provider_name,requests_used,requests_available,requests_percentage,is_available,status_message,fetched_at,next_reset_time");
+
+            foreach (var row in rows)
+            {
+                sb.AppendLine($"\"{row.provider_id}\",\"{row.provider_name}\",{row.requests_used},{row.requests_available},{row.requests_percentage},{(row.is_available ? 1 : 0)},\"{row.status_message?.Replace("\"", "\"\"")}\",\"{row.fetched_at}\",\"{row.next_reset_time}\"");
+            }
+
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error exporting to CSV");
+            return "";
+        }
+    }
+
+    public async Task<string> ExportHistoryToJsonAsync()
+    {
+        if (!IsDatabaseAvailable())
+            return "[]";
+
+        try
+        {
+            using var connection = CreateReadConnection();
+            await connection.OpenAsync();
+
+            const string sql = @"
+                SELECT h.provider_id, p.provider_name, h.requests_used, h.requests_available,
+                       h.requests_percentage, h.is_available, h.status_message, h.fetched_at,
+                       h.next_reset_time
+                FROM provider_history h
+                JOIN providers p ON h.provider_id = p.provider_id
+                ORDER BY h.fetched_at DESC
+                LIMIT 10000";
+
+            var rows = await connection.QueryAsync<dynamic>(sql);
+            
+            var results = rows.Select(r => new 
+            {
+                provider_id = (string)r.provider_id,
+                provider_name = (string)r.provider_name,
+                requests_used = (double)r.requests_used,
+                requests_available = (double)r.requests_available,
+                requests_percentage = (double)r.requests_percentage,
+                is_available = (bool)r.is_available,
+                status_message = (string)r.status_message,
+                fetched_at = ((DateTime)r.fetched_at).ToString("O"),
+                next_reset_time = r.next_reset_time != null ? ((DateTime)r.next_reset_time).ToString("O") : null
+            }).ToList();
+
+            return System.Text.Json.JsonSerializer.Serialize(results, new System.Text.Json.JsonSerializerOptions 
+            { 
+                WriteIndented = true 
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error exporting to JSON");
+            return "[]";
+        }
+    }
+
+    public async Task<byte[]?> CreateDatabaseBackupAsync()
+    {
+        if (!IsDatabaseAvailable())
+            return null;
+
+        try
+        {
+            var dbBytes = await File.ReadAllBytesAsync(_dbPath);
+            return dbBytes;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error creating database backup");
+            return null;
+        }
+    }
+
+    public string GetDatabasePath() => _dbPath;
+
     private sealed class ProviderReliabilityRow
     {
         public string ProviderId { get; set; } = string.Empty;
