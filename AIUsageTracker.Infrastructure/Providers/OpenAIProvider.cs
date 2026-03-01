@@ -13,7 +13,15 @@ namespace AIUsageTracker.Infrastructure.Providers;
 public class OpenAIProvider : IProviderService
 {
     private const string WhamUsageEndpoint = "https://chatgpt.com/backend-api/wham/usage";
-    public string ProviderId => "openai";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "openai",
+        displayName: "OpenAI",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based");
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenAIProvider> _logger;
 
@@ -176,7 +184,7 @@ public class OpenAIProvider : IProviderService
         return new ProviderUsage
         {
             ProviderId = ProviderId,
-            ProviderName = "OpenAI (Codex)",
+            ProviderName = "OpenAI",
             AccountName = GetAccountIdentity(doc.RootElement, accessToken, accountId) ?? string.Empty,
             IsAvailable = true,
             IsQuotaBased = true,
@@ -544,4 +552,5 @@ public class OpenAIProvider : IProviderService
         public string? AccountId { get; set; }
     }
 }
+
 

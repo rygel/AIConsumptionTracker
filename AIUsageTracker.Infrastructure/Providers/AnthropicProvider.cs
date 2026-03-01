@@ -6,7 +6,15 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class AnthropicProvider : IProviderService
 {
-    public string ProviderId => "anthropic";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "anthropic",
+        displayName: "Anthropic",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go");
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly ILogger<AnthropicProvider> _logger;
 
     public AnthropicProvider(ILogger<AnthropicProvider> logger)
@@ -50,4 +58,5 @@ public class AnthropicProvider : IProviderService
         };
     }
 }
+
 

@@ -17,6 +17,7 @@ using Microsoft.Win32;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Infrastructure.Providers;
 using AIUsageTracker.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -1120,12 +1121,12 @@ public partial class MainWindow : Window
 
             // Separate providers by type and order alphabetically
             var quotaProviders = filteredUsages
-                .Where(u => u.IsQuotaBased || u.PlanType == PlanType.Coding)
+                .Where(u => u.IsQuotaBased)
                 .OrderBy(GetFriendlyProviderName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             var paygProviders = filteredUsages
-                .Where(u => !u.IsQuotaBased && u.PlanType != PlanType.Coding)
+                .Where(u => !u.IsQuotaBased)
                 .OrderBy(GetFriendlyProviderName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -1382,7 +1383,7 @@ public partial class MainWindow : Window
         // Normalize percentages based on provider type
         // Quota/Coding: RequestsPercentage is REMAINING %
         // Usage/PAYG: RequestsPercentage is USED %
-        bool isQuotaType = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
+        bool isQuotaType = usage.IsQuotaBased;
         double pctRemaining = isQuotaType ? usage.RequestsPercentage : Math.Max(0, 100 - usage.RequestsPercentage);
         double pctUsed = isQuotaType ? Math.Max(0, 100 - usage.RequestsPercentage) : usage.RequestsPercentage;
 
@@ -1482,7 +1483,7 @@ public partial class MainWindow : Window
                     ? "Per-model quotas"
                     : description;
             }
-            else if (!isUnknown && !isStatusOnlyProvider && usage.PlanType == PlanType.Coding)
+            else if (!isUnknown && !isStatusOnlyProvider && usage.IsQuotaBased)
             {
                 var displayUsed = ShowUsedToggle?.IsChecked ?? false;
 
@@ -1521,7 +1522,7 @@ public partial class MainWindow : Window
                     ? $"{usedPercent:F0}% used"
                     : $"{(100.0 - usedPercent):F0}% remaining";
             }
-            else if (!isUnknown && !isStatusOnlyProvider && (usage.IsQuotaBased || usage.PlanType == PlanType.Coding))
+            else if (!isUnknown && !isStatusOnlyProvider && usage.IsQuotaBased)
             {
                 // Show used% or remaining% based on toggle
                 // Show used% or remaining% based on toggle (variable renamed to avoid conflict)
@@ -1662,7 +1663,7 @@ public partial class MainWindow : Window
     private static string GetFriendlyProviderName(ProviderUsage usage)
     {
         var providerId = usage.ProviderId ?? string.Empty;
-        return ProviderDisplayNameResolver.GetDisplayName(providerId, usage.ProviderName);
+        return ProviderMetadataCatalog.GetDisplayName(providerId, usage.ProviderName);
     }
 
     private void AddAntigravityModels(ProviderUsage usage, StackPanel container)
@@ -1968,16 +1969,23 @@ public partial class MainWindow : Window
         }
 
         // Create collapsible section for sub-providers
+        var useAntigravityCollapsePreference = usage.ProviderId.StartsWith("antigravity", StringComparison.OrdinalIgnoreCase);
         var (subHeader, subContainer) = CreateCollapsibleSubHeader(
             $"{usage.ProviderName} Details",
             Brushes.DeepSkyBlue,
-            () => _preferences.IsAntigravityCollapsed,
-            v => _preferences.IsAntigravityCollapsed = v);
+            () => useAntigravityCollapsePreference && _preferences.IsAntigravityCollapsed,
+            v =>
+            {
+                if (useAntigravityCollapsePreference)
+                {
+                    _preferences.IsAntigravityCollapsed = v;
+                }
+            });
 
         container.Children.Add(subHeader);
         container.Children.Add(subContainer);
 
-        if (!_preferences.IsAntigravityCollapsed)
+        if (!useAntigravityCollapsePreference || !_preferences.IsAntigravityCollapsed)
         {
             // Add sub-provider details
             foreach (var detail in displayableDetails)
@@ -2032,6 +2040,8 @@ public partial class MainWindow : Window
     {
         var normalizedProviderId = providerId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase)
             ? "antigravity"
+            : providerId.StartsWith("codex.", StringComparison.OrdinalIgnoreCase)
+                ? "codex"
             : providerId;
 
         // Check cache first
@@ -2059,6 +2069,7 @@ public partial class MainWindow : Window
             "zai" => "zai",
             "deepseek" => "deepseek",
             "openrouter" => "openai", // Fallback to openai
+            "codex" => "openai",
             "mistral" => "mistral",
             "openai" => "openai",
             "anthropic" => "anthropic",
@@ -2111,6 +2122,7 @@ public partial class MainWindow : Window
         var (color, initial) = providerId.ToLower() switch
         {
             "openai" => (Brushes.DarkCyan, "AI"),
+            "codex" => (Brushes.DarkCyan, "AI"),
             "anthropic" => (Brushes.IndianRed, "An"),
             "github-copilot" => (Brushes.MediumPurple, "GH"),
             "gemini" or "google" or "antigravity" => (Brushes.DodgerBlue, "G"),
@@ -2123,7 +2135,6 @@ public partial class MainWindow : Window
             "zai" => (Brushes.LightSeaGreen, "Z"),
             "claude-code" or "claude" => (Brushes.Orange, "C"),
             "cloudcode" => (Brushes.DeepSkyBlue, "CC"),
-            "codex" => (Brushes.MediumSeaGreen, "Cd"),
             "synthetic" => (Brushes.Gold, "Sy"),
             _ => (GetResourceBrush("SecondaryText", Brushes.Gray), providerId[..Math.Min(2, providerId.Length)].ToUpper())
         };
@@ -3248,3 +3259,4 @@ public partial class MainWindow : Window
 
 
 }
+

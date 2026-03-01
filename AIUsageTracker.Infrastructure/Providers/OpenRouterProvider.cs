@@ -9,7 +9,16 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class OpenRouterProvider : IProviderService
 {
-    public string ProviderId => "openrouter";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "openrouter",
+        displayName: "OpenRouter",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go",
+        includeInWellKnownProviders: true);
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenRouterProvider> _logger;
 
@@ -278,4 +287,5 @@ public class OpenRouterProvider : IProviderService
         public bool IsFreeTier { get; set; }
     }
 }
+
 

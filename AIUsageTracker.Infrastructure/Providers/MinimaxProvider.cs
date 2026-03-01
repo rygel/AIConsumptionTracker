@@ -10,7 +10,22 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class MinimaxProvider : IProviderService
 {
-    public string ProviderId => "minimax";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "minimax",
+        displayName: "Minimax (China)",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        includeInWellKnownProviders: true,
+        handledProviderIds: new[] { "minimax", "minimax-io", "minimax-global" },
+        displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["minimax-io"] = "Minimax (International)",
+            ["minimax-global"] = "Minimax (International)"
+        });
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<MinimaxProvider> _logger;
 
@@ -144,4 +159,5 @@ public class MinimaxProvider : IProviderService
         public double TokensLimit { get; set; }
     }
 }
+
 

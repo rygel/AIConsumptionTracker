@@ -10,7 +10,16 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class KimiProvider : IProviderService
 {
-    public string ProviderId => "kimi";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "kimi",
+        displayName: "Kimi",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        includeInWellKnownProviders: true);
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<KimiProvider> _logger;
 
@@ -205,4 +214,5 @@ public class KimiProvider : IProviderService
          public string? ResetTime { get; set; }
     }
 }
+
 

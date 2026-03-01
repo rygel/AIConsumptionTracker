@@ -13,6 +13,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$assemblyFileName = [System.IO.Path]::GetFileName($AssemblyPath)
 
 if (-not (Test-Path -LiteralPath $AssemblyPath)) {
     throw "Test assembly not found: $AssemblyPath"
@@ -63,11 +64,12 @@ function Invoke-VsTestRun {
         [int]$AttemptNumber
     )
 
+    Stop-OrphanVsTestProcesses -Reason "pre-attempt cleanup"
+
     $arguments = @(
         "vstest",
         $AssemblyPath,
-        "--Blame-Hang",
-        "--Blame-Hang-Timeout", "${HangTimeoutSeconds}s",
+        "--Blame",
         "--logger", "console;verbosity=normal",
         "--logger", "trx;LogFileName=$TrxFileName",
         "--ResultsDirectory:$resolvedResultsDirectory"
@@ -99,34 +101,70 @@ function Invoke-VsTestRun {
     if (-not $completed) {
         Write-Host "Attempt $AttemptNumber exceeded ${AttemptTimeoutMinutes}m timeout. Killing dotnet vstest process..." -ForegroundColor Red
         Stop-TestProcessTree -RootProcessId $process.Id
+        Stop-OrphanVsTestProcesses -Reason "attempt timeout cleanup"
 
         if (Test-Path -LiteralPath $stdoutLog) {
             Write-Host "--- Last 200 lines stdout ($stdoutLog) ---"
-            Get-Content -LiteralPath $stdoutLog -Tail 200
+            Get-Content -LiteralPath $stdoutLog -Tail 200 | ForEach-Object { Write-Host $_ }
         }
         if (Test-Path -LiteralPath $stderrLog) {
             Write-Host "--- Last 200 lines stderr ($stderrLog) ---"
-            Get-Content -LiteralPath $stderrLog -Tail 200
+            Get-Content -LiteralPath $stderrLog -Tail 200 | ForEach-Object { Write-Host $_ }
         }
 
-        return 124
+        return [int]124
     }
 
     $process.WaitForExit()
     $exitCode = [int]$process.ExitCode
     Write-Host "dotnet vstest attempt $AttemptNumber exited with code $exitCode."
+    Stop-OrphanVsTestProcesses -Reason "post-attempt cleanup"
     if ($exitCode -ne 0) {
         if (Test-Path -LiteralPath $stdoutLog) {
             Write-Host "--- Last 200 lines stdout ($stdoutLog) ---"
-            Get-Content -LiteralPath $stdoutLog -Tail 200
+            Get-Content -LiteralPath $stdoutLog -Tail 200 | ForEach-Object { Write-Host $_ }
         }
         if (Test-Path -LiteralPath $stderrLog) {
             Write-Host "--- Last 200 lines stderr ($stderrLog) ---"
-            Get-Content -LiteralPath $stderrLog -Tail 200
+            Get-Content -LiteralPath $stderrLog -Tail 200 | ForEach-Object { Write-Host $_ }
         }
     }
 
-    return $exitCode
+    return [int]$exitCode
+}
+
+function Stop-OrphanVsTestProcesses {
+    param(
+        [string]$Reason
+    )
+
+    $candidates = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.ProcessId -ne $PID -and
+            (
+                $_.Name -like "testhost*.exe" -or
+                $_.Name -eq "vstest.console.exe" -or
+                (
+                    $_.Name -eq "dotnet.exe" -and
+                    -not [string]::IsNullOrWhiteSpace($_.CommandLine) -and
+                    (
+                        $_.CommandLine.IndexOf("vstest", [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                        $_.CommandLine.IndexOf("testhost", [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                        $_.CommandLine.IndexOf($assemblyFileName, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+                    )
+                )
+            )
+        }
+
+    foreach ($process in $candidates) {
+        try {
+            & cmd /c "taskkill /PID $($process.ProcessId) /T /F" | Out-Null
+            Write-Host "Killed orphan test process PID=$($process.ProcessId) ($Reason)." -ForegroundColor Yellow
+        }
+        catch {
+            Write-Host "Failed to kill orphan PID=$($process.ProcessId): $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
 }
 
 function Stop-TestProcessTree {

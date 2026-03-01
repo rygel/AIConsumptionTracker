@@ -9,7 +9,20 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class ZaiProvider : IProviderService
 {
-    public string ProviderId => "zai-coding-plan";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "zai-coding-plan",
+        displayName: "Z.ai Coding Plan",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        handledProviderIds: new[] { "zai-coding-plan", "zai" },
+        displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["zai"] = "Z.AI"
+        });
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<ZaiProvider> _logger;
 
@@ -294,4 +307,5 @@ public class ZaiProvider : IProviderService
         public long? NextResetTime { get; set; }
     }
 }
+
 

@@ -10,7 +10,16 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class DeepSeekProvider : IProviderService
 {
-    public string ProviderId => "deepseek";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "deepseek",
+        displayName: "DeepSeek",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go",
+        includeInWellKnownProviders: true);
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<DeepSeekProvider> _logger;
 
@@ -155,4 +164,5 @@ public class DeepSeekProvider : IProviderService
         public double ToppedUpBalance { get; set; }
     }
 }
+
 

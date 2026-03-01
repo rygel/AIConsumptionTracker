@@ -11,7 +11,16 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class ClaudeCodeProvider : IProviderService
 {
-    public string ProviderId => "claude-code";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "claude-code",
+        displayName: "Claude Code",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go",
+        autoIncludeWhenUnconfigured: true);
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly ILogger<ClaudeCodeProvider> _logger;
     private readonly HttpClient _httpClient;
 
@@ -320,4 +329,5 @@ public class ClaudeCodeProvider : IProviderService
         }
     }
 }
+
 

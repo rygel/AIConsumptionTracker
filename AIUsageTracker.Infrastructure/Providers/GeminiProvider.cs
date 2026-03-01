@@ -9,7 +9,18 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class GeminiProvider : IProviderService
 {
-    public string ProviderId => "gemini-cli";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "gemini-cli",
+        displayName: "Google Gemini",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        autoIncludeWhenUnconfigured: true,
+        includeInWellKnownProviders: true,
+        handledProviderIds: new[] { "gemini-cli", "gemini" });
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<GeminiProvider> _logger;
 
@@ -263,4 +274,5 @@ public class GeminiProvider : IProviderService
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 }
+
 

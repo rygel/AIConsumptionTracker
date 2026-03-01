@@ -7,7 +7,7 @@ namespace AIUsageTracker.Core.Services;
 
 public class ProviderManager : IDisposable
 {
-    private readonly IEnumerable<IProviderService> _providers;
+    private readonly IReadOnlyList<IProviderService> _providers;
     private readonly IConfigLoader _configLoader;
     private readonly Microsoft.Extensions.Logging.ILogger<ProviderManager> _logger;
     private List<ProviderUsage> _lastUsages = new();
@@ -20,7 +20,7 @@ public class ProviderManager : IDisposable
 
     public ProviderManager(IEnumerable<IProviderService> providers, IConfigLoader configLoader, Microsoft.Extensions.Logging.ILogger<ProviderManager> logger)
     {
-        _providers = providers;
+        _providers = providers.ToList();
         _configLoader = configLoader;
         _logger = logger;
     }
@@ -113,35 +113,23 @@ public class ProviderManager : IDisposable
 
         if (overrideConfigs == null)
         {
-            // Auto-add system providers that don't need auth.json
-            // Check if they are already in config to avoid duplicates (though unlikely for these IDs)
-            if (!configs.Any(c => c.ProviderId == "antigravity"))
+            // Auto-add providers that explicitly declare they should always be present.
+            foreach (var definition in _providers
+                         .Select(p => p.Definition)
+                         .Where(d => d.AutoIncludeWhenUnconfigured))
             {
+                if (configs.Any(c => c.ProviderId.Equals(definition.ProviderId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
                 configs.Add(new ProviderConfig
                 {
-                    ProviderId = "antigravity",
-                    ApiKey = "",
-                    Type = "quota-based",
-                    PlanType = PlanType.Coding
+                    ProviderId = definition.ProviderId,
+                    ApiKey = string.Empty,
+                    Type = definition.DefaultConfigType,
+                    PlanType = definition.PlanType
                 });
-            }
-            if (!configs.Any(c => c.ProviderId == "gemini-cli"))
-            {
-                configs.Add(new ProviderConfig
-                {
-                    ProviderId = "gemini-cli",
-                    ApiKey = "",
-                    Type = "quota-based",
-                    PlanType = PlanType.Coding
-                });
-            }
-            if (!configs.Any(c => c.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) || c.ProviderId.Equals("opencode-zen", StringComparison.OrdinalIgnoreCase)))
-            {
-                configs.Add(new ProviderConfig { ProviderId = "opencode-zen", ApiKey = "" });
-            }
-            if (!configs.Any(c => c.ProviderId == "claude-code"))
-            {
-                configs.Add(new ProviderConfig { ProviderId = "claude-code", ApiKey = "" });
             }
         }
         if (includeProviderIds != null && includeProviderIds.Count > 0)
@@ -172,15 +160,22 @@ public class ProviderManager : IDisposable
         
         if (config == null)
         {
-            // Try to create a temporary config if it's a known system provider
-             if (providerId == "antigravity" || providerId == "gemini-cli" || providerId == "opencode-zen" || providerId == "claude-code")
-             {
-                 config = new ProviderConfig { ProviderId = providerId, ApiKey = "" };
-             }
-             else
-             {
-                 throw new ArgumentException($"Provider '{providerId}' not found in configuration.");
-             }
+            var definition = _providers
+                .Select(p => p.Definition)
+                .FirstOrDefault(d => d.HandlesProviderId(providerId) &&
+                                     d.AutoIncludeWhenUnconfigured);
+            if (definition == null)
+            {
+                throw new ArgumentException($"Provider '{providerId}' not found in configuration.");
+            }
+
+            config = new ProviderConfig
+            {
+                ProviderId = providerId,
+                ApiKey = string.Empty,
+                Type = definition.DefaultConfigType,
+                PlanType = definition.PlanType
+            };
         }
 
         return await FetchSingleProviderUsageAsync(config, null);
@@ -188,18 +183,8 @@ public class ProviderManager : IDisposable
 
     private async Task<List<ProviderUsage>> FetchSingleProviderUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback)
     {
-        var provider = _providers.FirstOrDefault(p => 
-            p.ProviderId.Equals(config.ProviderId, StringComparison.OrdinalIgnoreCase) ||
-            (p.ProviderId == "synthetic" && config.ProviderId.Contains("synthetic", StringComparison.OrdinalIgnoreCase)) ||
-            (p.ProviderId == "minimax" && config.ProviderId.Contains("minimax", StringComparison.OrdinalIgnoreCase)) ||
-            (p.ProviderId == "xiaomi" && config.ProviderId.Contains("xiaomi", StringComparison.OrdinalIgnoreCase)) ||
-            (p.ProviderId == "opencode" && config.ProviderId.Contains("opencode", StringComparison.OrdinalIgnoreCase))
-        );
-        
-        if (provider == null && (config.Type == "pay-as-you-go" || config.Type == "api"))
-        {
-            provider = _providers.FirstOrDefault(p => p.ProviderId == "generic-pay-as-you-go");
-        }
+        var provider = _providers.FirstOrDefault(p => p.Definition.HandlesProviderId(config.ProviderId));
+        var defaults = ResolveDefaults(config.ProviderId, provider);
 
         if (provider != null)
         {
@@ -224,16 +209,15 @@ public class ProviderManager : IDisposable
                         static task => { _ = task.Exception; },
                         TaskContinuationOptions.OnlyOnFaulted);
 
-                    var (isQuotaTimeout, planTypeTimeout) = GetProviderPaymentType(config.ProviderId);
                     var timeoutUsage = new ProviderUsage
                     {
                         ProviderId = config.ProviderId,
-                        ProviderName = ProviderDisplayNameResolver.GetDisplayName(config.ProviderId),
+                        ProviderName = defaults.DisplayName,
                         Description = $"[Error] Timeout after {ProviderRequestTimeout.TotalSeconds:F0}s",
                         RequestsPercentage = 0,
                         IsAvailable = false,
-                        IsQuotaBased = isQuotaTimeout,
-                        PlanType = planTypeTimeout,
+                        IsQuotaBased = defaults.IsQuotaBased,
+                        PlanType = defaults.PlanType,
                         HttpStatus = 504,
                         ResponseLatencyMs = stopwatch.Elapsed.TotalMilliseconds
                     };
@@ -246,7 +230,7 @@ public class ProviderManager : IDisposable
                 stopwatch.Stop();
                 foreach(var u in usages) 
                 {
-                    u.ProviderName = ProviderDisplayNameResolver.GetDisplayName(u.ProviderId, u.ProviderName);
+                    u.ProviderName = ResolveDisplayName(provider.Definition, u.ProviderId, u.ProviderName);
                     u.AuthSource = config.AuthSource;
                     u.ResponseLatencyMs = stopwatch.Elapsed.TotalMilliseconds;
                     progressCallback?.Invoke(u);
@@ -258,16 +242,15 @@ public class ProviderManager : IDisposable
             catch (ArgumentException ex)
             {
                 _logger.LogWarning($"Skipping {config.ProviderId}: {ex.Message}");
-                var (isQuota, planType) = GetProviderPaymentType(config.ProviderId);
                 var errorUsage = new ProviderUsage
                 {
                     ProviderId = config.ProviderId,
-                    ProviderName = ProviderDisplayNameResolver.GetDisplayName(config.ProviderId),
+                    ProviderName = defaults.DisplayName,
                     Description = ex.Message,
                     RequestsPercentage = 0,
                     IsAvailable = false,
-                    IsQuotaBased = isQuota,
-                    PlanType = planType,
+                    IsQuotaBased = defaults.IsQuotaBased,
+                    PlanType = defaults.PlanType,
                     ResponseLatencyMs = stopwatch.Elapsed.TotalMilliseconds
                 };
                 progressCallback?.Invoke(errorUsage);
@@ -276,16 +259,15 @@ public class ProviderManager : IDisposable
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed to fetch usage for {config.ProviderId}");
-                var (isQuota, planType) = GetProviderPaymentType(config.ProviderId);
                 var errorUsage = new ProviderUsage
                 {
                     ProviderId = config.ProviderId,
-                    ProviderName = ProviderDisplayNameResolver.GetDisplayName(config.ProviderId),
+                    ProviderName = defaults.DisplayName,
                     Description = $"[Error] {ex.Message}",
                     RequestsPercentage = 0,
                     IsAvailable = true, // Still available, just failed to fetch
-                    IsQuotaBased = isQuota,
-                    PlanType = planType,
+                    IsQuotaBased = defaults.IsQuotaBased,
+                    PlanType = defaults.PlanType,
                     HttpStatus = 500, // Mark as error
                     ResponseLatencyMs = stopwatch.Elapsed.TotalMilliseconds
                 };
@@ -299,37 +281,65 @@ public class ProviderManager : IDisposable
                 _httpSemaphore.Release();
             }
         }
-        
-        // Generic fallback for any provider found in config
-        var (isQuotaFallback, planTypeFallback) = GetProviderPaymentType(config.ProviderId);
-        var genericUsage = new ProviderUsage 
+
+        var unknownProviderUsage = new ProviderUsage 
         { 
             ProviderId = config.ProviderId, 
-            ProviderName = ProviderDisplayNameResolver.GetDisplayName(config.ProviderId),
+            ProviderName = defaults.DisplayName,
             Description = "Usage unknown (provider integration missing)",
             RequestsPercentage = 0,
             IsAvailable = false,
             UsageUnit = "Status",
-            IsQuotaBased = isQuotaFallback,
-            PlanType = planTypeFallback,
+            IsQuotaBased = defaults.IsQuotaBased,
+            PlanType = defaults.PlanType,
             ResponseLatencyMs = 0
         };
-        progressCallback?.Invoke(genericUsage);
-        return new List<ProviderUsage> { genericUsage };
+        progressCallback?.Invoke(unknownProviderUsage);
+        return new List<ProviderUsage> { unknownProviderUsage };
     }
 
 
-    private static (bool IsQuota, PlanType PlanType) GetProviderPaymentType(string providerId)
+    private static string ResolveDisplayName(ProviderDefinition definition, string providerId, string? providerName)
     {
-        // Known quota-based providers that might fall through to generic fallback
-        var quotaProviders = new[] { "zai-coding-plan", "antigravity", "github-copilot", "gemini-cli", "synthetic", "openai", "codex" };
-        
-        if (quotaProviders.Any(id => providerId.Equals(id, StringComparison.OrdinalIgnoreCase)))
+        var mapped = definition.ResolveDisplayName(providerId);
+        if (!string.IsNullOrWhiteSpace(mapped))
         {
-            return (true, PlanType.Coding);
+            return mapped;
+        }
+
+        if (!string.IsNullOrWhiteSpace(providerName))
+        {
+            return providerName;
+        }
+
+        return providerId;
+    }
+
+    private (bool IsQuotaBased, PlanType PlanType, string DisplayName) ResolveDefaults(
+        string providerId,
+        IProviderService? provider = null)
+    {
+        var definition = provider?.Definition ??
+            _providers
+                .Select(p => p.Definition)
+                .FirstOrDefault(d => d.HandlesProviderId(providerId));
+
+        if (definition != null)
+        {
+            return (
+                definition.IsQuotaBased,
+                definition.PlanType,
+                definition.ResolveDisplayName(providerId) ?? definition.DisplayName);
         }
         
-        return (false, PlanType.Usage);
+        _logger.LogWarning(
+            "Provider metadata missing for {ProviderId}. Identification defaults are disabled.",
+            providerId);
+        
+        return (
+            false,
+            PlanType.Usage,
+            string.IsNullOrWhiteSpace(providerId) ? string.Empty : providerId);
     }
 
     private static ProviderConfig CloneConfig(ProviderConfig source)

@@ -2,7 +2,8 @@ param(
     [ValidateSet("core", "monitor", "web")]
     [string[]]$Suites = @("core", "monitor", "web"),
     [string]$Configuration = "Debug",
-    [int]$MaxParallel = 2,
+    [int]$MaxParallel = 1,
+    [int]$TotalTimeoutMinutes = 10,
     [string]$ResultsRoot = "TestResults/local-safe",
     [switch]$SkipBuild,
     [switch]$DryRun
@@ -12,6 +13,10 @@ $ErrorActionPreference = "Stop"
 
 if ($MaxParallel -lt 1) {
     throw "MaxParallel must be >= 1."
+}
+
+if ($TotalTimeoutMinutes -lt 1) {
+    throw "TotalTimeoutMinutes must be >= 1."
 }
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -61,6 +66,7 @@ foreach ($suiteKey in $Suites) {
 
 $env:MSBUILDDISABLENODEREUSE = "1"
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = "1"
+$env:DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER = "1"
 
 function Resolve-AssemblyPath {
     param(
@@ -107,6 +113,42 @@ function Stop-ProcessTreeSafe {
     }
 }
 
+function Stop-OrphanTestProcesses {
+    param(
+        [string]$Reason
+    )
+
+    $processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.ProcessId -ne $PID -and
+            (
+                $_.Name -like "testhost*.exe" -or
+                $_.Name -eq "vstest.console.exe" -or
+                (
+                    $_.Name -eq "dotnet.exe" -and
+                    -not [string]::IsNullOrWhiteSpace($_.CommandLine) -and
+                    (
+                        $_.CommandLine.IndexOf("vstest", [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                        $_.CommandLine.IndexOf("testhost", [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                        $_.CommandLine.IndexOf("AIUsageTracker.Tests", [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                        $_.CommandLine.IndexOf("AIUsageTracker.Monitor.Tests", [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                        $_.CommandLine.IndexOf("AIUsageTracker.Web.Tests", [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+                    )
+                )
+            )
+        }
+
+    foreach ($proc in $processes) {
+        try {
+            & cmd /c "taskkill /PID $($proc.ProcessId) /T /F" | Out-Null
+            Write-Host "Killed orphan test process PID=$($proc.ProcessId) ($Reason)." -ForegroundColor Yellow
+        }
+        catch {
+            Write-Host "Failed to kill orphan process PID=$($proc.ProcessId): $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+}
+
 function Write-LogTail {
     param(
         [string]$Path,
@@ -121,11 +163,13 @@ function Write-LogTail {
 
 Push-Location $projectRoot
 try {
+    Stop-OrphanTestProcesses -Reason "pre-run cleanup"
+
     if (-not $SkipBuild) {
         foreach ($suite in $selectedSuites) {
             Write-Host "Building $($suite.Key) suite project ($($suite.ProjectPath))..." -ForegroundColor Cyan
             if (-not $DryRun) {
-                dotnet build $suite.ProjectPath --configuration $Configuration -m:1 -p:BuildInParallel=false
+                dotnet build $suite.ProjectPath --configuration $Configuration --disable-build-servers -m:1 -p:BuildInParallel=false
             }
         }
     }
@@ -169,8 +213,18 @@ try {
 
     $running = @()
     $completed = @()
+    $runStartTime = Get-Date
 
     while ($queue.Count -gt 0 -or $running.Count -gt 0) {
+        if (((Get-Date) - $runStartTime).TotalMinutes -ge $TotalTimeoutMinutes) {
+            foreach ($entry in $running) {
+                Stop-ProcessTreeSafe -ProcessId $entry.Process.Id -Reason "global timeout ($($entry.Suite.Key))"
+            }
+
+            Stop-OrphanTestProcesses -Reason "global timeout cleanup"
+            throw "Local test run exceeded total timeout of $TotalTimeoutMinutes minute(s)."
+        }
+
         while ($queue.Count -gt 0 -and $running.Count -lt $MaxParallel) {
             $suite = $queue.Dequeue()
             New-Item -ItemType Directory -Path $suite.ResultsDir -Force | Out-Null
@@ -263,5 +317,6 @@ try {
     exit 0
 }
 finally {
+    Stop-OrphanTestProcesses -Reason "post-run cleanup"
     Pop-Location
 }

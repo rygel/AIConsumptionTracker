@@ -9,7 +9,15 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class MistralProvider : IProviderService
 {
-    public string ProviderId => "mistral";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "mistral",
+        displayName: "Mistral",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go");
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<MistralProvider> _logger;
 
@@ -79,4 +87,5 @@ public class MistralProvider : IProviderService
         }
     }
 }
+
 

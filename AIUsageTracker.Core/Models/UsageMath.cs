@@ -44,7 +44,7 @@ public static class UsageMath
         ArgumentNullException.ThrowIfNull(usage);
 
         var percentage = ClampPercent(usage.RequestsPercentage);
-        var isQuota = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
+        var isQuota = usage.IsQuotaBased;
         return isQuota ? ClampPercent(100 - percentage) : percentage;
     }
 

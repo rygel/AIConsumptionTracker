@@ -17,7 +17,18 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
     public class AntigravityProvider : IProviderService
 {
-    public string ProviderId => "antigravity";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "antigravity",
+        displayName: "Google Antigravity",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        autoIncludeWhenUnconfigured: true,
+        includeInWellKnownProviders: true,
+        supportsChildProviderIds: true);
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<AntigravityProvider> _logger;
     private ProviderUsage? _cachedUsage;
@@ -1109,4 +1120,5 @@ namespace AIUsageTracker.Infrastructure.Providers;
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 }
+
 

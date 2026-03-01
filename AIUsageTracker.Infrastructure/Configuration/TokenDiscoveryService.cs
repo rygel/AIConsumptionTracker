@@ -1,4 +1,5 @@
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Providers;
 using System.Collections;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -131,19 +132,8 @@ public class TokenDiscoveryService
                     continue;
                 }
 
-                AddOrUpdate(configs, "openai", token, "Discovered in OpenCode auth", $"Config: {path}");
-
-                // OpenCode session tokens represent coding-plan quota tracking.
-                if (!token.StartsWith("sk-", StringComparison.OrdinalIgnoreCase))
-                {
-                    var openAiConfig = configs.FirstOrDefault(c =>
-                        c.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase));
-                    if (openAiConfig != null)
-                    {
-                        openAiConfig.PlanType = PlanType.Coding;
-                        openAiConfig.Type = "quota-based";
-                    }
-                }
+                // Session-based OpenAI access should be represented by Codex provider.
+                AddOrUpdate(configs, "codex", token, "Discovered in OpenCode auth", $"Config: {path}");
                 return;
             }
         }
@@ -184,12 +174,12 @@ public class TokenDiscoveryService
 
     private void AddWellKnownProviders(List<ProviderConfig> configs)
     {
-        var wellKnown = new[] { 
-            "openai", "codex", "gemini-cli", "github-copilot",
-            "minimax", "minimax-io", "xiaomi", "kimi", 
-            "deepseek", "openrouter", "antigravity", "opencode"
-        };
-        foreach (var id in wellKnown)
+        var wellKnownIds = ProviderMetadataCatalog.Definitions
+            .Where(definition => definition.IncludeInWellKnownProviders)
+            .SelectMany(definition => definition.HandledProviderIds)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var id in wellKnownIds)
         {
             AddIfNotExists(configs, id, "", "Well-known provider", "System Default");
         }
@@ -304,7 +294,13 @@ public class TokenDiscoveryService
 
     private void AddOrUpdate(List<ProviderConfig> configs, string providerId, string key, string description, string source)
     {
-        var (planType, type) = GetProviderDefaults(providerId);
+        if (!TryGetProviderDefaults(providerId, out var providerDefaults))
+        {
+            _logger.LogWarning("Skipping token discovery for unsupported provider id '{ProviderId}'.", providerId);
+            return;
+        }
+
+        var (planType, type) = providerDefaults;
         var existing = configs.FirstOrDefault(c => c.ProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase));
         if (existing != null)
         {
@@ -499,9 +495,15 @@ public class TokenDiscoveryService
 
     private void AddIfNotExists(List<ProviderConfig> configs, string providerId, string key, string description, string source)
     {
+        if (!TryGetProviderDefaults(providerId, out var providerDefaults))
+        {
+            _logger.LogDebug("Ignoring unsupported provider id '{ProviderId}' from discovery source '{Source}'.", providerId, source);
+            return;
+        }
+
         if (!configs.Any(c => c.ProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase)))
         {
-            var (planType, type) = GetProviderDefaults(providerId);
+            var (planType, type) = providerDefaults;
             configs.Add(new ProviderConfig
             {
                 ProviderId = providerId,
@@ -514,14 +516,16 @@ public class TokenDiscoveryService
         }
     }
 
-    private static (PlanType PlanType, string Type) GetProviderDefaults(string providerId)
+    private static bool TryGetProviderDefaults(string providerId, out (PlanType PlanType, string Type) defaults)
     {
-        if (ProviderPlanClassifier.IsCodingPlanProvider(providerId))
+        if (ProviderMetadataCatalog.TryGet(providerId, out var definition))
         {
-            return (PlanType.Coding, "quota-based");
+            defaults = (definition.PlanType, definition.DefaultConfigType);
+            return true;
         }
 
-        return (PlanType.Usage, "pay-as-you-go");
+        defaults = default;
+        return false;
     }
 }
 

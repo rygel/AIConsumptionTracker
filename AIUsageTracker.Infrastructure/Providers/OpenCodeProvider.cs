@@ -9,7 +9,16 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class OpenCodeProvider : IProviderService
 {
-    public string ProviderId => "opencode";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "opencode",
+        displayName: "OpenCode",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go",
+        includeInWellKnownProviders: true);
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenCodeProvider> _logger;
 
@@ -169,4 +178,5 @@ private ProviderUsage ParseJsonResponse(string json)
     }
 
 }
+
 

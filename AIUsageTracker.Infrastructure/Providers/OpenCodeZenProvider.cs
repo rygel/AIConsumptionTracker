@@ -8,7 +8,16 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class OpenCodeZenProvider : IProviderService
 {
-    public string ProviderId => "opencode-zen";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "opencode-zen",
+        displayName: "OpenCode Zen",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go",
+        autoIncludeWhenUnconfigured: true);
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly ILogger<OpenCodeZenProvider> _logger;
     private string _cliPath;
 
@@ -226,4 +235,5 @@ public class OpenCodeZenProvider : IProviderService
         return false;
     }
 }
+
 

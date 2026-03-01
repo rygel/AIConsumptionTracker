@@ -237,19 +237,31 @@ app.MapGet("/api/diagnostics", (EndpointDataSource endpointDataSource, ProviderR
 });
 
 // Provider usage endpoints
-app.MapGet("/api/usage", async (UsageDatabase db, ILogger<Program> logger) =>
+app.MapGet("/api/usage", async (UsageDatabase db, IConfigService configService, ILogger<Program> logger) =>
 {
     var usage = await db.GetLatestHistoryAsync();
-    
+
+    var configs = await configService.GetConfigsAsync();
+    var hasCodexSession = configs.Any(c =>
+        c.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase) &&
+        !string.IsNullOrWhiteSpace(c.ApiKey));
+    var hasExplicitOpenAiApiKey = configs.Any(c =>
+        c.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase) &&
+        !string.IsNullOrWhiteSpace(c.ApiKey) &&
+        c.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase));
+
+    if (hasCodexSession && !hasExplicitOpenAiApiKey)
+    {
+        usage = usage
+            .Where(u => !u.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
     logger.LogDebug("GET /api/usage returning {Count} providers: {Providers}", 
         usage.Count, string.Join(", ", usage.Select(u => u.ProviderId)));
     
     return Results.Ok(usage);
 });
-// IMPORTANT: Do NOT filter providers here. Per the Key-Driven Activation design principle,
-// filtering (only query providers with API keys) happens at REFRESH TIME in ProviderRefreshService.
-// This endpoint simply returns all providers from the database that were successfully queried.
-// Adding filters here will break provider visibility without affecting what gets queried.
 
 app.MapGet("/api/usage/{providerId}", async (string providerId, UsageDatabase db, ILogger<Program> logger) =>
 {

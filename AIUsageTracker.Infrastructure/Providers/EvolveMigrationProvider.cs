@@ -11,7 +11,15 @@ namespace AIUsageTracker.Infrastructure.Providers;
 /// </summary>
 public class EvolveMigrationProvider : IProviderService
 {
-    public string ProviderId => "evolve-migrations";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "evolve-migrations",
+        displayName: "Evolve Migrations",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go");
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly ILogger<EvolveMigrationProvider> _logger;
 
     public EvolveMigrationProvider(ILogger<EvolveMigrationProvider> logger)
@@ -179,4 +187,5 @@ public class EvolveMigrationProvider : IProviderService
         public TimeSpan Duration { get; set; }
     }
 }
+
 

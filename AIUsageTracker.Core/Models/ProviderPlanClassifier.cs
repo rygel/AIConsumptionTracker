@@ -21,12 +21,19 @@ public static class ProviderPlanClassifier
             return false;
         }
 
-        if (providerId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase))
+        if (CodingPlanProviders.Contains(providerId))
         {
             return true;
         }
 
-        return CodingPlanProviders.Contains(providerId);
+        var separatorIndex = providerId.IndexOf('.');
+        if (separatorIndex <= 0)
+        {
+            return false;
+        }
+
+        var rootProviderId = providerId[..separatorIndex];
+        return CodingPlanProviders.Contains(rootProviderId);
     }
 }
 

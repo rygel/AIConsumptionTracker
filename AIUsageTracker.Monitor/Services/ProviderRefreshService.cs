@@ -243,6 +243,17 @@ public class ProviderRefreshService : BackgroundService
                 c.ProviderId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) ||
                 !string.IsNullOrEmpty(c.ApiKey)).ToList();
 
+            if (ShouldSuppressOpenAiSession(activeConfigs))
+            {
+                var beforeCount = activeConfigs.Count;
+                activeConfigs = activeConfigs
+                    .Where(c => !IsOpenAiSessionConfig(c))
+                    .ToList();
+                _logger.LogInformation(
+                    "Suppressed duplicate OpenAI session provider while Codex is active (removed {Count}).",
+                    beforeCount - activeConfigs.Count);
+            }
+
             if (includeProviderIds != null && includeProviderIds.Count > 0)
             {
                 var includeSet = includeProviderIds
@@ -338,7 +349,7 @@ public class ProviderRefreshService : BackgroundService
                         var dynamicConfig = new ProviderConfig
                         {
                             ProviderId = usage.ProviderId,
-                            Type = usage.PlanType == Core.Models.PlanType.Coding ? "coding" : "usage",
+                            Type = usage.IsQuotaBased ? "quota-based" : "pay-as-you-go",
                             AuthSource = usage.AuthSource,
                             ApiKey = "dynamic" // Placeholder to mark as active
                         };
@@ -549,6 +560,21 @@ public class ProviderRefreshService : BackgroundService
         }
 
         return usageProviderId.StartsWith($"{providerId}.", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldSuppressOpenAiSession(IReadOnlyCollection<ProviderConfig> activeConfigs)
+    {
+        var hasCodex = activeConfigs.Any(c =>
+            c.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(c.ApiKey));
+        return hasCodex && activeConfigs.Any(IsOpenAiSessionConfig);
+    }
+
+    private static bool IsOpenAiSessionConfig(ProviderConfig config)
+    {
+        return config.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase) &&
+               !string.IsNullOrWhiteSpace(config.ApiKey) &&
+               !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsUsageForAnyActiveProvider(HashSet<string> activeProviderIds, string usageProviderId)

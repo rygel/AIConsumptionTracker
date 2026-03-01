@@ -5,8 +5,9 @@ namespace AIUsageTracker.Tests.Models;
 public class ProviderDisplayNameResolverTests
 {
     [Theory]
-    [InlineData("openai", "OpenAI", "OpenAI (Codex)")]
-    [InlineData("codex", "Codex", "Codex (OpenAI)")]
+    [InlineData("openai", "OpenAI", "OpenAI")]
+    [InlineData("codex", "Codex", "OpenAI (Codex)")]
+    [InlineData("codex.spark", "Codex Spark", "OpenAI (GPT-5.3-Codex-Spark)")]
     [InlineData("github-copilot", "GitHub", "GitHub Copilot")]
     public void GetDisplayName_KnownProvider_UsesCentralMapping(string providerId, string providerName, string expected)
     {

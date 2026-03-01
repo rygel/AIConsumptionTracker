@@ -933,7 +933,7 @@ public partial class App : Application
                 usage.IsAvailable &&
                 !usageDescription.Contains("unknown", StringComparison.OrdinalIgnoreCase))
             {
-                var isQuota = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
+                var isQuota = usage.IsQuotaBased;
                 desiredIcons[config.ProviderId] = ($"{usageProviderName}: {usageDescription}", usage.RequestsPercentage, isQuota);
             }
 
@@ -963,7 +963,7 @@ public partial class App : Application
                 }
 
                 var key = $"{config.ProviderId}:{subName}";
-                var isQuotaSub = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
+                var isQuotaSub = usage.IsQuotaBased;
                 desiredIcons[key] = (
                     $"{usageProviderName} - {subName}: {detail.Description} ({detail.Used})",
                     detailPercent.Value,

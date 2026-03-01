@@ -13,8 +13,15 @@ public sealed class SyntheticProvider : IProviderService
 
     private readonly HttpClient _httpClient;
     private readonly ILogger<SyntheticProvider> _logger;
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "synthetic",
+        displayName: "Synthetic",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based");
 
-    public string ProviderId => "synthetic";
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
 
     public SyntheticProvider(HttpClient httpClient, ILogger<SyntheticProvider> logger)
     {
@@ -340,3 +347,4 @@ public sealed class SyntheticProvider : IProviderService
         };
     }
 }
+

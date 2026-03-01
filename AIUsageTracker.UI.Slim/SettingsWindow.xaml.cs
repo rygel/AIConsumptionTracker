@@ -11,6 +11,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
+using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 
@@ -30,6 +31,7 @@ public partial class SettingsWindow : Window
     private List<ProviderUsage> _usages = new();
     private string? _gitHubAuthUsername;
     private string? _openAiAuthUsername;
+    private string? _codexAuthUsername;
     private AppPreferences _preferences = new();
     private AppPreferences _agentPreferences = new();
     private bool _isPrivacyMode = App.IsPrivacyMode;
@@ -101,6 +103,7 @@ public partial class SettingsWindow : Window
             
             _gitHubAuthUsername = await TryGetGitHubUsernameFromAuthAsync();
             _openAiAuthUsername = await TryGetOpenAiUsernameFromAuthAsync();
+            _codexAuthUsername = await TryGetCodexUsernameFromAuthAsync();
             _preferences = await UiPreferencesStore.LoadAsync();
             _agentPreferences = await _monitorService.GetPreferencesAsync();
             App.Preferences = _preferences;
@@ -242,6 +245,81 @@ public partial class SettingsWindow : Window
         catch
         {
             // OpenAI/OpenCode auth may be unavailable.
+        }
+
+        return null;
+    }
+
+    private static async Task<string?> TryGetCodexUsernameFromAuthAsync()
+    {
+        try
+        {
+            var candidates = new[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "auth.json"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "codex", "auth.json"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "opencode", "auth.json"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "auth.json"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode", "auth.json"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".opencode", "auth.json")
+            };
+
+            foreach (var path in candidates)
+            {
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
+                var json = await File.ReadAllTextAsync(path);
+                using var doc = JsonDocument.Parse(json);
+
+                var directIdentity = FindIdentityInJson(doc.RootElement);
+                if (!string.IsNullOrWhiteSpace(directIdentity))
+                {
+                    return directIdentity;
+                }
+
+                if (doc.RootElement.TryGetProperty("tokens", out var tokens) &&
+                    tokens.ValueKind == JsonValueKind.Object)
+                {
+                    if (tokens.TryGetProperty("id_token", out var idToken) &&
+                        idToken.ValueKind == JsonValueKind.String)
+                    {
+                        var fromIdToken = TryGetUsernameFromJwt(idToken.GetString());
+                        if (!string.IsNullOrWhiteSpace(fromIdToken))
+                        {
+                            return fromIdToken;
+                        }
+                    }
+
+                    if (tokens.TryGetProperty("access_token", out var accessToken) &&
+                        accessToken.ValueKind == JsonValueKind.String)
+                    {
+                        var fromToken = TryGetUsernameFromJwt(accessToken.GetString());
+                        if (!string.IsNullOrWhiteSpace(fromToken))
+                        {
+                            return fromToken;
+                        }
+                    }
+                }
+
+                if (doc.RootElement.TryGetProperty("openai", out var openai) &&
+                    openai.ValueKind == JsonValueKind.Object &&
+                    openai.TryGetProperty("access", out var openAiAccessToken) &&
+                    openAiAccessToken.ValueKind == JsonValueKind.String)
+                {
+                    var fromOpenAiToken = TryGetUsernameFromJwt(openAiAccessToken.GetString());
+                    if (!string.IsNullOrWhiteSpace(fromOpenAiToken))
+                    {
+                        return fromOpenAiToken;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Codex auth may be unavailable.
         }
 
         return null;
@@ -509,7 +587,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "antigravity",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("antigravity"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("antigravity"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -577,7 +655,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "anthropic",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("anthropic"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("anthropic"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -589,7 +667,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "claude-code",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("claude-code"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("claude-code"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -601,7 +679,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "deepseek",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("deepseek"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("deepseek"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -613,7 +691,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "gemini-cli",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("gemini-cli"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("gemini-cli"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -624,7 +702,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "github-copilot",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("github-copilot"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("github-copilot"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -635,7 +713,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "kimi",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("kimi"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("kimi"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -646,7 +724,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "minimax",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("minimax"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("minimax"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -657,7 +735,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "minimax-io",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("minimax-io"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("minimax-io"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -669,7 +747,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "mistral",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("mistral"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("mistral"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -681,7 +759,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "openai",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("openai"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("openai"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -692,7 +770,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "opencode",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("opencode"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("opencode"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -704,7 +782,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "opencode-zen",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("opencode-zen"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("opencode-zen"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -716,7 +794,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "openrouter",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("openrouter"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("openrouter"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -728,7 +806,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "synthetic",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("synthetic"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("synthetic"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -739,7 +817,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "zai-coding-plan",
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("zai-coding-plan"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("zai-coding-plan"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -756,7 +834,7 @@ public partial class SettingsWindow : Window
         {
             new
             {
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("github-copilot"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("github-copilot"),
                 UsagePercentage = 27.5,
                 Used = 27.5,
                 Limit = 100.0,
@@ -766,7 +844,7 @@ public partial class SettingsWindow : Window
             },
             new
             {
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName("openai"),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("openai"),
                 UsagePercentage = 31.1,
                 Used = 12.45,
                 Limit = 40.0,
@@ -978,19 +1056,41 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var groupedConfigs = _configs
-            .OrderBy(c => GetProviderDisplayName(c.ProviderId), StringComparer.OrdinalIgnoreCase)
-            .ThenBy(c => c.ProviderId, StringComparer.OrdinalIgnoreCase)
+        var displayConfigs = _configs
+            .Select(config => (Config: config, IsDerived: false))
             .ToList();
 
-        foreach (var config in groupedConfigs)
+        var configuredProviderIds = _configs
+            .Select(c => c.ProviderId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var derivedConfigs = _usages
+            .Where(u =>
+                IsDerivedProviderVisibleInSettings(u.ProviderId) &&
+                !configuredProviderIds.Contains(u.ProviderId))
+            .Select(u => new ProviderConfig
+            {
+                ProviderId = u.ProviderId,
+                Type = u.IsQuotaBased ? "quota-based" : "pay-as-you-go",
+                PlanType = u.PlanType
+            })
+            .Select(config => (Config: config, IsDerived: true));
+
+        displayConfigs.AddRange(derivedConfigs);
+
+        var orderedDisplayConfigs = displayConfigs
+            .OrderBy(item => GetProviderDisplayName(item.Config.ProviderId), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Config.ProviderId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var (config, isDerived) in orderedDisplayConfigs)
         {
             var usage = _usages.FirstOrDefault(u => u.ProviderId.Equals(config.ProviderId, StringComparison.OrdinalIgnoreCase));
-            AddProviderCard(config, usage);
+            AddProviderCard(config, usage, isDerived);
         }
     }
 
-    private void AddProviderCard(ProviderConfig config, ProviderUsage? usage)
+    private void AddProviderCard(ProviderConfig config, ProviderUsage? usage, bool isDerived = false)
     {
         // Compact card with minimal padding
         var card = new Border
@@ -1040,7 +1140,8 @@ public partial class SettingsWindow : Window
             FontSize = 10,
             VerticalAlignment = VerticalAlignment.Center,
             Cursor = System.Windows.Input.Cursors.Hand,
-            Margin = new Thickness(12, 0, 0, 0)
+            Margin = new Thickness(12, 0, 0, 0),
+            IsEnabled = !isDerived
         };
         trayCheckBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
         trayCheckBox.Checked += (s, e) =>
@@ -1067,7 +1168,8 @@ public partial class SettingsWindow : Window
             FontSize = 10,
             VerticalAlignment = VerticalAlignment.Center,
             Cursor = System.Windows.Input.Cursors.Hand,
-            Margin = new Thickness(8, 0, 0, 0)
+            Margin = new Thickness(8, 0, 0, 0),
+            IsEnabled = !isDerived
         };
         notifyCheckBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
         notifyCheckBox.Checked += (s, e) =>
@@ -1085,7 +1187,7 @@ public partial class SettingsWindow : Window
         headerPanel.Children.Add(notifyCheckBox);
 
         // Status badge if not configured
-        bool isInactive = string.IsNullOrEmpty(config.ApiKey);
+        bool isInactive = !isDerived && string.IsNullOrEmpty(config.ApiKey);
         if (config.ProviderId == "antigravity")
         {
             isInactive = usage == null || !usage.IsAvailable;
@@ -1093,7 +1195,7 @@ public partial class SettingsWindow : Window
         else if (config.ProviderId == "openai")
         {
             var hasApiKey = !string.IsNullOrWhiteSpace(config.ApiKey);
-            var hasSessionUsage = usage != null && usage.IsAvailable && usage.PlanType == PlanType.Coding;
+            var hasSessionUsage = usage != null && usage.IsAvailable && usage.IsQuotaBased;
             isInactive = !hasApiKey && !hasSessionUsage;
         }
 
@@ -1124,7 +1226,37 @@ public partial class SettingsWindow : Window
         var keyPanel = new Grid { Margin = new Thickness(0, 0, 0, 0) };
         keyPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        if (config.ProviderId == "antigravity")
+        if (isDerived)
+        {
+            var derivedPanel = new StackPanel { Orientation = Orientation.Vertical };
+            var statusText = new TextBlock
+            {
+                Text = usage?.IsAvailable == true ? "Derived from Codex usage (read-only)" : "Derived provider (waiting for usage data)",
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 11
+            };
+            statusText.SetResourceReference(
+                TextBlock.ForegroundProperty,
+                usage?.IsAvailable == true ? "ProgressBarGreen" : "TertiaryText");
+            derivedPanel.Children.Add(statusText);
+
+            if (usage?.NextResetTime is DateTime derivedReset)
+            {
+                var resetText = new TextBlock
+                {
+                    Text = $"Next reset: {derivedReset:g}",
+                    VerticalAlignment = VerticalAlignment.Center,
+                    FontSize = 10,
+                    Margin = new Thickness(0, 3, 0, 0)
+                };
+                resetText.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
+                derivedPanel.Children.Add(resetText);
+            }
+
+            Grid.SetColumn(derivedPanel, 0);
+            keyPanel.Children.Add(derivedPanel);
+        }
+        else if (config.ProviderId == "antigravity")
         {
             // Antigravity: Auto-Detection
             var statusPanel = new StackPanel { Orientation = Orientation.Vertical };
@@ -1218,20 +1350,22 @@ public partial class SettingsWindow : Window
             keyPanel.Children.Add(statusPanel);
         }
         else if ((config.ProviderId == "openai" &&
-                  (usage?.PlanType == PlanType.Coding ||
+                  (usage?.IsQuotaBased == true ||
                    (!string.IsNullOrWhiteSpace(config.ApiKey) && !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase))))
                  || config.ProviderId == "codex")
         {
             var statusPanel = new StackPanel { Orientation = Orientation.Vertical };
             var isCodex = config.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase);
-            var providerSessionLabel = isCodex ? "Codex" : "OpenCode (OpenAI)";
+            var providerSessionLabel = isCodex ? "OpenAI Codex" : "OpenAI";
             var hasSessionToken = !string.IsNullOrWhiteSpace(config.ApiKey) &&
                                   !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
             var isAuthenticated = hasSessionToken || (usage != null && usage.IsAvailable);
             var accountName = usage?.AccountName;
-            if (!isCodex && (string.IsNullOrWhiteSpace(accountName) || accountName == "Unknown" || accountName == "User"))
+            if (string.IsNullOrWhiteSpace(accountName) || accountName == "Unknown" || accountName == "User")
             {
-                accountName = _openAiAuthUsername;
+                accountName = isCodex
+                    ? (_codexAuthUsername ?? _openAiAuthUsername)
+                    : _openAiAuthUsername;
             }
 
             string displayText;
@@ -1341,7 +1475,7 @@ public partial class SettingsWindow : Window
             .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (subTrayDetails is { Count: > 0 })
+        if (!isDerived && subTrayDetails is { Count: > 0 })
         {
             config.EnabledSubTrays ??= new List<string>();
 
@@ -1454,6 +1588,8 @@ public partial class SettingsWindow : Window
                 "github-copilot" => "github",
                 "gemini-cli" => "google",
                 "antigravity" => "google",
+                "codex" => "openai",
+                "codex.spark" => "openai",
                 "claude-code" => "claude",
                 "zai" => "zai",
                 "zai-coding-plan" => "zai",
@@ -1499,6 +1635,8 @@ public partial class SettingsWindow : Window
         var (color, _) = providerId.ToLower() switch
         {
             "openai" => (Brushes.DarkCyan, "AI"),
+            "codex" => (Brushes.DarkCyan, "AI"),
+            "codex.spark" => (Brushes.DarkCyan, "AI"),
             "anthropic" => (Brushes.IndianRed, "An"),
             "github-copilot" => (Brushes.MediumPurple, "GH"),
             "gemini" or "google" => (Brushes.DodgerBlue, "G"),
@@ -2155,7 +2293,12 @@ public partial class SettingsWindow : Window
 
     private static string GetProviderDisplayName(string providerId)
     {
-        return ProviderDisplayNameResolver.GetDisplayName(providerId);
+        return ProviderMetadataCatalog.GetDisplayName(providerId);
+    }
+
+    private static bool IsDerivedProviderVisibleInSettings(string? providerId)
+    {
+        return string.Equals(providerId, "codex.spark", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task PersistAllSettingsAsync(bool showErrorDialog)
@@ -2443,5 +2586,6 @@ public partial class SettingsWindow : Window
         }
     }
 }
+
 
 

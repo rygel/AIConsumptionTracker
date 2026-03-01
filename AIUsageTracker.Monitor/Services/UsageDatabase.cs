@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Providers;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -363,17 +364,19 @@ public class UsageDatabase : IUsageDatabase
 
             foreach (var usage in results)
             {
-                if (ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId))
+                if (ProviderMetadataCatalog.TryGet(usage.ProviderId, out var definition))
                 {
-                    usage.PlanType = PlanType.Coding;
-                    usage.IsQuotaBased = true;
-                }
-                else if (usage.PlanType == PlanType.Coding)
-                {
-                    usage.IsQuotaBased = true;
+                    usage.PlanType = definition.PlanType;
+                    usage.IsQuotaBased = definition.IsQuotaBased;
+
+                    var mappedName = definition.ResolveDisplayName(usage.ProviderId);
+                    if (!string.IsNullOrWhiteSpace(mappedName))
+                    {
+                        usage.ProviderName = mappedName;
+                    }
                 }
 
-                if (!usage.DisplayAsFraction && usage.PlanType == PlanType.Coding && usage.RequestsAvailable > 100)
+                if (!usage.DisplayAsFraction && usage.IsQuotaBased && usage.RequestsAvailable > 100)
                 {
                     usage.DisplayAsFraction = true;
                 }

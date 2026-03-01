@@ -9,7 +9,16 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class XiaomiProvider : IProviderService
 {
-    public string ProviderId => "xiaomi";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "xiaomi",
+        displayName: "Xiaomi",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        includeInWellKnownProviders: true);
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<XiaomiProvider> _logger;
 
@@ -109,4 +118,5 @@ public class XiaomiProvider : IProviderService
         public double Quota { get; set; }
     }
 }
+
 

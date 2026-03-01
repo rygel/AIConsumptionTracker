@@ -6,7 +6,16 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class GitHubCopilotProvider : IProviderService
 {
-    public string ProviderId => "github-copilot";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "github-copilot",
+        displayName: "GitHub Copilot",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        includeInWellKnownProviders: true);
+
+    public ProviderDefinition Definition => StaticDefinition;
+    public string ProviderId => StaticDefinition.ProviderId;
     private readonly IGitHubAuthService _authService;
     private readonly HttpClient _httpClient;
     private readonly ILogger<GitHubCopilotProvider> _logger;
@@ -326,4 +335,5 @@ public class GitHubCopilotProvider : IProviderService
         public bool HasCopilotQuotaData { get; set; }
     }
 }
+
 

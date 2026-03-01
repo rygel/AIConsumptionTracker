@@ -1,6 +1,7 @@
 using Dapper;
 using Microsoft.Data.Sqlite;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
@@ -137,9 +138,12 @@ public class WebDatabaseService
                 catch { /* Ignore deserialization errors */ }
             }
             
-            // Set IsQuotaBased using the existing ProviderPlanClassifier
-            usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
-            usage.ProviderName = ProviderDisplayNameResolver.GetDisplayName(usage.ProviderId, usage.ProviderName);
+            if (ProviderMetadataCatalog.TryGet(usage.ProviderId, out var definition))
+            {
+                usage.IsQuotaBased = definition.IsQuotaBased;
+                usage.PlanType = definition.PlanType;
+            }
+            usage.ProviderName = ProviderMetadataCatalog.GetDisplayName(usage.ProviderId, usage.ProviderName);
         }
 
         var list = results.ToList();
@@ -171,8 +175,12 @@ public class WebDatabaseService
         
         foreach (var usage in results)
         {
-            usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
-            usage.ProviderName = ProviderDisplayNameResolver.GetDisplayName(usage.ProviderId, usage.ProviderName);
+            if (ProviderMetadataCatalog.TryGet(usage.ProviderId, out var definition))
+            {
+                usage.IsQuotaBased = definition.IsQuotaBased;
+                usage.PlanType = definition.PlanType;
+            }
+            usage.ProviderName = ProviderMetadataCatalog.GetDisplayName(usage.ProviderId, usage.ProviderName);
         }
         
         return results.ToList();
@@ -202,8 +210,12 @@ public class WebDatabaseService
         
         foreach (var usage in results)
         {
-            usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
-            usage.ProviderName = ProviderDisplayNameResolver.GetDisplayName(usage.ProviderId, usage.ProviderName);
+            if (ProviderMetadataCatalog.TryGet(usage.ProviderId, out var definition))
+            {
+                usage.IsQuotaBased = definition.IsQuotaBased;
+                usage.PlanType = definition.PlanType;
+            }
+            usage.ProviderName = ProviderMetadataCatalog.GetDisplayName(usage.ProviderId, usage.ProviderName);
         }
         
         return results.ToList();
@@ -234,7 +246,7 @@ public class WebDatabaseService
         var results = (await connection.QueryAsync<ProviderInfo>(sql)).ToList();
         foreach (var provider in results)
         {
-            provider.ProviderName = ProviderDisplayNameResolver.GetDisplayName(provider.ProviderId, provider.ProviderName);
+            provider.ProviderName = ProviderMetadataCatalog.GetDisplayName(provider.ProviderId, provider.ProviderName);
         }
 
         return results;
@@ -260,7 +272,7 @@ public class WebDatabaseService
         var results = (await connection.QueryAsync<ResetEvent>(sql, new { ProviderId = providerId })).ToList();
         foreach (var reset in results)
         {
-            reset.ProviderName = ProviderDisplayNameResolver.GetDisplayName(reset.ProviderId, reset.ProviderName);
+            reset.ProviderName = ProviderMetadataCatalog.GetDisplayName(reset.ProviderId, reset.ProviderName);
         }
 
         return results;
@@ -655,7 +667,7 @@ public class WebDatabaseService
         var list = results.ToList();
         foreach (var point in list)
         {
-            point.ProviderName = ProviderDisplayNameResolver.GetDisplayName(point.ProviderId, point.ProviderName);
+            point.ProviderName = ProviderMetadataCatalog.GetDisplayName(point.ProviderId, point.ProviderName);
         }
         _logger.LogInformation("WebDB GetChartDataAsync hours={Hours} bucketMinutes={BucketMinutes} rows={Count} elapsedMs={ElapsedMs}",
             hours, bucketMinutes, list.Count, sw.ElapsedMilliseconds);
@@ -699,7 +711,7 @@ public class WebDatabaseService
         var results = (await connection.QueryAsync<ResetEvent>(sql, new { CutoffUtc = cutoffUtc })).ToList();
         foreach (var reset in results)
         {
-            reset.ProviderName = ProviderDisplayNameResolver.GetDisplayName(reset.ProviderId, reset.ProviderName);
+            reset.ProviderName = ProviderMetadataCatalog.GetDisplayName(reset.ProviderId, reset.ProviderName);
         }
         _cache.Set(cacheKey, results, TimeSpan.FromMinutes(5));
         _logger.LogInformation("WebDB GetRecentResetEventsAsync hours={Hours} rows={Count} elapsedMs={ElapsedMs}",
@@ -842,7 +854,7 @@ public class WebDatabaseService
             var status = new BudgetStatus
             {
                 ProviderId = providerId,
-                ProviderName = ProviderDisplayNameResolver.GetDisplayName(providerId),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName(providerId),
                 BudgetLimit = 50, // Default implied budget
                 CurrentSpend = usage,
                 RemainingBudget = Math.Max(0, 50 - usage),
@@ -934,7 +946,7 @@ public class WebDatabaseService
                 comparisons.Add(new UsageComparison
                 {
                     ProviderId = providerId,
-                    ProviderName = ProviderDisplayNameResolver.GetDisplayName(providerId),
+                    ProviderName = ProviderMetadataCatalog.GetDisplayName(providerId),
                     PeriodStart = currStart,
                     PeriodEnd = currEnd,
                     PreviousPeriodStart = prevStart,
@@ -1101,4 +1113,5 @@ public class ChartDataPoint
     public double RequestsPercentage { get; set; }
     public double RequestsUsed { get; set; }
 }
+
 
