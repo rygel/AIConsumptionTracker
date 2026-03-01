@@ -272,7 +272,9 @@ public class OpenAIProvider : IProviderService
                 Name = "5-hour quota",
                 Used = $"{used.Value:F0}% used",
                 Description = reset.HasValue && reset.Value > 0 ? $"Resets in {(int)reset.Value}s" : string.Empty,
-                NextResetTime = primaryResetTime
+                NextResetTime = primaryResetTime,
+                DetailType = ProviderUsageDetailType.QuotaWindow,
+                WindowKind = WindowKind.Primary
             });
         }
 
@@ -286,7 +288,9 @@ public class OpenAIProvider : IProviderService
                 Name = "Weekly quota",
                 Used = $"{weeklyUsed.Value:F0}% used",
                 Description = weeklyReset.HasValue && weeklyReset.Value > 0 ? $"Resets in {(int)weeklyReset.Value}s" : string.Empty,
-                NextResetTime = weeklyResetTime
+                NextResetTime = weeklyResetTime,
+                DetailType = ProviderUsageDetailType.QuotaWindow,
+                WindowKind = WindowKind.Secondary
             });
         }
 
@@ -297,7 +301,9 @@ public class OpenAIProvider : IProviderService
             details.Add(new ProviderUsageDetail
             {
                 Name = "Credits",
-                Used = unlimited == true ? "Unlimited" : credits?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "Unknown"
+                Used = unlimited == true ? "Unlimited" : credits?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "Unknown",
+                DetailType = ProviderUsageDetailType.Credit,
+                WindowKind = WindowKind.None
             });
         }
 

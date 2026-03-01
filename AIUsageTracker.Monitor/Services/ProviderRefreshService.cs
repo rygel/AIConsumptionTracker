@@ -293,11 +293,15 @@ public class ProviderRefreshService : BackgroundService
 
                 _logger.LogDebug("Received {Count} total usage results", usages.Count());
 
+                // Validate detail contract - mark providers with invalid details as unavailable
+                var validatedUsages = ValidateDetailContract(usages).ToList();
+                _logger.LogDebug("Validated {Count} usage results after detail contract check", validatedUsages.Count);
+
                 var activeProviderIds = refreshableConfigs.Select(c => c.ProviderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 
                 // Allow dynamic children (e.g. antigravity.claude-3-5-sonnet) through the filter even if not in config explicitly yet.
                 // Filter out entries where the API Key was missing to prevent logging empty data over and over.
-                var filteredUsages = usages.Where(u => 
+                var filteredUsages = validatedUsages.Where(u => 
                     (activeProviderIds.Contains(u.ProviderId) || 
                     (u.ProviderId.StartsWith("antigravity.") && activeProviderIds.Contains("antigravity"))) &&
                     // Drop unconfigured providers that returned no usage
@@ -376,7 +380,7 @@ public class ProviderRefreshService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Refresh failed: {Message}", ex.Message);
-            Program.ReportError($"Refresh failed: {ex.Message}");
+            Program.ReportError($"Refresh failed: {ex.Message}", _logger);
             refreshError = ex.Message;
         }
         finally
@@ -774,6 +778,60 @@ public class ProviderRefreshService : BackgroundService
         catch (Exception ex)
         {
             return (false, ex.Message, 500);
+        }
+    }
+
+    private IEnumerable<ProviderUsage> ValidateDetailContract(IEnumerable<ProviderUsage> usages)
+    {
+        foreach (var usage in usages)
+        {
+            var validationErrors = new List<string>();
+
+            if (usage.Details != null)
+            {
+                foreach (var detail in usage.Details)
+                {
+                    if (string.IsNullOrWhiteSpace(detail.Name))
+                    {
+                        validationErrors.Add("Detail Name is empty");
+                    }
+
+                    if (detail.DetailType == ProviderUsageDetailType.Unknown)
+                    {
+                        validationErrors.Add($"DetailType is Unknown (must be QuotaWindow, Credit, Model, or Other)");
+                    }
+
+                    if (detail.DetailType == ProviderUsageDetailType.QuotaWindow)
+                    {
+                        if (detail.WindowKind == WindowKind.None)
+                        {
+                            validationErrors.Add("QuotaWindow details must have WindowKind set (Primary, Secondary, or Spark)");
+                        }
+                    }
+                }
+            }
+
+            if (validationErrors.Count > 0)
+            {
+                _logger.LogWarning(
+                    "Provider {ProviderId} emitted invalid details: {Errors}. Marking as unavailable.",
+                    usage.ProviderId,
+                    string.Join("; ", validationErrors));
+
+                yield return new ProviderUsage
+                {
+                    ProviderId = usage.ProviderId,
+                    ProviderName = usage.ProviderName,
+                    IsAvailable = false,
+                    Description = $"Invalid detail contract: {string.Join("; ", validationErrors)}",
+                    PlanType = usage.PlanType,
+                    IsQuotaBased = usage.IsQuotaBased
+                };
+            }
+            else
+            {
+                yield return usage;
+            }
         }
     }
 }

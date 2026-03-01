@@ -1741,8 +1741,8 @@ public partial class MainWindow : Window
             return false;
         }
 
-        var hourlyDetail = usage.Details.FirstOrDefault(d => d.Name.Equals("5-hour quota", StringComparison.OrdinalIgnoreCase));
-        var weeklyDetail = usage.Details.FirstOrDefault(d => d.Name.Equals("Weekly quota", StringComparison.OrdinalIgnoreCase));
+        var hourlyDetail = usage.Details.FirstOrDefault(d => d.DetailType == ProviderUsageDetailType.QuotaWindow && d.WindowKind == WindowKind.Primary);
+        var weeklyDetail = usage.Details.FirstOrDefault(d => d.DetailType == ProviderUsageDetailType.QuotaWindow && d.WindowKind == WindowKind.Secondary);
 
         if (hourlyDetail == null || weeklyDetail == null)
         {
@@ -1839,19 +1839,7 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (IsWindowQuotaDetail(detail.Name))
-        {
-            return false;
-        }
-
-        return !detail.Name.Contains("window", StringComparison.OrdinalIgnoreCase) &&
-               !detail.Name.Contains("credit", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsWindowQuotaDetail(string detailName)
-    {
-        return detailName.Equals("5-hour quota", StringComparison.OrdinalIgnoreCase) ||
-               detailName.Equals("Weekly quota", StringComparison.OrdinalIgnoreCase);
+        return detail.DetailType == ProviderUsageDetailType.Model || detail.DetailType == ProviderUsageDetailType.Other;
     }
 
     private void AddSubProviderCard(ProviderUsageDetail detail, StackPanel container)

@@ -103,6 +103,7 @@ jobs:
         path: .\_ci_test_binaries
 
     - name: Run Core unit tests (no retry, aggressive timeout)
+      timeout-minutes: 2
       shell: pwsh
       run: >
         powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1
@@ -111,6 +112,7 @@ jobs:
         -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt
         -MaxRetries 0
         -AttemptTimeoutMinutes 2
+        -HangTimeoutSeconds 75
 
     - name: Upload Core test results
       if: failure()
@@ -132,6 +134,7 @@ jobs:
         path: .\_ci_test_binaries
 
     - name: Run Monitor unit tests (no retry, aggressive timeout)
+      timeout-minutes: 1
       shell: pwsh
       run: >
         powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1
@@ -140,6 +143,7 @@ jobs:
         -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt
         -MaxRetries 0
         -AttemptTimeoutMinutes 1
+        -HangTimeoutSeconds 45
 
     - name: Upload Monitor test results
       if: failure()
@@ -263,12 +267,14 @@ jobs:
             throw "Web perf smoke failed: dashboard=${dashboardAvgMs}ms charts=${chartsAvgMs}ms"
         }
         
-        $webTestProcess = Start-Process -FilePath "dotnet" -ArgumentList "test AIUsageTracker.Web.Tests\AIUsageTracker.Web.Tests.csproj --configuration Debug" -PassThru -WindowStyle Hidden -RedirectStandardOutput "web_tests.log" -RedirectStandardError "web_tests_error.log"
+        $webTestProcess = Start-Process -FilePath "dotnet" -ArgumentList "test AIUsageTracker.Web.Tests\AIUsageTracker.Web.Tests.csproj --configuration Debug --blame-hang --blame-hang-timeout 60s" -PassThru -WindowStyle Hidden -RedirectStandardOutput "web_tests.log" -RedirectStandardError "web_tests_error.log"
         $webTestTimeoutSeconds = 120
         $testsCompleted = $webTestProcess.WaitForExit($webTestTimeoutSeconds * 1000)
         if (-not $testsCompleted) {
             Write-Host "Web UI tests exceeded timeout of $webTestTimeoutSeconds seconds."
-            if ($webTestProcess -and -not $webTestProcess.HasExited) { Stop-Process -Id $webTestProcess.Id -Force }
+            if ($webTestProcess -and -not $webTestProcess.HasExited) {
+                cmd /c "taskkill /PID $($webTestProcess.Id) /T /F" | Out-Null
+            }
             Write-Host "--- Web Tests StdOut (tail) ---"
             if (Test-Path "web_tests.log") { Get-Content "web_tests.log" -Tail 200 }
             Write-Host "--- Web Tests StdErr (tail) ---"
@@ -295,7 +301,7 @@ jobs:
         }
         finally {
             if ($process -and -not $process.HasExited) {
-                Stop-Process -Id $process.Id -Force
+                cmd /c "taskkill /PID $($process.Id) /T /F" | Out-Null
             }
         }
       shell: pwsh

@@ -2,12 +2,21 @@
 
 ## Unreleased
 
+### Added
+- **Typed provider detail contract**: Added `WindowKind` plus helper methods on `ProviderUsageDetail` for consistent typed detail handling across clients.
+- **Contract test coverage**: Added provider-detail contract/unit tests for typed detail semantics.
+
 ### Changed
 - **Monitor startup metadata timing**: `monitor.json` is now published only after the Monitor successfully binds and starts listening.
+- **Provider detail rendering**: Slim UI, Web UI, and CLI now filter/render detail rows from typed fields (`DetailType`/`WindowKind`) instead of name-based string heuristics.
+- **Provider mappings**: Updated providers that emit detail rows to set explicit `DetailType`/`WindowKind` metadata.
+- **CI test safeguards**: Tightened test timeouts and added explicit hang-detection/process-tree termination in test workflows/scripts.
 
 ### Fixed
 - **Stale monitor metadata recovery**: Monitor clients now validate both health endpoint and PID, then invalidate stale metadata before discovery/restart.
 - **Metadata path compatibility**: Monitor metadata read/write now supports root plus `Monitor/` and `Agent/` paths for both `AIUsageTracker` and legacy `AIConsumptionTracker`.
+- **Detail contract enforcement flow**: Monitor refresh now applies validated detail payloads when filtering/storing provider results.
+- **Monitor database diagnostics**: Replaced debug-only database write errors with structured logger error output.
 
 ## [2.2.27-beta.5] - 2026-03-01
 

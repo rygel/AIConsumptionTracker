@@ -1030,8 +1030,7 @@ public partial class App : Application
             return false;
         }
 
-        return !detail.Name.Contains("window", StringComparison.OrdinalIgnoreCase) &&
-               !detail.Name.Contains("credit", StringComparison.OrdinalIgnoreCase);
+        return detail.DetailType == ProviderUsageDetailType.Model || detail.DetailType == ProviderUsageDetailType.Other;
     }
 
     private static ImageSource GenerateUsageIcon(double percentage, int yellowThreshold, int redThreshold, bool invert = false, bool isQuota = false)

@@ -153,17 +153,23 @@ public class OpenCodeZenProvider : IProviderService
             new ProviderUsageDetail
             {
                 Name = "Sessions",
-                Description = $"{sessions} sessions"
+                Description = $"{sessions} sessions",
+                DetailType = ProviderUsageDetailType.Other,
+                WindowKind = WindowKind.None
             },
             new ProviderUsageDetail
             {
                 Name = "Messages",
-                Description = $"{messages} messages"
+                Description = $"{messages} messages",
+                DetailType = ProviderUsageDetailType.Other,
+                WindowKind = WindowKind.None
             },
             new ProviderUsageDetail
             {
                 Name = "Avg Cost/Day",
-                Description = $"${avgCostPerDay:F2}"
+                Description = $"${avgCostPerDay:F2}",
+                DetailType = ProviderUsageDetailType.Other,
+                WindowKind = WindowKind.None
             }
         };
 

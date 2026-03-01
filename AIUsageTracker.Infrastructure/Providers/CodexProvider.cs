@@ -271,7 +271,9 @@ public class CodexProvider : IProviderService
                 Name = "5-hour quota",
                 Used = $"{primaryRemaining:F0}% remaining ({primaryUsedPercent:F0}% used)",
                 Description = FormatResetDescription(primaryResetSeconds),
-                NextResetTime = ResolveDetailResetTime(primaryResetSeconds)
+                NextResetTime = ResolveDetailResetTime(primaryResetSeconds),
+                DetailType = ProviderUsageDetailType.QuotaWindow,
+                WindowKind = WindowKind.Primary
             }
         };
 
@@ -283,7 +285,9 @@ public class CodexProvider : IProviderService
                 Name = "Weekly quota",
                 Used = $"{secondaryRemaining:F0}% remaining ({secondaryUsedPercent.Value:F0}% used)",
                 Description = FormatResetDescription(secondaryResetSeconds),
-                NextResetTime = ResolveDetailResetTime(secondaryResetSeconds)
+                NextResetTime = ResolveDetailResetTime(secondaryResetSeconds),
+                DetailType = ProviderUsageDetailType.QuotaWindow,
+                WindowKind = WindowKind.Secondary
             });
         }
 
@@ -295,7 +299,9 @@ public class CodexProvider : IProviderService
                 Name = $"Spark ({sparkWindow.Label ?? "window"})",
                 Used = $"{sparkRemaining:F0}% remaining ({sparkWindow.UsedPercent.Value:F0}% used)",
                 Description = FormatResetDescription(sparkWindow.ResetAfterSeconds),
-                NextResetTime = ResolveDetailResetTime(sparkWindow.ResetAfterSeconds)
+                NextResetTime = ResolveDetailResetTime(sparkWindow.ResetAfterSeconds),
+                DetailType = ProviderUsageDetailType.QuotaWindow,
+                WindowKind = WindowKind.Spark
             });
         }
 
@@ -310,7 +316,9 @@ public class CodexProvider : IProviderService
             details.Add(new ProviderUsageDetail
             {
                 Name = "Credits",
-                Used = creditValue
+                Used = creditValue,
+                DetailType = ProviderUsageDetailType.Credit,
+                WindowKind = WindowKind.None
             });
         }
 
