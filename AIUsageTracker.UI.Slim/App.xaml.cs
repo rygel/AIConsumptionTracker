@@ -784,10 +784,27 @@ public partial class App : Application
         // Create context menu
         var contextMenu = new ContextMenu();
         
-        // Show menu item
-        var showMenuItem = new MenuItem { Header = "Show" };
-        showMenuItem.Click += (s, e) => ShowMainWindow();
-        contextMenu.Items.Add(showMenuItem);
+        // Show/Hide menu item (text updated on menu open)
+        var showHideMenuItem = new MenuItem();
+        showHideMenuItem.Click += (s, e) =>
+        {
+            if (_mainWindow != null && IsMainWindowVisible(_mainWindow))
+            {
+                _mainWindow.Hide();
+            }
+            else
+            {
+                ShowMainWindow();
+            }
+        };
+        contextMenu.Items.Add(showHideMenuItem);
+        
+        // Update menu item text before menu opens
+        contextMenu.Opened += (s, e) =>
+        {
+            var isVisible = _mainWindow != null && IsMainWindowVisible(_mainWindow);
+            showHideMenuItem.Header = isVisible ? "Hide" : "Show";
+        };
         
         // Separator
         contextMenu.Items.Add(new Separator());
