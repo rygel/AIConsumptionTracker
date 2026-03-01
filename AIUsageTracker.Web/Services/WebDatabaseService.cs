@@ -139,6 +139,7 @@ public class WebDatabaseService
             
             // Set IsQuotaBased using the existing ProviderPlanClassifier
             usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
+            usage.ProviderName = ProviderDisplayNameResolver.GetDisplayName(usage.ProviderId, usage.ProviderName);
         }
 
         var list = results.ToList();
@@ -171,6 +172,7 @@ public class WebDatabaseService
         foreach (var usage in results)
         {
             usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
+            usage.ProviderName = ProviderDisplayNameResolver.GetDisplayName(usage.ProviderId, usage.ProviderName);
         }
         
         return results.ToList();
@@ -201,6 +203,7 @@ public class WebDatabaseService
         foreach (var usage in results)
         {
             usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
+            usage.ProviderName = ProviderDisplayNameResolver.GetDisplayName(usage.ProviderId, usage.ProviderName);
         }
         
         return results.ToList();
@@ -228,8 +231,13 @@ public class WebDatabaseService
                 WHERE p.is_active = 1
                 ORDER BY p.provider_name";
 
-        var results = await connection.QueryAsync<ProviderInfo>(sql);
-        return results.ToList();
+        var results = (await connection.QueryAsync<ProviderInfo>(sql)).ToList();
+        foreach (var provider in results)
+        {
+            provider.ProviderName = ProviderDisplayNameResolver.GetDisplayName(provider.ProviderId, provider.ProviderName);
+        }
+
+        return results;
     }
 
     public async Task<List<ResetEvent>> GetResetEventsAsync(string providerId, int limit = 50)
@@ -249,8 +257,13 @@ public class WebDatabaseService
                 ORDER BY timestamp DESC
                 LIMIT {limit}";
 
-        var results = await connection.QueryAsync<ResetEvent>(sql, new { ProviderId = providerId });
-        return results.ToList();
+        var results = (await connection.QueryAsync<ResetEvent>(sql, new { ProviderId = providerId })).ToList();
+        foreach (var reset in results)
+        {
+            reset.ProviderName = ProviderDisplayNameResolver.GetDisplayName(reset.ProviderId, reset.ProviderName);
+        }
+
+        return results;
     }
 
     public async Task<UsageSummary> GetUsageSummaryAsync()
@@ -640,6 +653,10 @@ public class WebDatabaseService
             BucketSeconds = bucketSeconds
         });
         var list = results.ToList();
+        foreach (var point in list)
+        {
+            point.ProviderName = ProviderDisplayNameResolver.GetDisplayName(point.ProviderId, point.ProviderName);
+        }
         _logger.LogInformation("WebDB GetChartDataAsync hours={Hours} bucketMinutes={BucketMinutes} rows={Count} elapsedMs={ElapsedMs}",
             hours, bucketMinutes, list.Count, sw.ElapsedMilliseconds);
         return list;
@@ -680,6 +697,10 @@ public class WebDatabaseService
             ORDER BY timestamp ASC";
 
         var results = (await connection.QueryAsync<ResetEvent>(sql, new { CutoffUtc = cutoffUtc })).ToList();
+        foreach (var reset in results)
+        {
+            reset.ProviderName = ProviderDisplayNameResolver.GetDisplayName(reset.ProviderId, reset.ProviderName);
+        }
         _cache.Set(cacheKey, results, TimeSpan.FromMinutes(5));
         _logger.LogInformation("WebDB GetRecentResetEventsAsync hours={Hours} rows={Count} elapsedMs={ElapsedMs}",
             hours, results.Count, sw.ElapsedMilliseconds);
@@ -821,7 +842,7 @@ public class WebDatabaseService
             var status = new BudgetStatus
             {
                 ProviderId = providerId,
-                ProviderName = providerId,
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName(providerId),
                 BudgetLimit = 50, // Default implied budget
                 CurrentSpend = usage,
                 RemainingBudget = Math.Max(0, 50 - usage),
@@ -913,7 +934,7 @@ public class WebDatabaseService
                 comparisons.Add(new UsageComparison
                 {
                     ProviderId = providerId,
-                    ProviderName = providerId,
+                    ProviderName = ProviderDisplayNameResolver.GetDisplayName(providerId),
                     PeriodStart = currStart,
                     PeriodEnd = currEnd,
                     PreviousPeriodStart = prevStart,

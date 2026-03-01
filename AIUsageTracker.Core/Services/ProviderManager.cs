@@ -228,7 +228,7 @@ public class ProviderManager : IDisposable
                     var timeoutUsage = new ProviderUsage
                     {
                         ProviderId = config.ProviderId,
-                        ProviderName = config.ProviderId,
+                        ProviderName = ProviderDisplayNameResolver.GetDisplayName(config.ProviderId),
                         Description = $"[Error] Timeout after {ProviderRequestTimeout.TotalSeconds:F0}s",
                         RequestsPercentage = 0,
                         IsAvailable = false,
@@ -246,6 +246,7 @@ public class ProviderManager : IDisposable
                 stopwatch.Stop();
                 foreach(var u in usages) 
                 {
+                    u.ProviderName = ProviderDisplayNameResolver.GetDisplayName(u.ProviderId, u.ProviderName);
                     u.AuthSource = config.AuthSource;
                     u.ResponseLatencyMs = stopwatch.Elapsed.TotalMilliseconds;
                     progressCallback?.Invoke(u);
@@ -261,7 +262,7 @@ public class ProviderManager : IDisposable
                 var errorUsage = new ProviderUsage
                 {
                     ProviderId = config.ProviderId,
-                    ProviderName = config.ProviderId,
+                    ProviderName = ProviderDisplayNameResolver.GetDisplayName(config.ProviderId),
                     Description = ex.Message,
                     RequestsPercentage = 0,
                     IsAvailable = false,
@@ -279,7 +280,7 @@ public class ProviderManager : IDisposable
                 var errorUsage = new ProviderUsage
                 {
                     ProviderId = config.ProviderId,
-                    ProviderName = config.ProviderId,
+                    ProviderName = ProviderDisplayNameResolver.GetDisplayName(config.ProviderId),
                     Description = $"[Error] {ex.Message}",
                     RequestsPercentage = 0,
                     IsAvailable = true, // Still available, just failed to fetch
@@ -304,7 +305,7 @@ public class ProviderManager : IDisposable
         var genericUsage = new ProviderUsage 
         { 
             ProviderId = config.ProviderId, 
-            ProviderName = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(config.ProviderId.Replace("-", " ")),
+            ProviderName = ProviderDisplayNameResolver.GetDisplayName(config.ProviderId),
             Description = "Usage unknown (provider integration missing)",
             RequestsPercentage = 0,
             IsAvailable = false,

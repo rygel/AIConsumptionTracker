@@ -59,7 +59,10 @@ logger.LogInformation("=== Monitor starting ===");
 if (isDebugMode)
 {
     // Allocate a console window for debugging
-    Program.AllocConsole();
+    if (OperatingSystem.IsWindows())
+    {
+        Program.AllocConsole();
+    }
     logger.LogInformation("");
     logger.LogInformation("═══════════════════════════════════════════════════════════════");
     logger.LogInformation("  AIUsageTracker.Monitor - DEBUG MODE");
@@ -121,8 +124,15 @@ builder.Services.AddSingleton(loggerFactory);
 builder.Services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
 builder.Services.AddSingleton<UsageDatabase>();
 builder.Services.AddSingleton<IUsageDatabase>(sp => sp.GetRequiredService<UsageDatabase>());
-builder.Services.AddSingleton<INotificationService, WindowsNotificationService>();
-builder.Services.AddSingleton<ConfigService>();
+if (OperatingSystem.IsWindows())
+{
+    builder.Services.AddSingleton<INotificationService, WindowsNotificationService>();
+}
+else
+{
+    builder.Services.AddSingleton<INotificationService, NoOpNotificationService>();
+}
+builder.Services.AddSingleton<IConfigService, ConfigService>();
 builder.Services.AddSingleton<ProviderRefreshService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ProviderRefreshService>());
 builder.Services.AddHttpClient();
@@ -247,21 +257,21 @@ app.MapPost("/api/notifications/test", ([FromServices] INotificationService noti
 });
 
 // Config endpoints
-app.MapGet("/api/config", async (ConfigService configService, ILogger<Program> logger) =>
+app.MapGet("/api/config", async (IConfigService configService, ILogger<Program> logger) =>
 {
     logger.LogDebug("GET /api/config");
     var configs = await configService.GetConfigsAsync();
     return Results.Ok(configs);
 });
 
-app.MapPost("/api/config", async (ProviderConfig config, ConfigService configService, ILogger<Program> logger) =>
+app.MapPost("/api/config", async (ProviderConfig config, IConfigService configService, ILogger<Program> logger) =>
 {
     logger.LogDebug("POST /api/config ({ProviderId})", config.ProviderId);
     await configService.SaveConfigAsync(config);
     return Results.Ok(new { message = "Config saved" });
 });
 
-app.MapDelete("/api/config/{providerId}", async (string providerId, ConfigService configService, ILogger<Program> logger) =>
+app.MapDelete("/api/config/{providerId}", async (string providerId, IConfigService configService, ILogger<Program> logger) =>
 {
     logger.LogDebug("DELETE /api/config/{ProviderId}", providerId);
     await configService.RemoveConfigAsync(providerId);
@@ -273,7 +283,7 @@ const string preferencesApiDeprecationMessage =
     "/api/preferences is deprecated and reserved for legacy clients; UI preferences must be managed locally by each UI.";
 const string preferencesApiSunsetDate = "Wed, 31 Dec 2026 00:00:00 GMT";
 
-app.MapGet("/api/preferences", async (HttpContext httpContext, ConfigService configService, ILogger<Program> logger) =>
+app.MapGet("/api/preferences", async (HttpContext httpContext, IConfigService configService, ILogger<Program> logger) =>
 {
     logger.LogDebug("GET /api/preferences");
     httpContext.Response.Headers.Append("Deprecation", "true");
@@ -283,7 +293,7 @@ app.MapGet("/api/preferences", async (HttpContext httpContext, ConfigService con
 })
 .WithMetadata(new ObsoleteAttribute(preferencesApiDeprecationMessage));
 
-app.MapPost("/api/preferences", async (HttpContext httpContext, AppPreferences preferences, ConfigService configService, ILogger<Program> logger) =>
+app.MapPost("/api/preferences", async (HttpContext httpContext, AppPreferences preferences, IConfigService configService, ILogger<Program> logger) =>
 {
     logger.LogDebug("POST /api/preferences");
     httpContext.Response.Headers.Append("Deprecation", "true");
@@ -294,7 +304,7 @@ app.MapPost("/api/preferences", async (HttpContext httpContext, AppPreferences p
 .WithMetadata(new ObsoleteAttribute(preferencesApiDeprecationMessage));
 
 // Scan for keys endpoint
-app.MapPost("/api/scan-keys", async ([FromServices] ConfigService configService, [FromServices] ProviderRefreshService refreshService, ILogger<Program> logger) =>
+app.MapPost("/api/scan-keys", async ([FromServices] IConfigService configService, [FromServices] ProviderRefreshService refreshService, ILogger<Program> logger) =>
 {
     logger.LogDebug("POST /api/scan-keys");
     var discovered = await configService.ScanForKeysAsync();

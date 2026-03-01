@@ -2,11 +2,10 @@
 
   <PropertyGroup>
     <AssemblyName>AIUsageTracker.Web</AssemblyName>
-    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
-    <ApplicationIcon>..\AIUsageTracker.UI.Slim\Assets\app_icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,10 +19,5 @@
     <ProjectReference Include="..\AIUsageTracker.Core\AIUsageTracker.Core.csproj" />
     <ProjectReference Include="..\AIUsageTracker.Infrastructure\AIUsageTracker.Infrastructure.csproj" />
   </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="..\AIUsageTracker.UI.Slim\Assets\app_icon.ico" />
-  </ItemGroup>
-
 </Project>
 

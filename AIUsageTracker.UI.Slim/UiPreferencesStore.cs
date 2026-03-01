@@ -12,9 +12,20 @@ internal static class UiPreferencesStore
     {
         WriteIndented = true
     };
+    private static string? _preferencesPathOverride;
+
+    internal static void SetPreferencesPathOverrideForTesting(string? path)
+    {
+        _preferencesPathOverride = string.IsNullOrWhiteSpace(path) ? null : path;
+    }
 
     private static string GetPreferencesPath()
     {
+        if (!string.IsNullOrWhiteSpace(_preferencesPathOverride))
+        {
+            return _preferencesPathOverride;
+        }
+
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var primaryPath = Path.Combine(appData, "AIUsageTracker", "preferences.json");
         var legacyPath = Path.Combine(appData, "AIConsumptionTracker", "preferences.json");

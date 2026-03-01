@@ -9,6 +9,36 @@ namespace AIUsageTracker.Tests.Core;
 
 public class StartupAntiHammerTests
 {
+    private sealed class TestableProviderRefreshService : ProviderRefreshService
+    {
+        public TestableProviderRefreshService(
+            ILogger<ProviderRefreshService> logger,
+            ILoggerFactory loggerFactory,
+            IUsageDatabase database,
+            INotificationService notificationService,
+            IHttpClientFactory httpClientFactory,
+            IConfigService configService)
+            : base(logger, loggerFactory, database, notificationService, httpClientFactory, configService)
+        {
+        }
+
+        public List<(bool ForceAll, IReadOnlyCollection<string>? IncludeProviderIds)> TriggerCalls { get; } = [];
+
+        public override Task TriggerRefreshAsync(
+            bool forceAll = false,
+            IReadOnlyCollection<string>? includeProviderIds = null,
+            bool bypassCircuitBreaker = false)
+        {
+            TriggerCalls.Add((forceAll, includeProviderIds));
+            return Task.CompletedTask;
+        }
+
+        public Task RunExecuteAsync(CancellationToken cancellationToken)
+        {
+            return ExecuteAsync(cancellationToken);
+        }
+    }
+
     [Fact]
     public async Task ExecuteAsync_WhenDatabaseHasData_DoesNotTriggerFullRefresh()
     {
@@ -17,15 +47,15 @@ public class StartupAntiHammerTests
         var mockDb = new Mock<IUsageDatabase>();
         var mockNotificationService = new Mock<INotificationService>();
         var mockHttpClientFactory = new Mock<IHttpClientFactory>();
-        var mockConfigService = new Mock<ConfigService>(Mock.Of<ILogger<ConfigService>>(), Mock.Of<IConfigLoader>());
+        var mockConfigService = new Mock<IConfigService>();
 
         mockDb.Setup(db => db.IsHistoryEmptyAsync())
             .ReturnsAsync(false);
 
-        mockConfigService.Setup(cs => cs.GetConfigsAsync())
+        mockConfigService.Setup(cs => cs.ScanForKeysAsync())
             .ReturnsAsync(new List<ProviderConfig>());
 
-        var service = new ProviderRefreshService(
+        var service = new TestableProviderRefreshService(
             mockLogger.Object,
             mockLoggerFactory.Object,
             mockDb.Object,
@@ -34,11 +64,15 @@ public class StartupAntiHammerTests
             mockConfigService.Object);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        
-        await service.ExecuteAsync(cts.Token);
+
+        await service.RunExecuteAsync(cts.Token);
 
         mockDb.Verify(db => db.IsHistoryEmptyAsync(), Times.Once);
-        mockConfigService.Verify(cs => cs.GetConfigsAsync(), Times.Never);
+        mockConfigService.Verify(cs => cs.ScanForKeysAsync(), Times.Never);
+        Assert.Single(service.TriggerCalls);
+        Assert.True(service.TriggerCalls[0].ForceAll);
+        Assert.NotNull(service.TriggerCalls[0].IncludeProviderIds);
+        Assert.Contains("antigravity", service.TriggerCalls[0].IncludeProviderIds!, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -49,16 +83,16 @@ public class StartupAntiHammerTests
         var mockDb = new Mock<IUsageDatabase>();
         var mockNotificationService = new Mock<INotificationService>();
         var mockHttpClientFactory = new Mock<IHttpClientFactory>();
-        var mockConfigService = new Mock<ConfigService>(Mock.Of<ILogger<ConfigService>>(), Mock.Of<IConfigLoader>());
+        var mockConfigService = new Mock<IConfigService>();
 
         mockDb.Setup(db => db.IsHistoryEmptyAsync())
             .ReturnsAsync(true);
 
-        mockConfigService.SetupSequence(cs => cs.GetConfigsAsync())
+        mockConfigService.Setup(cs => cs.ScanForKeysAsync())
             .ReturnsAsync(new List<ProviderConfig>())
-            .ReturnsAsync(new List<ProviderConfig>());
+            .Verifiable();
 
-        var service = new ProviderRefreshService(
+        var service = new TestableProviderRefreshService(
             mockLogger.Object,
             mockLoggerFactory.Object,
             mockDb.Object,
@@ -67,11 +101,14 @@ public class StartupAntiHammerTests
             mockConfigService.Object);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        
-        await service.ExecuteAsync(cts.Token);
+
+        await service.RunExecuteAsync(cts.Token);
 
         mockDb.Verify(db => db.IsHistoryEmptyAsync(), Times.Once);
-        mockConfigService.Verify(cs => cs.GetConfigsAsync(), Times.AtLeastOnce);
+        mockConfigService.Verify(cs => cs.ScanForKeysAsync(), Times.Once);
+        Assert.Single(service.TriggerCalls);
+        Assert.True(service.TriggerCalls[0].ForceAll);
+        Assert.Null(service.TriggerCalls[0].IncludeProviderIds);
     }
 
     [Fact]

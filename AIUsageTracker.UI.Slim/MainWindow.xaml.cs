@@ -1662,27 +1662,7 @@ public partial class MainWindow : Window
     private static string GetFriendlyProviderName(ProviderUsage usage)
     {
         var providerId = usage.ProviderId ?? string.Empty;
-        var fromPayload = usage.ProviderName;
-        if (!string.IsNullOrWhiteSpace(fromPayload) &&
-            !string.Equals(fromPayload, providerId, StringComparison.OrdinalIgnoreCase))
-        {
-            return fromPayload;
-        }
-
-        return providerId.ToLowerInvariant() switch
-        {
-            "antigravity" => "Google Antigravity",
-            "gemini-cli" => "Google Gemini",
-            "github-copilot" => "GitHub Copilot",
-            "openai" => "OpenAI (Codex)",
-            "minimax" => "Minimax (China)",
-            "minimax-io" => "Minimax (International)",
-            "opencode" => "OpenCode",
-            "claude-code" => "Claude Code",
-            "zai-coding-plan" => "Z.ai Coding Plan",
-            _ => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(
-                providerId.Replace("_", " ").Replace("-", " "))
-        };
+        return ProviderDisplayNameResolver.GetDisplayName(providerId, usage.ProviderName);
     }
 
     private void AddAntigravityModels(ProviderUsage usage, StackPanel container)

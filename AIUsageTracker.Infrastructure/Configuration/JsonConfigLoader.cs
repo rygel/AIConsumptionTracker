@@ -60,7 +60,6 @@ public class JsonConfigLoader : IConfigLoader
                     {
                         var providerId = kvp.Key;
                         if (providerId.Equals("kimi-for-coding", StringComparison.OrdinalIgnoreCase)) providerId = "kimi";
-                        if (providerId.Equals("codex", StringComparison.OrdinalIgnoreCase)) providerId = "openai";
                         if (providerId.Equals("app_settings", StringComparison.OrdinalIgnoreCase)) continue;
 
                         if (!mergedConfigs.TryGetValue(providerId, out var config))
@@ -146,10 +145,9 @@ public class JsonConfigLoader : IConfigLoader
                     d.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase) &&
                     !string.IsNullOrWhiteSpace(d.ApiKey) &&
                     !d.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase) &&
-                    (d.AuthSource?.Contains("OpenCode", StringComparison.OrdinalIgnoreCase) == true ||
-                     d.AuthSource?.Contains("Codex", StringComparison.OrdinalIgnoreCase) == true);
+                    d.AuthSource?.Contains("OpenCode", StringComparison.OrdinalIgnoreCase) == true;
 
-                if (string.IsNullOrEmpty(existing.ApiKey) && !string.IsNullOrEmpty(d.ApiKey) || discoveredOpenAiSession)
+                if ((string.IsNullOrEmpty(existing.ApiKey) && !string.IsNullOrEmpty(d.ApiKey)) || discoveredOpenAiSession)
                 {
                     existing.ApiKey = d.ApiKey;
                     existing.Description = d.Description;

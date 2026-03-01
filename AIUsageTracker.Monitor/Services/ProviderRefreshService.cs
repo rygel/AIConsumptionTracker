@@ -17,7 +17,7 @@ public class ProviderRefreshService : BackgroundService
     private readonly IUsageDatabase _database;
     private readonly INotificationService _notificationService;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ConfigService _configService;
+    private readonly IConfigService _configService;
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
     private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(5);
     private static bool _debugMode = false;
@@ -53,7 +53,7 @@ public class ProviderRefreshService : BackgroundService
         IUsageDatabase database,
         INotificationService notificationService,
         IHttpClientFactory httpClientFactory,
-        ConfigService configService)
+        IConfigService configService)
     {
         _logger = logger;
         _loggerFactory = loggerFactory;
@@ -156,6 +156,7 @@ public class ProviderRefreshService : BackgroundService
             new ZaiProvider(httpClient, _loggerFactory.CreateLogger<ZaiProvider>()),
             new AntigravityProvider(_loggerFactory.CreateLogger<AntigravityProvider>()),
             new OpenCodeProvider(httpClient, _loggerFactory.CreateLogger<OpenCodeProvider>()),
+            new CodexProvider(httpClient, _loggerFactory.CreateLogger<CodexProvider>()),
             new OpenAIProvider(httpClient, _loggerFactory.CreateLogger<OpenAIProvider>()),
             new AnthropicProvider(_loggerFactory.CreateLogger<AnthropicProvider>()),
             new GeminiProvider(httpClient, _loggerFactory.CreateLogger<GeminiProvider>()),
@@ -186,7 +187,7 @@ public class ProviderRefreshService : BackgroundService
         _logger.LogInformation("Loaded {Count} providers", providers.Count);
     }
 
-    public async Task TriggerRefreshAsync(
+    public virtual async Task TriggerRefreshAsync(
         bool forceAll = false,
         IReadOnlyCollection<string>? includeProviderIds = null,
         bool bypassCircuitBreaker = false)

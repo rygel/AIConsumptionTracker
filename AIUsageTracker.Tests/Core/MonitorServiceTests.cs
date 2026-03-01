@@ -1,5 +1,6 @@
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Models;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Moq.Protected;
 using System.Net;
@@ -21,7 +22,7 @@ public class MonitorServiceTests
         {
             BaseAddress = new Uri("http://localhost:5000")
         };
-        _service = new MonitorService(_httpClient);
+        _service = new MonitorService(_httpClient, NullLogger<MonitorService>.Instance);
         _service.AgentUrl = "http://localhost:5000";
     }
 

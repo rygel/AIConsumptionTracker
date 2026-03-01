@@ -1,5 +1,7 @@
 using Microsoft.Playwright;
 using Microsoft.Playwright.MSTest;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -41,6 +43,65 @@ public class ScreenshotTests : PageTest
     private readonly Dictionary<string, (string BgPrimary, string AccentPrimary)> _representativeThemeTokens;
     private readonly string _outputDir;
     private readonly string _themeOutputDir;
+
+    [ClassInitialize]
+    public static void EnsurePlaywrightBrowserCanLaunch(TestContext _)
+    {
+        var chromiumPath = FindPlaywrightChromiumPath();
+        if (string.IsNullOrWhiteSpace(chromiumPath))
+        {
+            Assert.Inconclusive("Playwright Chromium executable was not found. Install browsers with 'playwright install'.");
+            return;
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = chromiumPath,
+                Arguments = "--version",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo);
+            if (process == null)
+            {
+                Assert.Inconclusive($"Unable to start Playwright Chromium at '{chromiumPath}'.");
+                return;
+            }
+
+            if (!process.WaitForExit(5000))
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                    // Ignore cleanup errors.
+                }
+
+                Assert.Inconclusive("Playwright Chromium launch probe timed out.");
+                return;
+            }
+
+            if (process.ExitCode != 0)
+            {
+                Assert.Inconclusive($"Playwright Chromium launch probe failed with exit code {process.ExitCode}.");
+            }
+        }
+        catch (Win32Exception ex) when (IsPermissionError(ex))
+        {
+            Assert.Inconclusive($"Browser launch is blocked in this environment: {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Assert.Inconclusive($"Browser launch is blocked in this environment: {ex.Message}");
+        }
+    }
 
     public ScreenshotTests()
     {
@@ -93,6 +154,26 @@ public class ScreenshotTests : PageTest
         }
 
         return catalog;
+    }
+
+    private static string? FindPlaywrightChromiumPath()
+    {
+        var browsersRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "ms-playwright");
+        if (!Directory.Exists(browsersRoot))
+        {
+            return null;
+        }
+
+        return Directory
+            .EnumerateFiles(browsersRoot, "chrome.exe", SearchOption.AllDirectories)
+            .FirstOrDefault();
+    }
+
+    private static bool IsPermissionError(Win32Exception ex)
+    {
+        return ex.NativeErrorCode is 5 or 13;
     }
 
     private static double ContrastRatio(string hex1, string hex2)

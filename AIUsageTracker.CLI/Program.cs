@@ -240,18 +240,20 @@ class Program
         foreach (var item in history)
         {
              // Flatten details for simplified view
-             if (item.Details != null && item.Details.Any())
+                 if (item.Details != null && item.Details.Any())
              {
                  foreach(var detail in item.Details)
                  {
-                      Console.WriteLine($"{item.FetchedAt.ToShortDateString(),-12} | {item.ProviderName,-20} | {detail.Name,-25} | {detail.Used,-15}");
+                      var providerDisplayName = ProviderDisplayNameResolver.GetDisplayName(item.ProviderId, item.ProviderName);
+                      Console.WriteLine($"{item.FetchedAt.ToShortDateString(),-12} | {providerDisplayName,-20} | {detail.Name,-25} | {detail.Used,-15}");
                  }
              }
              else
              {
                  // Fallback for providers without details
                  var used = $"{item.RequestsUsed} {item.UsageUnit}";
-                 Console.WriteLine($"{item.FetchedAt.ToShortDateString(),-12} | {item.ProviderName,-20} | {"(Total)",-25} | {used,-15}");
+                 var providerDisplayName = ProviderDisplayNameResolver.GetDisplayName(item.ProviderId, item.ProviderName);
+                 Console.WriteLine($"{item.FetchedAt.ToShortDateString(),-12} | {providerDisplayName,-20} | {"(Total)",-25} | {used,-15}");
              }
         }
     }
@@ -449,6 +451,7 @@ class Program
                 // Handle missing PlanType or IsQuotaBased if relying on serialized data
                 var type = u.IsQuotaBased ? "Quota" : "Pay-As-You-Go";
                 var accountInfo = !string.IsNullOrWhiteSpace(u.AccountName) ? $" [{u.AccountName}]" : "";
+                var providerDisplayName = ProviderDisplayNameResolver.GetDisplayName(u.ProviderId, u.ProviderName);
                 
                 var description = u.Description;
                 if (u.Details != null && u.Details.Any() && string.IsNullOrEmpty(description))
@@ -469,7 +472,7 @@ class Program
 
                 var lines = description.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
                 
-                Console.WriteLine($"{u.ProviderName,-36} | {type,-14} | {pct,-10} | {lines[0]}");
+                Console.WriteLine($"{providerDisplayName,-36} | {type,-14} | {pct,-10} | {lines[0]}");
                 
                 for (int i = 1; i < lines.Length; i++)
                 {
@@ -499,7 +502,7 @@ class Program
         {
             foreach (var c in configs)
             {
-                Console.WriteLine($"ID: {c.ProviderId}, Type: {c.Type}");
+                Console.WriteLine($"ID: {c.ProviderId}, Name: {ProviderDisplayNameResolver.GetDisplayName(c.ProviderId)}, Type: {c.Type}");
             }
         }
     }

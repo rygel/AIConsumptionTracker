@@ -6,12 +6,11 @@
     <FileVersion>$(TrackerAssemblyVersion)</FileVersion>
     <InformationalVersion>$(TrackerVersion)</InformationalVersion>
     <AssemblyName>AIUsageTracker.Monitor</AssemblyName>
-    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Exe</OutputType>
     <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
-    <ApplicationIcon>..\AIUsageTracker.UI.Slim\Assets\app_icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,10 +31,5 @@
   <ItemGroup>
     <EmbeddedResource Include="Migrations\**\*.sql" />
   </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="..\AIUsageTracker.UI.Slim\Assets\app_icon.ico" />
-  </ItemGroup>
-
 </Project>
 

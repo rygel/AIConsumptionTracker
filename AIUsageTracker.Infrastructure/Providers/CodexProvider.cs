@@ -39,16 +39,24 @@ public class CodexProvider : IProviderService
         try
         {
             var auth = await LoadNativeAuthAsync();
-            if (auth == null || string.IsNullOrWhiteSpace(auth.Tokens.AccessToken))
+            var accessToken = auth?.Tokens.AccessToken;
+            var accountId = auth?.Tokens.AccountId;
+
+            // Allow explicit config/env token as fallback when auth.json is not available.
+            if (string.IsNullOrWhiteSpace(accessToken) && !string.IsNullOrWhiteSpace(config.ApiKey))
             {
-                return new[] { CreateUnavailableUsage("Codex native auth not found (~/.codex/auth.json)") };
+                accessToken = config.ApiKey;
             }
 
-            var accessToken = auth.Tokens.AccessToken!;
-            var accountId = auth.Tokens.AccountId;
-            var (email, jwtPlanType) = DecodeJwtClaims(accessToken);
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                return new[] { CreateUnavailableUsage("Codex auth token not found (~/.codex/auth.json or CODEX_API_KEY)") };
+            }
 
-            using var request = CreateUsageRequest(accessToken, accountId);
+            var resolvedAccessToken = accessToken!;
+            var (email, jwtPlanType) = DecodeJwtClaims(resolvedAccessToken);
+
+            using var request = CreateUsageRequest(resolvedAccessToken, accountId);
             using var response = await _httpClient.SendAsync(request);
             var content = await response.Content.ReadAsStringAsync();
 
@@ -141,7 +149,7 @@ public class CodexProvider : IProviderService
         return new ProviderUsage
         {
             ProviderId = ProviderId,
-            ProviderName = "Codex",
+            ProviderName = "Codex (OpenAI)",
             RequestsPercentage = remainingPercent,
             RequestsUsed = 100.0 - remainingPercent,
             RequestsAvailable = 100.0,
@@ -441,7 +449,7 @@ public class CodexProvider : IProviderService
         return new ProviderUsage
         {
             ProviderId = ProviderId,
-            ProviderName = "Codex",
+            ProviderName = "Codex (OpenAI)",
             IsAvailable = false,
             IsQuotaBased = true,
             PlanType = PlanType.Coding,

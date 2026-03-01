@@ -415,7 +415,7 @@ public class MonitorService
 
             if (response.IsSuccessStatusCode)
             {
-                return (true, "Test sent. Check Windows notifications.");
+                return (true, "Test sent. Check system notifications.");
             }
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)

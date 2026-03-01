@@ -51,6 +51,10 @@ public class TokenDiscoveryService
             {
                 AddOrUpdate(discoveredConfigs, "openai", value, "Discovered via Environment Variable", "Env: OPENAI_API_KEY");
             }
+            else if (key == "CODEX_API_KEY")
+            {
+                AddOrUpdate(discoveredConfigs, "codex", value, "Discovered via Environment Variable", "Env: CODEX_API_KEY");
+            }
             else if (key == "OPENROUTER_API_KEY")
             {
                 AddOrUpdate(discoveredConfigs, "openrouter", value, "Discovered via Environment Variable", "Env: OPENROUTER_API_KEY");
@@ -69,31 +73,20 @@ public class TokenDiscoveryService
         // 6. Discover from Claude Code
         await DiscoverClaudeCodeTokenAsync(discoveredConfigs);
 
-        // 8. Discover OpenAI session token from OpenCode/Codex auth files
+        // 7. Discover native Codex session token
+        await DiscoverCodexSessionTokenAsync(discoveredConfigs);
+
+        // 8. Discover OpenAI session token from OpenCode auth files
         await DiscoverOpenAiSessionTokenAsync(discoveredConfigs);
 
         return discoveredConfigs;
     }
 
-    private async Task DiscoverOpenAiSessionTokenAsync(List<ProviderConfig> configs)
+    private async Task DiscoverCodexSessionTokenAsync(List<ProviderConfig> configs)
     {
         try
         {
-            var candidates = new List<string>
-            {
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "auth.json"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "opencode", "auth.json"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".opencode", "auth.json")
-            };
-
-            if (OperatingSystem.IsWindows())
-            {
-                candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "codex", "auth.json"));
-                candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "auth.json"));
-                candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode", "auth.json"));
-            }
-
-            foreach (var path in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+            foreach (var path in GetCodexAuthCandidates())
             {
                 if (!File.Exists(path))
                 {
@@ -102,31 +95,45 @@ public class TokenDiscoveryService
 
                 var json = await File.ReadAllTextAsync(path);
                 using var doc = JsonDocument.Parse(json);
-
-                string? token = null;
-                if (doc.RootElement.TryGetProperty("tokens", out var tokensElement) &&
-                    tokensElement.ValueKind == JsonValueKind.Object &&
-                    tokensElement.TryGetProperty("access_token", out var accessTokenElement))
-                {
-                    token = accessTokenElement.GetString();
-                }
-
-                if (string.IsNullOrWhiteSpace(token) &&
-                    doc.RootElement.TryGetProperty("openai", out var openaiElement) &&
-                    openaiElement.ValueKind == JsonValueKind.Object &&
-                    openaiElement.TryGetProperty("access", out var openaiAccessElement))
-                {
-                    token = openaiAccessElement.GetString();
-                }
+                var token = TryReadCodexAccessToken(doc.RootElement);
 
                 if (string.IsNullOrWhiteSpace(token))
                 {
                     continue;
                 }
 
-                AddOrUpdate(configs, "openai", token, "Discovered in OpenCode/Codex auth", $"Config: {path}");
+                AddOrUpdate(configs, "codex", token, "Discovered in Codex auth", $"Config: {path}");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("Codex session discovery failed: {Message}", ex.Message);
+        }
+    }
 
-                // OpenCode/Codex session token represents coding-plan quota tracking.
+    private async Task DiscoverOpenAiSessionTokenAsync(List<ProviderConfig> configs)
+    {
+        try
+        {
+            foreach (var path in GetOpenCodeAuthCandidates())
+            {
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
+                var json = await File.ReadAllTextAsync(path);
+                using var doc = JsonDocument.Parse(json);
+                var token = TryReadOpenAiSessionAccessToken(doc.RootElement);
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    continue;
+                }
+
+                AddOrUpdate(configs, "openai", token, "Discovered in OpenCode auth", $"Config: {path}");
+
+                // OpenCode session tokens represent coding-plan quota tracking.
                 if (!token.StartsWith("sk-", StringComparison.OrdinalIgnoreCase))
                 {
                     var openAiConfig = configs.FirstOrDefault(c =>
@@ -178,7 +185,7 @@ public class TokenDiscoveryService
     private void AddWellKnownProviders(List<ProviderConfig> configs)
     {
         var wellKnown = new[] { 
-            "openai", "gemini-cli", "github-copilot", 
+            "openai", "codex", "gemini-cli", "github-copilot",
             "minimax", "minimax-io", "xiaomi", "kimi", 
             "deepseek", "openrouter", "antigravity", "opencode"
         };
@@ -230,6 +237,69 @@ public class TokenDiscoveryService
         {
             _logger.LogDebug("[OpenCode Discovery] providers.json not found at: {Path}", providersPath);
         }
+    }
+
+    private static IEnumerable<string> GetCodexAuthCandidates()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var candidates = new List<string>
+        {
+            Path.Combine(home, ".codex", "auth.json")
+        };
+
+        if (OperatingSystem.IsWindows())
+        {
+            candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "codex", "auth.json"));
+        }
+
+        return candidates.Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static IEnumerable<string> GetOpenCodeAuthCandidates()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var candidates = new List<string>
+        {
+            Path.Combine(home, ".local", "share", "opencode", "auth.json"),
+            Path.Combine(home, ".opencode", "auth.json")
+        };
+
+        if (OperatingSystem.IsWindows())
+        {
+            candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "auth.json"));
+            candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode", "auth.json"));
+        }
+
+        return candidates.Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string? TryReadCodexAccessToken(JsonElement root)
+    {
+        if (root.TryGetProperty("tokens", out var tokensElement) &&
+            tokensElement.ValueKind == JsonValueKind.Object &&
+            tokensElement.TryGetProperty("access_token", out var accessTokenElement) &&
+            accessTokenElement.ValueKind == JsonValueKind.String)
+        {
+            return accessTokenElement.GetString();
+        }
+
+        // Legacy/fallback compatibility if auth file contains OpenCode-style shape.
+        return TryReadOpenAiSessionAccessToken(root);
+    }
+
+    private static string? TryReadOpenAiSessionAccessToken(JsonElement root)
+    {
+        if (!root.TryGetProperty("openai", out var openaiElement) || openaiElement.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (!openaiElement.TryGetProperty("access", out var accessElement) || accessElement.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        return accessElement.GetString();
     }
 
     private void AddOrUpdate(List<ProviderConfig> configs, string providerId, string key, string description, string source)

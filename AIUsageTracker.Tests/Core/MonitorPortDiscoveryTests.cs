@@ -1,5 +1,6 @@
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Models;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Moq.Protected;
 using System.Net;
@@ -71,7 +72,7 @@ public class MonitorPortDiscoveryTests
             BaseAddress = new Uri("http://localhost:9999")
         };
         
-        var service = new MonitorService(httpClient);
+        var service = new MonitorService(httpClient, NullLogger<MonitorService>.Instance);
         service.AgentUrl = "http://localhost:9999";
 
         var configs = await service.GetConfigsAsync();
@@ -96,7 +97,7 @@ public class MonitorPortDiscoveryTests
             BaseAddress = new Uri("http://localhost:9999")
         };
         
-        var service = new MonitorService(httpClient);
+        var service = new MonitorService(httpClient, NullLogger<MonitorService>.Instance);
         service.AgentUrl = "http://localhost:9999";
 
         var usages = await service.GetUsageAsync();

@@ -509,7 +509,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "antigravity",
-                ProviderName = "Antigravity",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("antigravity"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -577,7 +577,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "anthropic",
-                ProviderName = "Anthropic",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("anthropic"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -589,7 +589,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "claude-code",
-                ProviderName = "Claude Code",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("claude-code"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -601,7 +601,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "deepseek",
-                ProviderName = "DeepSeek",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("deepseek"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -613,7 +613,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "gemini-cli",
-                ProviderName = "Gemini CLI",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("gemini-cli"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -624,7 +624,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "github-copilot",
-                ProviderName = "GitHub Copilot",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("github-copilot"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -635,7 +635,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "kimi",
-                ProviderName = "Kimi",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("kimi"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -646,7 +646,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "minimax",
-                ProviderName = "Minimax",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("minimax"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -657,7 +657,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "minimax-io",
-                ProviderName = "Minimax International",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("minimax-io"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -669,7 +669,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "mistral",
-                ProviderName = "Mistral",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("mistral"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -681,7 +681,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "openai",
-                ProviderName = "OpenAI (Codex)",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("openai"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -692,7 +692,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "opencode",
-                ProviderName = "OpenCode",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("opencode"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -704,7 +704,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "opencode-zen",
-                ProviderName = "Opencode Zen",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("opencode-zen"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -716,7 +716,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "openrouter",
-                ProviderName = "OpenRouter",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("openrouter"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -728,7 +728,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "synthetic",
-                ProviderName = "Synthetic",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("synthetic"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -739,7 +739,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "zai-coding-plan",
-                ProviderName = "Z.AI",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("zai-coding-plan"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -756,7 +756,7 @@ public partial class SettingsWindow : Window
         {
             new
             {
-                ProviderName = "GitHub Copilot",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("github-copilot"),
                 UsagePercentage = 27.5,
                 Used = 27.5,
                 Limit = 100.0,
@@ -766,7 +766,7 @@ public partial class SettingsWindow : Window
             },
             new
             {
-                ProviderName = "OpenAI",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("openai"),
                 UsagePercentage = 31.1,
                 Used = 12.45,
                 Limit = 40.0,
@@ -1217,16 +1217,19 @@ public partial class SettingsWindow : Window
             Grid.SetColumn(statusPanel, 0);
             keyPanel.Children.Add(statusPanel);
         }
-        else if (config.ProviderId == "openai" &&
-                 (usage?.PlanType == PlanType.Coding ||
-                  (!string.IsNullOrWhiteSpace(config.ApiKey) && !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase))))
+        else if ((config.ProviderId == "openai" &&
+                  (usage?.PlanType == PlanType.Coding ||
+                   (!string.IsNullOrWhiteSpace(config.ApiKey) && !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase))))
+                 || config.ProviderId == "codex")
         {
             var statusPanel = new StackPanel { Orientation = Orientation.Vertical };
+            var isCodex = config.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase);
+            var providerSessionLabel = isCodex ? "Codex" : "OpenCode (OpenAI)";
             var hasSessionToken = !string.IsNullOrWhiteSpace(config.ApiKey) &&
                                   !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
             var isAuthenticated = hasSessionToken || (usage != null && usage.IsAvailable);
             var accountName = usage?.AccountName;
-            if (string.IsNullOrWhiteSpace(accountName) || accountName == "Unknown" || accountName == "User")
+            if (!isCodex && (string.IsNullOrWhiteSpace(accountName) || accountName == "Unknown" || accountName == "User"))
             {
                 accountName = _openAiAuthUsername;
             }
@@ -1244,11 +1247,11 @@ public partial class SettingsWindow : Window
             }
             else if (hasSessionToken && (usage == null || !usage.IsAvailable))
             {
-                displayText = "Authenticated via OpenCode (Codex) - refresh to load quota";
+                displayText = $"Authenticated via {providerSessionLabel} - refresh to load quota";
             }
             else
             {
-                displayText = "Authenticated via OpenCode (Codex)";
+                displayText = $"Authenticated via {providerSessionLabel}";
             }
 
             var statusText = new TextBlock
@@ -2164,20 +2167,7 @@ public partial class SettingsWindow : Window
 
     private static string GetProviderDisplayName(string providerId)
     {
-        return providerId switch
-        {
-            "antigravity" => "Google Antigravity",
-            "gemini-cli" => "Google Gemini",
-            "github-copilot" => "GitHub Copilot",
-            "openai" => "OpenAI (Codex)",
-            "minimax" => "Minimax (China)",
-            "minimax-io" => "Minimax (International)",
-            "opencode" => "OpenCode",
-            "claude-code" => "Claude Code",
-            "zai-coding-plan" => "Z.ai Coding Plan",
-            _ => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(
-                providerId.Replace("_", " ").Replace("-", " "))
-        };
+        return ProviderDisplayNameResolver.GetDisplayName(providerId);
     }
 
     private async Task PersistAllSettingsAsync(bool showErrorDialog)

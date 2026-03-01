@@ -1,4 +1,3 @@
-using System.Text.Json;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
@@ -6,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AIUsageTracker.Monitor.Services;
 
-public class ConfigService
+public class ConfigService : IConfigService
 {
     private readonly ILogger<ConfigService> _logger;
     private readonly JsonConfigLoader _configLoader;
@@ -16,9 +15,9 @@ public class ConfigService
     {
         _logger = logger;
         _configLoader = new JsonConfigLoader(
-            logger: null,
-            tokenDiscoveryLogger: null);
-        _tokenDiscovery = new TokenDiscoveryService(null);
+            logger: NullLogger<JsonConfigLoader>.Instance,
+            tokenDiscoveryLogger: NullLogger<TokenDiscoveryService>.Instance);
+        _tokenDiscovery = new TokenDiscoveryService(NullLogger<TokenDiscoveryService>.Instance);
     }
 
     public async Task<List<ProviderConfig>> GetConfigsAsync()
