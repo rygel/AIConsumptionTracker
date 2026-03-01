@@ -7,7 +7,8 @@ param(
 
     [string]$ResultsDirectory = "TestResults",
     [string]$QuarantineFile = ".github\test-quarantine.txt",
-    [int]$MaxRetries = 1
+    [int]$MaxRetries = 1,
+    [int]$AttemptTimeoutMinutes = 10
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,6 +19,10 @@ if (-not (Test-Path -LiteralPath $AssemblyPath)) {
 
 if ($MaxRetries -lt 0) {
     throw "MaxRetries must be >= 0."
+}
+
+if ($AttemptTimeoutMinutes -lt 1) {
+    throw "AttemptTimeoutMinutes must be >= 1."
 }
 
 $resolvedResultsDirectory = if ([System.IO.Path]::IsPathRooted($ResultsDirectory)) {
@@ -49,7 +54,8 @@ if (Test-Path -LiteralPath $QuarantineFile) {
 
 function Invoke-VsTestRun {
     param(
-        [string]$TrxFileName
+        [string]$TrxFileName,
+        [int]$AttemptNumber
     )
 
     $arguments = @(
@@ -64,8 +70,61 @@ function Invoke-VsTestRun {
         $arguments += @("--TestCaseFilter", $testCaseFilter)
     }
 
-    & dotnet @arguments
-    return [int]$LASTEXITCODE
+    $stdoutLog = Join-Path $resolvedResultsDirectory "$SuiteName-attempt$AttemptNumber-stdout.log"
+    $stderrLog = Join-Path $resolvedResultsDirectory "$SuiteName-attempt$AttemptNumber-stderr.log"
+    if (Test-Path -LiteralPath $stdoutLog) {
+        Remove-Item -LiteralPath $stdoutLog -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path -LiteralPath $stderrLog) {
+        Remove-Item -LiteralPath $stderrLog -Force -ErrorAction SilentlyContinue
+    }
+
+    $process = Start-Process `
+        -FilePath "dotnet" `
+        -ArgumentList $arguments `
+        -NoNewWindow `
+        -PassThru `
+        -RedirectStandardOutput $stdoutLog `
+        -RedirectStandardError $stderrLog
+
+    $timeoutMs = [Math]::Min([int]::MaxValue, $AttemptTimeoutMinutes * 60 * 1000)
+    $completed = $process.WaitForExit($timeoutMs)
+    if (-not $completed) {
+        Write-Host "Attempt $AttemptNumber exceeded ${AttemptTimeoutMinutes}m timeout. Killing dotnet vstest process..." -ForegroundColor Red
+        try {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        }
+        catch {
+            Write-Host "Failed to terminate timed out process $($process.Id): $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+
+        if (Test-Path -LiteralPath $stdoutLog) {
+            Write-Host "--- Last 200 lines stdout ($stdoutLog) ---"
+            Get-Content -LiteralPath $stdoutLog -Tail 200
+        }
+        if (Test-Path -LiteralPath $stderrLog) {
+            Write-Host "--- Last 200 lines stderr ($stderrLog) ---"
+            Get-Content -LiteralPath $stderrLog -Tail 200
+        }
+
+        return 124
+    }
+
+    $process.WaitForExit()
+    $exitCode = [int]$process.ExitCode
+    Write-Host "dotnet vstest attempt $AttemptNumber exited with code $exitCode."
+    if ($exitCode -ne 0) {
+        if (Test-Path -LiteralPath $stdoutLog) {
+            Write-Host "--- Last 200 lines stdout ($stdoutLog) ---"
+            Get-Content -LiteralPath $stdoutLog -Tail 200
+        }
+        if (Test-Path -LiteralPath $stderrLog) {
+            Write-Host "--- Last 200 lines stderr ($stderrLog) ---"
+            Get-Content -LiteralPath $stderrLog -Tail 200
+        }
+    }
+
+    return $exitCode
 }
 
 function Write-SlowestTestsReport {
@@ -137,7 +196,7 @@ while ($attempt -le $maxAttempts) {
     $trxFileName = "$SuiteName$suffix.trx"
 
     Write-Host "Running $SuiteName attempt $attempt of $maxAttempts..." -ForegroundColor Cyan
-    $exitCode = Invoke-VsTestRun -TrxFileName $trxFileName
+    $exitCode = Invoke-VsTestRun -TrxFileName $trxFileName -AttemptNumber $attempt
 
     if ($exitCode -eq 0) {
         break
