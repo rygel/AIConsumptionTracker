@@ -200,7 +200,15 @@ public class ClaudeCodeProvider : IProviderService
 
                 var outputTask = process.StandardOutput.ReadToEndAsync();
                 var errorTask = process.StandardError.ReadToEndAsync();
-                process.WaitForExit(5000);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                try
+                {
+                    await process.WaitForExitAsync(cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("Claude Code CLI timed out");
+                }
                 var output = await outputTask;
                 var error = await errorTask;
 

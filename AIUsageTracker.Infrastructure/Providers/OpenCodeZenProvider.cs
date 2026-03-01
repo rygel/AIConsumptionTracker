@@ -30,7 +30,7 @@ public class OpenCodeZenProvider : IProviderService
     {
         // Check if CLI exists first
         var pathExists = _cliPath == "opencode"
-            ? IsInPath("opencode")
+            ? await IsInPath("opencode")
             : File.Exists(_cliPath);
 
         if (!pathExists)
@@ -140,7 +140,7 @@ public class OpenCodeZenProvider : IProviderService
         };
     }
 
-    private bool IsInPath(string command)
+    private async Task<bool> IsInPath(string command)
     {
         try
         {
@@ -156,8 +156,16 @@ public class OpenCodeZenProvider : IProviderService
             using var process = Process.Start(psi);
             if (process != null)
             {
-                process.WaitForExit();
-                return process.ExitCode == 0;
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                try
+                {
+                    await process.WaitForExitAsync(cts.Token);
+                    return process.ExitCode == 0;
+                }
+                catch (OperationCanceledException)
+                {
+                    return false;
+                }
             }
         }
         catch { }
