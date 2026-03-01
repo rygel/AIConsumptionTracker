@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Added
+- **Monitor logging**: Unified structured logging with clean format (timestamp + level + category + message)
+- **Startup anti-hammer guardrail**: Monitor no longer refreshes all providers on startup with cached data (only Antigravity)
+- **Data export**: CSV, JSON, and SQLite backup export in Web UI (/data) and Slim UI (Settings → Data tab)
+- **Budget policies** (experimental): Dashboard shows budget status with progress bars
+- **Comparison views** (experimental): Dashboard shows period-over-period usage comparison
+- **Tray icon toggle**: Right-click menu shows "Show" when hidden, "Hide" when visible
+- **Startup regression tests**: Tests to prevent reintroduction of startup hammer bug
+
+### Changed
+- **CLI execution**: Converted blocking WaitForExit to async with timeouts (2-5s) for OpenCode, Claude Code, Antigravity
+- **HTTP client reuse**: MonitorService now reuses HttpClient to prevent socket exhaustion
+- **CI terminology**: Replaced "agent" with "monitor" in test pipeline
+
+### Fixed
+- **Silent catch blocks**: Added logging to empty catch blocks in Monitor and Infrastructure
+
+### OpenCode
+- Enhanced CLI parsing to extract Sessions, Messages, and Avg Cost/Day
+
 ## [2.2.27-beta.2] - 2026-02-28
 
 ### Fixed
