@@ -630,6 +630,23 @@ public class MonitorService
         }
     }
 
+    public async Task<string> ExportDataAsync(string format)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{AgentUrl}/api/export/{format}");
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsStringAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "ExportDataAsync error");
+        }
+        return string.Empty;
+    }
+
     public async Task<Stream?> ExportDataAsync(string format, int days)
     {
         try
