@@ -3,6 +3,7 @@ using System.IO;
 using System.Net.Http;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
+using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Core.MonitorClient;
 
@@ -11,6 +12,9 @@ public class MonitorLauncher
     private const int DefaultPort = 5000;
     private const int MaxWaitSeconds = 30;
     private const int StopWaitSeconds = 5;
+    private static ILogger<MonitorLauncher>? _logger;
+
+    public static void SetLogger(ILogger<MonitorLauncher> logger) => _logger = logger;
 
 
     private static async Task<MonitorInfo?> GetAgentInfoAsync()
@@ -204,7 +208,7 @@ public class MonitorLauncher
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Failed to stop Agent: {ex.Message}");
+            _logger?.LogWarning(ex, "Failed to stop Agent");
             return false;
         }
     }

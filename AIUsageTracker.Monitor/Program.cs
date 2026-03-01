@@ -521,7 +521,19 @@ public class FileLogger : ILogger
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
-    public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+    public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Debug;
+
+    private static string GetLevelString(LogLevel level) => level switch
+    {
+        LogLevel.Trace => "TRCE",
+        LogLevel.Debug => "DEBUG",
+        LogLevel.Information => "INFO ",
+        LogLevel.Warning => "WARN ",
+        LogLevel.Error => "ERROR",
+        LogLevel.Critical => "CRIT ",
+        LogLevel.None => "    ",
+        _ => level.ToString().ToUpperInvariant().PadRight(5)
+    };
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
@@ -529,7 +541,13 @@ public class FileLogger : ILogger
             return;
 
         var message = formatter(state, exception);
-        var logEntry = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{logLevel}] {_categoryName}: {message}";
+        var levelStr = GetLevelString(logLevel);
+        var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+        var categoryShort = _categoryName.Length > 30 
+            ? _categoryName.Substring(_categoryName.Length - 30) 
+            : _categoryName.PadRight(30);
+        
+        var logEntry = $"{timestamp} {levelStr} {categoryShort} | {message}";
         
         if (exception != null)
         {

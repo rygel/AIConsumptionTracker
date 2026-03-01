@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Models;
+using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Core.MonitorClient;
 
@@ -12,14 +13,30 @@ public class MonitorService
 {
     private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ILogger<MonitorService>? _logger;
     private const int UsageRequestTimeoutSeconds = 8;
     private const int ConfigRequestTimeoutSeconds = 3;
 
     public const string ExpectedApiContractVersion = "1";
     public string AgentUrl { get; set; } = "http://localhost:5000";
 
-    public MonitorService() : this(new HttpClient { Timeout = TimeSpan.FromSeconds(12) })
+    public MonitorService() : this(new HttpClient { Timeout = TimeSpan.FromSeconds(12) }, null)
     {
+    }
+
+    public MonitorService(HttpClient httpClient, ILogger<MonitorService>? logger)
+    {
+        _httpClient = httpClient;
+        _logger = logger;
+        _jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }
+        };
+        
+        // Note: Port discovery is now done explicitly via RefreshPortAsync()
+        // to avoid race conditions where the Monitor port changes
     }
 
     public List<string> LastAgentErrors { get; private set; } = new();
@@ -34,20 +51,6 @@ public class MonitorService
     private static long _refreshTotalLatencyMs;
     private static long _refreshLastLatencyMs;
 
-    public MonitorService(HttpClient httpClient)
-    {
-        _httpClient = httpClient;
-        _jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }
-        };
-        
-        // Note: Port discovery is now done explicitly via RefreshPortAsync()
-        // to avoid race conditions where the Monitor port changes
-    }
-
     public static void LogDiagnostic(string message)
     {
         var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
@@ -57,7 +60,6 @@ public class MonitorService
             if (_diagnosticsLog.Count > 100) _diagnosticsLog.RemoveAt(0);
         }
         System.Diagnostics.Debug.WriteLine($"[{timestamp}] [DIAG] {message}");
-        Console.WriteLine($"[{timestamp}] [DIAG] {message}");
     }
 
     public static AgentTelemetrySnapshot GetTelemetrySnapshot()
@@ -142,7 +144,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error refreshing monitor info: {ex.Message}");
+            _logger?.LogWarning(ex, "Error refreshing monitor info");
             AgentUrl = "http://localhost:5000";
             LastAgentErrors = new List<string>();
         }
@@ -311,13 +313,13 @@ public class MonitorService
         }
         catch (TaskCanceledException)
         {
-            System.Diagnostics.Debug.WriteLine(
-                $"GetConfigsAsync timeout after {ConfigRequestTimeoutSeconds}s at {AgentUrl}/api/config");
+            _logger?.LogWarning("GetConfigsAsync timeout after {Timeout}s at {Url}", 
+                ConfigRequestTimeoutSeconds, $"{AgentUrl}/api/config");
             return new List<ProviderConfig>();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"GetConfigsAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "GetConfigsAsync error");
             return new List<ProviderConfig>();
         }
     }
@@ -334,7 +336,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"SaveConfigAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "SaveConfigAsync error");
             return false;
         }
     }
@@ -348,7 +350,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"RemoveConfigAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "RemoveConfigAsync error");
             return false;
         }
     }
@@ -365,7 +367,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"GetPreferencesAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "GetPreferencesAsync error");
             return new AppPreferences();
         }
     }
@@ -382,7 +384,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"SavePreferencesAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "SavePreferencesAsync error");
             return false;
         }
     }
@@ -414,7 +416,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"SendTestNotificationAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "SendTestNotificationAsync error");
             return (false, "Could not reach Monitor. Ensure it is running and try again.");
         }
     }
@@ -436,7 +438,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"ScanForKeysAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "ScanForKeysAsync error");
         }
         return (0, new List<ProviderConfig>());
     }
@@ -629,7 +631,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"ExportDataAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "ExportDataAsync error");
         }
         return null; // or throw
     }
