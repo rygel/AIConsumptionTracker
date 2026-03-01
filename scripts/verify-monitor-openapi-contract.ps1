@@ -9,10 +9,17 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 
 if ([string]::IsNullOrWhiteSpace($AgentExecutablePath)) {
-    $defaultExe = Join-Path $projectRoot "AIUsageTracker.Monitor\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Monitor.exe"
-    if (-not (Test-Path -LiteralPath $defaultExe)) {
-        throw "Agent executable not found at $defaultExe. Build the solution before running this check."
+    $candidateExecutables = @(
+        (Join-Path $projectRoot "AIUsageTracker.Monitor\bin\Debug\net8.0\AIUsageTracker.Monitor.exe"),
+        (Join-Path $projectRoot "AIUsageTracker.Monitor\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Monitor.exe")
+    )
+
+    $defaultExe = $candidateExecutables | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($defaultExe)) {
+        $searched = $candidateExecutables -join ", "
+        throw "Agent executable not found. Searched: $searched. Build the solution before running this check."
     }
+
     $AgentExecutablePath = $defaultExe
 }
 elseif (-not (Test-Path -LiteralPath $AgentExecutablePath)) {
@@ -68,6 +75,18 @@ function Wait-ForAgentPort {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 
     while ((Get-Date) -lt $deadline) {
+        if ($ProcessId -gt 0) {
+            try {
+                $proc = Get-Process -Id $ProcessId -ErrorAction Stop
+                if ($proc.HasExited) {
+                    throw "Agent process $ProcessId exited before publishing monitor port."
+                }
+            }
+            catch [System.Management.Automation.ItemNotFoundException] {
+                throw "Agent process $ProcessId exited before publishing monitor port."
+            }
+        }
+
         foreach ($agentInfoPath in $agentInfoPaths) {
             if (Test-Path -LiteralPath $agentInfoPath) {
                 try {
@@ -79,6 +98,18 @@ function Wait-ForAgentPort {
                 catch {
                     # Keep polling while agent writes startup file.
                 }
+            }
+        }
+
+        foreach ($candidatePort in 5000..5010) {
+            try {
+                $health = Invoke-RestMethod -Uri "http://localhost:$candidatePort/api/health" -TimeoutSec 1
+                if ($health -and [int]$health.processId -eq $ProcessId) {
+                    return $candidatePort
+                }
+            }
+            catch {
+                # Port not serving expected health endpoint yet.
             }
         }
 

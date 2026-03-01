@@ -22,6 +22,11 @@
 ### OpenCode
 - Enhanced CLI parsing to extract Sessions, Messages, and Avg Cost/Day
 
+## [2.2.27-beta.4] - 2026-03-01
+
+### Changed
+- CI: expanded branch coverage for validation workflows and tightened timeout safeguards.
+
 ## [2.2.27-beta.2] - 2026-02-28
 
 ### Fixed
