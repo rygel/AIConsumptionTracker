@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [2.2.27-beta.6] - 2026-03-01
+
 ### Added
 - **Typed provider detail contract**: Added `WindowKind` plus helper methods on `ProviderUsageDetail` for consistent typed detail handling across clients.
 - **Contract test coverage**: Added provider-detail contract/unit tests for typed detail semantics.
