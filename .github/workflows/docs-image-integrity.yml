@@ -2,7 +2,7 @@ name: Docs Image Integrity
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths:
       - "README.md"
       - "docs/**"
@@ -10,7 +10,7 @@ on:
       - "scripts/verify-doc-images.ps1"
       - ".github/workflows/docs-image-integrity.yml"
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths:
       - "README.md"
       - "docs/**"

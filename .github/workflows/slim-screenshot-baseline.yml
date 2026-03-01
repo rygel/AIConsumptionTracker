@@ -2,7 +2,7 @@ name: Slim Screenshot Baseline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths:
       - "AIUsageTracker.UI.Slim/**"
       - "scripts/capture_screenshot.ps1"
@@ -12,7 +12,7 @@ on:
       - "docs/screenshot_*_privacy.png"
       - ".github/workflows/slim-screenshot-baseline.yml"
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths:
       - "AIUsageTracker.UI.Slim/**"
       - "scripts/capture_screenshot.ps1"
