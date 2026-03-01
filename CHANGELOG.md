@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [2.2.27-beta.5] - 2026-03-01
+
 ### Added
 - **Monitor logging**: Unified structured logging with clean format (timestamp + level + category + message)
 - **Startup anti-hammer guardrail**: Monitor no longer refreshes all providers on startup with cached data (only Antigravity)
