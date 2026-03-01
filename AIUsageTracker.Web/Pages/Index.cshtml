@@ -111,18 +111,6 @@
                        aria-label="Toggle experimental anomaly detection">
                         @(Model.EnableExperimentalAnomalyDetection ? "Disable Anomaly Detection (Exp)" : "Enable Anomaly Detection (Exp)")
                     </a>
-                    <a class="btn btn-secondary btn-sm @(Model.EnableExperimentalBudgetPolicies ? "btn-experimental-on" : "")"
-                       href="/?showInactive=@(Model.ShowInactiveProviders.ToString().ToLower())&showUsed=@(Model.ShowUsedPercentage.ToString().ToLower())&expBudget=@((!Model.EnableExperimentalBudgetPolicies).ToString().ToLower())"
-                       title="Experimental feature. Disabled by default."
-                       aria-label="Toggle experimental budget policies">
-                        @(Model.EnableExperimentalBudgetPolicies ? "Disable Budget (Exp)" : "Enable Budget (Exp)")
-                    </a>
-                    <a class="btn btn-secondary btn-sm @(Model.EnableExperimentalComparison ? "btn-experimental-on" : "")"
-                       href="/?showInactive=@(Model.ShowInactiveProviders.ToString().ToLower())&showUsed=@(Model.ShowUsedPercentage.ToString().ToLower())&expCompare=@((!Model.EnableExperimentalComparison).ToString().ToLower())"
-                       title="Experimental feature. Disabled by default."
-                       aria-label="Toggle experimental comparison">
-                        @(Model.EnableExperimentalComparison ? "Disable Compare (Exp)" : "Enable Compare (Exp)")
-                    </a>
                 </div>
             </div>
 
@@ -274,7 +262,7 @@
         }
 
         @* Experimental Budget Policies Section *@
-        @if (Model.EnableExperimentalBudgetPolicies && Model.BudgetStatuses.Any())
+        @if (Model.BudgetStatuses.Any())
         {
             <div class="section-header">
                 <h2 class="mb-2">Budget Status <span class="badge badge-experimental">Experimental</span></h2>
@@ -289,9 +277,9 @@
                             <span class="budget-period">@budget.Period</span>
                         </div>
                         <div class="budget-amounts">
-                            <span class="current">$@budget.CurrentSpend:F2</span>
+                            <span class="current">$@budget.CurrentSpend.ToString("F2")</span>
                             <span class="separator">/</span>
-                            <span class="limit">$@budget.BudgetLimit:F2</span>
+                            <span class="limit">$@budget.BudgetLimit.ToString("F2")</span>
                         </div>
                         <div class="budget-progress">
                             <div class="budget-progress-bar @budgetClass" style="width: @Math.Min(budget.UtilizationPercent, 100)%"></div>
@@ -316,7 +304,7 @@
         }
 
         @* Experimental Comparison Section *@
-        @if (Model.EnableExperimentalComparison && Model.UsageComparisons.Any())
+        @if (Model.UsageComparisons.Any())
         {
             <div class="section-header">
                 <h2 class="mb-2">Usage Comparison <span class="badge badge-experimental">Experimental</span></h2>

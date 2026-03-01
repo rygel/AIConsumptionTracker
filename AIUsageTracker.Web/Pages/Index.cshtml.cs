@@ -30,8 +30,8 @@ public class IndexModel : PageModel
     public bool ShowUsedPercentage { get; set; }
     public bool ShowInactiveProviders { get; set; }
     public bool EnableExperimentalAnomalyDetection { get; set; }
-    public bool EnableExperimentalBudgetPolicies { get; set; }
-    public bool EnableExperimentalComparison { get; set; }
+    public bool EnableExperimentalBudgetPolicies { get; set; } = true; // Always on
+    public bool EnableExperimentalComparison { get; set; } = true; // Always on
 
     public async Task OnGetAsync([FromQuery] bool? showUsed)
     {
@@ -98,49 +98,9 @@ public class IndexModel : PageModel
             EnableExperimentalAnomalyDetection = false;
         }
 
-        // Handle experimental budget policies
-        if (Request.Query.TryGetValue("expBudget", out var expBudgetQuery) &&
-            bool.TryParse(expBudgetQuery, out var expBudget))
-        {
-            EnableExperimentalBudgetPolicies = expBudget;
-            Response.Cookies.Append("expBudget", EnableExperimentalBudgetPolicies.ToString(), new CookieOptions
-            {
-                Expires = DateTimeOffset.UtcNow.AddYears(1),
-                HttpOnly = false,
-                SameSite = SameSiteMode.Strict
-            });
-        }
-        else if (Request.Cookies.TryGetValue("expBudget", out var expBudgetCookie) &&
-                 bool.TryParse(expBudgetCookie, out var expBudgetCookiePref))
-        {
-            EnableExperimentalBudgetPolicies = expBudgetCookiePref;
-        }
-        else
-        {
-            EnableExperimentalBudgetPolicies = false;
-        }
-
-        // Handle experimental comparison
-        if (Request.Query.TryGetValue("expCompare", out var expCompareQuery) &&
-            bool.TryParse(expCompareQuery, out var expCompare))
-        {
-            EnableExperimentalComparison = expCompare;
-            Response.Cookies.Append("expCompare", EnableExperimentalComparison.ToString(), new CookieOptions
-            {
-                Expires = DateTimeOffset.UtcNow.AddYears(1),
-                HttpOnly = false,
-                SameSite = SameSiteMode.Strict
-            });
-        }
-        else if (Request.Cookies.TryGetValue("expCompare", out var expCompareCookie) &&
-                 bool.TryParse(expCompareCookie, out var expCompareCookiePref))
-        {
-            EnableExperimentalComparison = expCompareCookiePref;
-        }
-        else
-        {
-            EnableExperimentalComparison = false;
-        }
+        // Budget and comparison are always enabled (experimental)
+        EnableExperimentalBudgetPolicies = true;
+        EnableExperimentalComparison = true;
 
         if (IsDatabaseAvailable)
         {
