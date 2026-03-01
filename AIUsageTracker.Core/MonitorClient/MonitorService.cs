@@ -20,8 +20,19 @@ public class MonitorService
     public const string ExpectedApiContractVersion = "1";
     public string AgentUrl { get; set; } = "http://localhost:5000";
 
-    public MonitorService() : this(new HttpClient { Timeout = TimeSpan.FromSeconds(12) }, null)
+    private static HttpClient? _sharedHttpClient;
+
+    public MonitorService() : this(GetOrCreateHttpClient(), null)
     {
+    }
+
+    private static HttpClient GetOrCreateHttpClient()
+    {
+        if (_sharedHttpClient == null)
+        {
+            _sharedHttpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+        }
+        return _sharedHttpClient;
     }
 
     public MonitorService(HttpClient httpClient, ILogger<MonitorService>? logger)
