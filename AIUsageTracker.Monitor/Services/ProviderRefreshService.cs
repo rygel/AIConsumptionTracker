@@ -97,31 +97,21 @@ public class ProviderRefreshService : BackgroundService
             // Do NOT hammer 3rd party APIs on startup. The scheduled interval will refresh on time.
             _logger.LogInformation("Startup: serving cached data from database (next refresh in {Minutes}m).", _refreshInterval.TotalMinutes);
             
-            // Background task refreshes ALL active providers with API keys on startup
-            // This ensures fresh data is available immediately when Slim UI connects
+            // Only do targeted refresh for system providers that need immediate correctness
+            // All other providers will be refreshed on the normal scheduled interval
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    // Get all provider configs (those with API keys will be refreshed)
-                    var configs = await _configService.GetConfigsAsync();
-                    
-                    if (configs.Any())
-                    {
-                        _logger.LogInformation("Startup: refreshing {Count} providers...", configs.Count);
-                        await TriggerRefreshAsync(
-                            forceAll: true,
-                            bypassCircuitBreaker: true);
-                        _logger.LogInformation("Startup: provider refresh complete.");
-                    }
-                    else
-                    {
-                        _logger.LogInformation("Startup: no providers configured, skipping refresh.");
-                    }
+                    _logger.LogDebug("Startup: running targeted refresh for system providers...");
+                    await TriggerRefreshAsync(
+                        forceAll: true,
+                        includeProviderIds: new[] { "antigravity" });
+                    _logger.LogDebug("Startup: targeted refresh complete.");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Startup provider refresh failed: {Message}", ex.Message);
+                    _logger.LogWarning(ex, "Startup targeted refresh failed");
                 }
             }, stoppingToken);
         }
