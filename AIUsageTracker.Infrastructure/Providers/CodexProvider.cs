@@ -72,7 +72,7 @@ public class CodexProvider : IProviderService
                 return new[] { CreateUnavailableUsage(detailMessage) };
             }
 
-            return new[] { BuildUsage(jsonDoc.RootElement, email, jwtPlanType) };
+            return BuildUsages(jsonDoc.RootElement, email, jwtPlanType);
         }
         catch (JsonException ex)
         {
@@ -133,7 +133,7 @@ public class CodexProvider : IProviderService
         return false;
     }
 
-    private ProviderUsage BuildUsage(JsonElement root, string? email, string? jwtPlanType)
+    private List<ProviderUsage> BuildUsages(JsonElement root, string? email, string? jwtPlanType)
     {
         var planType = ReadString(root, "plan_type") ?? jwtPlanType ?? "unknown";
         var primaryUsedPercent = ReadDouble(root, "rate_limit", "primary_window", "used_percent") ?? 0.0;
@@ -146,22 +146,65 @@ public class CodexProvider : IProviderService
         var details = BuildDetails(primaryUsedPercent, primaryResetSeconds, secondaryUsedPercent, secondaryResetSeconds, sparkWindow, root);
         var nextResetTime = ResolveNextResetTime(primaryResetSeconds, sparkWindow.ResetAfterSeconds);
 
+        var usages = new List<ProviderUsage>
+        {
+            new ProviderUsage
+            {
+                ProviderId = ProviderId,
+                ProviderName = "Codex (OpenAI)",
+                RequestsPercentage = remainingPercent,
+                RequestsUsed = 100.0 - remainingPercent,
+                RequestsAvailable = 100.0,
+                UsageUnit = "Quota %",
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                IsAvailable = true,
+                Description = BuildUsageDescription(remainingPercent, primaryUsedPercent, sparkWindow.UsedPercent, planType),
+                AccountName = email ?? string.Empty,
+                AuthSource = $"Codex Native ({planType})",
+                NextResetTime = nextResetTime,
+                Details = details
+            }
+        };
+
+        var sparkUsage = BuildSparkUsage(sparkWindow, email, planType);
+        if (sparkUsage != null)
+        {
+            usages.Add(sparkUsage);
+        }
+
+        return usages;
+    }
+
+    private ProviderUsage? BuildSparkUsage(
+        (string? Label, double? UsedPercent, double? ResetAfterSeconds) sparkWindow,
+        string? email,
+        string planType)
+    {
+        if (!sparkWindow.UsedPercent.HasValue)
+        {
+            return null;
+        }
+
+        var usedPercent = Math.Clamp(sparkWindow.UsedPercent.Value, 0.0, 100.0);
+        var remainingPercent = Math.Clamp(100.0 - usedPercent, 0.0, 100.0);
+        var label = string.IsNullOrWhiteSpace(sparkWindow.Label) ? "Spark" : sparkWindow.Label!;
+
         return new ProviderUsage
         {
-            ProviderId = ProviderId,
-            ProviderName = "Codex (OpenAI)",
+            ProviderId = $"{ProviderId}.spark",
+            ProviderName = "Codex Spark (OpenAI)",
             RequestsPercentage = remainingPercent,
-            RequestsUsed = 100.0 - remainingPercent,
+            RequestsUsed = usedPercent,
             RequestsAvailable = 100.0,
             UsageUnit = "Quota %",
             IsQuotaBased = true,
             PlanType = PlanType.Coding,
             IsAvailable = true,
-            Description = BuildUsageDescription(remainingPercent, primaryUsedPercent, sparkWindow.UsedPercent, planType),
+            Description = $"{remainingPercent:F0}% remaining ({usedPercent:F0}% used) | {label}",
             AccountName = email ?? string.Empty,
             AuthSource = $"Codex Native ({planType})",
-            NextResetTime = nextResetTime,
-            Details = details
+            NextResetTime = ResolveDetailResetTime(sparkWindow.ResetAfterSeconds)
         };
     }
 

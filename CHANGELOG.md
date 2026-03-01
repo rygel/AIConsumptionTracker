@@ -5,6 +5,7 @@
 ### Added
 - **Typed provider detail contract**: Added `WindowKind` plus helper methods on `ProviderUsageDetail` for consistent typed detail handling across clients.
 - **Contract test coverage**: Added provider-detail contract/unit tests for typed detail semantics.
+- **Local defensive parallel test runner**: Added `scripts/run-local-tests-safe.ps1` with per-suite hard timeouts and process-tree termination safeguards.
 
 ### Changed
 - **Monitor startup metadata timing**: `monitor.json` is now published only after the Monitor successfully binds and starts listening.
@@ -12,6 +13,7 @@
 - **Provider mappings**: Updated providers that emit detail rows to set explicit `DetailType`/`WindowKind` metadata.
 - **CI test safeguards**: Tightened test timeouts and added explicit hang-detection/process-tree termination in test workflows/scripts.
 - **Theme catalog metadata**: Updated `design/theme-catalog.json` metadata stamp to keep theme-manifest validation authoritative.
+- **Codex model surfacing**: Codex now emits a `codex.spark` child provider usage item (summary + child model style behavior).
 
 ### Fixed
 - **Stale monitor metadata recovery**: Monitor clients now validate both health endpoint and PID, then invalidate stale metadata before discovery/restart.
@@ -19,6 +21,7 @@
 - **Detail contract enforcement flow**: Monitor refresh now applies validated detail payloads when filtering/storing provider results.
 - **Monitor database diagnostics**: Replaced debug-only database write errors with structured logger error output.
 - **Slim UI screenshot baseline drift**: Synced CI-authoritative baseline images for dashboard and settings privacy screenshots.
+- **Dynamic child provider persistence**: Monitor refresh now keeps dynamic child providers for any active parent (`providerId.*`), not only `antigravity.*`.
 
 ## [2.2.27-beta.5] - 2026-03-01
 

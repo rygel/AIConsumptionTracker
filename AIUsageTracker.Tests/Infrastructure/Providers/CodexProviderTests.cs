@@ -97,7 +97,9 @@ public class CodexProviderTests
         try
         {
             // Act
-            var usage = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).Single();
+            var allUsages = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).ToList();
+            var usage = allUsages.Single(u => u.ProviderId == "codex");
+            var sparkUsage = allUsages.Single(u => u.ProviderId == "codex.spark");
 
             // Assert
             Assert.True(usage.IsAvailable);
@@ -111,6 +113,13 @@ public class CodexProviderTests
             Assert.Contains(usage.Details!, d => d.Name == "Weekly quota" && d.NextResetTime.HasValue);
             Assert.Contains(usage.Details!, d => d.Name.StartsWith("Spark", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(usage.Details!, d => d.Name == "Credits" && d.Used == "7.50");
+
+            Assert.True(sparkUsage.IsAvailable);
+            Assert.Equal("Codex Spark (OpenAI)", sparkUsage.ProviderName);
+            Assert.Equal("codex.spark", sparkUsage.ProviderId);
+            Assert.Equal(60.0, sparkUsage.RequestsPercentage);
+            Assert.Equal(40.0, sparkUsage.RequestsUsed);
+            Assert.NotNull(sparkUsage.NextResetTime);
         }
         finally
         {
@@ -158,7 +167,8 @@ public class CodexProviderTests
         try
         {
             // Act
-            var usage = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).Single();
+            var allUsages = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).ToList();
+            var usage = allUsages.Single(u => u.ProviderId == "codex");
 
             // Assert
             Assert.True(usage.IsAvailable);
@@ -170,6 +180,7 @@ public class CodexProviderTests
             Assert.Contains(usage.Details!, d => d.Name == "5-hour quota" && d.NextResetTime.HasValue);
             Assert.Contains(usage.Details!, d => d.Name == "Weekly quota" && d.NextResetTime.HasValue);
             Assert.Contains(usage.Details!, d => d.Name == "Credits" && d.Used == "0.00");
+            Assert.DoesNotContain(allUsages, u => u.ProviderId == "codex.spark");
         }
         finally
         {

@@ -299,11 +299,11 @@ public class ProviderRefreshService : BackgroundService
 
                 var activeProviderIds = refreshableConfigs.Select(c => c.ProviderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 
-                // Allow dynamic children (e.g. antigravity.claude-3-5-sonnet) through the filter even if not in config explicitly yet.
+                // Allow dynamic children (e.g. antigravity.* / codex.*) through the filter
+                // when their parent provider is active.
                 // Filter out entries where the API Key was missing to prevent logging empty data over and over.
                 var filteredUsages = validatedUsages.Where(u => 
-                    (activeProviderIds.Contains(u.ProviderId) || 
-                    (u.ProviderId.StartsWith("antigravity.") && activeProviderIds.Contains("antigravity"))) &&
+                    IsUsageForAnyActiveProvider(activeProviderIds, u.ProviderId) &&
                     // Drop unconfigured providers that returned no usage
                     // Check regardless of description - if no usage data and not available, it's a placeholder
                     !(u.RequestsAvailable == 0 && u.RequestsUsed == 0 && u.RequestsPercentage == 0 && !u.IsAvailable)
@@ -325,9 +325,10 @@ public class ProviderRefreshService : BackgroundService
                 // This ensures we have a provider record for foreign keys
                 foreach (var usage in filteredUsages)
                 {
-                    // Auto-register OR update dynamic sub-providers (e.g. antigravity models)
+                    // Auto-register OR update dynamic sub-providers (e.g. antigravity.* / codex.*)
                     // We update even if existing to ensure Friendly Name changes (like adding prefix) are persisted
-                    if (usage.ProviderId.StartsWith("antigravity.") || !activeProviderIds.Contains(usage.ProviderId))
+                    if (IsDynamicChildOfAnyActiveProvider(activeProviderIds, usage.ProviderId) ||
+                        !activeProviderIds.Contains(usage.ProviderId))
                     {
                         if (!activeProviderIds.Contains(usage.ProviderId))
                         {
@@ -548,6 +549,17 @@ public class ProviderRefreshService : BackgroundService
         }
 
         return usageProviderId.StartsWith($"{providerId}.", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsUsageForAnyActiveProvider(HashSet<string> activeProviderIds, string usageProviderId)
+    {
+        return activeProviderIds.Any(providerId => IsUsageForProvider(providerId, usageProviderId));
+    }
+
+    private static bool IsDynamicChildOfAnyActiveProvider(HashSet<string> activeProviderIds, string usageProviderId)
+    {
+        return activeProviderIds.Any(providerId =>
+            usageProviderId.StartsWith($"{providerId}.", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsSuccessfulUsage(ProviderUsage usage)
