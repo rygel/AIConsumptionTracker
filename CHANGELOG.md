@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Changed
+- **Monitor startup metadata timing**: `monitor.json` is now published only after the Monitor successfully binds and starts listening.
+
+### Fixed
+- **Stale monitor metadata recovery**: Monitor clients now validate both health endpoint and PID, then invalidate stale metadata before discovery/restart.
+- **Metadata path compatibility**: Monitor metadata read/write now supports root plus `Monitor/` and `Agent/` paths for both `AIUsageTracker` and legacy `AIConsumptionTracker`.
+
 ## [2.2.27-beta.5] - 2026-03-01
 
 ### Added

@@ -20,24 +20,6 @@ var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicati
 var logDir = Path.Combine(appData, "AIUsageTracker", "logs");
 Directory.CreateDirectory(logDir);
 
-// Rotate logs: keep only last 7 days
-try
-{
-    var cutoffDate = DateTime.Now.AddDays(-7);
-    foreach (var log in Directory.GetFiles(logDir, "monitor_*.log"))
-    {
-        var fileInfo = new FileInfo(log);
-        if (fileInfo.LastWriteTime < cutoffDate)
-        {
-            fileInfo.Delete();
-        }
-    }
-}
-catch (Exception ex)
-{
-    Debug.WriteLine($"Log rotation error: {ex.Message}");
-}
-
 var logFile = Path.Combine(logDir, $"monitor_{DateTime.Now:yyyy-MM-dd}.log");
 
 // Create a simple logger factory that writes to both console (debug mode) and file
@@ -54,43 +36,82 @@ var loggerFactory = LoggerFactory.Create(builder =>
 
 var logger = loggerFactory.CreateLogger("Monitor");
 
+// Rotate logs: keep only last 7 days
+try
+{
+    var cutoffDate = DateTime.Now.AddDays(-7);
+    foreach (var log in Directory.GetFiles(logDir, "monitor_*.log"))
+    {
+        var fileInfo = new FileInfo(log);
+        if (fileInfo.LastWriteTime < cutoffDate)
+        {
+            fileInfo.Delete();
+        }
+    }
+}
+catch (Exception ex)
+{
+    logger.LogError(ex, "Log rotation error");
+}
+
 logger.LogInformation("=== Monitor starting ===");
 
-if (isDebugMode)
+// Machine-wide mutex to prevent concurrent launches
+string mutexName = @"Global\AIUsageTracker_Monitor_" + Environment.UserName;
+bool createdNew;
+using var startupMutex = new Mutex(true, mutexName, out createdNew);
+
+if (!createdNew)
 {
-    // Allocate a console window for debugging
-    if (OperatingSystem.IsWindows())
+    logger.LogWarning("Another Monitor instance appears to be starting. Waiting for it to complete...");
+    try
     {
-        Program.AllocConsole();
+        if (!startupMutex.WaitOne(TimeSpan.FromSeconds(10)))
+        {
+            logger.LogError("Timeout waiting for other Monitor instance");
+            return;
+        }
     }
-    logger.LogInformation("");
-    logger.LogInformation("═══════════════════════════════════════════════════════════════");
-    logger.LogInformation("  AIUsageTracker.Monitor - DEBUG MODE");
-    logger.LogInformation("═══════════════════════════════════════════════════════════════");
-    logger.LogInformation("  Started:    {StartedAt}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-    logger.LogInformation("  Process ID: {ProcessId}", Environment.ProcessId);
-    logger.LogInformation("  Working Dir: {WorkingDir}", Directory.GetCurrentDirectory());
-    logger.LogInformation("  OS:         {Os}", Environment.OSVersion);
-    logger.LogInformation("  Runtime:    {Runtime}", Environment.Version);
-    logger.LogInformation("  Command Line: {CommandLine}", Environment.CommandLine);
-    logger.LogInformation("═══════════════════════════════════════════════════════════════");
-    logger.LogInformation("");
+    catch (AbandonedMutexException)
+    {
+        logger.LogWarning("Other Monitor instance exited unexpectedly. Proceeding.");
+    }
 }
 
-// Find available port (handle port conflicts)
-int port = FindAvailablePort(5000, isDebugMode, logger);
-if (port != 5000)
+try
 {
-    logger.LogInformation("Port 5000 was in use, using port {Port} instead", port);
-}
+    if (isDebugMode)
+    {
+        // Allocate a console window for debugging
+        if (OperatingSystem.IsWindows())
+        {
+            Program.AllocConsole();
+        }
+        logger.LogInformation("");
+        logger.LogInformation("═══════════════════════════════════════════════════════════════");
+        logger.LogInformation("  AIUsageTracker.Monitor - DEBUG MODE");
+        logger.LogInformation("═══════════════════════════════════════════════════════════════");
+        logger.LogInformation("  Started:    {StartedAt}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+        logger.LogInformation("  Process ID: {ProcessId}", Environment.ProcessId);
+        logger.LogInformation("  Working Dir: {WorkingDir}", Directory.GetCurrentDirectory());
+        logger.LogInformation("  OS:         {Os}", Environment.OSVersion);
+        logger.LogInformation("  Runtime:    {Runtime}", Environment.Version);
+        logger.LogInformation("  Command Line: {CommandLine}", Environment.CommandLine);
+        logger.LogInformation("═══════════════════════════════════════════════════════════════");
+        logger.LogInformation("");
+    }
 
-// Save port info for UI to discover
-Program.SaveMonitorInfo(port, isDebugMode, logger);
+    // Find available port with retry logic for bind races
+    int port = FindAvailablePortWithRetry(5000, isDebugMode, logger);
+    if (port != 5000)
+    {
+        logger.LogInformation("Port 5000 was in use, using port {Port} instead", port);
+    }
 
-logger.LogDebug("Configuring web host on port {Port}...", port);
-logger.LogDebug("Base Directory: {BaseDir}", AppDomain.CurrentDomain.BaseDirectory);
+    logger.LogDebug("Configuring web host on port {Port}...", port);
+    logger.LogDebug("Base Directory: {BaseDir}", AppDomain.CurrentDomain.BaseDirectory);
 
-var builder = WebApplication.CreateBuilder(args);
+    var builder = WebApplication.CreateBuilder(args);
 
 // Configure URLs with the available port
 builder.WebHost.UseUrls($"http://localhost:{port}");
@@ -339,68 +360,98 @@ app.MapGet("/api/resets/{providerId}", async (string providerId, UsageDatabase d
     return Results.Ok(resets);
 });
 
-if (isDebugMode)
+    await app.StartAsync();
+
+    if (isDebugMode)
+    {
+        logger.LogInformation("");
+        logger.LogInformation("═══════════════════════════════════════════════════════════════");
+        logger.LogInformation("  Agent ready! Listening on http://localhost:{Port}", port);
+        logger.LogInformation("═══════════════════════════════════════════════════════════════");
+        logger.LogInformation("");
+        logger.LogInformation("  API Endpoints:");
+        logger.LogInformation("    GET  http://localhost:{Port}/api/health", port);
+        logger.LogInformation("    GET  http://localhost:{Port}/api/usage", port);
+        logger.LogInformation("    GET  http://localhost:{Port}/api/config", port);
+        logger.LogInformation("    POST http://localhost:{Port}/api/refresh", port);
+        logger.LogInformation("");
+        logger.LogInformation("  Press Ctrl+C to stop");
+        logger.LogInformation("═══════════════════════════════════════════════════════════════");
+        logger.LogInformation("");
+    }
+
+    // Update metadata only after successful bind/start.
+    Program.SaveMonitorInfo(port, isDebugMode, logger, startupStatus: "running");
+    await app.WaitForShutdownAsync();
+}
+catch (Exception ex)
 {
-    logger.LogInformation("");
-    logger.LogInformation("═══════════════════════════════════════════════════════════════");
-    logger.LogInformation("  Agent ready! Listening on http://localhost:{Port}", port);
-    logger.LogInformation("═══════════════════════════════════════════════════════════════");
-    logger.LogInformation("");
-    logger.LogInformation("  API Endpoints:");
-    logger.LogInformation("    GET  http://localhost:{Port}/api/health", port);
-    logger.LogInformation("    GET  http://localhost:{Port}/api/usage", port);
-    logger.LogInformation("    GET  http://localhost:{Port}/api/config", port);
-    logger.LogInformation("    POST http://localhost:{Port}/api/refresh", port);
-    logger.LogInformation("");
-    logger.LogInformation("  Press Ctrl+C to stop");
-    logger.LogInformation("═══════════════════════════════════════════════════════════════");
-    logger.LogInformation("");
+    logger.LogError(ex, "Monitor startup failed");
+    Program.SaveMonitorInfo(0, isDebugMode, logger, startupStatus: $"failed: {ex.Message}");
+    throw;
+}
+finally
+{
+    // Release the startup mutex
+    startupMutex?.Dispose();
 }
 
-app.Run();
-
-// Helper: Find an available port starting from preferred port
-static int FindAvailablePort(int preferredPort, bool debug, ILogger logger)
+// Helper: Find available port with actual bind retry (handles race conditions)
+static int FindAvailablePortWithRetry(int preferredPort, bool debug, ILogger logger)
 {
-    // Try preferred port first
-    if (IsPortAvailable(preferredPort))
+    var maxAttempts = 10;
+    var attemptDelay = TimeSpan.FromMilliseconds(100);
+
+    for (int attempt = 1; attempt <= maxAttempts; attempt++)
     {
-        if (debug) logger.LogDebug("Port {Port} is available", preferredPort);
-        return preferredPort;
-    }
-    
-    if (debug) logger.LogDebug("Port {Port} is in use, trying alternatives...", preferredPort);
-    
-    // Try ports 5001-5010
-    for (int port = 5001; port <= 5010; port++)
-    {
-        if (IsPortAvailable(port))
+        try
         {
-            if (debug) logger.LogDebug("Port {Port} is available", port);
-            return port;
+            // Try to actually bind to the port
+            using var listener = new TcpListener(IPAddress.Loopback, preferredPort);
+            listener.Start();
+            // Successfully bound - this is our port
+            listener.Stop();
+            if (debug) logger.LogDebug("Port {Port} is available on attempt {Attempt}", preferredPort, attempt);
+            return preferredPort;
+        }
+        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
+        {
+            if (attempt < maxAttempts)
+            {
+                if (debug) logger.LogDebug("Port {Port} in use on attempt {Attempt}, retrying...", preferredPort, attempt);
+                Thread.Sleep(attemptDelay);
+            }
+            else
+            {
+                if (debug) logger.LogDebug("Port {Port} still in use after {MaxAttempts} attempts, trying alternatives", preferredPort, maxAttempts);
+            }
         }
     }
-    
+
+    // Fall back to scanning available ports
+    if (debug) logger.LogDebug("Port {Port} unavailable after retries, scanning for alternatives...", preferredPort);
+
+    // Try ports 5001-5010 with actual bind
+    for (int port = 5001; port <= 5010; port++)
+    {
+        try
+        {
+            using var listener = new TcpListener(IPAddress.Loopback, port);
+            listener.Start();
+            listener.Stop();
+            if (debug) logger.LogDebug("Found available port {Port}", port);
+            return port;
+        }
+        catch (SocketException)
+        {
+            // Port not available, try next
+        }
+    }
+
     // Fall back to random available port
     var randomPort = GetRandomAvailablePort();
     if (debug) logger.LogDebug("Using random port {Port}", randomPort);
     return randomPort;
-}
-
-// Helper: Check if a port is available
-static bool IsPortAvailable(int port)
-{
-    try
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, port);
-        listener.Start();
-        listener.Stop();
-        return true;
-    }
-    catch
-    {
-        return false;
-    }
 }
 
 // Helper: Get random available port
@@ -421,13 +472,10 @@ public partial class Program
     public static extern bool AllocConsole();
 
     // Helper: Save monitor info for UI to discover
-    public static void SaveMonitorInfo(int port, bool debug, ILogger logger)
+    public static void SaveMonitorInfo(int port, bool debug, ILogger logger, string? startupStatus = null)
     {
         try
         {
-            var primaryAgentDir = GetPrimaryAgentDir();
-            Directory.CreateDirectory(primaryAgentDir);
-            
             var info = new MonitorInfo
             {
                 Port = port,
@@ -439,15 +487,30 @@ public partial class Program
                 UserName = Environment.UserName
             };
 
-            var json = JsonSerializer.Serialize(info, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(Path.Combine(primaryAgentDir, "monitor.json"), json);
-
-            // Legacy compatibility for existing clients still on old location.
-            var legacyAgentDir = GetLegacyAgentDir();
-            if (!string.Equals(primaryAgentDir, legacyAgentDir, StringComparison.OrdinalIgnoreCase))
+            // Add startup status if provided
+            if (!string.IsNullOrEmpty(startupStatus))
             {
-                Directory.CreateDirectory(legacyAgentDir);
-                File.WriteAllText(Path.Combine(legacyAgentDir, "monitor.json"), json);
+                info.Errors ??= new List<string>();
+                info.Errors.Add($"Startup status: {startupStatus}");
+            }
+
+            var json = JsonSerializer.Serialize(info, new JsonSerializerOptions { WriteIndented = true });
+            foreach (var infoPath in GetMonitorInfoCandidatePaths())
+            {
+                try
+                {
+                    var directory = Path.GetDirectoryName(infoPath);
+                    if (!string.IsNullOrWhiteSpace(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
+
+                    File.WriteAllText(infoPath, json);
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogDebug(ex, "Failed to write monitor info to {MonitorInfoPath}", infoPath);
+                }
             }
         }
         catch (Exception ex)
@@ -457,12 +520,12 @@ public partial class Program
     }
 
     // Helper: Report error to agent info
-    public static void ReportError(string message)
+    public static void ReportError(string message, ILogger? logger = null)
     {
         try
         {
             var jsonFile = GetExistingAgentInfoPath();
-            
+
             if (!string.IsNullOrWhiteSpace(jsonFile) && File.Exists(jsonFile))
             {
                 var json = File.ReadAllText(jsonFile);
@@ -478,7 +541,7 @@ public partial class Program
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error reporting failed: {ex.Message}");
+            logger?.LogError(ex, "Error reporting failed");
         }
     }
 
@@ -496,13 +559,26 @@ public partial class Program
 
     private static string? GetExistingAgentInfoPath()
     {
-        var candidates = new[]
-        {
-            Path.Combine(GetPrimaryAgentDir(), "monitor.json"),
-            Path.Combine(GetLegacyAgentDir(), "monitor.json")
-        };
+        return GetMonitorInfoCandidatePaths()
+            .Where(File.Exists)
+            .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
+            .FirstOrDefault();
+    }
 
-        return candidates.FirstOrDefault(File.Exists);
+    private static IEnumerable<string> GetMonitorInfoCandidatePaths()
+    {
+        var primaryAgentDir = GetPrimaryAgentDir();
+        var legacyAgentDir = GetLegacyAgentDir();
+
+        return new[]
+        {
+            Path.Combine(primaryAgentDir, "monitor.json"),
+            Path.Combine(primaryAgentDir, "Monitor", "monitor.json"),
+            Path.Combine(primaryAgentDir, "Agent", "monitor.json"),
+            Path.Combine(legacyAgentDir, "monitor.json"),
+            Path.Combine(legacyAgentDir, "Monitor", "monitor.json"),
+            Path.Combine(legacyAgentDir, "Agent", "monitor.json")
+        };
     }
 }
 

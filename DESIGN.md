@@ -1057,15 +1057,26 @@ Changes to Agent endpoints are considered incomplete unless this contract file i
 ```
 UI Client Startup:
   1. Call RefreshPortAsync() or RefreshAgentInfoAsync()
-  2. Reads %LOCALAPPDATA%\AIUsageTracker\monitor.json
-  3. Extracts Port from MonitorInfo
-  4. Updates AgentUrl to http://localhost:{port}
-  5. Now API calls work correctly
+  2. Read monitor metadata from known locations (current + legacy paths)
+  3. Pick newest metadata file by last-write timestamp
+  4. Validate monitor health and process state
+  5. Extract Port from MonitorInfo and update AgentUrl to http://localhost:{port}
+  6. Now API calls work correctly
 ```
 
 **Files Read During Discovery:**
 - `%LOCALAPPDATA%\AIUsageTracker\monitor.json` (primary)
+- `%LOCALAPPDATA%\AIUsageTracker\Monitor\monitor.json`
+- `%LOCALAPPDATA%\AIUsageTracker\Agent\monitor.json`
 - `%LOCALAPPDATA%\AIConsumptionTracker\monitor.json` (legacy compatibility)
+- `%LOCALAPPDATA%\AIConsumptionTracker\Monitor\monitor.json` (legacy compatibility)
+- `%LOCALAPPDATA%\AIConsumptionTracker\Agent\monitor.json` (legacy compatibility)
+
+**Stale Metadata Recovery:**
+- Clients validate metadata using both `GET /api/health` and stored `ProcessId`.
+- If health check fails or PID is no longer running, metadata is treated as stale.
+- Stale files are renamed with a `.stale.<unixTimestamp>` suffix and excluded from normal discovery.
+- Startup then proceeds through normal discovery/start logic instead of reusing stale port/PID data.
 
 **monitor.json Structure:**
 ```json
@@ -1090,7 +1101,8 @@ The Monitor supports dynamic port allocation to handle conflicts:
 3. If all in use, use random available port
 
 **Port Persistence:**
-- Port saved to `%LOCALAPPDATA%\AIUsageTracker\monitor.json`
+- Port metadata is written to compatibility locations under both `AIUsageTracker` and `AIConsumptionTracker` roots.
+- Clients read the newest available metadata file from the known path set.
 
 ### Status Checking
 
