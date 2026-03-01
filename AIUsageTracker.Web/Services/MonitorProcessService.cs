@@ -5,14 +5,13 @@ namespace AIUsageTracker.Web.Services;
 
 public class MonitorProcessService
 {
-    private readonly string _infoFilePath;
+    private readonly string _appDataPath;
     private readonly ILogger<MonitorProcessService> _logger;
     
     public MonitorProcessService(ILogger<MonitorProcessService> logger)
     {
         _logger = logger;
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        _infoFilePath = ResolveAgentInfoPath(appData);
+        _appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
     }
 
     public async Task<(bool isRunning, int port)> GetAgentStatusAsync()
@@ -177,9 +176,10 @@ public class MonitorProcessService
     {
         try
         {
-            if (File.Exists(_infoFilePath))
+            var infoFilePath = ResolveAgentInfoPath(_appDataPath);
+            if (File.Exists(infoFilePath))
             {
-                var json = await File.ReadAllTextAsync(_infoFilePath);
+                var json = await File.ReadAllTextAsync(infoFilePath);
                 var options = new System.Text.Json.JsonSerializerOptions 
                 { 
                     PropertyNameCaseInsensitive = true 
@@ -196,20 +196,26 @@ public class MonitorProcessService
 
     private static string ResolveAgentInfoPath(string appData)
     {
-        var primaryMonitorPath = Path.Combine(appData, "AIUsageTracker", "monitor.json");
-        var legacyMonitorPath = Path.Combine(appData, "AIConsumptionTracker", "monitor.json");
+        var candidates = GetMonitorInfoCandidatePaths(appData).ToList();
+        var existing = candidates
+            .Where(File.Exists)
+            .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
+            .FirstOrDefault();
 
-        if (File.Exists(primaryMonitorPath))
+        return existing ?? candidates[0];
+    }
+
+    private static IEnumerable<string> GetMonitorInfoCandidatePaths(string appData)
+    {
+        return new[]
         {
-            return primaryMonitorPath;
-        }
-
-        if (File.Exists(legacyMonitorPath))
-        {
-            return legacyMonitorPath;
-        }
-
-        return primaryMonitorPath;
+            Path.Combine(appData, "AIUsageTracker", "monitor.json"),
+            Path.Combine(appData, "AIUsageTracker", "Monitor", "monitor.json"),
+            Path.Combine(appData, "AIUsageTracker", "Agent", "monitor.json"),
+            Path.Combine(appData, "AIConsumptionTracker", "monitor.json"),
+            Path.Combine(appData, "AIConsumptionTracker", "Monitor", "monitor.json"),
+            Path.Combine(appData, "AIConsumptionTracker", "Agent", "monitor.json")
+        };
     }
 
 }

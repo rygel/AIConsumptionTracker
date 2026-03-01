@@ -490,7 +490,9 @@ namespace AIUsageTracker.Infrastructure.Providers;
                     : "Ungrouped Models",
                 Used = $"{remainingPct.Value.ToString("F0", CultureInfo.InvariantCulture)}%",
                 Description = resetDescription,
-                NextResetTime = nextResetTime
+                NextResetTime = nextResetTime,
+                DetailType = ProviderUsageDetailType.Model,
+                WindowKind = WindowKind.None
             });
 
             minRemaining = minRemaining.HasValue

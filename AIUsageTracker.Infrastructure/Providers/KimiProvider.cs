@@ -95,7 +95,9 @@ public class KimiProvider : IProviderService
                          Name = name,
                          Used = $"{itemRemainingPercentage.ToString("F1", CultureInfo.InvariantCulture)}%",
                          Description = $"{det.Remaining} remaining (Resets: {resetDisplay})", // Kept original description for detail item
-                         NextResetTime = itemResetDt
+                         NextResetTime = itemResetDt,
+                         DetailType = ProviderUsageDetailType.QuotaWindow,
+                         WindowKind = WindowKind.None
                     });
                 }
             }

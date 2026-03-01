@@ -169,23 +169,27 @@ public class OpenRouterProvider : IProviderService
                             }
                         }
 
-                        details.Add(new ProviderUsageDetail 
-                        { 
-                            Name = "Spending Limit", 
-                            Description = $"{keyData.Data.Limit.ToString("F2", CultureInfo.InvariantCulture)}{resetStr}", 
+                        details.Add(new ProviderUsageDetail
+                        {
+                            Name = "Spending Limit",
+                            Description = $"{keyData.Data.Limit.ToString("F2", CultureInfo.InvariantCulture)}{resetStr}",
                             Used = "",
-                            NextResetTime = nextResetTime
+                            NextResetTime = nextResetTime,
+                            DetailType = ProviderUsageDetailType.Other,
+                            WindowKind = WindowKind.None
                         });
                     }
                     else
                     {
                         _logger.LogDebug("No spending limit set for this key");
                     }
-                    
-                    details.Add(new ProviderUsageDetail { 
-                        Name = "Free Tier", 
-                        Description = keyData.Data.IsFreeTier ? "Yes" : "No", 
-                        Used = "" 
+
+                    details.Add(new ProviderUsageDetail {
+                        Name = "Free Tier",
+                        Description = keyData.Data.IsFreeTier ? "Yes" : "No",
+                        Used = "",
+                        DetailType = ProviderUsageDetailType.Other,
+                        WindowKind = WindowKind.None
                     });
                 }
                 else

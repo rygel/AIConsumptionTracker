@@ -87,7 +87,9 @@ public class EvolveMigrationProvider : IProviderService
                 {
                     Name = $"v{m.Version}",
                     Used = m.Success ? "✓" : "✗",
-                    Description = $"{m.Description} ({m.Duration.TotalSeconds:F1}s) - {m.AppliedAt:yyyy-MM-dd HH:mm}"
+                    Description = $"{m.Description} ({m.Duration.TotalSeconds:F1}s) - {m.AppliedAt:yyyy-MM-dd HH:mm}",
+                    DetailType = ProviderUsageDetailType.Other,
+                    WindowKind = WindowKind.None
                 }).ToList()
             }};
         }

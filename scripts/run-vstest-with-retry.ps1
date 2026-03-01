@@ -8,7 +8,8 @@ param(
     [string]$ResultsDirectory = "TestResults",
     [string]$QuarantineFile = ".github\test-quarantine.txt",
     [int]$MaxRetries = 1,
-    [int]$AttemptTimeoutMinutes = 10
+    [int]$AttemptTimeoutMinutes = 10,
+    [int]$HangTimeoutSeconds = 90
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,6 +24,10 @@ if ($MaxRetries -lt 0) {
 
 if ($AttemptTimeoutMinutes -lt 1) {
     throw "AttemptTimeoutMinutes must be >= 1."
+}
+
+if ($HangTimeoutSeconds -lt 10) {
+    throw "HangTimeoutSeconds must be >= 10."
 }
 
 $resolvedResultsDirectory = if ([System.IO.Path]::IsPathRooted($ResultsDirectory)) {
@@ -61,6 +66,8 @@ function Invoke-VsTestRun {
     $arguments = @(
         "vstest",
         $AssemblyPath,
+        "--Blame-Hang",
+        "--Blame-Hang-Timeout", "${HangTimeoutSeconds}s",
         "--logger", "console;verbosity=normal",
         "--logger", "trx;LogFileName=$TrxFileName",
         "--ResultsDirectory:$resolvedResultsDirectory"
@@ -91,12 +98,7 @@ function Invoke-VsTestRun {
     $completed = $process.WaitForExit($timeoutMs)
     if (-not $completed) {
         Write-Host "Attempt $AttemptNumber exceeded ${AttemptTimeoutMinutes}m timeout. Killing dotnet vstest process..." -ForegroundColor Red
-        try {
-            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        }
-        catch {
-            Write-Host "Failed to terminate timed out process $($process.Id): $($_.Exception.Message)" -ForegroundColor Yellow
-        }
+        Stop-TestProcessTree -RootProcessId $process.Id
 
         if (Test-Path -LiteralPath $stdoutLog) {
             Write-Host "--- Last 200 lines stdout ($stdoutLog) ---"
@@ -125,6 +127,30 @@ function Invoke-VsTestRun {
     }
 
     return $exitCode
+}
+
+function Stop-TestProcessTree {
+    param(
+        [int]$RootProcessId
+    )
+
+    if ($RootProcessId -le 0) {
+        return
+    }
+
+    try {
+        & cmd /c "taskkill /PID $RootProcessId /T /F" | Out-Null
+    }
+    catch {
+        Write-Host "taskkill failed for process tree ${RootProcessId}: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
+    try {
+        Stop-Process -Id $RootProcessId -Force -ErrorAction SilentlyContinue
+    }
+    catch {
+        Write-Host "Stop-Process fallback failed for ${RootProcessId}: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
 }
 
 function Write-SlowestTestsReport {

@@ -240,9 +240,13 @@ class Program
         foreach (var item in history)
         {
              // Flatten details for simplified view
-                 if (item.Details != null && item.Details.Any())
+                  var displayableHistoryDetails = item.Details?
+                      .Where(d => d.DetailType == ProviderUsageDetailType.Model || d.DetailType == ProviderUsageDetailType.Other)
+                      .ToList();
+
+                 if (displayableHistoryDetails is { Count: > 0 })
              {
-                 foreach(var detail in item.Details)
+                 foreach(var detail in displayableHistoryDetails)
                  {
                       var providerDisplayName = ProviderDisplayNameResolver.GetDisplayName(item.ProviderId, item.ProviderName);
                       Console.WriteLine($"{item.FetchedAt.ToShortDateString(),-12} | {providerDisplayName,-20} | {detail.Name,-25} | {detail.Used,-15}");
@@ -479,9 +483,12 @@ class Program
                     Console.WriteLine($"{"",-36} | {"",-14} | {"",-10} | {lines[i]}");
                 }
                 
-                if (u.Details != null)
+                var displayableDetails = u.Details?
+                    .Where(d => d.DetailType == ProviderUsageDetailType.Model || d.DetailType == ProviderUsageDetailType.Other)
+                    .ToList();
+                if (displayableDetails != null)
                 {
-                    foreach (var d in u.Details)
+                    foreach (var d in displayableDetails)
                     {
                         var name = "  " + d.Name;
                         Console.WriteLine($"{name,-36} | {"",-14} | {d.Used,-10} | {d.Description}");

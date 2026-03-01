@@ -1,4 +1,3 @@
-using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Diagnostics;
@@ -128,29 +127,20 @@ public class MonitorService
         LogDiagnostic("Refreshing Monitor Info from file...");
         try
         {
-            var path = GetExistingAgentInfoPath();
-
-            if (path != null)
+            var info = await MonitorLauncher.GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+            if (info != null)
             {
-                var json = await File.ReadAllTextAsync(path);
-                var info = JsonSerializer.Deserialize<MonitorInfo>(json, new JsonSerializerOptions
+                if (info.Port > 0)
                 {
-                    PropertyNameCaseInsensitive = true
-                });
-                
-                if (info != null)
-                {
-                    if (info.Port > 0) 
-                    {
-                        AgentUrl = $"http://localhost:{info.Port}";
-                        LogDiagnostic($"Found Monitor running on port {info.Port} from monitor.json");
-                    }
-                    LastAgentErrors = info.Errors ?? new List<string>();
-                    return;
+                    AgentUrl = $"http://localhost:{info.Port}";
+                    LogDiagnostic($"Found Monitor running on port {info.Port} from monitor.json");
                 }
+
+                LastAgentErrors = info.Errors ?? new List<string>();
+                return;
             }
             
-            LogDiagnostic("monitor.json not found or invalid, using default port 5000");
+            LogDiagnostic("monitor.json missing, stale, or invalid; using default port 5000");
             LastAgentErrors = new List<string>();
         }
         catch (Exception ex)
@@ -161,23 +151,17 @@ public class MonitorService
         }
     }
 
-    private static string? GetExistingAgentInfoPath()
-    {
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var candidates = new[]
-        {
-            Path.Combine(appData, "AIUsageTracker", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "monitor.json")
-        };
-
-        return candidates.FirstOrDefault(File.Exists);
-    }
-    
-    
     public async Task RefreshPortAsync()
     {
-        // Read port from monitor.json file - that's the authoritative source
-        var port = await MonitorLauncher.GetAgentPortAsync();
+        var info = await MonitorLauncher.GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+        if (info != null && info.Port > 0)
+        {
+            AgentUrl = $"http://localhost:{info.Port}";
+            return;
+        }
+
+        // Fallback when monitor info is missing or stale.
+        var port = await MonitorLauncher.GetAgentPortAsync().ConfigureAwait(false);
         
         // Verify the Monitor is actually running on that port
         if (!await MonitorLauncher.IsAgentRunningAsync())

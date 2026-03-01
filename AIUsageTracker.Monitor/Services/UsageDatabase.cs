@@ -29,7 +29,7 @@ public class UsageDatabase : IUsageDatabase
             var logFile = Path.Combine(logDir, $"monitor_{DateTime.Now:yyyy-MM-dd}.log");
             File.AppendAllText(logFile, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} Database path: {_dbPath}{Environment.NewLine}");
         } catch (Exception ex) {
-            System.Diagnostics.Debug.WriteLine($"Database log write error: {ex.Message}");
+            _logger.LogError(ex, "Database log write error");
         }
         
         _connectionString = new SqliteConnectionStringBuilder

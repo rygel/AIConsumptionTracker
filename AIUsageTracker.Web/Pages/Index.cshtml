@@ -230,15 +230,20 @@
                             }
                         </div>
                         
-                        @if (usage.Details?.Any() == true)
+                        @{
+                            var displayableDetails = usage.Details?
+                                .Where(detail => detail.IsDisplayableSubProviderDetail())
+                                .ToList();
+                        }
+                        @if (displayableDetails?.Any() == true)
                         {
                             <div class="sub-providers-container">
                                 <button class="sub-providers-toggle" onclick="toggleSubProviders('@usage.ProviderId')">
                                     <span id="toggle-icon-@usage.ProviderId">▼</span>
-                                    <span id="toggle-text-@usage.ProviderId">Hide @(usage.Details.Count()) models</span>
+                                    <span id="toggle-text-@usage.ProviderId">Hide @(displayableDetails.Count) details</span>
                                 </button>
                                 <div id="sub-providers-@usage.ProviderId" class="sub-providers">
-                                    @foreach (var detail in usage.Details)
+                                    @foreach (var detail in displayableDetails)
                                     {
                                         <div class="sub-provider-row">
                                             <span class="sub-provider-name">@detail.Name</span>

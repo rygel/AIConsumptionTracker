@@ -13,6 +13,7 @@ public class MonitorLauncher
     private const int MaxWaitSeconds = 30;
     private const int StopWaitSeconds = 5;
     private static ILogger<MonitorLauncher>? _logger;
+    private static readonly SemaphoreSlim StartupSemaphore = new(1, 1);
 
     public static void SetLogger(ILogger<MonitorLauncher> logger) => _logger = logger;
 
@@ -42,27 +43,39 @@ public class MonitorLauncher
 
     public static async Task<int> GetAgentPortAsync()
     {
-        var info = await GetAgentInfoAsync().ConfigureAwait(false);
+        var info = await GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
         return info?.Port > 0 ? info.Port : DefaultPort;
     }
 
     public static async Task<bool> IsAgentRunningAsync()
     {
-        var port = await GetAgentPortAsync().ConfigureAwait(false);
+        var info = await GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+        if (info != null)
+        {
+            MonitorService.LogDiagnostic($"Monitor is running on port {info.Port}");
+            return true;
+        }
+
+        var port = DefaultPort;
         MonitorService.LogDiagnostic($"Checking Monitor status on port: {port}");
-        
         if (await CheckHealthAsync(port).ConfigureAwait(false))
         {
             MonitorService.LogDiagnostic($"Monitor is running on port {port}");
             return true;
         }
-        
+
         MonitorService.LogDiagnostic($"Monitor not found on port {port}.");
         return false;
     }
     
     public static async Task<(bool isRunning, int port)> IsAgentRunningWithPortAsync()
     {
+        var info = await GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+        if (info != null)
+        {
+            return (true, info.Port);
+        }
+
         var port = await GetAgentPortAsync().ConfigureAwait(false);
         MonitorService.LogDiagnostic($"Probing Monitor port: {port}");
         
@@ -89,10 +102,77 @@ public class MonitorLauncher
         }
     }
 
-    public static async Task<bool> StartAgentAsync()
+    private static Task<bool> CheckProcessRunningAsync(int processId)
+    {
+        if (processId <= 0) return Task.FromResult(false);
+        try
+        {
+            var process = Process.GetProcessById(processId);
+            return Task.FromResult(!process.HasExited);
+        }
+        catch (ArgumentException)
+        {
+            return Task.FromResult(false);
+        }
+        catch
+        {
+            return Task.FromResult(false);
+        }
+    }
+
+    public static async Task<MonitorInfo?> GetAndValidateMonitorInfoAsync()
+    {
+        var info = await GetAgentInfoAsync().ConfigureAwait(false);
+        if (info == null) return null;
+
+        var port = info.Port;
+        var processId = info.ProcessId;
+
+        var healthOk = await CheckHealthAsync(port).ConfigureAwait(false);
+        var processRunning = await CheckProcessRunningAsync(processId).ConfigureAwait(false);
+
+        if (healthOk && processRunning)
+        {
+            return info;
+        }
+
+        MonitorService.LogDiagnostic($"Monitor metadata stale: health={healthOk}, processRunning={processRunning}, invalidating metadata");
+
+        await InvalidateMonitorInfoAsync().ConfigureAwait(false);
+        return null;
+    }
+
+    public static Task InvalidateMonitorInfoAsync()
     {
         try
         {
+            foreach (var infoPath in GetExistingAgentInfoPaths())
+            {
+                var backupPath = infoPath + ".stale." + DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                File.Move(infoPath, backupPath, overwrite: true);
+                MonitorService.LogDiagnostic($"Backed up stale metadata to: {backupPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            MonitorService.LogDiagnostic($"Failed to invalidate monitor metadata: {ex.Message}");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public static async Task<bool> StartAgentAsync()
+    {
+        await StartupSemaphore.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var validatedInfo = await GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+            if (validatedInfo != null)
+            {
+                MonitorService.LogDiagnostic($"Monitor already running on port {validatedInfo.Port}; skipping start.");
+                return true;
+            }
+
             // Get the port to use
             var port = await GetAgentPortAsync().ConfigureAwait(false);
 
@@ -176,6 +256,10 @@ public class MonitorLauncher
         {
             MonitorService.LogDiagnostic($"Failed to start Monitor: {ex.Message}");
             return false;
+        }
+        finally
+        {
+            StartupSemaphore.Release();
         }
     }
 
@@ -329,14 +413,28 @@ public class MonitorLauncher
 
     private static string? GetExistingAgentInfoPath()
     {
+        return GetExistingAgentInfoPaths().FirstOrDefault();
+    }
+
+    private static IEnumerable<string> GetExistingAgentInfoPaths()
+    {
+        return GetMonitorInfoCandidatePaths()
+            .Where(File.Exists)
+            .OrderByDescending(path => File.GetLastWriteTimeUtc(path));
+    }
+
+    private static IEnumerable<string> GetMonitorInfoCandidatePaths()
+    {
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var candidates = new[]
+        return new[]
         {
             Path.Combine(appData, "AIUsageTracker", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "monitor.json")
+            Path.Combine(appData, "AIUsageTracker", "Monitor", "monitor.json"),
+            Path.Combine(appData, "AIUsageTracker", "Agent", "monitor.json"),
+            Path.Combine(appData, "AIConsumptionTracker", "monitor.json"),
+            Path.Combine(appData, "AIConsumptionTracker", "Monitor", "monitor.json"),
+            Path.Combine(appData, "AIConsumptionTracker", "Agent", "monitor.json")
         };
-
-        return candidates.FirstOrDefault(File.Exists);
     }
 }
 

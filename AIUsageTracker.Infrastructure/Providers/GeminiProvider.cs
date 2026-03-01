@@ -98,12 +98,14 @@ public class GeminiProvider : IProviderService
                             }
                         }
                         
-                        details.Add(new ProviderUsageDetail 
-                        { 
-                            Name = name, 
-                            Used = $"{bucketRemainingPercentage:F1}%", 
+                        details.Add(new ProviderUsageDetail
+                        {
+                            Name = name,
+                            Used = $"{bucketRemainingPercentage:F1}%",
                             Description = $"{bucket.RemainingFraction:P1} remaining{resetStr}",
-                            NextResetTime = itemResetDt
+                            NextResetTime = itemResetDt,
+                            DetailType = ProviderUsageDetailType.QuotaWindow,
+                            WindowKind = WindowKind.None
                         });
                     }
                 }

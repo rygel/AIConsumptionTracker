@@ -101,12 +101,12 @@ public class ClaudeCodeProvider : IProviderService
 
                 // Build detailed tooltip info
                 var tooltipDetails = new List<ProviderUsageDetail>();
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Rate Limit Tier", Used = rateLimitHeaders.GetTierName() });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Limit", Used = rateLimitHeaders.RequestsLimit.ToString("N0") });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Remaining", Used = rateLimitHeaders.RequestsRemaining.ToString("N0") });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Limit", Used = rateLimitHeaders.InputTokensLimit.ToString("N0") });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Remaining", Used = rateLimitHeaders.InputTokensRemaining.ToString("N0") });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Current RPM Usage", Used = $"{usagePercentage:F1}%" });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Rate Limit Tier", Used = rateLimitHeaders.GetTierName(), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Limit", Used = rateLimitHeaders.RequestsLimit.ToString("N0"), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Remaining", Used = rateLimitHeaders.RequestsRemaining.ToString("N0"), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Limit", Used = rateLimitHeaders.InputTokensLimit.ToString("N0"), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Remaining", Used = rateLimitHeaders.InputTokensRemaining.ToString("N0"), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Current RPM Usage", Used = $"{usagePercentage:F1}%", DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
 
                 return new ProviderUsage
                 {
