@@ -24,10 +24,14 @@ public class IndexModel : PageModel
         = new Dictionary<string, ProviderReliabilitySnapshot>(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyDictionary<string, UsageAnomalySnapshot> AnomaliesByProvider { get; private set; }
         = new Dictionary<string, UsageAnomalySnapshot>(StringComparer.OrdinalIgnoreCase);
+    public List<BudgetStatus> BudgetStatuses { get; private set; } = new();
+    public List<UsageComparison> UsageComparisons { get; private set; } = new();
     public bool IsDatabaseAvailable => _dbService.IsDatabaseAvailable();
     public bool ShowUsedPercentage { get; set; }
     public bool ShowInactiveProviders { get; set; }
     public bool EnableExperimentalAnomalyDetection { get; set; }
+    public bool EnableExperimentalBudgetPolicies { get; set; } = true; // Always on
+    public bool EnableExperimentalComparison { get; set; } = true; // Always on
 
     public async Task OnGetAsync([FromQuery] bool? showUsed)
     {
@@ -94,6 +98,10 @@ public class IndexModel : PageModel
             EnableExperimentalAnomalyDetection = false;
         }
 
+        // Budget and comparison are always enabled (experimental)
+        EnableExperimentalBudgetPolicies = true;
+        EnableExperimentalComparison = true;
+
         if (IsDatabaseAvailable)
         {
             var latestUsageTask = _dbService.GetLatestUsageAsync(includeInactive: ShowInactiveProviders);
@@ -124,6 +132,17 @@ public class IndexModel : PageModel
                 ReliabilityByProvider = reliabilityTask.Result;
                 AnomaliesByProvider = anomalyTask?.Result
                     ?? new Dictionary<string, UsageAnomalySnapshot>(StringComparer.OrdinalIgnoreCase);
+
+                // Load experimental features
+                if (EnableExperimentalBudgetPolicies)
+                {
+                    BudgetStatuses = await _dbService.GetBudgetStatusesAsync(providerIds);
+                }
+
+                if (EnableExperimentalComparison)
+                {
+                    UsageComparisons = await _dbService.GetUsageComparisonsAsync(providerIds);
+                }
             }
         }
     }

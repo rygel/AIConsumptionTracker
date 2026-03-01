@@ -4,7 +4,29 @@
     ViewData["Title"] = "Database: " + (Model.TableName ?? "Select Table");
 }
 
-<h1 class="page-title">Database: @Model.TableName</h1>
+<h1 class="page-title">Data Export</h1>
+
+<div class="export-section mb-3">
+    <div class="export-grid">
+        <div class="export-card">
+            <h3>Export History</h3>
+            <p>Download your usage history data</p>
+            <div class="export-buttons">
+                <a href="/api/export/csv" class="btn btn-secondary btn-sm" target="_blank">CSV</a>
+                <a href="/api/export/json" class="btn btn-secondary btn-sm" target="_blank">JSON</a>
+            </div>
+        </div>
+        <div class="export-card">
+            <h3>Database Backup</h3>
+            <p>Download the full SQLite database</p>
+            <div class="export-buttons">
+                <a href="/api/export/backup" class="btn btn-secondary btn-sm" target="_blank">Download .db</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 class="page-title">Database Tables</h2>
 
 <div class="data-tabs mb-2">
     <a href="/data/providers" class="data-tab @(Model.TableName == "providers" ? "active" : "")">Providers</a>

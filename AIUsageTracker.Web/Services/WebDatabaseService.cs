@@ -139,6 +139,7 @@ public class WebDatabaseService
             
             // Set IsQuotaBased using the existing ProviderPlanClassifier
             usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
+            usage.ProviderName = ProviderDisplayNameResolver.GetDisplayName(usage.ProviderId, usage.ProviderName);
         }
 
         var list = results.ToList();
@@ -171,6 +172,7 @@ public class WebDatabaseService
         foreach (var usage in results)
         {
             usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
+            usage.ProviderName = ProviderDisplayNameResolver.GetDisplayName(usage.ProviderId, usage.ProviderName);
         }
         
         return results.ToList();
@@ -201,6 +203,7 @@ public class WebDatabaseService
         foreach (var usage in results)
         {
             usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
+            usage.ProviderName = ProviderDisplayNameResolver.GetDisplayName(usage.ProviderId, usage.ProviderName);
         }
         
         return results.ToList();
@@ -228,8 +231,13 @@ public class WebDatabaseService
                 WHERE p.is_active = 1
                 ORDER BY p.provider_name";
 
-        var results = await connection.QueryAsync<ProviderInfo>(sql);
-        return results.ToList();
+        var results = (await connection.QueryAsync<ProviderInfo>(sql)).ToList();
+        foreach (var provider in results)
+        {
+            provider.ProviderName = ProviderDisplayNameResolver.GetDisplayName(provider.ProviderId, provider.ProviderName);
+        }
+
+        return results;
     }
 
     public async Task<List<ResetEvent>> GetResetEventsAsync(string providerId, int limit = 50)
@@ -249,8 +257,13 @@ public class WebDatabaseService
                 ORDER BY timestamp DESC
                 LIMIT {limit}";
 
-        var results = await connection.QueryAsync<ResetEvent>(sql, new { ProviderId = providerId });
-        return results.ToList();
+        var results = (await connection.QueryAsync<ResetEvent>(sql, new { ProviderId = providerId })).ToList();
+        foreach (var reset in results)
+        {
+            reset.ProviderName = ProviderDisplayNameResolver.GetDisplayName(reset.ProviderId, reset.ProviderName);
+        }
+
+        return results;
     }
 
     public async Task<UsageSummary> GetUsageSummaryAsync()
@@ -640,6 +653,10 @@ public class WebDatabaseService
             BucketSeconds = bucketSeconds
         });
         var list = results.ToList();
+        foreach (var point in list)
+        {
+            point.ProviderName = ProviderDisplayNameResolver.GetDisplayName(point.ProviderId, point.ProviderName);
+        }
         _logger.LogInformation("WebDB GetChartDataAsync hours={Hours} bucketMinutes={BucketMinutes} rows={Count} elapsedMs={ElapsedMs}",
             hours, bucketMinutes, list.Count, sw.ElapsedMilliseconds);
         return list;
@@ -680,6 +697,10 @@ public class WebDatabaseService
             ORDER BY timestamp ASC";
 
         var results = (await connection.QueryAsync<ResetEvent>(sql, new { CutoffUtc = cutoffUtc })).ToList();
+        foreach (var reset in results)
+        {
+            reset.ProviderName = ProviderDisplayNameResolver.GetDisplayName(reset.ProviderId, reset.ProviderName);
+        }
         _cache.Set(cacheKey, results, TimeSpan.FromMinutes(5));
         _logger.LogInformation("WebDB GetRecentResetEventsAsync hours={Hours} rows={Count} elapsedMs={ElapsedMs}",
             hours, results.Count, sw.ElapsedMilliseconds);
@@ -778,6 +799,260 @@ public class WebDatabaseService
         public bool IsAvailable { get; set; }
         public DateTime FetchedAt { get; set; }
     }
+
+    // ========== Budget Policies (Experimental) ==========
+    
+    private static readonly List<BudgetPolicy> _defaultBudgetPolicies = new()
+    {
+        new BudgetPolicy { Id = "default-monthly-100", ProviderId = "all", Name = "Monthly Budget", Period = BudgetPeriod.Monthly, Limit = 100, Currency = "USD" },
+        new BudgetPolicy { Id = "default-weekly-25", ProviderId = "all", Name = "Weekly Budget", Period = BudgetPeriod.Weekly, Limit = 25, Currency = "USD" }
+    };
+
+    public async Task<List<BudgetStatus>> GetBudgetStatusesAsync(List<string> providerIds)
+    {
+        var statuses = new List<BudgetStatus>();
+        
+        foreach (var policy in _defaultBudgetPolicies)
+        {
+            var period = GetPeriodRange(policy.Period);
+            var start = period.start;
+            var end = period.end;
+
+            var usage = await GetUsageInRangeAsync(providerIds, start, end);
+            
+            var status = new BudgetStatus
+            {
+                ProviderId = policy.ProviderId,
+                ProviderName = policy.Name,
+                BudgetLimit = policy.Limit,
+                CurrentSpend = usage,
+                RemainingBudget = Math.Max(0, policy.Limit - usage),
+                UtilizationPercent = policy.Limit > 0 ? (usage / policy.Limit) * 100 : 0,
+                Period = policy.Period
+            };
+            statuses.Add(status);
+        }
+
+        // Also calculate per-provider budgets based on current usage
+        foreach (var providerId in providerIds)
+        {
+            var usage = await GetUsageInRangeAsync(new List<string> { providerId }, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow);
+            var monthlyRate = usage / 30.0;
+            
+            var status = new BudgetStatus
+            {
+                ProviderId = providerId,
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName(providerId),
+                BudgetLimit = 50, // Default implied budget
+                CurrentSpend = usage,
+                RemainingBudget = Math.Max(0, 50 - usage),
+                UtilizationPercent = (usage / 50.0) * 100,
+                Period = BudgetPeriod.Monthly
+            };
+            statuses.Add(status);
+        }
+
+        return statuses;
+    }
+
+    private static (DateTime start, DateTime end) GetPeriodRange(BudgetPeriod period)
+    {
+        var now = DateTime.UtcNow;
+        return period switch
+        {
+            BudgetPeriod.Daily => (now.Date, now),
+            BudgetPeriod.Weekly => (now.Date.AddDays(-(int)now.DayOfWeek), now),
+            BudgetPeriod.Monthly => (new DateTime(now.Year, now.Month, 1), now),
+            BudgetPeriod.Yearly => (new DateTime(now.Year, 1, 1), now),
+            _ => (now.Date.AddDays(-30), now)
+        };
+    }
+
+    private async Task<double> GetUsageInRangeAsync(List<string> providerIds, DateTime start, DateTime end)
+    {
+        if (!IsDatabaseAvailable() || providerIds.Count == 0)
+            return 0;
+
+        try
+        {
+            await using var connection = new SqliteConnection(_readConnectionString);
+            await connection.OpenAsync();
+
+            var sql = @"
+                SELECT COALESCE(SUM(requests_used), 0) as TotalUsage
+                FROM provider_history
+                WHERE provider_id IN @ProviderIds 
+                AND fetched_at >= @Start 
+                AND fetched_at <= @End";
+
+            var result = await connection.QuerySingleOrDefaultAsync<double>(sql, new 
+            { 
+                ProviderIds = providerIds, 
+                Start = start.ToString("yyyy-MM-dd HH:mm:ss"), 
+                End = end.ToString("yyyy-MM-dd HH:mm:ss") 
+            });
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error calculating usage in range");
+            return 0;
+        }
+    }
+
+    // ========== Usage Comparison (Experimental) ==========
+
+    public async Task<List<UsageComparison>> GetUsageComparisonsAsync(List<string> providerIds)
+    {
+        var comparisons = new List<UsageComparison>();
+        
+        if (!IsDatabaseAvailable() || providerIds.Count == 0)
+            return comparisons;
+
+        var now = DateTime.UtcNow;
+        
+        // Define comparison periods
+        var periods = new[]
+        {
+            ("This Week", now.AddDays(-(int)now.DayOfWeek), now, now.AddDays(-7).AddDays(-(int)now.DayOfWeek), now.AddDays(-7)),
+            ("Last Week", now.AddDays(-7).AddDays(-(int)now.DayOfWeek), now.AddDays(-7), now.AddDays(-14).AddDays(-(int)now.DayOfWeek), now.AddDays(-14)),
+            ("This Month", new DateTime(now.Year, now.Month, 1), now, new DateTime(now.Year, now.Month, 1).AddMonths(-1), new DateTime(now.Year, now.Month, 1)),
+            ("Last Month", new DateTime(now.Year, now.Month, 1).AddMonths(-1), new DateTime(now.Year, now.Month, 1), new DateTime(now.Year, now.Month, 1).AddMonths(-2), new DateTime(now.Year, now.Month, 1).AddMonths(-1))
+        };
+
+        foreach (var providerId in providerIds)
+        {
+            foreach (var (label, currStart, currEnd, prevStart, prevEnd) in periods)
+            {
+                var currentUsage = await GetUsageInRangeAsync(new List<string> { providerId }, currStart, currEnd);
+                var previousUsage = await GetUsageInRangeAsync(new List<string> { providerId }, prevStart, prevEnd);
+                
+                var changeAbs = currentUsage - previousUsage;
+                var changePct = previousUsage > 0 ? ((currentUsage - previousUsage) / previousUsage) * 100 : (currentUsage > 0 ? 100 : 0);
+
+                comparisons.Add(new UsageComparison
+                {
+                    ProviderId = providerId,
+                    ProviderName = ProviderDisplayNameResolver.GetDisplayName(providerId),
+                    PeriodStart = currStart,
+                    PeriodEnd = currEnd,
+                    PreviousPeriodStart = prevStart,
+                    PreviousPeriodEnd = prevEnd,
+                    CurrentPeriodUsage = currentUsage,
+                    PreviousPeriodUsage = previousUsage,
+                    ChangeAbsolute = changeAbs,
+                    ChangePercent = changePct
+                });
+            }
+        }
+
+        return comparisons;
+    }
+
+    // ========== Data Export ==========
+
+    public async Task<string> ExportHistoryToCsvAsync()
+    {
+        if (!IsDatabaseAvailable())
+            return "";
+
+        try
+        {
+            using var connection = CreateReadConnection();
+            await connection.OpenAsync();
+
+            const string sql = @"
+                SELECT h.provider_id, p.provider_name, h.requests_used, h.requests_available,
+                       h.requests_percentage, h.is_available, h.status_message, h.fetched_at,
+                       h.next_reset_time, h.details_json
+                FROM provider_history h
+                JOIN providers p ON h.provider_id = p.provider_id
+                ORDER BY h.fetched_at DESC";
+
+            var rows = await connection.QueryAsync<dynamic>(sql);
+            
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("provider_id,provider_name,requests_used,requests_available,requests_percentage,is_available,status_message,fetched_at,next_reset_time");
+
+            foreach (var row in rows)
+            {
+                sb.AppendLine($"\"{row.provider_id}\",\"{row.provider_name}\",{row.requests_used},{row.requests_available},{row.requests_percentage},{(row.is_available ? 1 : 0)},\"{row.status_message?.Replace("\"", "\"\"")}\",\"{row.fetched_at}\",\"{row.next_reset_time}\"");
+            }
+
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error exporting to CSV");
+            return "";
+        }
+    }
+
+    public async Task<string> ExportHistoryToJsonAsync()
+    {
+        if (!IsDatabaseAvailable())
+            return "[]";
+
+        try
+        {
+            using var connection = CreateReadConnection();
+            await connection.OpenAsync();
+
+            const string sql = @"
+                SELECT h.provider_id, p.provider_name, h.requests_used, h.requests_available,
+                       h.requests_percentage, h.is_available, h.status_message, h.fetched_at,
+                       h.next_reset_time
+                FROM provider_history h
+                JOIN providers p ON h.provider_id = p.provider_id
+                ORDER BY h.fetched_at DESC
+                LIMIT 10000";
+
+            var rows = await connection.QueryAsync<dynamic>(sql);
+            
+            var results = rows.Select(r => new 
+            {
+                provider_id = (string)r.provider_id,
+                provider_name = (string)r.provider_name,
+                requests_used = (double)r.requests_used,
+                requests_available = (double)r.requests_available,
+                requests_percentage = (double)r.requests_percentage,
+                is_available = (bool)r.is_available,
+                status_message = (string)r.status_message,
+                fetched_at = ((DateTime)r.fetched_at).ToString("O"),
+                next_reset_time = r.next_reset_time != null ? ((DateTime)r.next_reset_time).ToString("O") : null
+            }).ToList();
+
+            return System.Text.Json.JsonSerializer.Serialize(results, new System.Text.Json.JsonSerializerOptions 
+            { 
+                WriteIndented = true 
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error exporting to JSON");
+            return "[]";
+        }
+    }
+
+    public async Task<byte[]?> CreateDatabaseBackupAsync()
+    {
+        if (!IsDatabaseAvailable())
+            return null;
+
+        try
+        {
+            var dbBytes = await File.ReadAllBytesAsync(_dbPath);
+            return dbBytes;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error creating database backup");
+            return null;
+        }
+    }
+
+    public string GetDatabasePath() => _dbPath;
 
     private sealed class ProviderReliabilityRow
     {

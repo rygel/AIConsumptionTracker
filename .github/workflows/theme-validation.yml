@@ -2,7 +2,7 @@ name: Theme Validation
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths:
       - "design/theme-catalog.json"
       - "AIUsageTracker.Core/Models/AppPreferences.cs"

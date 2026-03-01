@@ -35,7 +35,7 @@ public class CodexProviderTests
 
         // Assert
         Assert.False(usage.IsAvailable);
-        Assert.Contains("auth not found", usage.Description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("auth token not found", usage.Description, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class CodexProviderTests
 
             // Assert
             Assert.True(usage.IsAvailable);
-            Assert.Equal("Codex", usage.ProviderName);
+            Assert.Equal("Codex (OpenAI)", usage.ProviderName);
             Assert.Equal("user@example.com", usage.AccountName);
             Assert.Equal(75.0, usage.RequestsPercentage);
             Assert.Contains("Plan: plus", usage.Description);

@@ -155,7 +155,7 @@ namespace AIUsageTracker.Infrastructure.Providers;
                         candidatePorts.Add(commandLinePort.Value);
                     }
 
-                    foreach (var listeningPort in FindListeningPorts(pid))
+                    foreach (var listeningPort in await FindListeningPorts(pid))
                     {
                         if (!candidatePorts.Contains(listeningPort))
                         {
@@ -366,25 +366,35 @@ namespace AIUsageTracker.Infrastructure.Providers;
         }
     }
 
-    private List<int> FindListeningPorts(int pid)
+    private async Task<List<int>> FindListeningPorts(int pid)
     {
-        var startInfo = new ProcessStartInfo
+        var psi = new ProcessStartInfo
         {
             FileName = "netstat",
             Arguments = "-ano",
             RedirectStandardOutput = true,
+            RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
 
-        using var process = Process.Start(startInfo);
+        using var process = Process.Start(psi);
         if (process == null)
         {
             return new List<int>();
         }
 
-        var output = process.StandardOutput.ReadToEnd();
-        process.WaitForExit();
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            await process.WaitForExitAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return new List<int>();
+        }
+        var output = await outputTask;
 
         var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         var regex = new Regex($@"\s+TCP\s+(?:127\.0\.0\.1|\[::1\]):(\d+)\s+.*LISTENING\s+{pid}");

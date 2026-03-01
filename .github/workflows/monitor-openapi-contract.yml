@@ -2,13 +2,13 @@ name: Monitor OpenAPI Contract Drift
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths:
       - "AIUsageTracker.Monitor/**"
       - "scripts/verify-monitor-openapi-contract.ps1"
       - ".github/workflows/monitor-openapi-contract.yml"
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths:
       - "AIUsageTracker.Monitor/**"
       - "scripts/verify-monitor-openapi-contract.ps1"

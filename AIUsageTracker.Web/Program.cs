@@ -187,6 +187,31 @@ try
             : Results.BadRequest(new { message });
     });
 
+    // Data export endpoints
+    app.MapGet("/api/export/csv", async (WebDatabaseService dbService) =>
+    {
+        var csv = await dbService.ExportHistoryToCsvAsync();
+        if (string.IsNullOrEmpty(csv))
+            return Results.NotFound("No data to export");
+
+        return Results.Text(csv, "text/csv", System.Text.Encoding.UTF8);
+    });
+
+    app.MapGet("/api/export/json", async (WebDatabaseService dbService) =>
+    {
+        var json = await dbService.ExportHistoryToJsonAsync();
+        return Results.Text(json, "application/json", System.Text.Encoding.UTF8);
+    });
+
+    app.MapGet("/api/export/backup", async (WebDatabaseService dbService) =>
+    {
+        var backup = await dbService.CreateDatabaseBackupAsync();
+        if (backup == null)
+            return Results.NotFound("No database to backup");
+
+        return Results.File(backup, "application/octet-stream", $"usage_backup_{DateTime.Now:yyyyMMdd_HHmmss}.db");
+    });
+
     app.MapRazorPages();
 
     var dbService = app.Services.GetRequiredService<WebDatabaseService>();

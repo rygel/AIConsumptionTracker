@@ -43,7 +43,7 @@ This document provides essential information for agentic coding assistants worki
 ### Building
 ```bash
 # Build entire solution
-dotnet build AIUsageTracker.slnx --configuration Debug
+dotnet build AIUsageTracker.sln --configuration Debug
 
 # Build specific project
 dotnet build AIUsageTracker.UI.Slim/AIUsageTracker.UI.Slim.csproj

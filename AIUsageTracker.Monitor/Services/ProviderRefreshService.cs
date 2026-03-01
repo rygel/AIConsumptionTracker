@@ -17,7 +17,7 @@ public class ProviderRefreshService : BackgroundService
     private readonly IUsageDatabase _database;
     private readonly INotificationService _notificationService;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ConfigService _configService;
+    private readonly IConfigService _configService;
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
     private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(5);
     private static bool _debugMode = false;
@@ -53,7 +53,7 @@ public class ProviderRefreshService : BackgroundService
         IUsageDatabase database,
         INotificationService notificationService,
         IHttpClientFactory httpClientFactory,
-        ConfigService configService)
+        IConfigService configService)
     {
         _logger = logger;
         _loggerFactory = loggerFactory;
@@ -97,31 +97,21 @@ public class ProviderRefreshService : BackgroundService
             // Do NOT hammer 3rd party APIs on startup. The scheduled interval will refresh on time.
             _logger.LogInformation("Startup: serving cached data from database (next refresh in {Minutes}m).", _refreshInterval.TotalMinutes);
             
-            // Background task refreshes ALL active providers with API keys on startup
-            // This ensures fresh data is available immediately when Slim UI connects
+            // Only do targeted refresh for system providers that need immediate correctness
+            // All other providers will be refreshed on the normal scheduled interval
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    // Get all provider configs (those with API keys will be refreshed)
-                    var configs = await _configService.GetConfigsAsync();
-                    
-                    if (configs.Any())
-                    {
-                        _logger.LogInformation("Startup: refreshing {Count} providers...", configs.Count);
-                        await TriggerRefreshAsync(
-                            forceAll: true,
-                            bypassCircuitBreaker: true);
-                        _logger.LogInformation("Startup: provider refresh complete.");
-                    }
-                    else
-                    {
-                        _logger.LogInformation("Startup: no providers configured, skipping refresh.");
-                    }
+                    _logger.LogDebug("Startup: running targeted refresh for system providers...");
+                    await TriggerRefreshAsync(
+                        forceAll: true,
+                        includeProviderIds: new[] { "antigravity" });
+                    _logger.LogDebug("Startup: targeted refresh complete.");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Startup provider refresh failed: {Message}", ex.Message);
+                    _logger.LogWarning(ex, "Startup targeted refresh failed");
                 }
             }, stoppingToken);
         }
@@ -166,6 +156,7 @@ public class ProviderRefreshService : BackgroundService
             new ZaiProvider(httpClient, _loggerFactory.CreateLogger<ZaiProvider>()),
             new AntigravityProvider(_loggerFactory.CreateLogger<AntigravityProvider>()),
             new OpenCodeProvider(httpClient, _loggerFactory.CreateLogger<OpenCodeProvider>()),
+            new CodexProvider(httpClient, _loggerFactory.CreateLogger<CodexProvider>()),
             new OpenAIProvider(httpClient, _loggerFactory.CreateLogger<OpenAIProvider>()),
             new AnthropicProvider(_loggerFactory.CreateLogger<AnthropicProvider>()),
             new GeminiProvider(httpClient, _loggerFactory.CreateLogger<GeminiProvider>()),
@@ -196,7 +187,7 @@ public class ProviderRefreshService : BackgroundService
         _logger.LogInformation("Loaded {Count} providers", providers.Count);
     }
 
-    public async Task TriggerRefreshAsync(
+    public virtual async Task TriggerRefreshAsync(
         bool forceAll = false,
         IReadOnlyCollection<string>? includeProviderIds = null,
         bool bypassCircuitBreaker = false)

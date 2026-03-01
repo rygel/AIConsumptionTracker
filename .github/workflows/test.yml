@@ -2,12 +2,12 @@ name: Run Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths-ignore:
       - "docs/**"
       - "**/*.md"
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths-ignore:
       - "docs/**"
       - "**/*.md"
@@ -25,6 +25,7 @@ concurrency:
 jobs:
   prepare:
     runs-on: windows-latest
+    timeout-minutes: 3
 
     steps:
     - uses: actions/checkout@v4
@@ -92,7 +93,7 @@ jobs:
   core-tests:
     needs: prepare
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 2
 
     steps:
     - name: Download built test binaries
@@ -101,13 +102,15 @@ jobs:
         name: test-binaries-debug
         path: .\_ci_test_binaries
 
-    - name: Run Core unit tests (retry once on failure)
+    - name: Run Core unit tests (no retry, aggressive timeout)
       shell: pwsh
       run: >
         powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1
         -AssemblyPath .\_ci_test_binaries\AIUsageTracker.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Tests.dll
         -SuiteName core-tests
         -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt
+        -MaxRetries 0
+        -AttemptTimeoutMinutes 2
 
     - name: Upload Core test results
       if: failure()
@@ -116,9 +119,10 @@ jobs:
         name: core-test-results
         path: TestResults/core-tests*.trx
 
-  agent-tests:
+  monitor-tests:
     needs: prepare
     runs-on: windows-latest
+    timeout-minutes: 1
 
     steps:
     - name: Download built test binaries
@@ -127,24 +131,27 @@ jobs:
         name: test-binaries-debug
         path: .\_ci_test_binaries
 
-    - name: Run Agent unit tests (retry once on failure)
+    - name: Run Monitor unit tests (no retry, aggressive timeout)
       shell: pwsh
       run: >
         powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1
         -AssemblyPath .\_ci_test_binaries\AIUsageTracker.Monitor.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Monitor.Tests.dll
-        -SuiteName agent-tests
+        -SuiteName monitor-tests
         -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt
+        -MaxRetries 0
+        -AttemptTimeoutMinutes 1
 
-    - name: Upload Agent test results
+    - name: Upload Monitor test results
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: agent-test-results
-        path: TestResults/agent-tests*.trx
+        name: monitor-test-results
+        path: TestResults/monitor-tests*.trx
 
   web-tests:
     needs: prepare
     runs-on: windows-latest
+    timeout-minutes: 4
 
     env:
       ASPNETCORE_ENVIRONMENT: Development
@@ -175,6 +182,7 @@ jobs:
         # Start the Web server in the background and bind to 127.0.0.1
         # Removing quotes from --urls to avoid literal quote passing issues in Start-Process
         $process = Start-Process -FilePath "dotnet" -ArgumentList "run --project AIUsageTracker.Web\AIUsageTracker.Web.csproj --configuration Debug --no-build --urls http://127.0.0.1:5100" -PassThru -WindowStyle Hidden -RedirectStandardOutput "web_server.log" -RedirectStandardError "web_server_error.log"
+        try {
         
         # Wait for the server to be responsive
         $maxRetries = 60
@@ -255,15 +263,41 @@ jobs:
             throw "Web perf smoke failed: dashboard=${dashboardAvgMs}ms charts=${chartsAvgMs}ms"
         }
         
-        try {
-            dotnet test AIUsageTracker.Web.Tests\AIUsageTracker.Web.Tests.csproj --configuration Debug
-        } catch {
-            Write-Host "Tests FAILED. Web server log dump:"
-            if (Test-Path "web_server.log") { Get-Content "web_server.log" }
-            throw
+        $webTestProcess = Start-Process -FilePath "dotnet" -ArgumentList "test AIUsageTracker.Web.Tests\AIUsageTracker.Web.Tests.csproj --configuration Debug" -PassThru -WindowStyle Hidden -RedirectStandardOutput "web_tests.log" -RedirectStandardError "web_tests_error.log"
+        $webTestTimeoutSeconds = 120
+        $testsCompleted = $webTestProcess.WaitForExit($webTestTimeoutSeconds * 1000)
+        if (-not $testsCompleted) {
+            Write-Host "Web UI tests exceeded timeout of $webTestTimeoutSeconds seconds."
+            if ($webTestProcess -and -not $webTestProcess.HasExited) { Stop-Process -Id $webTestProcess.Id -Force }
+            Write-Host "--- Web Tests StdOut (tail) ---"
+            if (Test-Path "web_tests.log") { Get-Content "web_tests.log" -Tail 200 }
+            Write-Host "--- Web Tests StdErr (tail) ---"
+            if (Test-Path "web_tests_error.log") { Get-Content "web_tests_error.log" -Tail 200 }
+            Write-Host "--- Web Server StdOut (tail) ---"
+            if (Test-Path "web_server.log") { Get-Content "web_server.log" -Tail 200 }
+            Write-Host "--- Web Server StdErr (tail) ---"
+            if (Test-Path "web_server_error.log") { Get-Content "web_server_error.log" -Tail 200 }
+            throw "Web UI tests timed out."
         }
-        
-        if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+
+        if ($webTestProcess.ExitCode -ne 0) {
+            Write-Host "Web UI tests failed with exit code $($webTestProcess.ExitCode)."
+            Write-Host "--- Web Tests StdOut (tail) ---"
+            if (Test-Path "web_tests.log") { Get-Content "web_tests.log" -Tail 200 }
+            Write-Host "--- Web Tests StdErr (tail) ---"
+            if (Test-Path "web_tests_error.log") { Get-Content "web_tests_error.log" -Tail 200 }
+            Write-Host "--- Web Server StdOut (tail) ---"
+            if (Test-Path "web_server.log") { Get-Content "web_server.log" -Tail 200 }
+            Write-Host "--- Web Server StdErr (tail) ---"
+            if (Test-Path "web_server_error.log") { Get-Content "web_server_error.log" -Tail 200 }
+            throw "Web UI tests failed."
+        }
+        }
+        finally {
+            if ($process -and -not $process.HasExited) {
+                Stop-Process -Id $process.Id -Force
+            }
+        }
       shell: pwsh
 
     - name: Upload Web representative theme screenshots
@@ -275,9 +309,10 @@ jobs:
           ${{ env.TEMP }}\AIUsageTracker\web-theme-smoke\*.png
 
   test:
-    needs: [prepare, core-tests, agent-tests, web-tests]
+    needs: [prepare, core-tests, monitor-tests, web-tests]
     if: always()
     runs-on: windows-latest
+    timeout-minutes: 1
 
     steps:
     - name: Verify parallel test jobs
@@ -285,10 +320,10 @@ jobs:
       run: |
         $prepare = "${{ needs.prepare.result }}"
         $core = "${{ needs.core-tests.result }}"
-        $agent = "${{ needs.agent-tests.result }}"
+        $monitor = "${{ needs.monitor-tests.result }}"
         $web = "${{ needs.web-tests.result }}"
-        Write-Host "prepare=$prepare core-tests=$core agent-tests=$agent web-tests=$web"
-        if ($prepare -ne "success" -or $core -ne "success" -or $agent -ne "success" -or $web -ne "success") {
+        Write-Host "prepare=$prepare core-tests=$core monitor-tests=$monitor web-tests=$web"
+        if ($prepare -ne "success" -or $core -ne "success" -or $monitor -ne "success" -or $web -ne "success") {
           throw "One or more required jobs failed."
         }
 

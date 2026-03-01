@@ -5,7 +5,7 @@ on:
     - cron: "0 6 * * 1"
   workflow_dispatch:
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths:
       - "AIUsageTracker.Infrastructure/Providers/**"
       - "AIUsageTracker.Tests/Infrastructure/Providers/**"

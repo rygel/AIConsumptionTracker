@@ -11,6 +11,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
+using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 
 namespace AIUsageTracker.UI.Slim;
@@ -24,6 +25,7 @@ public partial class SettingsWindow : Window
     }
 
     private readonly MonitorService _monitorService;
+    private readonly ILogger<SettingsWindow> _logger;
     private List<ProviderConfig> _configs = new();
     private List<ProviderUsage> _usages = new();
     private string? _gitHubAuthUsername;
@@ -48,6 +50,7 @@ public partial class SettingsWindow : Window
         _autoSaveTimer.Tick += AutoSaveTimer_Tick;
 
         InitializeComponent();
+        _logger = App.CreateLogger<SettingsWindow>();
         _monitorService = new MonitorService();
         App.PrivacyChanged += OnPrivacyChanged;
         Closed += SettingsWindow_Closed;
@@ -65,7 +68,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Settings load failed: {ex.Message}");
+            _logger.LogError(ex, "Settings load failed");
             MessageBox.Show(
                 $"Failed to load Settings: {ex.Message}",
                 "Settings Error",
@@ -506,7 +509,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "antigravity",
-                ProviderName = "Antigravity",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("antigravity"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -574,7 +577,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "anthropic",
-                ProviderName = "Anthropic",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("anthropic"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -586,7 +589,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "claude-code",
-                ProviderName = "Claude Code",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("claude-code"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -598,7 +601,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "deepseek",
-                ProviderName = "DeepSeek",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("deepseek"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -610,7 +613,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "gemini-cli",
-                ProviderName = "Gemini CLI",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("gemini-cli"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -621,7 +624,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "github-copilot",
-                ProviderName = "GitHub Copilot",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("github-copilot"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -632,7 +635,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "kimi",
-                ProviderName = "Kimi",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("kimi"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -643,7 +646,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "minimax",
-                ProviderName = "Minimax",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("minimax"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -654,7 +657,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "minimax-io",
-                ProviderName = "Minimax International",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("minimax-io"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -666,7 +669,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "mistral",
-                ProviderName = "Mistral",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("mistral"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -678,7 +681,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "openai",
-                ProviderName = "OpenAI (Codex)",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("openai"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -689,7 +692,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "opencode",
-                ProviderName = "OpenCode",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("opencode"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -701,7 +704,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "opencode-zen",
-                ProviderName = "Opencode Zen",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("opencode-zen"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -713,7 +716,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "openrouter",
-                ProviderName = "OpenRouter",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("openrouter"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -725,7 +728,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "synthetic",
-                ProviderName = "Synthetic",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("synthetic"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -736,7 +739,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "zai-coding-plan",
-                ProviderName = "Z.AI",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("zai-coding-plan"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -753,7 +756,7 @@ public partial class SettingsWindow : Window
         {
             new
             {
-                ProviderName = "GitHub Copilot",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("github-copilot"),
                 UsagePercentage = 27.5,
                 Used = 27.5,
                 Limit = 100.0,
@@ -763,7 +766,7 @@ public partial class SettingsWindow : Window
             },
             new
             {
-                ProviderName = "OpenAI",
+                ProviderName = ProviderDisplayNameResolver.GetDisplayName("openai"),
                 UsagePercentage = 31.1,
                 Used = 12.45,
                 Limit = 40.0,
@@ -831,7 +834,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ERROR] AutoSaveTimer_Tick: {ex.Message}");
+            _logger.LogError(ex, "AutoSaveTimer_Tick failed");
         }
     }
 
@@ -897,7 +900,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Failed to update agent status: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to update monitor status");
             if (MonitorStatusText != null)
             {
                 MonitorStatusText.Text = "Error";
@@ -955,7 +958,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Failed to load history: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to load history");
         }
     }
 
@@ -1214,16 +1217,19 @@ public partial class SettingsWindow : Window
             Grid.SetColumn(statusPanel, 0);
             keyPanel.Children.Add(statusPanel);
         }
-        else if (config.ProviderId == "openai" &&
-                 (usage?.PlanType == PlanType.Coding ||
-                  (!string.IsNullOrWhiteSpace(config.ApiKey) && !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase))))
+        else if ((config.ProviderId == "openai" &&
+                  (usage?.PlanType == PlanType.Coding ||
+                   (!string.IsNullOrWhiteSpace(config.ApiKey) && !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase))))
+                 || config.ProviderId == "codex")
         {
             var statusPanel = new StackPanel { Orientation = Orientation.Vertical };
+            var isCodex = config.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase);
+            var providerSessionLabel = isCodex ? "Codex" : "OpenCode (OpenAI)";
             var hasSessionToken = !string.IsNullOrWhiteSpace(config.ApiKey) &&
                                   !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
             var isAuthenticated = hasSessionToken || (usage != null && usage.IsAvailable);
             var accountName = usage?.AccountName;
-            if (string.IsNullOrWhiteSpace(accountName) || accountName == "Unknown" || accountName == "User")
+            if (!isCodex && (string.IsNullOrWhiteSpace(accountName) || accountName == "Unknown" || accountName == "User"))
             {
                 accountName = _openAiAuthUsername;
             }
@@ -1241,11 +1247,11 @@ public partial class SettingsWindow : Window
             }
             else if (hasSessionToken && (usage == null || !usage.IsAvailable))
             {
-                displayText = "Authenticated via OpenCode (Codex) - refresh to load quota";
+                displayText = $"Authenticated via {providerSessionLabel} - refresh to load quota";
             }
             else
             {
-                displayText = "Authenticated via OpenCode (Codex)";
+                displayText = $"Authenticated via {providerSessionLabel}";
             }
 
             var statusText = new TextBlock
@@ -1417,7 +1423,7 @@ public partial class SettingsWindow : Window
         var saved = await UiPreferencesStore.SaveAsync(_preferences);
         if (!saved)
         {
-            Debug.WriteLine("Failed to save Slim UI preferences.");
+            _logger.LogWarning("Failed to save Slim UI preferences");
             if (showErrorDialog)
             {
                 MessageBox.Show(
@@ -1735,7 +1741,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ERROR] PrivacyBtn_Click: {ex.Message}");
+            _logger.LogError(ex, "PrivacyBtn_Click failed");
             MessageBox.Show($"Failed to update privacy mode: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -1824,6 +1830,112 @@ public partial class SettingsWindow : Window
     private void ClearHistoryBtn_Click(object sender, RoutedEventArgs e)
     {
         HistoryDataGrid.ItemsSource = null;
+    }
+
+    private async void ExportCsvBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _monitorService.RefreshPortAsync();
+            var csv = await _monitorService.ExportDataAsync("csv");
+            if (string.IsNullOrEmpty(csv))
+            {
+                MessageBox.Show("No data to export or Monitor is not running.", "Export", 
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "CSV files (*.csv)|*.csv",
+                DefaultExt = ".csv",
+                FileName = $"usage_export_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                await File.WriteAllTextAsync(dialog.FileName, csv);
+                MessageBox.Show($"Exported to {dialog.FileName}", "Export Complete", 
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Export failed: {ex.Message}", "Export Error", 
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void ExportJsonBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _monitorService.RefreshPortAsync();
+            var json = await _monitorService.ExportDataAsync("json");
+            if (json == "[]" || string.IsNullOrEmpty(json))
+            {
+                MessageBox.Show("No data to export or Monitor is not running.", "Export", 
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "JSON files (*.json)|*.json",
+                DefaultExt = ".json",
+                FileName = $"usage_export_{DateTime.Now:yyyyMMdd_HHmmss}.json"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                await File.WriteAllTextAsync(dialog.FileName, json);
+                MessageBox.Show($"Exported to {dialog.FileName}", "Export Complete", 
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Export failed: {ex.Message}", "Export Error", 
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void BackupDbBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new SaveFileDialog
+            {
+                Filter = "Database files (*.db)|*.db",
+                DefaultExt = ".db",
+                FileName = $"usage_backup_{DateTime.Now:yyyyMMdd_HHmmss}.db"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                var dbPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "AIUsageTracker",
+                    "usage.db");
+
+                if (File.Exists(dbPath))
+                {
+                    File.Copy(dbPath, dialog.FileName, true);
+                    MessageBox.Show($"Backup saved to {dialog.FileName}", "Backup Complete", 
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show("Database file not found.", "Backup Error", 
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Backup failed: {ex.Message}", "Backup Error", 
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private async void RestartMonitorBtn_Click(object sender, RoutedEventArgs e)
@@ -2055,20 +2167,7 @@ public partial class SettingsWindow : Window
 
     private static string GetProviderDisplayName(string providerId)
     {
-        return providerId switch
-        {
-            "antigravity" => "Google Antigravity",
-            "gemini-cli" => "Google Gemini",
-            "github-copilot" => "GitHub Copilot",
-            "openai" => "OpenAI (Codex)",
-            "minimax" => "Minimax (China)",
-            "minimax-io" => "Minimax (International)",
-            "opencode" => "OpenCode",
-            "claude-code" => "Claude Code",
-            "zai-coding-plan" => "Z.ai Coding Plan",
-            _ => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(
-                providerId.Replace("_", " ").Replace("-", " "))
-        };
+        return ProviderDisplayNameResolver.GetDisplayName(providerId);
     }
 
     private async Task PersistAllSettingsAsync(bool showErrorDialog)
@@ -2204,7 +2303,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ERROR] CancelBtn_Click: {ex.Message}");
+            _logger.LogError(ex, "CancelBtn_Click failed");
             MessageBox.Show($"Failed to save settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -2343,7 +2442,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ERROR] SendTestNotificationBtn_Click: {ex.Message}");
+            _logger.LogError(ex, "SendTestNotificationBtn_Click failed");
             NotificationTestStatusText.Text = $"Error: {ex.Message}";
         }
     }

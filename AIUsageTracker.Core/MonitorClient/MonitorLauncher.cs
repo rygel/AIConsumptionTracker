@@ -3,6 +3,7 @@ using System.IO;
 using System.Net.Http;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
+using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Core.MonitorClient;
 
@@ -11,6 +12,9 @@ public class MonitorLauncher
     private const int DefaultPort = 5000;
     private const int MaxWaitSeconds = 30;
     private const int StopWaitSeconds = 5;
+    private static ILogger<MonitorLauncher>? _logger;
+
+    public static void SetLogger(ILogger<MonitorLauncher> logger) => _logger = logger;
 
 
     private static async Task<MonitorInfo?> GetAgentInfoAsync()
@@ -91,23 +95,33 @@ public class MonitorLauncher
         {
             // Get the port to use
             var port = await GetAgentPortAsync().ConfigureAwait(false);
+
+            var monitorExeName = OperatingSystem.IsWindows()
+                ? "AIUsageTracker.Monitor.exe"
+                : "AIUsageTracker.Monitor";
+            var legacyAgentExeName = OperatingSystem.IsWindows()
+                ? "AIConsumptionTracker.Agent.exe"
+                : "AIConsumptionTracker.Agent";
             
             // Try to find Agent executable
             var possiblePaths = new[]
             {
                 // Development paths
+                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIUsageTracker.Monitor", "bin", "Debug", "net8.0", monitorExeName),
+                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIUsageTracker.Monitor", "bin", "Release", "net8.0", monitorExeName),
+                // Legacy Windows-targeted development paths
                 Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIUsageTracker.Monitor", "bin", "Debug", "net8.0-windows10.0.17763.0", "AIUsageTracker.Monitor.exe"),
                 Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIUsageTracker.Monitor", "bin", "Release", "net8.0-windows10.0.17763.0", "AIUsageTracker.Monitor.exe"),
                 // Installed paths
-                Path.Combine(AppContext.BaseDirectory, "AIUsageTracker.Monitor.exe"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "AIUsageTracker", "AIUsageTracker.Monitor.exe"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIUsageTracker", "AIUsageTracker.Monitor.exe"),
+                Path.Combine(AppContext.BaseDirectory, monitorExeName),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "AIUsageTracker", monitorExeName),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIUsageTracker", monitorExeName),
                 // Legacy compatibility
-                Path.Combine(AppContext.BaseDirectory, "AIConsumptionTracker.Agent.exe"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "AIConsumptionTracker", "AIUsageTracker.Monitor.exe"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIConsumptionTracker", "AIUsageTracker.Monitor.exe"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "AIConsumptionTracker", "AIConsumptionTracker.Agent.exe"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIConsumptionTracker", "AIConsumptionTracker.Agent.exe"),
+                Path.Combine(AppContext.BaseDirectory, legacyAgentExeName),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "AIConsumptionTracker", monitorExeName),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIConsumptionTracker", monitorExeName),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "AIConsumptionTracker", legacyAgentExeName),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIConsumptionTracker", legacyAgentExeName),
             };
 
             MonitorService.LogDiagnostic($"Locating Monitor executable (checked {possiblePaths.Length} common locations)...");
@@ -204,7 +218,7 @@ public class MonitorLauncher
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Failed to stop Agent: {ex.Message}");
+            _logger?.LogWarning(ex, "Failed to stop Agent");
             return false;
         }
     }
