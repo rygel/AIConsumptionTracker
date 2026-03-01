@@ -111,6 +111,18 @@
                        aria-label="Toggle experimental anomaly detection">
                         @(Model.EnableExperimentalAnomalyDetection ? "Disable Anomaly Detection (Exp)" : "Enable Anomaly Detection (Exp)")
                     </a>
+                    <a class="btn btn-secondary btn-sm @(Model.EnableExperimentalBudgetPolicies ? "btn-experimental-on" : "")"
+                       href="/?showInactive=@(Model.ShowInactiveProviders.ToString().ToLower())&showUsed=@(Model.ShowUsedPercentage.ToString().ToLower())&expBudget=@((!Model.EnableExperimentalBudgetPolicies).ToString().ToLower())"
+                       title="Experimental feature. Disabled by default."
+                       aria-label="Toggle experimental budget policies">
+                        @(Model.EnableExperimentalBudgetPolicies ? "Disable Budget (Exp)" : "Enable Budget (Exp)")
+                    </a>
+                    <a class="btn btn-secondary btn-sm @(Model.EnableExperimentalComparison ? "btn-experimental-on" : "")"
+                       href="/?showInactive=@(Model.ShowInactiveProviders.ToString().ToLower())&showUsed=@(Model.ShowUsedPercentage.ToString().ToLower())&expCompare=@((!Model.EnableExperimentalComparison).ToString().ToLower())"
+                       title="Experimental feature. Disabled by default."
+                       aria-label="Toggle experimental comparison">
+                        @(Model.EnableExperimentalComparison ? "Disable Compare (Exp)" : "Enable Compare (Exp)")
+                    </a>
                 </div>
             </div>
 
@@ -255,6 +267,83 @@
                         
                         <div class="mt-2">
                             <a href="/provider/@usage.ProviderId" class="btn btn-secondary btn-sm">View Details</a>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        @* Experimental Budget Policies Section *@
+        @if (Model.EnableExperimentalBudgetPolicies && Model.BudgetStatuses.Any())
+        {
+            <div class="section-header">
+                <h2 class="mb-2">Budget Status <span class="badge badge-experimental">Experimental</span></h2>
+            </div>
+            <div class="budget-grid">
+                @foreach (var budget in Model.BudgetStatuses)
+                {
+                    var budgetClass = budget.IsOverBudget ? "over-budget" : (budget.IsWarning ? "warning" : "healthy");
+                    <div class="budget-card @budgetClass">
+                        <div class="budget-header">
+                            <span class="budget-name">@budget.ProviderName</span>
+                            <span class="budget-period">@budget.Period</span>
+                        </div>
+                        <div class="budget-amounts">
+                            <span class="current">$@budget.CurrentSpend:F2</span>
+                            <span class="separator">/</span>
+                            <span class="limit">$@budget.BudgetLimit:F2</span>
+                        </div>
+                        <div class="budget-progress">
+                            <div class="budget-progress-bar @budgetClass" style="width: @Math.Min(budget.UtilizationPercent, 100)%"></div>
+                        </div>
+                        <div class="budget-status">
+                            @if (budget.IsOverBudget)
+                            {
+                                <span class="status-over">Over budget by $@(budget.CurrentSpend - budget.BudgetLimit)</span>
+                            }
+                            else if (budget.IsWarning)
+                            {
+                                <span class="status-warning">$@budget.RemainingBudget.ToString("F2") remaining (warning)</span>
+                            }
+                            else
+                            {
+                                <span class="status-healthy">$@budget.RemainingBudget.ToString("F2") remaining</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        @* Experimental Comparison Section *@
+        @if (Model.EnableExperimentalComparison && Model.UsageComparisons.Any())
+        {
+            <div class="section-header">
+                <h2 class="mb-2">Usage Comparison <span class="badge badge-experimental">Experimental</span></h2>
+            </div>
+            <div class="comparison-grid">
+                @foreach (var comparison in Model.UsageComparisons.Take(12))
+                {
+                    var changeClass = comparison.ChangeAbsolute > 0 ? "increase" : (comparison.ChangeAbsolute < 0 ? "decrease" : "neutral");
+                    <div class="comparison-card">
+                        <div class="comparison-header">
+                            <span class="provider-name">@comparison.ProviderName</span>
+                            <span class="period-label">@comparison.PeriodStart.ToString("MMM d") - @comparison.PeriodEnd.ToString("MMM d")</span>
+                        </div>
+                        <div class="comparison-values">
+                            <div class="current">
+                                <span class="label">This Period</span>
+                                <span class="value">$@comparison.CurrentPeriodUsage.ToString("F2")</span>
+                            </div>
+                            <div class="previous">
+                                <span class="label">Previous</span>
+                                <span class="value">$@comparison.PreviousPeriodUsage.ToString("F2")</span>
+                            </div>
+                        </div>
+                        <div class="comparison-change @changeClass">
+                            <span class="direction">@comparison.ChangeDirection</span>
+                            <span class="amount">$@Math.Abs(comparison.ChangeAbsolute).ToString("F2")</span>
+                            <span class="percent">(@comparison.ChangePercent.ToString("F1")%)</span>
                         </div>
                     </div>
                 }

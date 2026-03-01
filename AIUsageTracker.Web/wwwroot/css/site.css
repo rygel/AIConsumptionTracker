@@ -402,6 +402,122 @@ tr:hover { background-color: var(--bg-hover); }
     color: var(--accent-warning);
 }
 
+.badge-experimental {
+    background-color: var(--accent-warning);
+    color: #000;
+    font-size: 0.6rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    margin-left: 0.5rem;
+    font-weight: 600;
+}
+
+/* Budget Styles */
+.budget-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.budget-card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.75rem;
+}
+
+.budget-card.over-budget { border-color: var(--accent-danger); }
+.budget-card.warning { border-color: var(--accent-warning); }
+.budget-card.healthy { border-color: var(--accent-success); }
+
+.budget-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.budget-name { font-weight: 600; font-size: 0.85rem; }
+.budget-period { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; }
+
+.budget-amounts {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.budget-amounts .current { font-weight: 600; }
+.budget-amounts .separator { color: var(--text-muted); margin: 0 0.25rem; }
+.budget-amounts .limit { color: var(--text-muted); }
+
+.budget-progress {
+    height: 6px;
+    background-color: var(--bg-primary);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.budget-progress-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.budget-progress-bar.over-budget { background-color: var(--accent-danger); }
+.budget-progress-bar.warning { background-color: var(--accent-warning); }
+.budget-progress-bar.healthy { background-color: var(--accent-success); }
+
+.budget-status { font-size: 0.75rem; }
+.budget-status .status-over { color: var(--accent-danger); }
+.budget-status .status-warning { color: var(--accent-warning); }
+.budget-status .status-healthy { color: var(--text-muted); }
+
+/* Comparison Styles */
+.comparison-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.comparison-card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.75rem;
+}
+
+.comparison-header {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0.5rem;
+}
+
+.comparison-header .provider-name { font-weight: 600; font-size: 0.85rem; }
+.comparison-header .period-label { font-size: 0.65rem; color: var(--text-muted); }
+
+.comparison-values {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+}
+
+.comparison-values .label { display: block; color: var(--text-muted); font-size: 0.65rem; }
+.comparison-values .value { font-weight: 500; }
+
+.comparison-change {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.comparison-change.increase { color: var(--accent-danger); }
+.comparison-change.decrease { color: var(--accent-success); }
+.comparison-change.neutral { color: var(--text-muted); }
+
 /* Alerts */
 .alert {
     padding: 0.5rem 0.75rem;

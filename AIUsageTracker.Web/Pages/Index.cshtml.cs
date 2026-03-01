@@ -24,10 +24,14 @@ public class IndexModel : PageModel
         = new Dictionary<string, ProviderReliabilitySnapshot>(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyDictionary<string, UsageAnomalySnapshot> AnomaliesByProvider { get; private set; }
         = new Dictionary<string, UsageAnomalySnapshot>(StringComparer.OrdinalIgnoreCase);
+    public List<BudgetStatus> BudgetStatuses { get; private set; } = new();
+    public List<UsageComparison> UsageComparisons { get; private set; } = new();
     public bool IsDatabaseAvailable => _dbService.IsDatabaseAvailable();
     public bool ShowUsedPercentage { get; set; }
     public bool ShowInactiveProviders { get; set; }
     public bool EnableExperimentalAnomalyDetection { get; set; }
+    public bool EnableExperimentalBudgetPolicies { get; set; }
+    public bool EnableExperimentalComparison { get; set; }
 
     public async Task OnGetAsync([FromQuery] bool? showUsed)
     {
@@ -94,6 +98,50 @@ public class IndexModel : PageModel
             EnableExperimentalAnomalyDetection = false;
         }
 
+        // Handle experimental budget policies
+        if (Request.Query.TryGetValue("expBudget", out var expBudgetQuery) &&
+            bool.TryParse(expBudgetQuery, out var expBudget))
+        {
+            EnableExperimentalBudgetPolicies = expBudget;
+            Response.Cookies.Append("expBudget", EnableExperimentalBudgetPolicies.ToString(), new CookieOptions
+            {
+                Expires = DateTimeOffset.UtcNow.AddYears(1),
+                HttpOnly = false,
+                SameSite = SameSiteMode.Strict
+            });
+        }
+        else if (Request.Cookies.TryGetValue("expBudget", out var expBudgetCookie) &&
+                 bool.TryParse(expBudgetCookie, out var expBudgetCookiePref))
+        {
+            EnableExperimentalBudgetPolicies = expBudgetCookiePref;
+        }
+        else
+        {
+            EnableExperimentalBudgetPolicies = false;
+        }
+
+        // Handle experimental comparison
+        if (Request.Query.TryGetValue("expCompare", out var expCompareQuery) &&
+            bool.TryParse(expCompareQuery, out var expCompare))
+        {
+            EnableExperimentalComparison = expCompare;
+            Response.Cookies.Append("expCompare", EnableExperimentalComparison.ToString(), new CookieOptions
+            {
+                Expires = DateTimeOffset.UtcNow.AddYears(1),
+                HttpOnly = false,
+                SameSite = SameSiteMode.Strict
+            });
+        }
+        else if (Request.Cookies.TryGetValue("expCompare", out var expCompareCookie) &&
+                 bool.TryParse(expCompareCookie, out var expCompareCookiePref))
+        {
+            EnableExperimentalComparison = expCompareCookiePref;
+        }
+        else
+        {
+            EnableExperimentalComparison = false;
+        }
+
         if (IsDatabaseAvailable)
         {
             var latestUsageTask = _dbService.GetLatestUsageAsync(includeInactive: ShowInactiveProviders);
@@ -124,6 +172,17 @@ public class IndexModel : PageModel
                 ReliabilityByProvider = reliabilityTask.Result;
                 AnomaliesByProvider = anomalyTask?.Result
                     ?? new Dictionary<string, UsageAnomalySnapshot>(StringComparer.OrdinalIgnoreCase);
+
+                // Load experimental features
+                if (EnableExperimentalBudgetPolicies)
+                {
+                    BudgetStatuses = await _dbService.GetBudgetStatusesAsync(providerIds);
+                }
+
+                if (EnableExperimentalComparison)
+                {
+                    UsageComparisons = await _dbService.GetUsageComparisonsAsync(providerIds);
+                }
             }
         }
     }

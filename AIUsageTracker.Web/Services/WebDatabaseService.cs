@@ -779,6 +779,156 @@ public class WebDatabaseService
         public DateTime FetchedAt { get; set; }
     }
 
+    // ========== Budget Policies (Experimental) ==========
+    
+    private static readonly List<BudgetPolicy> _defaultBudgetPolicies = new()
+    {
+        new BudgetPolicy { Id = "default-monthly-100", ProviderId = "all", Name = "Monthly Budget", Period = BudgetPeriod.Monthly, Limit = 100, Currency = "USD" },
+        new BudgetPolicy { Id = "default-weekly-25", ProviderId = "all", Name = "Weekly Budget", Period = BudgetPeriod.Weekly, Limit = 25, Currency = "USD" }
+    };
+
+    public async Task<List<BudgetStatus>> GetBudgetStatusesAsync(List<string> providerIds)
+    {
+        var statuses = new List<BudgetStatus>();
+        
+        foreach (var policy in _defaultBudgetPolicies)
+        {
+            var period = GetPeriodRange(policy.Period);
+            var start = period.start;
+            var end = period.end;
+
+            var usage = await GetUsageInRangeAsync(providerIds, start, end);
+            
+            var status = new BudgetStatus
+            {
+                ProviderId = policy.ProviderId,
+                ProviderName = policy.Name,
+                BudgetLimit = policy.Limit,
+                CurrentSpend = usage,
+                RemainingBudget = Math.Max(0, policy.Limit - usage),
+                UtilizationPercent = policy.Limit > 0 ? (usage / policy.Limit) * 100 : 0,
+                Period = policy.Period
+            };
+            statuses.Add(status);
+        }
+
+        // Also calculate per-provider budgets based on current usage
+        foreach (var providerId in providerIds)
+        {
+            var usage = await GetUsageInRangeAsync(new List<string> { providerId }, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow);
+            var monthlyRate = usage / 30.0;
+            
+            var status = new BudgetStatus
+            {
+                ProviderId = providerId,
+                ProviderName = providerId,
+                BudgetLimit = 50, // Default implied budget
+                CurrentSpend = usage,
+                RemainingBudget = Math.Max(0, 50 - usage),
+                UtilizationPercent = (usage / 50.0) * 100,
+                Period = BudgetPeriod.Monthly
+            };
+            statuses.Add(status);
+        }
+
+        return statuses;
+    }
+
+    private static (DateTime start, DateTime end) GetPeriodRange(BudgetPeriod period)
+    {
+        var now = DateTime.UtcNow;
+        return period switch
+        {
+            BudgetPeriod.Daily => (now.Date, now),
+            BudgetPeriod.Weekly => (now.Date.AddDays(-(int)now.DayOfWeek), now),
+            BudgetPeriod.Monthly => (new DateTime(now.Year, now.Month, 1), now),
+            BudgetPeriod.Yearly => (new DateTime(now.Year, 1, 1), now),
+            _ => (now.Date.AddDays(-30), now)
+        };
+    }
+
+    private async Task<double> GetUsageInRangeAsync(List<string> providerIds, DateTime start, DateTime end)
+    {
+        if (!IsDatabaseAvailable() || providerIds.Count == 0)
+            return 0;
+
+        try
+        {
+            await using var connection = new SqliteConnection(_readConnectionString);
+            await connection.OpenAsync();
+
+            var sql = @"
+                SELECT COALESCE(SUM(requests_used), 0) as TotalUsage
+                FROM provider_history
+                WHERE provider_id IN @ProviderIds 
+                AND fetched_at >= @Start 
+                AND fetched_at <= @End";
+
+            var result = await connection.QuerySingleOrDefaultAsync<double>(sql, new 
+            { 
+                ProviderIds = providerIds, 
+                Start = start.ToString("yyyy-MM-dd HH:mm:ss"), 
+                End = end.ToString("yyyy-MM-dd HH:mm:ss") 
+            });
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error calculating usage in range");
+            return 0;
+        }
+    }
+
+    // ========== Usage Comparison (Experimental) ==========
+
+    public async Task<List<UsageComparison>> GetUsageComparisonsAsync(List<string> providerIds)
+    {
+        var comparisons = new List<UsageComparison>();
+        
+        if (!IsDatabaseAvailable() || providerIds.Count == 0)
+            return comparisons;
+
+        var now = DateTime.UtcNow;
+        
+        // Define comparison periods
+        var periods = new[]
+        {
+            ("This Week", now.AddDays(-(int)now.DayOfWeek), now, now.AddDays(-7).AddDays(-(int)now.DayOfWeek), now.AddDays(-7)),
+            ("Last Week", now.AddDays(-7).AddDays(-(int)now.DayOfWeek), now.AddDays(-7), now.AddDays(-14).AddDays(-(int)now.DayOfWeek), now.AddDays(-14)),
+            ("This Month", new DateTime(now.Year, now.Month, 1), now, new DateTime(now.Year, now.Month, 1).AddMonths(-1), new DateTime(now.Year, now.Month, 1)),
+            ("Last Month", new DateTime(now.Year, now.Month, 1).AddMonths(-1), new DateTime(now.Year, now.Month, 1), new DateTime(now.Year, now.Month, 1).AddMonths(-2), new DateTime(now.Year, now.Month, 1).AddMonths(-1))
+        };
+
+        foreach (var providerId in providerIds)
+        {
+            foreach (var (label, currStart, currEnd, prevStart, prevEnd) in periods)
+            {
+                var currentUsage = await GetUsageInRangeAsync(new List<string> { providerId }, currStart, currEnd);
+                var previousUsage = await GetUsageInRangeAsync(new List<string> { providerId }, prevStart, prevEnd);
+                
+                var changeAbs = currentUsage - previousUsage;
+                var changePct = previousUsage > 0 ? ((currentUsage - previousUsage) / previousUsage) * 100 : (currentUsage > 0 ? 100 : 0);
+
+                comparisons.Add(new UsageComparison
+                {
+                    ProviderId = providerId,
+                    ProviderName = providerId,
+                    PeriodStart = currStart,
+                    PeriodEnd = currEnd,
+                    PreviousPeriodStart = prevStart,
+                    PreviousPeriodEnd = prevEnd,
+                    CurrentPeriodUsage = currentUsage,
+                    PreviousPeriodUsage = previousUsage,
+                    ChangeAbsolute = changeAbs,
+                    ChangePercent = changePct
+                });
+            }
+        }
+
+        return comparisons;
+    }
+
     private sealed class ProviderReliabilityRow
     {
         public string ProviderId { get; set; } = string.Empty;
