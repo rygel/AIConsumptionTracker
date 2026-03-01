@@ -116,7 +116,7 @@ jobs:
         name: core-test-results
         path: TestResults/core-tests*.trx
 
-  agent-tests:
+  monitor-tests:
     needs: prepare
     runs-on: windows-latest
 
@@ -127,20 +127,20 @@ jobs:
         name: test-binaries-debug
         path: .\_ci_test_binaries
 
-    - name: Run Agent unit tests (retry once on failure)
+    - name: Run Monitor unit tests (retry once on failure)
       shell: pwsh
       run: >
         powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1
         -AssemblyPath .\_ci_test_binaries\AIUsageTracker.Monitor.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Monitor.Tests.dll
-        -SuiteName agent-tests
+        -SuiteName monitor-tests
         -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt
 
-    - name: Upload Agent test results
+    - name: Upload Monitor test results
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: agent-test-results
-        path: TestResults/agent-tests*.trx
+        name: monitor-test-results
+        path: TestResults/monitor-tests*.trx
 
   web-tests:
     needs: prepare
@@ -275,7 +275,7 @@ jobs:
           ${{ env.TEMP }}\AIUsageTracker\web-theme-smoke\*.png
 
   test:
-    needs: [prepare, core-tests, agent-tests, web-tests]
+    needs: [prepare, core-tests, monitor-tests, web-tests]
     if: always()
     runs-on: windows-latest
 
@@ -285,10 +285,10 @@ jobs:
       run: |
         $prepare = "${{ needs.prepare.result }}"
         $core = "${{ needs.core-tests.result }}"
-        $agent = "${{ needs.agent-tests.result }}"
+        $monitor = "${{ needs.monitor-tests.result }}"
         $web = "${{ needs.web-tests.result }}"
-        Write-Host "prepare=$prepare core-tests=$core agent-tests=$agent web-tests=$web"
-        if ($prepare -ne "success" -or $core -ne "success" -or $agent -ne "success" -or $web -ne "success") {
+        Write-Host "prepare=$prepare core-tests=$core monitor-tests=$monitor web-tests=$web"
+        if ($prepare -ne "success" -or $core -ne "success" -or $monitor -ne "success" -or $web -ne "success") {
           throw "One or more required jobs failed."
         }
 
