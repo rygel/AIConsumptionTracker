@@ -28,7 +28,9 @@ public class UsageDatabase : IUsageDatabase
             Directory.CreateDirectory(logDir);
             var logFile = Path.Combine(logDir, $"monitor_{DateTime.Now:yyyy-MM-dd}.log");
             File.AppendAllText(logFile, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} Database path: {_dbPath}{Environment.NewLine}");
-        } catch { /* Ignore */ }
+        } catch (Exception ex) {
+            System.Diagnostics.Debug.WriteLine($"Database log write error: {ex.Message}");
+        }
         
         _connectionString = new SqliteConnectionStringBuilder
         {

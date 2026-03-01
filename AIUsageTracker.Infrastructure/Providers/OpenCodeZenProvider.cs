@@ -168,7 +168,10 @@ public class OpenCodeZenProvider : IProviderService
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger?.LogDebug("IsInPath check failed: {Message}", ex.Message);
+        }
 
         return false;
     }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -32,7 +33,10 @@ try
         }
     }
 }
-catch { /* Ignore rotation errors */ }
+catch (Exception ex)
+{
+    Debug.WriteLine($"Log rotation error: {ex.Message}");
+}
 
 var logFile = Path.Combine(logDir, $"monitor_{DateTime.Now:yyyy-MM-dd}.log");
 
@@ -462,7 +466,10 @@ public partial class Program
                 }
             }
         }
-        catch { /* Ignore errors during error reporting */ }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error reporting failed: {ex.Message}");
+        }
     }
 
     private static string GetPrimaryAgentDir()
