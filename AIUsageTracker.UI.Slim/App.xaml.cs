@@ -738,7 +738,7 @@ public partial class App : Application
 
     private async Task CaptureMainWindowScreenshotAsync(string outputPath)
     {
-        var window = new MainWindow();
+        var window = new MainWindow(skipUiInitialization: true);
         try
         {
             await window.PrepareForHeadlessScreenshotAsync(deterministic: true);
