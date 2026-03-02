@@ -163,9 +163,15 @@ public class ProviderRefreshService : BackgroundService
 
     public virtual async Task TriggerRefreshAsync(bool forceAll = false, IReadOnlyCollection<string>? includeProviderIds = null)
     {
+        var refreshStopwatch = Stopwatch.StartNew();
+        var refreshSucceeded = false;
+        string? refreshError = null;
+
         if (_providerManager == null)
         {
-            _logger.LogWarning("Provider manager not initialized.");
+            refreshError = "Provider manager not initialized.";
+            _logger.LogWarning(refreshError);
+            RecordRefreshTelemetry(refreshStopwatch.Elapsed, false, refreshError);
             return;
         }
 
@@ -174,10 +180,6 @@ public class ProviderRefreshService : BackgroundService
             _logger.LogInformation("Refresh already in progress, skipping.");
             return;
         }
-
-        var refreshStopwatch = Stopwatch.StartNew();
-        var refreshSucceeded = false;
-        string? refreshError = null;
 
         try
         {

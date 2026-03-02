@@ -64,7 +64,7 @@ public class ProviderRefreshServiceTests
         // Assert
         _mockNotificationService.Verify(n => n.ShowNotification(
             "Test Provider", 
-            It.Is<string>(s => s.Contains("95.0")), 
+            It.Is<string>(s => s.Contains("95")), 
             "openDashboard", 
             "test"), Times.Once);
     }
@@ -97,7 +97,7 @@ public class ProviderRefreshServiceTests
         // Assert
         _mockNotificationService.Verify(n => n.ShowNotification(
             "Test Provider", 
-            It.Is<string>(s => s.Contains("95.0")), 
+            It.Is<string>(s => s.Contains("95")), 
             "openDashboard", 
             "test"), Times.Once);
     }

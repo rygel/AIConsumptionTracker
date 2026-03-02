@@ -8,7 +8,6 @@
         Foreground="{DynamicResource PrimaryText}"
         ShowInTaskbar="False"
         Topmost="True"
-        Icon="Assets/app_icon.ico"
         KeyDown="OnKeyDown">
 
     <WindowChrome.WindowChrome>

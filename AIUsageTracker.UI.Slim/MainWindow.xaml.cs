@@ -60,6 +60,14 @@ public partial class MainWindow : Window
             return dialog.ShowDialog() == true;
         };
 
+        // Load Icon safely
+        try
+        {
+            var iconUri = new Uri("pack://application:,,,/AIUsageTracker;component/Assets/app_icon.ico");
+            this.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(iconUri);
+        }
+        catch { /* Fallback to default if icon missing */ }
+
         if (skipUiInitialization) return;
 
         // Load preferences early
@@ -87,6 +95,12 @@ public partial class MainWindow : Window
 
     private void ApplyVisualPreferences()
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.InvokeAsync(ApplyVisualPreferences);
+            return;
+        }
+
         this.Topmost = _preferences.AlwaysOnTop;
         this.Opacity = _preferences.Opacity;
 
@@ -671,7 +685,7 @@ public partial class MainWindow : Window
     internal async Task OpenSettingsDialogAsync()
     {
         var (win, show) = SettingsDialogFactory();
-        if (show())
+        if (ShowOwnedDialog(win))
         {
             _preferences = await UiPreferencesStore.LoadAsync() ?? new AppPreferences();
             _isPrivacyMode = _preferences.IsPrivacyMode;
