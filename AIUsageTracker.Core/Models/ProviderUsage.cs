@@ -71,6 +71,78 @@ public class ProviderUsage
 
         return System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(name);
     }
+
+    public string GetRelativeResetTime()
+    {
+        if (!NextResetTime.HasValue) return string.Empty;
+        
+        var diff = NextResetTime.Value - DateTime.Now;
+
+        if (diff.TotalSeconds <= 0) return "0m";
+        if (diff.TotalDays >= 1) return $"{diff.Days}d {diff.Hours}h";
+        if (diff.TotalHours >= 1) return $"{diff.Hours}h {diff.Minutes}m";
+        return $"{Math.Max(1, (int)Math.Ceiling(diff.TotalMinutes))}m";
+    }
+
+    public string GetStatusText(bool showUsed)
+    {
+        var isUnknown = !IsAvailable && string.Equals(Description, "Usage unknown", StringComparison.OrdinalIgnoreCase);
+        
+        // Status-only providers
+        if (string.Equals(UsageUnit, "Status", StringComparison.OrdinalIgnoreCase))
+        {
+            return Description ?? string.Empty;
+        }
+
+        if (isUnknown)
+        {
+            return Description ?? "Usage unknown";
+        }
+
+        if (!IsAvailable)
+        {
+            return Description ?? "Unavailable";
+        }
+
+        if (IsQuotaBased)
+        {
+            // Check if we have raw numbers (limit > 100 serves as a heuristic for usage limits > 100%)
+            if (DisplayAsFraction)
+            {
+                if (showUsed)
+                {
+                    return $"{RequestsUsed:N0} / {RequestsAvailable:N0} used";
+                }
+                else
+                {
+                    var remaining = RequestsAvailable - RequestsUsed;
+                    return $"{remaining:N0} / {RequestsAvailable:N0} remaining";
+                }
+            }
+            else
+            {
+                // Percentage only mode
+                var remainingPercent = UsageMath.ClampPercent(RequestsPercentage);
+                if (showUsed)
+                {
+                    return $"{(100.0 - remainingPercent):F0}% used";
+                }
+                else
+                {
+                    return $"{remainingPercent:F0}% remaining";
+                }
+            }
+        }
+        else if (PlanType == PlanType.Usage && RequestsAvailable > 0)
+        {
+            var usedPercent = UsageMath.ClampPercent(RequestsPercentage);
+            return showUsed
+                ? $"{usedPercent:F0}% used"
+                : $"{(100.0 - usedPercent):F0}% remaining";
+        }
+
+        return Description ?? string.Empty;
+    }
 }
 
 public class ProviderUsageDetail

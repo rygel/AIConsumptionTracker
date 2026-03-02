@@ -22,7 +22,37 @@ public static class ProviderMetadataCatalog
         OpenRouterProvider.StaticDefinition,
         SyntheticProvider.StaticDefinition,
         XiaomiProvider.StaticDefinition,
-        ZaiProvider.StaticDefinition
+        ZaiProvider.StaticDefinition,
+
+        // Legacy / Generic Definitions
+        new(
+            providerId: "openai",
+            displayName: "OpenAI",
+            planType: PlanType.Coding,
+            isQuotaBased: true,
+            defaultConfigType: "quota-based",
+            logoKey: "openai"),
+        new(
+            providerId: "google",
+            displayName: "Google",
+            planType: PlanType.Coding,
+            isQuotaBased: true,
+            defaultConfigType: "quota-based",
+            logoKey: "google"),
+        new(
+            providerId: "anthropic",
+            displayName: "Anthropic",
+            planType: PlanType.Coding,
+            isQuotaBased: true,
+            defaultConfigType: "quota-based",
+            logoKey: "anthropic"),
+        new(
+            providerId: "github",
+            displayName: "GitHub",
+            planType: PlanType.Coding,
+            isQuotaBased: true,
+            defaultConfigType: "quota-based",
+            logoKey: "github")
     };
 
     static ProviderMetadataCatalog()

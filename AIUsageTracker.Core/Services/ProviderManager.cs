@@ -230,7 +230,12 @@ public class ProviderManager : IDisposable
                 stopwatch.Stop();
                 foreach(var u in usages) 
                 {
-                    u.ProviderName = ResolveDisplayName(provider.Definition, u.ProviderId, u.ProviderName);
+                    // Straight Line Architecture: Trust the provider's name if set
+                    if (string.IsNullOrEmpty(u.ProviderName) || u.ProviderName == u.ProviderId)
+                    {
+                        u.ProviderName = ResolveDisplayName(provider.Definition, u.ProviderId, u.ProviderName);
+                    }
+                    
                     u.AuthSource = config.AuthSource;
                     u.ResponseLatencyMs = stopwatch.Elapsed.TotalMilliseconds;
                     progressCallback?.Invoke(u);

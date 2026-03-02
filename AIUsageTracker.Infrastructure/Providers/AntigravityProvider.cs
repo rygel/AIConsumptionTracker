@@ -23,6 +23,7 @@ namespace AIUsageTracker.Infrastructure.Providers;
         planType: PlanType.Coding,
         isQuotaBased: true,
         defaultConfigType: "quota-based",
+        logoKey: "google",
         autoIncludeWhenUnconfigured: true,
         includeInWellKnownProviders: true,
         supportsChildProviderIds: true);

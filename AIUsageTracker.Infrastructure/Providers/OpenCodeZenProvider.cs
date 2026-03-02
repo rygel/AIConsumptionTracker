@@ -14,6 +14,7 @@ public class OpenCodeZenProvider : IProviderService
         planType: PlanType.Usage,
         isQuotaBased: false,
         defaultConfigType: "pay-as-you-go",
+        logoKey: "zai",
         autoIncludeWhenUnconfigured: true);
 
     public ProviderDefinition Definition => StaticDefinition;

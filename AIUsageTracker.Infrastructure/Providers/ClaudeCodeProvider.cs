@@ -17,6 +17,7 @@ public class ClaudeCodeProvider : IProviderService
         planType: PlanType.Usage,
         isQuotaBased: false,
         defaultConfigType: "pay-as-you-go",
+        logoKey: "anthropic",
         autoIncludeWhenUnconfigured: true);
 
     public ProviderDefinition Definition => StaticDefinition;

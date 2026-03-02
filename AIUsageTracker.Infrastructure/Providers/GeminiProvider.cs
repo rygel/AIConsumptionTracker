@@ -10,12 +10,13 @@ namespace AIUsageTracker.Infrastructure.Providers;
 public class GeminiProvider : IProviderService
 {
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "gemini-cli",
+        providerId: "gemini",
         displayName: "Google Gemini",
         planType: PlanType.Coding,
         isQuotaBased: true,
         defaultConfigType: "quota-based",
-        autoIncludeWhenUnconfigured: true,
+        logoKey: "google",
+        includeInWellKnownProviders: true);
         includeInWellKnownProviders: true,
         handledProviderIds: new[] { "gemini-cli", "gemini" });
 

@@ -1604,33 +1604,32 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            string filename = providerId.ToLower() switch
+            var normalizedProviderId = providerId.ToLower();
+            
+            // Resolve filename from LogoKey if available
+            string filename = normalizedProviderId;
+            if (ProviderMetadataCatalog.TryGet(normalizedProviderId, out var definition) && !string.IsNullOrEmpty(definition.LogoKey))
             {
-                "github-copilot" => "github",
-                "gemini-cli" => "google",
-                "antigravity" => "google",
-                "codex" => "openai",
-                "codex.spark" => "openai",
-                "claude-code" => "claude",
-                "zai" => "zai",
-                "zai-coding-plan" => "zai",
-                "minimax" => "minimax",
-                "minimax-io" => "minimax",
-                "minimax-global" => "minimax",
-                "kimi" => "kimi",
-                "xiaomi" => "xiaomi",
-                _ => providerId.ToLower()
-            };
+                filename = definition.LogoKey.ToLower();
+            }
+            else
+            {
+                // Legacy/Fallback mapping
+                filename = filename switch
+                {
+                    "github-copilot" => "github",
+                    "gemini-cli" or "antigravity" => "google",
+                    "codex" or "codex.spark" => "openai",
+                    "claude-code" => "anthropic",
+                    "zai" or "zai-coding-plan" => "zai",
+                    "minimax" or "minimax-io" or "minimax-global" => "minimax",
+                    "kimi" => "kimi",
+                    "xiaomi" => "xiaomi",
+                    _ => filename
+                };
+            }
 
             var appDir = AppDomain.CurrentDomain.BaseDirectory;
-
-            // Try SVG first
-            var svgPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.svg");
-            if (System.IO.File.Exists(svgPath))
-            {
-                // Return a simple colored circle as fallback (SVG loading requires SharpVectors)
-                return CreateFallbackIcon(providerId);
-            }
 
             // Try ICO
             var icoPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.ico");

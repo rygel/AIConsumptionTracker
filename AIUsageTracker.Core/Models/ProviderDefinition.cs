@@ -7,6 +7,7 @@ public sealed class ProviderDefinition
     public PlanType PlanType { get; }
     public bool IsQuotaBased { get; }
     public string DefaultConfigType { get; }
+    public string? LogoKey { get; }
     public bool AutoIncludeWhenUnconfigured { get; }
     public bool IncludeInWellKnownProviders { get; }
     public bool SupportsChildProviderIds { get; }
@@ -21,6 +22,7 @@ public sealed class ProviderDefinition
         PlanType planType,
         bool isQuotaBased,
         string defaultConfigType,
+        string? logoKey = null,
         bool autoIncludeWhenUnconfigured = false,
         bool includeInWellKnownProviders = false,
         IEnumerable<string>? handledProviderIds = null,
@@ -42,6 +44,7 @@ public sealed class ProviderDefinition
         PlanType = planType;
         IsQuotaBased = isQuotaBased;
         DefaultConfigType = defaultConfigType;
+        LogoKey = logoKey;
         AutoIncludeWhenUnconfigured = autoIncludeWhenUnconfigured;
         IncludeInWellKnownProviders = includeInWellKnownProviders;
         SupportsChildProviderIds = supportsChildProviderIds;

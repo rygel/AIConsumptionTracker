@@ -1447,77 +1447,13 @@ public partial class MainWindow : Window
         else
         {
             statusText = description;
-            var isStatusOnlyProvider =
-                providerId.Equals("mistral", StringComparison.OrdinalIgnoreCase) ||
-                providerId.Equals("cloud-code", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(usage.UsageUnit, "Status", StringComparison.OrdinalIgnoreCase);
-
-            if (isAntigravityParent)
-            {
-                statusText = string.IsNullOrWhiteSpace(description)
-                    ? "Per-model quotas"
-                    : description;
-            }
-            else if (!isUnknown && !isStatusOnlyProvider && usage.IsQuotaBased)
-            {
-                var displayUsed = ShowUsedToggle?.IsChecked ?? false;
-
-                // Check if we have raw numbers (limit > 100 serves as a heuristic for usage limits > 100%)
-                if (usage.DisplayAsFraction)
-                {
-                    if (displayUsed)
-                    {
-                        statusText = $"{usage.RequestsUsed:N0} / {usage.RequestsAvailable:N0} used";
-                    }
-                    else
-                    {
-                        var remaining = usage.RequestsAvailable - usage.RequestsUsed;
-                        statusText = $"{remaining:N0} / {usage.RequestsAvailable:N0} remaining";
-                    }
-                }
-                else
-                {
-                    // Percentage only mode
-                    var remainingPercent = UsageMath.ClampPercent(usage.RequestsPercentage);
-                    if (displayUsed)
-                    {
-                        statusText = $"{(100.0 - remainingPercent):F0}% used";
-                    }
-                    else
-                    {
-                        statusText = $"{remainingPercent:F0}% remaining";
-                    }
-                }
-            }
-            else if (!isUnknown && !isStatusOnlyProvider && usage.PlanType == PlanType.Usage && usage.RequestsAvailable > 0)
-            {
-                var showUsedPercent = ShowUsedToggle?.IsChecked ?? false;
-                var usedPercent = UsageMath.ClampPercent(usage.RequestsPercentage);
-                statusText = showUsedPercent
-                    ? $"{usedPercent:F0}% used"
-                    : $"{(100.0 - usedPercent):F0}% remaining";
-            }
-            else if (!isUnknown && !isStatusOnlyProvider && usage.IsQuotaBased)
-            {
-                // Show used% or remaining% based on toggle
-                // Show used% or remaining% based on toggle (variable renamed to avoid conflict)
-                var usePercentage = ShowUsedToggle?.IsChecked ?? false;
-                if (usePercentage)
-                {
-                    var usedPercent = 100.0 - usage.RequestsPercentage;
-                    statusText = $"{usedPercent:F0}% used";
-                }
-                else
-                {
-                    statusText = $"{usage.RequestsPercentage:F0}% remaining";
-                }
-            }
-        }
+        bool showUsed = ShowUsedToggle?.IsChecked ?? false;
+        var statusText = usage.GetStatusText(showUsed);
 
         // Reset time display (if available) - shown with muted golden color
-        if (usage.NextResetTime.HasValue)
+        var relative = usage.GetRelativeResetTime();
+        if (!string.IsNullOrEmpty(relative))
         {
-            var relative = GetRelativeTimeString(usage.NextResetTime.Value);
             var resetBlock = new TextBlock
             {
                 Text = $"(Resets: {relative})",
@@ -1525,7 +1461,6 @@ public partial class MainWindow : Window
                 Foreground = GetResourceBrush("StatusTextWarning", Brushes.Goldenrod),
                 FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
-
                 Margin = new Thickness(10, 0, 0, 0)
             };
             DockPanel.SetDock(resetBlock, Dock.Right);
@@ -1635,24 +1570,6 @@ public partial class MainWindow : Window
         container.Children.Add(grid);
     }
 
-    private void AddAntigravityModels(ProviderUsage usage, StackPanel container)
-    {
-        if (usage.Details?.Any() != true)
-        {
-            return;
-        }
-
-        var uniqueModelDetails = usage.Details
-            .Where(d => !string.IsNullOrWhiteSpace(GetAntigravityModelDisplayName(d)) && !d.Name.StartsWith("[", StringComparison.Ordinal))
-            .GroupBy(GetAntigravityModelDisplayName, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First());
-
-        foreach (var detail in uniqueModelDetails.OrderBy(GetAntigravityModelDisplayName, StringComparer.OrdinalIgnoreCase))
-        {
-            AddProviderCard(CreateAntigravityModelUsage(detail, usage), container);
-        }
-    }
-
     private void AddAntigravityUnavailableNotice(ProviderUsage usage, StackPanel container)
     {
         var reason = string.IsNullOrWhiteSpace(usage.Description)
@@ -1664,29 +1581,6 @@ public partial class MainWindow : Window
             $"{reason} Use Refresh to request live data from Antigravity.";
 
         container.Children.Add(CreateInfoTextBlock(message));
-    }
-
-    private static ProviderUsage CreateAntigravityModelUsage(ProviderUsageDetail detail, ProviderUsage parentUsage)
-    {
-        var remainingPercent = ParsePercent(detail.Used);
-        var hasRemainingPercent = remainingPercent.HasValue;
-        var effectiveRemaining = remainingPercent ?? 0;
-        return new ProviderUsage
-        {
-            ProviderId = $"antigravity.{detail.Name.ToLowerInvariant().Replace(" ", "-")}",
-            ProviderName = $"{GetAntigravityModelDisplayName(detail)} [Antigravity]",
-            RequestsPercentage = effectiveRemaining,
-            RequestsUsed = 100.0 - effectiveRemaining,
-            RequestsAvailable = 100,
-            UsageUnit = "Quota %",
-            IsQuotaBased = true,
-            PlanType = PlanType.Coding,
-            Description = hasRemainingPercent ? $"{effectiveRemaining:F0}% Remaining" : "Usage unknown",
-            AccountName = parentUsage.AccountName,
-            NextResetTime = detail.NextResetTime,
-            IsAvailable = parentUsage.IsAvailable,
-            AuthSource = parentUsage.AuthSource
-        };
     }
 
     private static double? ParsePercent(string? value)
@@ -2076,27 +1970,36 @@ public partial class MainWindow : Window
             };
         }
 
-        // Map provider IDs to filename
-        string filename = normalizedProviderId.ToLower() switch
+        // Resolve filename from LogoKey if available, otherwise fallback to ID mapping
+        string filename = normalizedProviderId.ToLower();
+        if (ProviderMetadataCatalog.TryGet(normalizedProviderId, out var definition) && !string.IsNullOrEmpty(definition.LogoKey))
         {
-            "github-copilot" => "github",
-            "gemini-cli" => "google",
-            "antigravity" => "google",
-            "claude-code" or "claude" => "anthropic", // Use anthropic icon for claude
-            "minimax" or "minimax-io" or "minimax-global" => "minimax",
-            "kimi" => "kimi",
-            "xiaomi" => "xiaomi",
-            "zai" => "zai",
-            "deepseek" => "deepseek",
-            "openrouter" => "openai", // Fallback to openai
-            "codex" => "openai",
-            "mistral" => "mistral",
-            "openai" => "openai",
-            "anthropic" => "anthropic",
-            "google" => "google",
-            "github" => "github",
-            _ => normalizedProviderId.ToLower()
-        };
+            filename = definition.LogoKey.ToLower();
+        }
+        else
+        {
+            // Legacy/Fallback mapping
+            filename = filename switch
+            {
+                "github-copilot" => "github",
+                "gemini-cli" => "google",
+                "antigravity" => "google",
+                "claude-code" or "claude" => "anthropic",
+                "minimax" or "minimax-io" or "minimax-global" => "minimax",
+                "kimi" => "kimi",
+                "xiaomi" => "xiaomi",
+                "zai" => "zai",
+                "deepseek" => "deepseek",
+                "openrouter" => "openai",
+                "codex" => "openai",
+                "mistral" => "mistral",
+                "openai" => "openai",
+                "anthropic" => "anthropic",
+                "google" => "google",
+                "github" => "github",
+                _ => filename
+            };
+        }
 
         var appDir = AppDomain.CurrentDomain.BaseDirectory;
         var svgPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.svg");
