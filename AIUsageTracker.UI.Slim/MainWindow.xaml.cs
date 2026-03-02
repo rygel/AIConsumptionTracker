@@ -43,6 +43,13 @@ public partial class MainWindow : Window
         InitializeComponent();
         _logger = App.CreateLogger<MainWindow>();
 
+        // Initialize Services
+        var httpClient = new HttpClient();
+        _monitorService = new MonitorService(httpClient, App.CreateLogger<MonitorService>());
+        _monitorLauncher = new MonitorLauncher();
+        _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _refreshTimer.Tick += async (s, e) => await RefreshDataAsync();
+
         // Initialize Test Hooks
         SettingsDialogFactory = () => {
             var win = new SettingsWindow();
@@ -64,15 +71,7 @@ public partial class MainWindow : Window
         // Apply visual preferences
         ApplyVisualPreferences();
 
-        // Initialize Services
-        var httpClient = new HttpClient();
-        _monitorService = new MonitorService(httpClient, App.CreateLogger<MonitorService>());
-        _monitorLauncher = new MonitorLauncher();
         MonitorLauncher.SetLogger(App.CreateLogger<MonitorLauncher>());
-
-        // Setup Timers
-        _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        _refreshTimer.Tick += async (s, e) => await RefreshDataAsync();
 
         // Register for app-level privacy changes
         App.PrivacyChanged += (s, isPrivate) =>
