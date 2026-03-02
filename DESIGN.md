@@ -349,18 +349,6 @@ if (_preferences.InvertProgressBar)
 | OpenAI | Usage-Based | Status only (no bar) | N/A |
 | Anthropic | Usage-Based | Status only (no bar) | N/A |
 
-### Classification Contract (MANDATORY)
-
-Provider classification drives Slim/Desktop grouping and Antigravity sub-provider rendering.
-
-Source-of-truth implementation points:
-
-- `AIUsageTracker.Core/Models/ProviderPlanClassifier.cs`
-- `AIUsageTracker.Infrastructure/Configuration/TokenDiscoveryService.cs` (default config classification)
-- `AIUsageTracker.Monitor/Services/UsageDatabase.cs` (`/api/usage` response normalization)
-
-When classification changes for any provider, all three locations must be updated in the same PR.
-
 ### Special Case: GitHub Copilot
 
 GitHub Copilot is treated as a **quota-based provider**. The provider prefers Copilot-specific quota data from `/copilot_internal/user` and falls back to GitHub `/rate_limit` only when that data is unavailable.

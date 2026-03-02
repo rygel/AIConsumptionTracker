@@ -45,6 +45,32 @@ public class ProviderUsage
     public double ResponseLatencyMs { get; set; }
     public string? RawJson { get; set; }
     public int HttpStatus { get; set; } = 200;
+
+    public string GetFriendlyName()
+    {
+        // Straight Line Architecture: Prefer the name provided by the Provider Class
+        if (!string.IsNullOrWhiteSpace(ProviderName) && 
+            !string.Equals(ProviderName, ProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            return ProviderName;
+        }
+
+        if (string.IsNullOrWhiteSpace(ProviderId))
+        {
+            return "Unknown Provider";
+        }
+
+        // Clean fallback: TitleCase the ID (e.g. "github-copilot" -> "Github Copilot")
+        var name = ProviderId.Replace("_", " ").Replace("-", " ");
+        
+        // Handle child IDs (e.g. "codex.primary" -> "Codex Primary")
+        if (name.Contains('.'))
+        {
+            name = name.Replace(".", " ");
+        }
+
+        return System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(name);
+    }
 }
 
 public class ProviderUsageDetail

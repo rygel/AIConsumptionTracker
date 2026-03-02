@@ -1126,7 +1126,7 @@ public partial class SettingsWindow : Window
         headerPanel.Children.Add(icon);
 
         // Display name
-        var displayName = GetProviderDisplayName(config.ProviderId);
+        var displayName = usage?.GetFriendlyName() ?? GetProviderDisplayName(config.ProviderId);
 
         var title = new TextBlock
         {

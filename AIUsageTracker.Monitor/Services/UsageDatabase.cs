@@ -365,20 +365,6 @@ public class UsageDatabase : IUsageDatabase
                 {
                     usage.PlanType = definition.PlanType;
                     usage.IsQuotaBased = definition.IsQuotaBased;
-
-                    // Only use catalog for name if the provider didn't give us one
-                    if (string.IsNullOrWhiteSpace(usage.ProviderName) || usage.ProviderName == usage.ProviderId)
-                    {
-                        var mappedName = definition.ResolveDisplayName(usage.ProviderId);
-                        if (!string.IsNullOrWhiteSpace(mappedName))
-                        {
-                            usage.ProviderName = mappedName;
-                        }
-                    }
-                }
-
-                if (!usage.DisplayAsFraction && usage.IsQuotaBased && usage.RequestsAvailable > 100)                {
-                    usage.DisplayAsFraction = true;
                 }
             }
 

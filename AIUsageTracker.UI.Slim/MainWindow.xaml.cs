@@ -1111,12 +1111,12 @@ public partial class MainWindow : Window
             // Separate providers by type and order alphabetically by the name THEY provided
             var quotaProviders = filteredUsages
                 .Where(u => u.IsQuotaBased)
-                .OrderBy(u => u.ProviderName ?? u.ProviderId, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(u => u.GetFriendlyName(), StringComparer.OrdinalIgnoreCase)
                 .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             var paygProviders = filteredUsages
                 .Where(u => !u.IsQuotaBased)
-                .OrderBy(u => u.ProviderName ?? u.ProviderId, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(u => u.GetFriendlyName(), StringComparer.OrdinalIgnoreCase)
                 .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -1326,7 +1326,7 @@ public partial class MainWindow : Window
     private void AddProviderCard(ProviderUsage usage, StackPanel container, bool isChild = false)
     {
         var providerId = usage.ProviderId ?? string.Empty;
-        var friendlyName = GetFriendlyProviderName(usage);
+        var friendlyName = usage.GetFriendlyName();
         var description = usage.Description ?? string.Empty;
 
         // Compact horizontal bar similar to non-slim UI
@@ -1633,12 +1633,6 @@ public partial class MainWindow : Window
         }
 
         container.Children.Add(grid);
-    }
-
-    private static string GetFriendlyProviderName(ProviderUsage usage)
-    {
-        var providerId = usage.ProviderId ?? string.Empty;
-        return ProviderMetadataCatalog.GetDisplayName(providerId, usage.ProviderName);
     }
 
     private void AddAntigravityModels(ProviderUsage usage, StackPanel container)
