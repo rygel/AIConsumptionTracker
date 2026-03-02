@@ -1091,17 +1091,6 @@ public partial class MainWindow : Window
             LogDiagnostic($"[DIAGNOSTIC] Rendering {_usages.Count} providers...");
 
             var filteredUsages = _usages.ToList();
-            var hasAntigravityParent = filteredUsages.Any(u =>
-                string.Equals(u.ProviderId, "antigravity", StringComparison.OrdinalIgnoreCase));
-
-            // Hide unavailable Antigravity parent, and hide antigravity.* rows only when parent exists
-            // because those rows are rendered from Antigravity details in that case.
-            filteredUsages = filteredUsages.Where(u =>
-            {
-                var providerId = u.ProviderId ?? string.Empty;
-                return !(string.Equals(providerId, "antigravity", StringComparison.OrdinalIgnoreCase) && !u.IsAvailable) &&
-                    (!providerId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) || !hasAntigravityParent);
-            }).ToList();
 
             // Guard against duplicate provider entries returned by the Agent.
             filteredUsages = filteredUsages
@@ -1110,7 +1099,7 @@ public partial class MainWindow : Window
                 .ToList();
 
             LogDiagnostic(
-                $"[DIAGNOSTIC] Provider render counts: raw={_usages.Count}, filtered={filteredUsages.Count}, hasAntigravityParent={hasAntigravityParent}");
+                $"[DIAGNOSTIC] Provider render counts: raw={_usages.Count}, filtered={filteredUsages.Count}");
 
             if (!filteredUsages.Any())
             {
@@ -1119,15 +1108,15 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Separate providers by type and order alphabetically
+            // Separate providers by type and order alphabetically by the name THEY provided
             var quotaProviders = filteredUsages
                 .Where(u => u.IsQuotaBased)
-                .OrderBy(GetFriendlyProviderName, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(u => u.ProviderName ?? u.ProviderId, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             var paygProviders = filteredUsages
                 .Where(u => !u.IsQuotaBased)
-                .OrderBy(GetFriendlyProviderName, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(u => u.ProviderName ?? u.ProviderId, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -1148,23 +1137,9 @@ public partial class MainWindow : Window
 
                 if (!_preferences.IsPlansAndQuotasCollapsed)
                 {
-                    // Add all quota providers with Antigravity models listed as standalone cards.
+                    // Add all quota providers. Children are now returned directly by providers.
                     foreach (var usage in quotaProviders)
                     {
-                        if (string.Equals(usage.ProviderId, "antigravity", StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (usage.Details?.Any() == true)
-                            {
-                                AddAntigravityModels(usage, plansContainer);
-                            }
-                            else
-                            {
-                                AddAntigravityUnavailableNotice(usage, plansContainer);
-                            }
-
-                            continue;
-                        }
-
                         AddProviderCard(usage, plansContainer);
 
                         if (usage.Details?.Any() == true)
@@ -1713,6 +1688,7 @@ public partial class MainWindow : Window
             IsQuotaBased = true,
             PlanType = PlanType.Coding,
             Description = hasRemainingPercent ? $"{effectiveRemaining:F0}% Remaining" : "Usage unknown",
+            AccountName = parentUsage.AccountName,
             NextResetTime = detail.NextResetTime,
             IsAvailable = parentUsage.IsAvailable,
             AuthSource = parentUsage.AuthSource
@@ -1993,6 +1969,56 @@ public partial class MainWindow : Window
                 AddSubProviderCard(detail, subContainer);
             }
         }
+    }
+
+    private void AddCodexModels(ProviderUsage usage, StackPanel container)
+    {
+        if (usage.Details?.Any() != true)
+        {
+            return;
+        }
+
+        var uniqueModelDetails = usage.Details
+            .Where(d => d.DetailType == ProviderUsageDetailType.Model && 
+                        !string.IsNullOrWhiteSpace(d.Name) && 
+                        !d.Name.StartsWith("[", StringComparison.Ordinal) &&
+                        (d.WindowKind == WindowKind.Primary || d.WindowKind == WindowKind.Spark || d.WindowKind == WindowKind.Secondary))
+            .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderByDescending(d => d.WindowKind == WindowKind.Primary)
+            .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var detail in uniqueModelDetails)
+        {
+            AddProviderCard(CreateCodexModelUsage(detail, usage), container);
+        }
+    }
+
+    private static ProviderUsage CreateCodexModelUsage(ProviderUsageDetail detail, ProviderUsage parentUsage)
+    {
+        var remainingPercent = ParsePercent(detail.Used);
+        var hasRemainingPercent = remainingPercent.HasValue;
+        var effectiveRemaining = remainingPercent ?? 0;
+        
+        var suffix = " [OpenAI Codex]";
+        var displayName = detail.Name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) ? detail.Name : detail.Name + suffix;
+
+        return new ProviderUsage
+        {
+            ProviderId = $"codex.{detail.Name.ToLowerInvariant().Replace(" ", "-")}",
+            ProviderName = displayName,
+            RequestsPercentage = effectiveRemaining,
+            RequestsUsed = 100.0 - effectiveRemaining,
+            RequestsAvailable = 100,
+            UsageUnit = "Quota %",
+            IsQuotaBased = true,
+            PlanType = PlanType.Coding,
+            Description = hasRemainingPercent ? $"{effectiveRemaining:F0}% Remaining" : "Usage unknown",
+            AccountName = parentUsage.AccountName,
+            NextResetTime = detail.NextResetTime,
+            IsAvailable = parentUsage.IsAvailable,
+            AuthSource = parentUsage.AuthSource
+        };
     }
 
     private string GetRelativeTimeString(DateTime nextReset)

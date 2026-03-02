@@ -157,7 +157,6 @@ public class ProviderRefreshService : BackgroundService
             new AntigravityProvider(_loggerFactory.CreateLogger<AntigravityProvider>()),
             new OpenCodeProvider(httpClient, _loggerFactory.CreateLogger<OpenCodeProvider>()),
             new CodexProvider(httpClient, _loggerFactory.CreateLogger<CodexProvider>()),
-            new OpenAIProvider(httpClient, _loggerFactory.CreateLogger<OpenAIProvider>()),
             new AnthropicProvider(_loggerFactory.CreateLogger<AnthropicProvider>()),
             new GeminiProvider(httpClient, _loggerFactory.CreateLogger<GeminiProvider>()),
             new DeepSeekProvider(httpClient, _loggerFactory.CreateLogger<DeepSeekProvider>()),
@@ -242,17 +241,6 @@ public class ProviderRefreshService : BackgroundService
                 systemProviders.Contains(c.ProviderId) ||
                 c.ProviderId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) ||
                 !string.IsNullOrEmpty(c.ApiKey)).ToList();
-
-            if (ShouldSuppressOpenAiSession(activeConfigs))
-            {
-                var beforeCount = activeConfigs.Count;
-                activeConfigs = activeConfigs
-                    .Where(c => !IsOpenAiSessionConfig(c))
-                    .ToList();
-                _logger.LogInformation(
-                    "Suppressed duplicate OpenAI session provider while Codex is active (removed {Count}).",
-                    beforeCount - activeConfigs.Count);
-            }
 
             if (includeProviderIds != null && includeProviderIds.Count > 0)
             {

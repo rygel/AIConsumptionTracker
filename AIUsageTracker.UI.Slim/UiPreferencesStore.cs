@@ -27,20 +27,7 @@ internal static class UiPreferencesStore
         }
 
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var primaryPath = Path.Combine(appData, "AIUsageTracker", "preferences.json");
-        var legacyPath = Path.Combine(appData, "AIConsumptionTracker", "preferences.json");
-
-        if (File.Exists(primaryPath))
-        {
-            return primaryPath;
-        }
-
-        if (File.Exists(legacyPath))
-        {
-            return legacyPath;
-        }
-
-        return primaryPath;
+        return Path.Combine(appData, "AIUsageTracker", "preferences.json");
     }
 
     public static async Task<AppPreferences> LoadAsync()

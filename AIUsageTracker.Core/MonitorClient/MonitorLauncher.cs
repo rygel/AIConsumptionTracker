@@ -429,11 +429,7 @@ public class MonitorLauncher
         return new[]
         {
             Path.Combine(appData, "AIUsageTracker", "monitor.json"),
-            Path.Combine(appData, "AIUsageTracker", "Monitor", "monitor.json"),
-            Path.Combine(appData, "AIUsageTracker", "Agent", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "Monitor", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "Agent", "monitor.json")
+            Path.Combine(appData, "AIConsumptionTracker", "monitor.json")
         };
     }
 }

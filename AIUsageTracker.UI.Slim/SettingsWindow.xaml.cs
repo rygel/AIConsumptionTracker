@@ -1086,6 +1086,13 @@ public partial class SettingsWindow : Window
         foreach (var (config, isDerived) in orderedDisplayConfigs)
         {
             var usage = _usages.FirstOrDefault(u => u.ProviderId.Equals(config.ProviderId, StringComparison.OrdinalIgnoreCase));
+            
+            // Straight Line Architecture: If parent usage is missing, find status from children (e.g. codex.primary)
+            if (usage == null)
+            {
+                usage = _usages.FirstOrDefault(u => u.ProviderId.StartsWith(config.ProviderId + ".", StringComparison.OrdinalIgnoreCase));
+            }
+
             AddProviderCard(config, usage, isDerived);
         }
     }
@@ -1349,23 +1356,15 @@ public partial class SettingsWindow : Window
             Grid.SetColumn(statusPanel, 0);
             keyPanel.Children.Add(statusPanel);
         }
-        else if ((config.ProviderId == "openai" &&
-                  (usage?.IsQuotaBased == true ||
-                   (!string.IsNullOrWhiteSpace(config.ApiKey) && !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase))))
-                 || config.ProviderId == "codex")
+        else if (config.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase))
         {
             var statusPanel = new StackPanel { Orientation = Orientation.Vertical };
-            var isCodex = config.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase);
-            var providerSessionLabel = isCodex ? "OpenAI Codex" : "OpenAI";
-            var hasSessionToken = !string.IsNullOrWhiteSpace(config.ApiKey) &&
-                                  !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
-            var isAuthenticated = hasSessionToken || (usage != null && usage.IsAvailable);
+            var isAuthenticated = (!string.IsNullOrWhiteSpace(config.ApiKey)) || (usage != null && usage.IsAvailable);
+            
             var accountName = usage?.AccountName;
             if (string.IsNullOrWhiteSpace(accountName) || accountName == "Unknown" || accountName == "User")
             {
-                accountName = isCodex
-                    ? (_codexAuthUsername ?? _openAiAuthUsername)
-                    : _openAiAuthUsername;
+                accountName = _codexAuthUsername ?? _openAiAuthUsername;
             }
 
             string displayText;
@@ -1379,13 +1378,13 @@ public partial class SettingsWindow : Window
                     ? $"Authenticated ({MaskAccountIdentifier(accountName)})"
                     : $"Authenticated ({accountName})";
             }
-            else if (hasSessionToken && (usage == null || !usage.IsAvailable))
+            else if (!string.IsNullOrWhiteSpace(config.ApiKey) && (usage == null || !usage.IsAvailable))
             {
-                displayText = $"Authenticated via {providerSessionLabel} - refresh to load quota";
+                displayText = "Authenticated via OpenAI Codex - refresh to load quota";
             }
             else
             {
-                displayText = $"Authenticated via {providerSessionLabel}";
+                displayText = "Authenticated via OpenAI Codex";
             }
 
             var statusText = new TextBlock
@@ -1398,6 +1397,28 @@ public partial class SettingsWindow : Window
                 isAuthenticated ? "ProgressBarGreen" : "TertiaryText");
 
             statusPanel.Children.Add(statusText);
+
+            var codexModels = usage?.Details?
+                .Where(d => d.DetailType == ProviderUsageDetailType.Model)
+                .Select(d => d.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (codexModels is { Count: > 0 })
+            {
+                var modelsText = new TextBlock
+                {
+                    Text = $"Models: {string.Join(", ", codexModels)}",
+                    VerticalAlignment = VerticalAlignment.Center,
+                    FontSize = 10,
+                    Margin = new Thickness(0, 4, 0, 0),
+                    TextWrapping = TextWrapping.Wrap
+                };
+                modelsText.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
+                statusPanel.Children.Add(modelsText);
+            }
 
             var resolvedReset = usage?.NextResetTime ?? InferResetTimeFromDetails(usage);
             if (resolvedReset is DateTime nextReset)
@@ -2298,7 +2319,7 @@ public partial class SettingsWindow : Window
 
     private static bool IsDerivedProviderVisibleInSettings(string? providerId)
     {
-        return string.Equals(providerId, "codex.spark", StringComparison.OrdinalIgnoreCase);
+        return false;
     }
 
     private async Task PersistAllSettingsAsync(bool showErrorDialog)

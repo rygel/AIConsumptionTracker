@@ -17,30 +17,25 @@ public class JsonConfigLoader : IConfigLoader
         _tokenDiscoveryLogger = tokenDiscoveryLogger ?? NullLogger<TokenDiscoveryService>.Instance;
     }
 
+    private string GetDataDirectory() => 
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIUsageTracker");
+
     private string GetTrackerConfigPath() => 
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ai-consumption-tracker", "auth.json");
+        Path.Combine(GetDataDirectory(), "auth.json");
 
     private string GetProvidersConfigPath() => 
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ai-consumption-tracker", "providers.json");
+        Path.Combine(GetDataDirectory(), "providers.json");
 
     public async Task<List<ProviderConfig>> LoadConfigAsync()
     {
         var authPaths = new List<string>
         {
-            GetTrackerConfigPath(),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "opencode", "auth.json"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "auth.json"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode", "auth.json"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".opencode", "auth.json")
+            GetTrackerConfigPath()
         };
 
         var providerPaths = new List<string>
         {
-            GetProvidersConfigPath(),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "opencode", "providers.json"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "providers.json"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode", "providers.json"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".opencode", "providers.json")
+            GetProvidersConfigPath()
         };
 
         // Dictionary to merge configs: ProviderId -> Config

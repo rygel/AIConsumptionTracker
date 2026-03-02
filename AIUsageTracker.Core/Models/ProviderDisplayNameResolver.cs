@@ -11,7 +11,7 @@ public static class ProviderDisplayNameResolver
             ["gemini-cli"] = "Google Gemini",
             ["github-copilot"] = "GitHub Copilot",
             ["openai"] = "OpenAI",
-            ["codex"] = "OpenAI (Codex)",
+            ["codex"] = "OpenAI Codex",
             ["codex.spark"] = "OpenAI (GPT-5.3-Codex-Spark)",
             ["minimax"] = "Minimax (China)",
             ["minimax-io"] = "Minimax (International)",

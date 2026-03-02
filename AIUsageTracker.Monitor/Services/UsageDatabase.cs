@@ -25,9 +25,7 @@ public class UsageDatabase : IUsageDatabase
         
         // Also write to file log
         try {
-            var logDir = Path.Combine(appData, "AIUsageTracker", "logs");
-            Directory.CreateDirectory(logDir);
-            var logFile = Path.Combine(logDir, $"monitor_{DateTime.Now:yyyy-MM-dd}.log");
+            var logFile = Path.Combine(appData, "AIUsageTracker", "logs", $"monitor_{DateTime.Now:yyyy-MM-dd}.log");
             File.AppendAllText(logFile, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} Database path: {_dbPath}{Environment.NewLine}");
         } catch (Exception ex) {
             _logger.LogError(ex, "Database log write error");
@@ -350,8 +348,7 @@ public class UsageDatabase : IUsageDatabase
 
             var results = (await connection.QueryAsync<ProviderUsage>(sql)).ToList();
 
-            foreach (var usage in results.Where(u => !string.IsNullOrWhiteSpace(u.DetailsJson)))
-            {
+            foreach (var usage in results.Where(u => !string.IsNullOrWhiteSpace(u.DetailsJson)))            {
                 try
                 {
                     usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
@@ -369,15 +366,18 @@ public class UsageDatabase : IUsageDatabase
                     usage.PlanType = definition.PlanType;
                     usage.IsQuotaBased = definition.IsQuotaBased;
 
-                    var mappedName = definition.ResolveDisplayName(usage.ProviderId);
-                    if (!string.IsNullOrWhiteSpace(mappedName))
+                    // Only use catalog for name if the provider didn't give us one
+                    if (string.IsNullOrWhiteSpace(usage.ProviderName) || usage.ProviderName == usage.ProviderId)
                     {
-                        usage.ProviderName = mappedName;
+                        var mappedName = definition.ResolveDisplayName(usage.ProviderId);
+                        if (!string.IsNullOrWhiteSpace(mappedName))
+                        {
+                            usage.ProviderName = mappedName;
+                        }
                     }
                 }
 
-                if (!usage.DisplayAsFraction && usage.IsQuotaBased && usage.RequestsAvailable > 100)
-                {
+                if (!usage.DisplayAsFraction && usage.IsQuotaBased && usage.RequestsAvailable > 100)                {
                     usage.DisplayAsFraction = true;
                 }
             }

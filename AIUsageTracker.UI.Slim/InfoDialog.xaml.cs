@@ -18,7 +18,6 @@ namespace AIUsageTracker.UI.Slim
         private bool _isPrivacyMode = false;
         private string? _realUserName;
         private string? _realConfigDir;
-        private string? _realDataDir;
 
         public InfoDialog()
         {
@@ -67,11 +66,8 @@ namespace AIUsageTracker.UI.Slim
             // Current user
             _realUserName = Environment.UserName;
             
-            // Configuration Directory path (without auth.json)
-            _realConfigDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ai-consumption-tracker");
-            
-            // Data Directory path
-            _realDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIUsageTracker");
+            // Configuration Directory path (unified root)
+            _realConfigDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIUsageTracker");
             
             UpdatePrivacyUI();
         }
@@ -82,14 +78,12 @@ namespace AIUsageTracker.UI.Slim
             {
                 UserNameText.Text = MaskString(_realUserName ?? "User");
                 ConfigDirText.Text = MaskPath(_realConfigDir ?? "Path");
-                DataDirText.Text = MaskPath(_realDataDir ?? "Path");
                 PrivacyBtn.Foreground = Brushes.Gold;
             }
             else
             {
                 UserNameText.Text = _realUserName;
                 ConfigDirText.Text = _realConfigDir;
-                DataDirText.Text = _realDataDir;
                 PrivacyBtn.Foreground = Brushes.Gray;
             }
         }
@@ -120,8 +114,7 @@ namespace AIUsageTracker.UI.Slim
             ArchitectureText.Text = "X64";
             MachineNameText.Text = "WORKSTATION";
             UserNameText.Text = "d***r";
-            ConfigDirText.Text = @"C:\Users\***\...\ai-consumption-tracker";
-            DataDirText.Text = @"C:\Users\***\...\AIUsageTracker";
+            ConfigDirText.Text = @"C:\Users\***\...\AIUsageTracker";
             PrivacyBtn.Foreground = Brushes.Gold;
         }
 
@@ -177,22 +170,8 @@ namespace AIUsageTracker.UI.Slim
 
         private void DataDir_Click(object sender, RoutedEventArgs e)
         {
-            if (Directory.Exists(_realDataDir))
-            {
-                try
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = "explorer.exe",
-                        Arguments = $"\"{_realDataDir}\"",
-                        UseShellExecute = true
-                    });
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to open data directory");
-                }
-            }
+            // Redirect to config dir since they are consolidated
+            ConfigDir_Click(sender, e);
         }
 
     }

@@ -539,7 +539,12 @@ namespace AIUsageTracker.Infrastructure.Providers;
         ApplySummaryRawNumbers(summary, configMap);
 
         var results = BuildChildUsages(sortedDetails, configMap, config, data.UserStatus.Email ?? string.Empty);
-        results.Insert(0, summary);
+        
+        // Attach details to the first child so Settings UI can find them for the parent configuration
+        if (results.Any())
+        {
+            results[0].Details = sortedDetails;
+        }
 
         _cachedUsage = summary;
         _cacheTimestamp = DateTime.Now;
