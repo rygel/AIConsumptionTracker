@@ -13,9 +13,10 @@ public class DeepSeekProvider : IProviderService
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "deepseek",
         displayName: "DeepSeek",
-        planType: PlanType.Usage,
-        isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        logoKey: "deepseek",
         includeInWellKnownProviders: true);
 
     public ProviderDefinition Definition => StaticDefinition;

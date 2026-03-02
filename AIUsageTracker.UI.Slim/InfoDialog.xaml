@@ -93,14 +93,6 @@
                                 </Hyperlink>
                             </TextBlock>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                            <TextBlock Text="Data Dir:" Width="100" Foreground="{DynamicResource TertiaryText}"/>
-                            <TextBlock VerticalAlignment="Center" MaxWidth="280">
-                                <Hyperlink Click="DataDir_Click" Foreground="{DynamicResource LinkForeground}" TextDecorations="None">
-                                    <TextBlock x:Name="DataDirText" Text="..." TextWrapping="Wrap"/>
-                                </Hyperlink>
-                            </TextBlock>
-                        </StackPanel>
                     </StackPanel>
             </StackPanel>
 

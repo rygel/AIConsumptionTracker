@@ -15,6 +15,7 @@ public class XiaomiProvider : IProviderService
         planType: PlanType.Coding,
         isQuotaBased: true,
         defaultConfigType: "quota-based",
+        logoKey: "xiaomi",
         includeInWellKnownProviders: true);
 
     public ProviderDefinition Definition => StaticDefinition;

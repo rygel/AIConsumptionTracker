@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## [2.2.27-beta.7] - 2026-03-02
+
+### Added
+- **Simple Design Mandate**: Established the "Straight Line Architecture" as a core design rule, making the Provider Class the single source of truth for all dashboard data.
+- **Unified OpenAI Codex experience**: Merged legacy OpenAI provider into a single, cohesive OpenAI Codex implementation.
+- **Dynamic model splitting**: Codex models (Primary and Spark) now automatically appear as standalone bars in the dashboard while sharing a single configuration card in Settings.
+- **Antigravity parity**: Applied the robust Antigravity splitting pattern to Codex, ensuring consistent behavior across multi-model providers.
+- **Robust email detection**: Improved recursive identity scanning for Codex tokens and local `auth.json` files to reliably display user email addresses.
+- **Settings sub-entries**: Added support for individual model tray-icon controls within a single provider settings card.
+
+### Changed
+- **Empowered ProviderUsage Model**: Added `GetFriendlyName()` directly to the core usage model, ensuring the Provider Class has a "straight line" authority over its display name.
+- **Removed Redundant Resolvers**: Deleted `ProviderDisplayNameResolver` and `ProviderPlanClassifier` to eliminate intermediate layers of name/plan corrections.
+- **Directory Consolidation**: Unified all configuration (`auth.json`, `providers.json`, `preferences.json`) and data (`usage.db`, `monitor.json`) into a single root folder: `%LOCALAPPDATA%\AIUsageTracker`.
+- **Simplified File Structure**: Removed redundant subdirectories (`Monitor`, `Agent`, `logs`) in favor of a flat root directory with a single consolidated `logs` folder.
+- **Info Dialog Refresh**: Updated the Info dialog to show only one consolidated configuration directory path.
+- **Provider architecture**: Moved model-splitting logic from the UI into provider classes for better reliability and simpler maintenance.
+- **Dashboard sorting**: Prioritized primary models (e.g., "Codex") to always appear at the top of their provider group.
+
+### Fixed
+- **Name Overrides Removal**: Stripped away all intermediate layers of name overrides and filtering in the Monitor and UI, ensuring providers have a "straight line" to the dashboard.
+- **Database Simplification**: Removed redundant data "patching" from the database layer, trusting the Provider Class as the sole authority for categorization and labeling.
+- **Antigravity email visibility**: Fixed a regression where synthetic Antigravity model bars were missing the user's account name.
+- **Codex rendering**: Resolved an issue where only one Codex model would sometimes be visible in the dashboard.
+
 ## [2.2.27-beta.6] - 2026-03-01
 
 ### Added
@@ -88,7 +113,7 @@
 
 ### Changes
 - Simplified placeholder detection: checks for actual usage data (RequestsAvailable/RequestsUsed/IsAvailable) instead of relying on Description text matching
-- Remove plan_type from database - use ProviderPlanClassifier instead
+- Remove plan_type from database
 
 ### Performance
 - Add database indexes for is_available and provider_id+fetched_at

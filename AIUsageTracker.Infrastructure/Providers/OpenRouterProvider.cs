@@ -12,9 +12,10 @@ public class OpenRouterProvider : IProviderService
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "openrouter",
         displayName: "OpenRouter",
-        planType: PlanType.Usage,
-        isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        logoKey: "openai",
         includeInWellKnownProviders: true);
 
     public ProviderDefinition Definition => StaticDefinition;

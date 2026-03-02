@@ -30,6 +30,7 @@ concurrency:
 jobs:
   screenshot-baseline:
     runs-on: windows-2025
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -56,14 +57,17 @@ jobs:
         run: dotnet build AIUsageTracker.UI.Slim\AIUsageTracker.UI.Slim.csproj --configuration Debug --no-restore
 
       - name: Generate Slim UI screenshots (headless)
+        timeout-minutes: 5
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\capture_screenshot.ps1 -Configuration Debug -SkipBuild
         shell: pwsh
 
       - name: Verify Slim themes render in headless mode
+        timeout-minutes: 5
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify_slim_theme_smoke.ps1 -Configuration Debug -SkipBuild
         shell: pwsh
 
       - name: Verify screenshot baselines
+        timeout-minutes: 5
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify_screenshot_baseline.ps1
         shell: pwsh
 

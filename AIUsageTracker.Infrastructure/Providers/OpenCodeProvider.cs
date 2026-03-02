@@ -12,9 +12,10 @@ public class OpenCodeProvider : IProviderService
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "opencode",
         displayName: "OpenCode",
-        planType: PlanType.Usage,
-        isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        logoKey: "opencode",
         includeInWellKnownProviders: true);
 
     public ProviderDefinition Definition => StaticDefinition;

@@ -12,12 +12,13 @@ public class MinimaxProvider : IProviderService
 {
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "minimax",
-        displayName: "Minimax (China)",
+        displayName: "MiniMax",
         planType: PlanType.Coding,
         isQuotaBased: true,
         defaultConfigType: "quota-based",
+        logoKey: "minimax",
         includeInWellKnownProviders: true,
-        handledProviderIds: new[] { "minimax", "minimax-io", "minimax-global" },
+        handledProviderIds: new[] { "minimax-io", "minimax-global" },
         displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["minimax-io"] = "Minimax (International)",

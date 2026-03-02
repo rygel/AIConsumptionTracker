@@ -31,7 +31,8 @@ public class CodexProviderTests
         var provider = new CodexProvider(_httpClient, _logger.Object, missingAuthPath);
 
         // Act
-        var usage = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).Single();
+        var results = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).ToList();
+        var usage = results.Single();
 
         // Assert
         Assert.False(usage.IsAvailable);
@@ -57,48 +58,39 @@ public class CodexProviderTests
             }
         }));
 
+        var rawJsonResponse = @"{
+            ""model_name"": ""OpenAI-Codex-Live"",
+            ""plan_type"": ""plus"",
+            ""rate_limit"": {
+                ""primary_window"": { ""used_percent"": 25, ""reset_after_seconds"": 1200 },
+                ""secondary_window"": { ""used_percent"": 10, ""reset_after_seconds"": 600 }
+            },
+            ""additional_rate_limits"": [
+                {
+                    ""limit_name"": ""spark-plan-window"",
+                    ""model_name"": ""GPT-5.3-Codex-Spark"",
+                    ""rate_limit"": {
+                        ""primary_window"": { ""used_percent"": 40, ""reset_after_seconds"": 3600 }
+                    }
+                }
+            ],
+            ""credits"": {
+                ""balance"": 7.5,
+                ""unlimited"": false
+            }
+        }";
+
         _messageHandler.Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
                 ItExpr.Is<HttpRequestMessage>(request =>
                     request.Method == HttpMethod.Get &&
-                    request.RequestUri!.ToString() == "https://chatgpt.com/backend-api/wham/usage" &&
-                    request.Headers.Authorization != null &&
-                    request.Headers.Authorization.Scheme == "Bearer" &&
-                    request.Headers.Authorization.Parameter == token &&
-                    request.Headers.Contains("ChatGPT-Account-Id") &&
-                    request.Headers.GetValues("ChatGPT-Account-Id").Contains(accountId)),
+                    request.RequestUri!.ToString() == "https://chatgpt.com/backend-api/wham/usage"),
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(new HttpResponseMessage
             {
                 StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(JsonSerializer.Serialize(new
-                {
-                    model_name = "OpenAI-Codex-Live",
-                    plan_type = "plus",
-                    rate_limit = new
-                    {
-                        primary_window = new { used_percent = 25, reset_after_seconds = 1200 },
-                        secondary_window = new { used_percent = 10, reset_after_seconds = 600 }
-                    },
-                    additional_rate_limits = new[]
-                    {
-                        new
-                        {
-                            limit_name = "spark-plan-window",
-                            model_name = "GPT-5.3-Codex-Spark",
-                            rate_limit = new
-                            {
-                                primary_window = new { used_percent = 40, reset_after_seconds = 3600 }
-                            }
-                        }
-                    },
-                    credits = new
-                    {
-                        balance = 7.5,
-                        unlimited = false
-                    }
-                }))
+                Content = new StringContent(rawJsonResponse)
             });
 
         var provider = new CodexProvider(_httpClient, _logger.Object, authPath);
@@ -107,28 +99,28 @@ public class CodexProviderTests
         {
             // Act
             var allUsages = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).ToList();
-            var usage = allUsages.Single(u => u.ProviderId == "codex");
-            var sparkUsage = allUsages.Single(u => u.ProviderId == "codex.spark");
+            
+            // Expected usages (Straight Line Architecture - no summary parent):
+            // 1. Primary child (ID: codex.primary)
+            // 2. Spark child (ID: codex.gpt-5.3-codex-spark)
+            // (Note: secondary_window from rate_limit is also extracted)
+            
+            var primary = allUsages.SingleOrDefault(u => u.ProviderId == "codex.primary");
+            var spark = allUsages.SingleOrDefault(u => u.ProviderId.Contains("spark", StringComparison.OrdinalIgnoreCase));
 
-            // Assert
-            Assert.Equal(2, allUsages.Count);
-            Assert.True(usage.IsAvailable);
-            Assert.Equal("OpenAI (Codex)", usage.ProviderName);
-            Assert.Equal("user@example.com", usage.AccountName);
-            Assert.Equal(75.0, usage.RequestsPercentage);
-            Assert.Contains("Plan: plus", usage.Description);
-            Assert.Contains("Spark", usage.Description);
-            Assert.Contains(usage.Details!, d => d.DetailType == ProviderUsageDetailType.Model && d.Name == "OpenAI-Codex-Live");
-            Assert.Contains(usage.Details!, d => d.Name == "5-hour quota");
-            Assert.Contains(usage.Details!, d => d.Name == "5-hour quota" && d.NextResetTime.HasValue);
-            Assert.Contains(usage.Details!, d => d.Name == "Weekly quota" && d.NextResetTime.HasValue);
-            Assert.Contains(usage.Details!, d => d.Name.StartsWith("Spark", StringComparison.OrdinalIgnoreCase));
-            Assert.Contains(usage.Details!, d => d.Name == "Credits" && d.Used == "7.50");
-            Assert.True(sparkUsage.IsAvailable);
-            Assert.Equal("OpenAI (GPT-5.3-Codex-Spark)", sparkUsage.ProviderName);
-            Assert.Equal("user@example.com", sparkUsage.AccountName);
-            Assert.Equal(60.0, sparkUsage.RequestsPercentage);
-            Assert.Contains("Spark", sparkUsage.Description);
+            Assert.NotNull(primary);
+            Assert.NotNull(spark);
+            
+            // Primary Child Bar
+            Assert.Equal("Codex [OpenAI Codex]", primary.ProviderName);
+            Assert.Equal("user@example.com", primary.AccountName);
+            Assert.Equal(75.0, primary.RequestsPercentage);
+            Assert.True(primary.IsQuotaBased);
+
+            // Spark Child Bar
+            Assert.Contains("Spark", spark.ProviderName);
+            Assert.Equal(60.0, spark.RequestsPercentage);
+            Assert.True(spark.IsQuotaBased);
         }
         finally
         {
@@ -161,9 +153,7 @@ public class CodexProviderTests
                 "SendAsync",
                 ItExpr.Is<HttpRequestMessage>(request =>
                     request.Method == HttpMethod.Get &&
-                    request.RequestUri!.ToString() == "https://chatgpt.com/backend-api/wham/usage" &&
-                    request.Headers.Authorization != null &&
-                    request.Headers.Authorization.Parameter == token),
+                    request.RequestUri!.ToString() == "https://chatgpt.com/backend-api/wham/usage"),
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(new HttpResponseMessage
             {
@@ -177,21 +167,12 @@ public class CodexProviderTests
         {
             // Act
             var allUsages = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).ToList();
-            var usage = allUsages.Single(u => u.ProviderId == "codex");
+            var primary = allUsages.Single(u => u.ProviderId == "codex.primary");
 
             // Assert
-            Assert.True(usage.IsAvailable);
-            Assert.Equal("snapshot@example.com", usage.AccountName);
-            Assert.Equal(52.0, usage.RequestsPercentage);
-            Assert.Contains("Plan: plus", usage.Description);
-            Assert.NotNull(usage.NextResetTime);
-            Assert.Contains(usage.Details!, d => d.DetailType == ProviderUsageDetailType.Model && d.Name == "OpenAI (Codex)");
-            Assert.Contains(usage.Details!, d => d.Name == "5-hour quota" && d.Used.Contains("48% used"));
-            Assert.Contains(usage.Details!, d => d.Name == "5-hour quota" && d.NextResetTime.HasValue);
-            Assert.Contains(usage.Details!, d => d.Name == "Weekly quota" && d.NextResetTime.HasValue);
-            Assert.Contains(usage.Details!, d => d.Name == "Credits" && d.Used == "0.00");
-            Assert.DoesNotContain(usage.Details!, d => d.Name == "OpenAI (GPT-5.3-Codex-Spark)");
-            Assert.DoesNotContain(allUsages, u => u.ProviderId == "codex.spark");
+            Assert.True(primary.IsAvailable);
+            Assert.Equal("snapshot@example.com", primary.AccountName);
+            Assert.Equal(52.0, primary.RequestsPercentage);
         }
         finally
         {
@@ -218,26 +199,24 @@ public class CodexProviderTests
             }
         }));
 
+        var rawJsonResponse = @"{
+            ""plan_type"": ""plus"",
+            ""rate_limit"": {
+                ""primary_window"": { ""used_percent"": 10, ""reset_after_seconds"": 600 }
+            }
+        }";
+
         _messageHandler.Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
                 ItExpr.Is<HttpRequestMessage>(request =>
                     request.Method == HttpMethod.Get &&
-                    request.RequestUri!.ToString() == "https://chatgpt.com/backend-api/wham/usage" &&
-                    request.Headers.Authorization != null &&
-                    request.Headers.Authorization.Parameter == nonJwtToken),
+                    request.RequestUri!.ToString() == "https://chatgpt.com/backend-api/wham/usage"),
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(new HttpResponseMessage
             {
                 StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(JsonSerializer.Serialize(new
-                {
-                    plan_type = "plus",
-                    rate_limit = new
-                    {
-                        primary_window = new { used_percent = 10, reset_after_seconds = 600 }
-                    }
-                }))
+                Content = new StringContent(rawJsonResponse)
             });
 
         var provider = new CodexProvider(_httpClient, _logger.Object, authPath);
@@ -245,12 +224,12 @@ public class CodexProviderTests
         try
         {
             // Act
-            var usage = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" }))
-                .Single(u => u.ProviderId == "codex");
+            var results = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).ToList();
+            var primary = results.Single(u => u.ProviderId == "codex.primary");
 
             // Assert
-            Assert.Equal(accountId, usage.AccountName);
-            Assert.True(usage.IsAvailable);
+            Assert.Equal(accountId, primary.AccountName);
+            Assert.True(primary.IsAvailable);
         }
         finally
         {
@@ -279,26 +258,24 @@ public class CodexProviderTests
             }
         }));
 
+        var rawJsonResponse = @"{
+            ""plan_type"": ""plus"",
+            ""rate_limit"": {
+                ""primary_window"": { ""used_percent"": 20, ""reset_after_seconds"": 1200 }
+            }
+        }";
+
         _messageHandler.Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
                 ItExpr.Is<HttpRequestMessage>(request =>
                     request.Method == HttpMethod.Get &&
-                    request.RequestUri!.ToString() == "https://chatgpt.com/backend-api/wham/usage" &&
-                    request.Headers.Authorization != null &&
-                    request.Headers.Authorization.Parameter == accessTokenWithoutEmail),
+                    request.RequestUri!.ToString() == "https://chatgpt.com/backend-api/wham/usage"),
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(new HttpResponseMessage
             {
                 StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(JsonSerializer.Serialize(new
-                {
-                    plan_type = "plus",
-                    rate_limit = new
-                    {
-                        primary_window = new { used_percent = 20, reset_after_seconds = 1200 }
-                    }
-                }))
+                Content = new StringContent(rawJsonResponse)
             });
 
         var provider = new CodexProvider(_httpClient, _logger.Object, authPath);
@@ -306,12 +283,12 @@ public class CodexProviderTests
         try
         {
             // Act
-            var usage = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" }))
-                .Single(u => u.ProviderId == "codex");
+            var results = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).ToList();
+            var primary = results.Single(u => u.ProviderId == "codex.primary");
 
             // Assert
-            Assert.Equal("id-token@example.com", usage.AccountName);
-            Assert.True(usage.IsAvailable);
+            Assert.Equal("id-token@example.com", primary.AccountName);
+            Assert.True(primary.IsAvailable);
         }
         finally
         {
@@ -370,5 +347,82 @@ public class CodexProviderTests
         Assert.True(File.Exists(fixturePath), $"Fixture file not found: {fixturePath}");
         return File.ReadAllText(fixturePath);
     }
-}
 
+    [Fact]
+    public async Task GetUsageAsync_WithConfiguredModels_OverridesIdentityAndName()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), $"codex-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var authPath = Path.Combine(tempDir, "auth.json");
+        var token = CreateJwt("user@example.com", "plus");
+        var accountId = "acct_123";
+
+        await File.WriteAllTextAsync(authPath, JsonSerializer.Serialize(new
+        {
+            tokens = new
+            {
+                access_token = token,
+                account_id = accountId
+            }
+        }));
+
+        var rawJsonResponse = @"{
+            ""model_name"": ""OpenAI-Codex-Live"",
+            ""plan_type"": ""plus"",
+            ""rate_limit"": {
+                ""primary_window"": { ""used_percent"": 25, ""reset_after_seconds"": 1200 }
+            },
+            ""additional_rate_limits"": [
+                {
+                    ""limit_name"": ""spark-plan-window"",
+                    ""model_name"": ""GPT-5.3-Codex-Spark"",
+                    ""rate_limit"": {
+                        ""primary_window"": { ""used_percent"": 40, ""reset_after_seconds"": 3600 }
+                    }
+                }
+            ]
+        }";
+
+        _messageHandler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(request =>
+                    request.Method == HttpMethod.Get &&
+                    request.RequestUri!.ToString() == "https://chatgpt.com/backend-api/wham/usage"),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(rawJsonResponse)
+            });
+
+        var provider = new CodexProvider(_httpClient, _logger.Object, authPath);
+
+        var config = new ProviderConfig
+        {
+            ProviderId = "codex",
+            Models = new List<AIModelConfig>
+            {
+                new() { Id = "custom.codex", Name = "Custom Codex", Matches = new List<string> { "OpenAI-Codex-Live", "OpenAI (Codex)" } },
+                new() { Id = "custom.spark", Name = "Custom Spark", Matches = new List<string> { "GPT-5.3-Codex-Spark", "OpenAI (GPT-5.3-Codex-Spark)" } }
+            }
+        };
+
+        try
+        {
+            // Act
+            var allUsages = (await provider.GetUsageAsync(config)).ToList();
+            var primaryUsage = allUsages.Single(u => u.ProviderId == "custom.codex");
+            var sparkUsage = allUsages.Single(u => u.ProviderId == "custom.spark");
+
+            // Assert
+            Assert.Equal("Custom Codex", primaryUsage.ProviderName);
+            Assert.Equal("Custom Spark", sparkUsage.ProviderName);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+}

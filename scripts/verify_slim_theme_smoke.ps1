@@ -74,7 +74,15 @@ foreach ($theme in $themes)
 {
     Write-Host "  -> $theme" -ForegroundColor Gray
 
-    $proc = Start-Process -FilePath $exePath -ArgumentList @("--test", "--screenshot", "--theme-smoke", "--theme", $theme, "--output-dir", $outputDir) -PassThru -WindowStyle Hidden -Wait
+    $proc = Start-Process -FilePath $exePath -ArgumentList @("--test", "--screenshot", "--theme-smoke", "--theme", $theme, "--output-dir", $outputDir) -PassThru -WindowStyle Hidden
+    $completed = $proc.WaitForExit(20000)
+    if (-not $completed)
+    {
+        Stop-Process -Id $proc.Id -Force
+        Write-Host "ERROR: Theme '$theme' timed out after 20 seconds." -ForegroundColor Red
+        exit 1
+    }
+
     $exitCode = $proc.ExitCode
 
     if ($exitCode -ne 0)

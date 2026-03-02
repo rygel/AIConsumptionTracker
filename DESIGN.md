@@ -349,18 +349,6 @@ if (_preferences.InvertProgressBar)
 | OpenAI | Usage-Based | Status only (no bar) | N/A |
 | Anthropic | Usage-Based | Status only (no bar) | N/A |
 
-### Classification Contract (MANDATORY)
-
-Provider classification drives Slim/Desktop grouping and Antigravity sub-provider rendering.
-
-Source-of-truth implementation points:
-
-- `AIUsageTracker.Core/Models/ProviderPlanClassifier.cs`
-- `AIUsageTracker.Infrastructure/Configuration/TokenDiscoveryService.cs` (default config classification)
-- `AIUsageTracker.Monitor/Services/UsageDatabase.cs` (`/api/usage` response normalization)
-
-When classification changes for any provider, all three locations must be updated in the same PR.
-
 ### Special Case: GitHub Copilot
 
 GitHub Copilot is treated as a **quota-based provider**. The provider prefers Copilot-specific quota data from `/copilot_internal/user` and falls back to GitHub `/rate_limit` only when that data is unavailable.
@@ -403,24 +391,31 @@ Users can customize the visual thresholds via settings:
 
 **AI NOTICE: These principles are fundamental to the user experience. DO NOT violate them.**
 
-1. **Intuitive Mapping**: The progress bar should map to the user's mental model of the resource
+1. **Simple Design: The "Straight Line" Architecture**:
+    - The **Provider Class** is the **Single Source of Truth**. There is a straight line from the provider to the UI.
+    - The provider class defines exactly what bars should be shown on the dashboard by returning explicit `ProviderUsage` objects.
+    - All categorization (`IsQuotaBased`, `PlanType`) and labeling (`ProviderName`) is determined by the provider class.
+    - **No Mid-Stream Corrections**: There are no additional layers of filtering, name overrides, or categorization hacks in the Monitor or UI. If a provider returns a bar, the system draws it exactly as-is.
+    - This ensures simplicity, reliability, and ease of maintenance by removing fragile "smart" logic from the middle layers.
+
+2. **Intuitive Mapping**: The progress bar should map to the user's mental model of the resource
    - Quota = "How much do I have left?" (fuel gauge metaphor)
    - Credits = "How much have I spent?" (budget tracker metaphor)
 
-2. **Color Semantics** (Universal across all providers):
+3. **Color Semantics** (Universal across all providers):
    - **Green** always means "good/healthy"
    - **Yellow** always means "caution/attention needed"
    - **Red** always means "critical/action required"
 
-3. **Consistency**: All quota-based providers behave the same way, all credit-based providers behave the same way
+4. **Consistency**: All quota-based providers behave the same way, all credit-based providers behave the same way
 
-4. **Zero State**:
+5. **Zero State**:
    - Quota providers show **full green bar** (100% remaining = healthy)
    - Credit providers show **empty green bar** (0% used = healthy)
 
-5. **Inverted Flag**: Only affects visual bar direction, NEVER color determination
+6. **Inverted Flag**: Only affects visual bar direction, NEVER color determination
 
-6. **Use Correct Source Data (MANDATORY)**:
+7. **Use Correct Source Data (MANDATORY)**:
     - **NEVER** hardcode assumptions about provider behavior (e.g., reset times, billing cycles)
     - **ALWAYS** use verified real data from provider APIs, captured snapshots, or validated local telemetry
     - This applies to runtime logic, tests, deterministic screenshot fixtures, and documentation examples
@@ -434,11 +429,13 @@ Users can customize the visual thresholds via settings:
       - Do NOT invent model names, account identifiers, or quota values for fixtures/docs
     - When in doubt, ask the developer what the real API behavior is
 
-7. **Do Not Store Empty Data (MANDATORY)**:
+8. **Do Not Store Empty Data (MANDATORY)**:
     - **NEVER** log or persist usage history for unconfigured providers or providers that return completely empty usage data.
     - The database should only store genuine usage values. If an API key is missing or usage cannot be determined, do not store a 0-usage placeholder record; simply omit it.
     - This prevents cluttering the database and UI with meaningless empty values.
 
+9. **Privacy First**:
+    - All user data is stored locally. Privacy mode ensures that sensitive identifiers (emails, usernames) are masked in the UI and during screen captures.
 ---
 
 ## Change Control Policy

@@ -14,7 +14,8 @@ public class MistralProvider : IProviderService
         displayName: "Mistral",
         planType: PlanType.Usage,
         isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go");
+        defaultConfigType: "pay-as-you-go",
+        logoKey: "mistral");
 
     public ProviderDefinition Definition => StaticDefinition;
     public string ProviderId => StaticDefinition.ProviderId;

@@ -48,6 +48,14 @@ public static class UsageMath
         return isQuota ? ClampPercent(100 - percentage) : percentage;
     }
 
+    public static bool IsQuotaReset(double previousPercent, double currentPercent)
+    {
+        // A reset is detected when the percentage REMAINING increases significantly
+        // or percentage USED decreases significantly.
+        // For Quota-based: higher is better (remaining). Reset = current > previous.
+        return (currentPercent - previousPercent) >= (MinimumDropRatioForReset * 100.0);
+    }
+
     public static BurnRateForecast CalculateBurnRateForecast(IEnumerable<ProviderUsage> history)
     {
         ArgumentNullException.ThrowIfNull(history);

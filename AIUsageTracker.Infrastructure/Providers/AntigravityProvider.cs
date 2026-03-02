@@ -23,6 +23,7 @@ namespace AIUsageTracker.Infrastructure.Providers;
         planType: PlanType.Coding,
         isQuotaBased: true,
         defaultConfigType: "quota-based",
+        logoKey: "google",
         autoIncludeWhenUnconfigured: true,
         includeInWellKnownProviders: true,
         supportsChildProviderIds: true);
@@ -41,7 +42,7 @@ namespace AIUsageTracker.Infrastructure.Providers;
     {
     }
 
-    internal AntigravityProvider(HttpClient httpClient, ILogger<AntigravityProvider> logger)
+    public AntigravityProvider(HttpClient httpClient, ILogger<AntigravityProvider> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
@@ -538,8 +539,16 @@ namespace AIUsageTracker.Infrastructure.Providers;
         var summary = BuildSummaryUsage(data.UserStatus, sortedDetails, minRemaining.Value);
         ApplySummaryRawNumbers(summary, configMap);
 
-        var results = BuildChildUsages(sortedDetails, configMap, config, data.UserStatus.Email ?? string.Empty);
-        results.Insert(0, summary);
+        var childUsages = BuildChildUsages(sortedDetails, configMap, config, data.UserStatus.Email ?? string.Empty);
+
+        // Attach details to the first child so Settings UI can find them for the parent configuration
+        if (childUsages.Any())
+        {
+            childUsages[0].Details = sortedDetails;
+        }
+
+        var results = new List<ProviderUsage> { summary };
+        results.AddRange(childUsages);
 
         _cachedUsage = summary;
         _cacheTimestamp = DateTime.Now;

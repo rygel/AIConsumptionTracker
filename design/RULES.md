@@ -333,6 +333,14 @@ _logger.LogInformation("API key: {ApiKey}", apiKey);  // NEVER DO THIS
 
 ## Provider Implementation Rules
 
+### Straight Line Architecture
+**Rule**: The Provider Class is the **Single Source of Truth**. There must be a "straight line" from the provider to the UI.
+
+- The provider class defines exactly what bars should be shown on the dashboard by returning specific `ProviderUsage` objects.
+- All categorization (`IsQuotaBased`, `PlanType`) and labeling (`ProviderName`) must be set correctly within the provider class.
+- **No Overrides**: There should be no additional layers of corrections, filtering, or name overrides in the Monitor or UI after the provider has returned its data.
+- **No Summary Parents**: Providers should not return "fake" summary parent objects that require UI filtering. Return the actual model bars directly.
+
 ### Provider Interface Contract
 **Rule**: All providers must implement `IProviderService` exactly.
 
