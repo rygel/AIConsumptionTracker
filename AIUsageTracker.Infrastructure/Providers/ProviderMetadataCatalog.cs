@@ -40,13 +40,6 @@ public static class ProviderMetadataCatalog
             defaultConfigType: "quota-based",
             logoKey: "google"),
         new(
-            providerId: "anthropic",
-            displayName: "Anthropic",
-            planType: PlanType.Coding,
-            isQuotaBased: true,
-            defaultConfigType: "quota-based",
-            logoKey: "anthropic"),
-        new(
             providerId: "github",
             displayName: "GitHub",
             planType: PlanType.Coding,

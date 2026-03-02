@@ -539,13 +539,16 @@ namespace AIUsageTracker.Infrastructure.Providers;
         var summary = BuildSummaryUsage(data.UserStatus, sortedDetails, minRemaining.Value);
         ApplySummaryRawNumbers(summary, configMap);
 
-        var results = BuildChildUsages(sortedDetails, configMap, config, data.UserStatus.Email ?? string.Empty);
-        
+        var childUsages = BuildChildUsages(sortedDetails, configMap, config, data.UserStatus.Email ?? string.Empty);
+
         // Attach details to the first child so Settings UI can find them for the parent configuration
-        if (results.Any())
+        if (childUsages.Any())
         {
-            results[0].Details = sortedDetails;
+            childUsages[0].Details = sortedDetails;
         }
+
+        var results = new List<ProviderUsage> { summary };
+        results.AddRange(childUsages);
 
         _cachedUsage = summary;
         _cacheTimestamp = DateTime.Now;
