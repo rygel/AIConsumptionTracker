@@ -25,11 +25,13 @@ public class AppPreferences
     public double WindowHeight { get; set; } = 500;
     public double? WindowLeft { get; set; }
     public double? WindowTop { get; set; }
+    public double Opacity { get; set; } = 1.0;
     public bool StayOpen { get; set; } = false;
     public bool AlwaysOnTop { get; set; } = true;
     public bool AggressiveAlwaysOnTop { get; set; } = false;
     public bool ForceWin32Topmost { get; set; } = false;
     public bool CompactMode { get; set; } = true;
+    public bool ShowUsedPercentage { get; set; } = false;
     public int ColorThresholdYellow { get; set; } = 60;
     public int ColorThresholdRed { get; set; } = 80;
     public bool InvertProgressBar { get; set; } = true;

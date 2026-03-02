@@ -42,7 +42,7 @@ namespace AIUsageTracker.Infrastructure.Providers;
     {
     }
 
-    internal AntigravityProvider(HttpClient httpClient, ILogger<AntigravityProvider> logger)
+    public AntigravityProvider(HttpClient httpClient, ILogger<AntigravityProvider> logger)
     {
         _httpClient = httpClient;
         _logger = logger;

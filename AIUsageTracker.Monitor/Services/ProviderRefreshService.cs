@@ -141,8 +141,8 @@ public class ProviderRefreshService : BackgroundService
             new XiaomiProvider(httpClient, _loggerFactory.CreateLogger<XiaomiProvider>()),
             new GitHubCopilotProvider(
                 httpClient,
-                gitHubAuthService,
-                _loggerFactory.CreateLogger<GitHubCopilotProvider>()),
+                _loggerFactory.CreateLogger<GitHubCopilotProvider>(),
+                gitHubAuthService),
             new ZaiProvider(httpClient, _loggerFactory.CreateLogger<ZaiProvider>()),
             new KimiProvider(httpClient, _loggerFactory.CreateLogger<KimiProvider>()),
             new MinimaxProvider(httpClient, _loggerFactory.CreateLogger<MinimaxProvider>()),
@@ -152,7 +152,7 @@ public class ProviderRefreshService : BackgroundService
             new OpenCodeZenProvider(_loggerFactory.CreateLogger<OpenCodeZenProvider>()),
             new OpenRouterProvider(httpClient, _loggerFactory.CreateLogger<OpenRouterProvider>()),
             new SyntheticProvider(httpClient, _loggerFactory.CreateLogger<SyntheticProvider>()),
-            new ClaudeCodeProvider(httpClient, _loggerFactory.CreateLogger<ClaudeCodeProvider>())
+            new ClaudeCodeProvider(_loggerFactory.CreateLogger<ClaudeCodeProvider>(), httpClient)
         };
 
         _providerManager = new ProviderManager(
@@ -161,7 +161,7 @@ public class ProviderRefreshService : BackgroundService
             _loggerFactory.CreateLogger<ProviderManager>());
     }
 
-    public async Task TriggerRefreshAsync(bool forceAll = false, IReadOnlyCollection<string>? includeProviderIds = null)
+    public virtual async Task TriggerRefreshAsync(bool forceAll = false, IReadOnlyCollection<string>? includeProviderIds = null)
     {
         if (_providerManager == null)
         {
@@ -204,7 +204,7 @@ public class ProviderRefreshService : BackgroundService
                 
                 var usages = await _providerManager.GetAllUsageAsync(
                     forceRefresh: forceAll,
-                    activeConfigs: activeConfigs);
+                    overrideConfigs: activeConfigs);
 
                 var validatedUsages = usages.Where(u => u != null).ToList();
 
@@ -339,7 +339,7 @@ public class ProviderRefreshService : BackgroundService
         return activeProviderIds.Any(providerId => IsUsageForProvider(providerId, usageProviderId));
     }
 
-    private static bool IsUsageForProvider(string configProviderId, string usageProviderId)
+    internal static bool IsUsageForProvider(string configProviderId, string usageProviderId)
     {
         if (string.Equals(configProviderId, usageProviderId, StringComparison.OrdinalIgnoreCase)) return true;
         if (usageProviderId.StartsWith(configProviderId + ".", StringComparison.OrdinalIgnoreCase)) return true;
@@ -373,7 +373,7 @@ public class ProviderRefreshService : BackgroundService
                 if (UsageMath.IsQuotaReset(previous.RequestsPercentage, latest.RequestsPercentage))
                 {
                     _logger.LogInformation("Reset detected for {ProviderId}", usage.ProviderId);
-                    await _database.StoreResetEventAsync(usage.ProviderId, previous.RequestsPercentage, latest.RequestsPercentage, "Automatic");
+                    await _database.StoreResetEventAsync(usage.ProviderId, usage.ProviderName, previous.RequestsPercentage, latest.RequestsPercentage, "Automatic");
                 }
             }
         }
@@ -383,7 +383,7 @@ public class ProviderRefreshService : BackgroundService
         }
     }
 
-    private void CheckUsageAlerts(List<ProviderUsage> usages, AppPreferences prefs, List<ProviderConfig> configs)
+    internal void CheckUsageAlerts(List<ProviderUsage> usages, AppPreferences prefs, List<ProviderConfig> configs)
     {
         if (!prefs.EnableNotifications) return;
 

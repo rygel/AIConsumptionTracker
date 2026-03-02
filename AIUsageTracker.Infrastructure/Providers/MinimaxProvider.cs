@@ -18,7 +18,7 @@ public class MinimaxProvider : IProviderService
         defaultConfigType: "quota-based",
         logoKey: "minimax",
         includeInWellKnownProviders: true,
-        handledProviderIds: new[] { "minimax-io", "minimax-global" });
+        handledProviderIds: new[] { "minimax-io", "minimax-global" },
         displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["minimax-io"] = "Minimax (International)",

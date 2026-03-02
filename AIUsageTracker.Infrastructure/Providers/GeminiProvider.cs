@@ -16,7 +16,6 @@ public class GeminiProvider : IProviderService
         isQuotaBased: true,
         defaultConfigType: "quota-based",
         logoKey: "google",
-        includeInWellKnownProviders: true);
         includeInWellKnownProviders: true,
         handledProviderIds: new[] { "gemini-cli", "gemini" });
 

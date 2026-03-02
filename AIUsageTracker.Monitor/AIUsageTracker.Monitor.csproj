@@ -14,6 +14,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="AIUsageTracker.Monitor.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.66" />
     <PackageReference Include="Evolve" Version="3.2.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />

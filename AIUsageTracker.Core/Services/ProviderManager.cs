@@ -59,6 +59,11 @@ public class ProviderManager : IDisposable
         }
     }
 
+    private async Task<List<ProviderConfig>> GetLatestConfigsAsync()
+    {
+        return await GetConfigsAsync(forceRefresh: true);
+    }
+
     public async Task<List<ProviderUsage>> GetAllUsageAsync(
         bool forceRefresh = true,
         Action<ProviderUsage>? progressCallback = null,
@@ -109,7 +114,7 @@ public class ProviderManager : IDisposable
         _logger.LogDebug("Starting FetchAllUsageInternal...");
         var configs = overrideConfigs != null
             ? overrideConfigs.Select(CloneConfig).ToList()
-            : (await GetConfigsAsync(forceRefresh: true)).ToList();
+            : (await GetLatestConfigsAsync()).ToList();
 
         if (overrideConfigs == null)
         {
@@ -148,7 +153,11 @@ public class ProviderManager : IDisposable
         });
 
         var nestedResults = await Task.WhenAll(tasks);
-        results.AddRange(nestedResults.SelectMany(x => x));
+        foreach (var list in nestedResults)
+        {
+            results.AddRange(list);
+        }
+
         _lastUsages = results;
         return results;
     }
@@ -192,7 +201,7 @@ public class ProviderManager : IDisposable
             var stopwatch = Stopwatch.StartNew();
             try
             {
-                _logger.LogDebug($"Fetching usage for provider: {config.ProviderId}");
+                _logger.LogDebug("Fetching usage for provider: {ProviderId}", config.ProviderId);
                 var usageTask = provider.GetUsageAsync(config, progressCallback);
                 var timeoutTask = Task.Delay(ProviderRequestTimeout);
                 var completedTask = await Task.WhenAny(usageTask, timeoutTask);
@@ -241,12 +250,12 @@ public class ProviderManager : IDisposable
                     progressCallback?.Invoke(u);
                 }
 
-                _logger.LogDebug($"Success for {config.ProviderId}: {usages.Count()} items");
+                _logger.LogDebug("Success for {ProviderId}: {Count} items", config.ProviderId, usages.Count);
                 return usages;
             }
             catch (ArgumentException ex)
             {
-                _logger.LogWarning($"Skipping {config.ProviderId}: {ex.Message}");
+                _logger.LogWarning("Skipping {ProviderId}: {Message}", config.ProviderId, ex.Message);
                 var errorUsage = new ProviderUsage
                 {
                     ProviderId = config.ProviderId,
@@ -263,7 +272,7 @@ public class ProviderManager : IDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Failed to fetch usage for {config.ProviderId}");
+                _logger.LogError(ex, "Failed to fetch usage for {ProviderId}", config.ProviderId);
                 var errorUsage = new ProviderUsage
                 {
                     ProviderId = config.ProviderId,
@@ -306,15 +315,16 @@ public class ProviderManager : IDisposable
 
     private static string ResolveDisplayName(ProviderDefinition definition, string providerId, string? providerName)
     {
+        // Straight Line Architecture: Provider Class is the source of truth
+        if (!string.IsNullOrWhiteSpace(providerName) && providerName != providerId)
+        {
+            return providerName;
+        }
+
         var mapped = definition.ResolveDisplayName(providerId);
         if (!string.IsNullOrWhiteSpace(mapped))
         {
             return mapped;
-        }
-
-        if (!string.IsNullOrWhiteSpace(providerName))
-        {
-            return providerName;
         }
 
         return providerId;
@@ -381,4 +391,3 @@ public class ProviderManager : IDisposable
         }
     }
 }
-
