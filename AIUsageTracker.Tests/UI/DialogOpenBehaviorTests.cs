@@ -134,12 +134,32 @@ public class DialogOpenBehaviorTests
         {
             try
             {
-                testBody().GetAwaiter().GetResult();
-                tcs.SetResult(null);
+                var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+                SynchronizationContext.SetSynchronizationContext(
+                    new System.Windows.Threading.DispatcherSynchronizationContext(dispatcher));
+
+                dispatcher.InvokeAsync(async () =>
+                {
+                    try
+                    {
+                        await testBody();
+                        tcs.SetResult(null);
+                    }
+                    catch (Exception ex)
+                    {
+                        tcs.SetException(ex);
+                    }
+                    finally
+                    {
+                        dispatcher.InvokeShutdown();
+                    }
+                });
+
+                System.Windows.Threading.Dispatcher.Run();
             }
             catch (Exception ex)
             {
-                tcs.SetException(ex);
+                tcs.TrySetException(ex);
             }
         });
 
