@@ -20,6 +20,27 @@
   - OpenRouterProvider: Replaced Name == "Spending Limit" string matching with typed field filtering
 - **Test expectations**: Updated CodexProviderTests to match actual model name extraction behavior
 
+### Changed (CI/CD Phase 1 Fixes)
+- **Fixed security scan workflow** to run on Windows instead of Ubuntu
+  - Windows-specific projects (UI.Slim, Tests) target `net8.0-windows10.0.17763.0`
+  - Ubuntu runners cannot restore/build Windows-targeting projects
+  - Security scan now properly analyzes all projects including Windows-specific ones
+
+### Added (CI/CD Phase 2 Improvements)
+- **Code coverage reporting** workflow (.github/workflows/code-coverage.yml)
+  - Runs tests with `--collect:"XPlat Code Coverage"` for coverage data
+  - Uploads coverage reports to Codecov for tracking and visualization
+  - Uploads test results as artifacts for debugging
+  - Runs on Windows to properly analyze all projects including Windows-specific ones
+  - 15 minute timeout
+- **PR size check** workflow (.github/workflows/pr-size-check.yml)
+  - Automatically calculates diff stats on PR open and synchronize
+  - Posts warning comment on PRs with >1000 lines changed
+  - Automatically labels PRs by size: small/medium/large/xlarge
+  - Excludes lock files, package-lock.json, and designer files from counts
+  - Encourages smaller, more focused PRs for better code review
+  - 2 minute timeout
+
 ### Changed (CI/CD Architecture)
 - **Created reusable composite action** `.github/actions/setup-dotnet-cache` for .NET setup with caching
   - Centralizes .NET SDK setup, NuGet caching, and global tools caching

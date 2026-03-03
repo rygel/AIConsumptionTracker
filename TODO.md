@@ -144,13 +144,13 @@ Identified during code review on 2026-03-03. These are areas where the codebase 
 
 ### Phase 2 - Medium Effort Improvements
 
-- [ ] Code coverage reporting (Priority: P2, Effort: M): Add code coverage collection and reporting
+- [x] Code coverage reporting (Priority: P2, Effort: M): Add code coverage collection and reporting
   - Use `dotnet test --collect:"XPlat Code Coverage"`
   - Upload to Codecov or similar service
   - Add coverage badges to README
   - Benefit: Track coverage trends, ensure test quality
 
-- [ ] PR size limit warning (Priority: P2, Effort: S): Warn on large PRs over 1000 lines
+- [x] PR size limit warning (Priority: P2, Effort: S): Warn on large PRs over 1000 lines
   - Add workflow step to calculate diff stats
   - Post comment on PR if too large
   - Benefit: Encourage focused, reviewable PRs
