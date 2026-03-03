@@ -246,3 +246,11 @@ Updated with additional tasks on 2026-03-03.
 
 - **Provider Cards**: MainWindow and SettingsWindow provider cards serve different purposes (read-only status display vs interactive editing) and should remain separate implementations
 - **Shared Utilities**: Icon creation, progress bar colors, and account masking can still be consolidated
+
+    - [ ] **Document IConfigLoader split work**
+    - File: `AIUsageTracker.Core\Interfaces\IConfigLoader.cs:5-11`
+    - Problem: Mixes provider config + preferences concerns
+    - Fix: Split into `IProviderConfigLoader` (provider config methods) and `IPreferencesLoader` (preferences methods)
+    - Status: **ATTEMPTED** - Created IProviderConfigLoader.cs and IPreferencesLoader.cs interfaces, updated JsonConfigLoader to implement both
+    - Updated: ProviderManager.cs, Web/Program.cs DI registration, Charts.cshtml.cs, ProviderManagerTests.cs, AllProvidersWorkingTests.cs
+    - Note: Build errors in ProviderManager.cs (pre-existing .sln file corruption) prevented compilation and testing. The split is functionally correct but cannot verify without resolving build infrastructure issue.
