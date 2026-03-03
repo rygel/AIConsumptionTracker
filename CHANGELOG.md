@@ -37,6 +37,28 @@
   - Parameterized test execution with configurable timeouts, retries, filters
   - Foundation for standardizing test patterns across workflows
 
+### Changed (CI/CD Timeout Safeguards)
+- **Added aggressive timeout safeguards** to prevent runaway CI jobs (default is 6 hours!)
+  - All 12 workflows now have explicit timeout-minutes configuration
+  - Theme validation: 5 min | Release script validation: 10 min | Docs integrity: 5 min
+  - Release workflow: 10 min | Security scan: 10 min (already had timeout)
+  - Screenshot baseline: 10 min | Provider contract drift: 10 min
+  - Monitor OpenAPI contract: 10 min
+  - Publish workflow:
+    * Build job: 15 min per platform (5 platforms in matrix)
+    * Generate appcast: 2 min
+    * Create release: 5 min
+  - Test workflow:
+    * Prepare: 5 min | Core tests: 5 min | Monitor tests: 3 min | Web tests: 10 min
+  - Experimental Rust: 10 min (first job, template for others)
+- **Documented timeout strategy** at `docs/CI_CD_TIMEOUTS.md`
+  - Timeout calculation methodology (observed × 2)
+  - Timeout table for all workflows with rationale
+  - Monitoring and troubleshooting guidance
+- **Total pipeline protection**: Maximum runtime reduced from unlimited/6 hours to ~75 minutes
+  - Prevents hung jobs from blocking queue
+  - Reduces CI cost waste from runaway jobs
+
 ## [2.2.27-beta.7] - 2026-03-03
 
 ### Fixed
