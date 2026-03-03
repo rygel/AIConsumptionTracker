@@ -28,6 +28,26 @@ This document provides essential information for agentic coding assistants worki
 - **No Icons in PRs**: When creating pull requests, do not use emojis or icons in the title or body.
 - **PR Management**: ALWAYS modify existing PRs instead of closing and creating new ones. Keep work in the same PR to maintain conversation context and avoid PR number inflation.
 
+### Git Commands
+
+**Standard workflow:**
+
+```bash
+# Stage all changes
+git add -A
+
+# Create commit with descriptive message
+git commit -m "type: description
+
+- Bullet point details
+- More details"
+
+# Push to remote
+git push origin feature/branch-name
+```
+
+**Important:** If you encounter git credential errors or warnings (e.g., `credential-gh`), **ask the user for guidance**. Do not modify git configuration, credential helpers, or system settings without explicit permission.
+
 ## Project Structure
 
 - **AIUsageTracker.Core**: Domain models, interfaces, and business logic (PCL)
