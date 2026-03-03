@@ -18,6 +18,7 @@ public class ProviderRefreshServiceTests
     private readonly Mock<INotificationService> _mockNotificationService;
     private readonly Mock<IHttpClientFactory> _mockHttpClientFactory;
     private readonly Mock<IConfigService> _mockConfigService;
+    private readonly Mock<IAuthFileLocator> _mockAuthFileLocator;
     private readonly ProviderRefreshService _service;
 
     public ProviderRefreshServiceTests()
@@ -28,6 +29,7 @@ public class ProviderRefreshServiceTests
         _mockNotificationService = new Mock<INotificationService>();
         _mockHttpClientFactory = new Mock<IHttpClientFactory>();
         _mockConfigService = new Mock<IConfigService>();
+        _mockAuthFileLocator = new Mock<IAuthFileLocator>();
 
         _service = new ProviderRefreshService(
             _mockLogger.Object,
@@ -35,7 +37,8 @@ public class ProviderRefreshServiceTests
             _mockDatabase.Object,
             _mockNotificationService.Object,
             _mockHttpClientFactory.Object,
-            _mockConfigService.Object);
+            _mockConfigService.Object,
+            _mockAuthFileLocator.Object);
     }
 
     [Fact]
