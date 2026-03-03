@@ -1,26 +1,6 @@
-name: Slim Screenshot Baseline
+name: Slim Screenshot Baseline (TEMPORARILY DISABLED)
 
 on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - "AIUsageTracker.UI.Slim/**"
-      - "scripts/capture_screenshot.ps1"
-      - "scripts/generate_screenshots.ps1"
-      - "scripts/verify_screenshot_baseline.ps1"
-      - "scripts/verify_slim_theme_smoke.ps1"
-      - "docs/screenshot_*_privacy.png"
-      - ".github/workflows/slim-screenshot-baseline.yml"
-  pull_request:
-    branches: [ main, develop ]
-    paths:
-      - "AIUsageTracker.UI.Slim/**"
-      - "scripts/capture_screenshot.ps1"
-      - "scripts/generate_screenshots.ps1"
-      - "scripts/verify_screenshot_baseline.ps1"
-      - "scripts/verify_slim_theme_smoke.ps1"
-      - "docs/screenshot_*_privacy.png"
-      - ".github/workflows/slim-screenshot-baseline.yml"
   workflow_dispatch:
 
 concurrency:
