@@ -78,6 +78,7 @@ Updated with additional tasks on 2026-03-03.
   - Problem: `ProviderInfo`, `UsageSummary`, `ChartDataPoint` defined in service file
   - Fix: Move to `AIUsageTracker.Web\Models\WebModels.cs`
   - Status: **COMPLETED** - Created Web.Models namespace and moved DTOs
+  - Status: **COMPLETED** - Created Web.Models namespace and moved DTOs
 
 - [ ] **Move Web DTOs to proper location**
   - File: `AIUsageTracker.Web\Services\WebDatabaseService.cs:1094-1131`
