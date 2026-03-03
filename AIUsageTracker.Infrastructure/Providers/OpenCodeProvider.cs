@@ -14,7 +14,7 @@ public class OpenCodeProvider : IProviderService
         displayName: "OpenCode",
         planType: PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
+        defaultConfigType: ConfigType.Quota,
         logoKey: "opencode",
         includeInWellKnownProviders: true);
 

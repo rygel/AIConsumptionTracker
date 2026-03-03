@@ -1,11 +1,30 @@
 using System.Text.Json.Serialization;
 
 namespace AIUsageTracker.Core.Models;
- 
+
 public enum PlanType
 {
     Usage,
     Coding
+}
+
+/// <summary>
+/// Defines the payment/config type for a provider.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ConfigType>))]
+public enum ConfigType
+{
+    /// <summary>
+    /// Quota-based provider with fixed allocation (e.g., monthly limits)
+    /// </summary>
+    [JsonPropertyName("quota-based")]
+    Quota,
+    
+    /// <summary>
+    /// Pay-as-you-go provider with usage-based billing
+    /// </summary>
+    [JsonPropertyName("pay-as-you-go")]
+    UsageBased
 }
 
 public class ProviderConfig
@@ -17,7 +36,7 @@ public class ProviderConfig
     public string ApiKey { get; set; } = string.Empty;
     
     [JsonPropertyName("type")]
-    public string Type { get; set; } = "pay-as-you-go"; // "quota-based" or "pay-as-you-go"
+    public ConfigType Type { get; set; } = ConfigType.UsageBased;
 
     [JsonPropertyName("plan_type")]
     [JsonConverter(typeof(JsonStringEnumConverter<PlanType>))]

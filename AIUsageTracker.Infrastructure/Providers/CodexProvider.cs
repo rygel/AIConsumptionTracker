@@ -18,7 +18,7 @@ public class CodexProvider : IProviderService
         displayName: "OpenAI Codex",
         planType: PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
+        defaultConfigType: ConfigType.Quota,
         logoKey: "openai",
         handledProviderIds: new[] { "openai" },
         includeInWellKnownProviders: true,

@@ -19,7 +19,7 @@ public class MockProviderService : IProviderService
                 displayName: value,
                 planType: PlanType.Usage,
                 isQuotaBased: false,
-                defaultConfigType: "pay-as-you-go");
+                defaultConfigType: ConfigType.UsageBased);
         }
     }
 
@@ -28,7 +28,7 @@ public class MockProviderService : IProviderService
         displayName: "mock-provider",
         planType: PlanType.Usage,
         isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go");
+        defaultConfigType: ConfigType.UsageBased);
 
     public Func<ProviderConfig, Task<IEnumerable<ProviderUsage>>>? UsageHandler { get; set; }
 

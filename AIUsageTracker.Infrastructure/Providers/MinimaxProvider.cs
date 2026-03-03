@@ -15,7 +15,7 @@ public class MinimaxProvider : IProviderService
         displayName: "MiniMax",
         planType: PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
+        defaultConfigType: ConfigType.Quota,
         logoKey: "minimax",
         includeInWellKnownProviders: true,
         handledProviderIds: new[] { "minimax-io", "minimax-global" },

@@ -18,7 +18,7 @@ public sealed class SyntheticProvider : IProviderService
         displayName: "Synthetic",
         planType: PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
+        defaultConfigType: ConfigType.Quota,
         logoKey: "synthetic");
 
     public ProviderDefinition Definition => StaticDefinition;

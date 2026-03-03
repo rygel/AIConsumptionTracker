@@ -13,7 +13,7 @@ public class OpenCodeZenProvider : IProviderService
         displayName: "OpenCode Zen",
         planType: PlanType.Usage,
         isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go",
+        defaultConfigType: ConfigType.UsageBased,
         logoKey: "zai",
         autoIncludeWhenUnconfigured: true);
 

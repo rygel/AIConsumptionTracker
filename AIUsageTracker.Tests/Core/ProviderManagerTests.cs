@@ -55,7 +55,7 @@ public class ProviderManagerTests
         var providers = new List<IProviderService>();
         var configs = new List<ProviderConfig>
         {
-            new ProviderConfig { ProviderId = "unknown-api", Type = "api" }
+            new ProviderConfig { ProviderId = "unknown-api", Type = ConfigType.UsageBased }
         };
 
         _mockConfigLoader.Setup(c => c.LoadConfigAsync()).ReturnsAsync(configs);

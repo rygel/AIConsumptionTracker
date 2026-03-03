@@ -558,7 +558,7 @@ public partial class SettingsWindow : Window
             string providerId,
             string apiKey,
             PlanType planType,
-            string type,
+            ConfigType type,
             bool showInTray = false,
             bool enableNotifications = false)
         {
@@ -575,22 +575,22 @@ public partial class SettingsWindow : Window
 
         _configs = new List<ProviderConfig>
         {
-            CreateConfig("antigravity", "local-session", PlanType.Coding, "quota-based"),
-            CreateConfig("anthropic", "sk-ant-demo", PlanType.Usage, "pay-as-you-go", showInTray: true),
-            CreateConfig("claude-code", "cc-demo-key", PlanType.Usage, "pay-as-you-go"),
-            CreateConfig("deepseek", "sk-ds-demo", PlanType.Usage, "pay-as-you-go"),
-            CreateConfig("gemini-cli", "gemini-local-auth", PlanType.Coding, "quota-based"),
-            CreateConfig("github-copilot", "ghp_demo_key", PlanType.Coding, "quota-based", showInTray: true, enableNotifications: true),
-            CreateConfig("kimi", "kimi-demo-key", PlanType.Coding, "quota-based"),
-            CreateConfig("minimax", "mm-cn-demo", PlanType.Coding, "quota-based"),
-            CreateConfig("minimax-io", "mm-intl-demo", PlanType.Usage, "pay-as-you-go"),
-            CreateConfig("mistral", "mistral-demo-key", PlanType.Usage, "pay-as-you-go"),
-            CreateConfig("openai", "sk-openai-demo", PlanType.Usage, "pay-as-you-go", showInTray: true),
-            CreateConfig("opencode", "oc-demo-key", PlanType.Usage, "pay-as-you-go"),
-            CreateConfig("opencode-zen", "ocz-demo-key", PlanType.Usage, "pay-as-you-go"),
-            CreateConfig("openrouter", "or-demo-key", PlanType.Usage, "pay-as-you-go"),
-            CreateConfig("synthetic", "syn-demo-key", PlanType.Coding, "quota-based"),
-            CreateConfig("zai-coding-plan", "zai-demo-key", PlanType.Coding, "quota-based", showInTray: true)
+            CreateConfig("antigravity", "local-session", PlanType.Coding, ConfigType.Quota),
+            CreateConfig("anthropic", "sk-ant-demo", PlanType.Usage, ConfigType.UsageBased, showInTray: true),
+            CreateConfig("claude-code", "cc-demo-key", PlanType.Usage, ConfigType.UsageBased),
+            CreateConfig("deepseek", "sk-ds-demo", PlanType.Usage, ConfigType.UsageBased),
+            CreateConfig("gemini-cli", "gemini-local-auth", PlanType.Coding, ConfigType.Quota),
+            CreateConfig("github-copilot", "ghp_demo_key", PlanType.Coding, ConfigType.Quota, showInTray: true, enableNotifications: true),
+            CreateConfig("kimi", "kimi-demo-key", PlanType.Coding, ConfigType.Quota),
+            CreateConfig("minimax", "mm-cn-demo", PlanType.Coding, ConfigType.Quota),
+            CreateConfig("minimax-io", "mm-intl-demo", PlanType.Usage, ConfigType.UsageBased),
+            CreateConfig("mistral", "mistral-demo-key", PlanType.Usage, ConfigType.UsageBased),
+            CreateConfig("openai", "sk-openai-demo", PlanType.Usage, ConfigType.UsageBased, showInTray: true),
+            CreateConfig("opencode", "oc-demo-key", PlanType.Usage, ConfigType.UsageBased),
+            CreateConfig("opencode-zen", "ocz-demo-key", PlanType.Usage, ConfigType.UsageBased),
+            CreateConfig("openrouter", "or-demo-key", PlanType.Usage, ConfigType.UsageBased),
+            CreateConfig("synthetic", "syn-demo-key", PlanType.Coding, ConfigType.Quota),
+            CreateConfig("zai-coding-plan", "zai-demo-key", PlanType.Coding, ConfigType.Quota, showInTray: true)
         };
 
         var deterministicNow = new DateTime(2026, 02, 01, 12, 00, 00, DateTimeKind.Local);
@@ -1084,7 +1084,7 @@ public partial class SettingsWindow : Window
             .Select(u => new ProviderConfig
             {
                 ProviderId = u.ProviderId,
-                Type = u.IsQuotaBased ? "quota-based" : "pay-as-you-go",
+                Type = u.IsQuotaBased ? ConfigType.Quota : ConfigType.UsageBased,
                 PlanType = u.PlanType
             })
             .Select(config => (Config: config, IsDerived: true));

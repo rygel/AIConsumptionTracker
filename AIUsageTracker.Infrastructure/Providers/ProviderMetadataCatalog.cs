@@ -30,21 +30,21 @@ public static class ProviderMetadataCatalog
             displayName: "OpenAI",
             planType: PlanType.Coding,
             isQuotaBased: true,
-            defaultConfigType: "quota-based",
+            defaultConfigType: ConfigType.Quota,
             logoKey: "openai"),
         new(
             providerId: "google",
             displayName: "Google",
             planType: PlanType.Coding,
             isQuotaBased: true,
-            defaultConfigType: "quota-based",
+            defaultConfigType: ConfigType.Quota,
             logoKey: "google"),
         new(
             providerId: "github",
             displayName: "GitHub",
             planType: PlanType.Coding,
             isQuotaBased: true,
-            defaultConfigType: "quota-based",
+            defaultConfigType: ConfigType.Quota,
             logoKey: "github")
     };
 

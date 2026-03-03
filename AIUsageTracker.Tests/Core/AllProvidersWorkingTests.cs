@@ -41,7 +41,7 @@ public class AllProvidersWorkingTests
             displayName: "Minimax (China)",
             planType: PlanType.Coding,
             isQuotaBased: true,
-            defaultConfigType: "quota-based",
+            defaultConfigType: ConfigType.Quota,
             handledProviderIds: new[] { "minimax", "minimax-io", "minimax-global" }));
         mockMinimax.Setup(p => p.GetUsageAsync(It.IsAny<ProviderConfig>(), It.IsAny<Action<ProviderUsage>?>()))
             .ReturnsAsync((ProviderConfig c, Action<ProviderUsage>? callback) => new[] { new ProviderUsage {

@@ -11,7 +11,7 @@ public class AnthropicProvider : IProviderService
         displayName: "Anthropic",
         planType: PlanType.Usage,
         isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go",
+        defaultConfigType: ConfigType.UsageBased,
         logoKey: "anthropic");
 
     public ProviderDefinition Definition => StaticDefinition;

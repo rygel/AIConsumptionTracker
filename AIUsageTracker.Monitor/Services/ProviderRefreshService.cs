@@ -238,7 +238,7 @@ public class ProviderRefreshService : BackgroundService
                         var dynamicConfig = new ProviderConfig
                         {
                             ProviderId = usage.ProviderId,
-                            Type = usage.IsQuotaBased ? "quota-based" : "pay-as-you-go",
+                            Type = usage.IsQuotaBased ? ConfigType.Quota : ConfigType.UsageBased,
                             AuthSource = usage.AuthSource,
                             ApiKey = "dynamic"
                         };

@@ -73,7 +73,12 @@ public class JsonConfigLoader : IConfigLoader
                         }
 
                         // Provider file takes precedence for settings, but fallback to auth file if not set
-                        if (element.TryGetProperty("type", out var typeProp)) config.Type = typeProp.GetString() ?? config.Type;
+                        if (element.TryGetProperty("type", out var typeProp) && typeProp.GetString() is string typeStr)
+                        {
+                            config.Type = typeStr.Equals("quota-based", StringComparison.OrdinalIgnoreCase) 
+                                ? ConfigType.Quota 
+                                : ConfigType.UsageBased;
+                        }
                         if (element.TryGetProperty("base_url", out var urlProp)) config.BaseUrl = urlProp.GetString() ?? config.BaseUrl;
                         if (element.TryGetProperty("show_in_tray", out var showProp)) config.ShowInTray = showProp.ValueKind == JsonValueKind.True;
                         if (element.TryGetProperty("enable_notifications", out var notifyProp)) config.EnableNotifications = notifyProp.ValueKind == JsonValueKind.True;
@@ -178,7 +183,7 @@ public class JsonConfigLoader : IConfigLoader
             codexConfig = new ProviderConfig
             {
                 ProviderId = "codex",
-                Type = "quota-based",
+                Type = ConfigType.Quota,
                 PlanType = PlanType.Coding
             };
             configs.Add(codexConfig);
@@ -189,7 +194,7 @@ public class JsonConfigLoader : IConfigLoader
             codexConfig.ApiKey = openAiConfig.ApiKey;
             codexConfig.AuthSource = openAiConfig.AuthSource;
             codexConfig.Description = "Migrated from OpenAI session config";
-            codexConfig.Type = "quota-based";
+            codexConfig.Type = ConfigType.Quota;
             codexConfig.PlanType = PlanType.Coding;
         }
 
@@ -213,7 +218,7 @@ public class JsonConfigLoader : IConfigLoader
             codexConfig = new ProviderConfig
             {
                 ProviderId = "codex",
-                Type = "quota-based",
+                Type = ConfigType.Quota,
                 PlanType = PlanType.Coding
             };
             configs.Add(codexConfig);
@@ -243,7 +248,7 @@ public class JsonConfigLoader : IConfigLoader
 
             codexConfig.ShowInTray = codexConfig.ShowInTray || sparkConfig.ShowInTray;
             codexConfig.EnableNotifications = codexConfig.EnableNotifications || sparkConfig.EnableNotifications;
-            codexConfig.Type = "quota-based";
+            codexConfig.Type = ConfigType.Quota;
             codexConfig.PlanType = PlanType.Coding;
         }
 

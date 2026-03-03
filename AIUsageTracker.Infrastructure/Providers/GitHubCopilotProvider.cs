@@ -11,7 +11,7 @@ public class GitHubCopilotProvider : IProviderService
         displayName: "GitHub Copilot",
         planType: PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
+        defaultConfigType: ConfigType.Quota,
         includeInWellKnownProviders: true);
 
     public ProviderDefinition Definition => StaticDefinition;

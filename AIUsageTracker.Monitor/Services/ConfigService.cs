@@ -167,7 +167,7 @@ public class ConfigService : IConfigService
             codexConfig = new ProviderConfig
             {
                 ProviderId = "codex",
-                Type = "quota-based",
+                Type = ConfigType.Quota,
                 PlanType = PlanType.Coding
             };
             configs.Add(codexConfig);

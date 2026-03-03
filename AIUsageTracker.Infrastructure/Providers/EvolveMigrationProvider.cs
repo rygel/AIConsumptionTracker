@@ -16,7 +16,7 @@ public class EvolveMigrationProvider : IProviderService
         displayName: "Evolve Migrations",
         planType: PlanType.Usage,
         isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go");
+        defaultConfigType: ConfigType.UsageBased);
 
     public ProviderDefinition Definition => StaticDefinition;
     public string ProviderId => StaticDefinition.ProviderId;

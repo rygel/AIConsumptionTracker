@@ -22,7 +22,7 @@ namespace AIUsageTracker.Infrastructure.Providers;
         displayName: "Google Antigravity",
         planType: PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
+        defaultConfigType: ConfigType.Quota,
         logoKey: "google",
         autoIncludeWhenUnconfigured: true,
         includeInWellKnownProviders: true,

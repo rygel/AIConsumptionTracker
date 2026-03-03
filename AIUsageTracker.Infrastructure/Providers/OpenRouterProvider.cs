@@ -14,7 +14,7 @@ public class OpenRouterProvider : IProviderService
         displayName: "OpenRouter",
         planType: PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
+        defaultConfigType: ConfigType.Quota,
         logoKey: "openai",
         includeInWellKnownProviders: true);
 

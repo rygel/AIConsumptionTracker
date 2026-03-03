@@ -14,7 +14,7 @@ public class ZaiProvider : IProviderService
         displayName: "Z.ai Coding Plan",
         planType: PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
+        defaultConfigType: ConfigType.Quota,
         logoKey: "zai",
         handledProviderIds: new[] { "zai-coding-plan", "zai" },
         displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

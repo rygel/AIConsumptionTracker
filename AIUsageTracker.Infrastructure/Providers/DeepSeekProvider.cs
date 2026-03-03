@@ -15,7 +15,7 @@ public class DeepSeekProvider : IProviderService
         displayName: "DeepSeek",
         planType: PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
+        defaultConfigType: ConfigType.Quota,
         logoKey: "deepseek",
         includeInWellKnownProviders: true);
 

@@ -15,7 +15,7 @@ public class KimiProvider : IProviderService
         displayName: "Kimi",
         planType: PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
+        defaultConfigType: ConfigType.Quota,
         logoKey: "kimi",
         includeInWellKnownProviders: true);
 

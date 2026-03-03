@@ -516,7 +516,7 @@ public class TokenDiscoveryService
         }
     }
 
-    private static bool TryGetProviderDefaults(string providerId, out (PlanType PlanType, string Type) defaults)
+    private static bool TryGetProviderDefaults(string providerId, out (PlanType PlanType, ConfigType Type) defaults)
     {
         if (ProviderMetadataCatalog.TryGet(providerId, out var definition))
         {

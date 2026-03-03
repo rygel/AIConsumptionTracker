@@ -14,7 +14,7 @@ public class GeminiProvider : IProviderService
         displayName: "Google Gemini",
         planType: PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
+        defaultConfigType: ConfigType.Quota,
         logoKey: "google",
         includeInWellKnownProviders: true,
         handledProviderIds: new[] { "gemini-cli", "gemini" });

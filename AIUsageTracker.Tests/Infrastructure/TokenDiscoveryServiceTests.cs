@@ -19,6 +19,6 @@ public class TokenDiscoveryServiceTests
         var codex = configs.FirstOrDefault(c => c.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase));
         Assert.NotNull(codex);
         Assert.Equal(PlanType.Coding, codex!.PlanType);
-        Assert.Equal("quota-based", codex.Type);
+        Assert.Equal(ConfigType.Quota, codex.Type);
     }
 }

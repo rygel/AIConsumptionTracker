@@ -6,7 +6,7 @@ public sealed class ProviderDefinition
     public string DisplayName { get; }
     public PlanType PlanType { get; }
     public bool IsQuotaBased { get; }
-    public string DefaultConfigType { get; }
+    public ConfigType DefaultConfigType { get; }
     public string? LogoKey { get; }
     public bool AutoIncludeWhenUnconfigured { get; }
     public bool IncludeInWellKnownProviders { get; }
@@ -21,7 +21,7 @@ public sealed class ProviderDefinition
         string displayName,
         PlanType planType,
         bool isQuotaBased,
-        string defaultConfigType,
+        ConfigType defaultConfigType,
         string? logoKey = null,
         bool autoIncludeWhenUnconfigured = false,
         bool includeInWellKnownProviders = false,
