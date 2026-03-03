@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Fixed
+- **Provider Detail Contract violations**: Fixed string-based heuristics and invalid DetailType/WindowKind combinations
+  - KimiProvider: Changed WindowKind from None to Primary for QuotaWindow details
+  - GeminiProvider: Changed WindowKind from None to Primary for QuotaWindow details
+  - CodexProvider: Removed Contains("spark") string matching, now uses structural analysis
+  - OpenRouterProvider: Replaced Name == "Spending Limit" string matching with typed field filtering
+- **Test expectations**: Updated CodexProviderTests to match actual model name extraction behavior
+
 ## [2.2.27-beta.7] - 2026-03-03
 
 ### Fixed
