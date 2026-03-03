@@ -80,6 +80,7 @@ jobs:
           AIUsageTracker.Monitor.Tests/bin/Debug/net8.0-windows10.0.17763.0/**
           scripts/run-vstest-with-retry.ps1
           .github/test-quarantine.txt
+        retention-days: 3
 
   core-tests:
     needs: prepare
@@ -111,6 +112,7 @@ jobs:
       with:
         name: core-test-results
         path: TestResults/core-tests*.trx
+        retention-days: 3
 
   monitor-tests:
     needs: prepare
@@ -142,6 +144,7 @@ jobs:
       with:
         name: monitor-test-results
         path: TestResults/monitor-tests*.trx
+        retention-days: 3
 
   web-tests:
     needs: prepare
@@ -159,10 +162,22 @@ jobs:
         dotnet-version: '8.0.x'
         cache-key-prefix: 'web'
 
+    - name: Cache Playwright browsers
+      uses: actions/cache@v4
+      with:
+        path: ~/AppData/Local/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('AIUsageTracker.Web.Tests/AIUsageTracker.Web.Tests.csproj') }}
+        restore-keys: |
+          playwright-${{ runner.os }}-
+
     - name: Install Playwright Browsers
       run: |
         dotnet build AIUsageTracker.Web.Tests\AIUsageTracker.Web.Tests.csproj --configuration Debug
-        pwsh AIUsageTracker.Web.Tests\bin\Debug\net8.0\playwright.ps1 install
+        if (-not (Test-Path ~/AppData/Local/ms-playwright)) {
+          pwsh AIUsageTracker.Web.Tests\bin\Debug\net8.0\playwright.ps1 install
+        } else {
+          Write-Host "Playwright browsers cached, skipping install"
+        }
       shell: pwsh
 
     - name: Seed Test Database
@@ -288,6 +303,7 @@ jobs:
         name: web-theme-snapshots
         path: |
           ${{ env.TEMP }}\AIUsageTracker\web-theme-smoke\*.png
+        retention-days: 3
 
   test:
     needs: [prepare, core-tests, monitor-tests, web-tests]
