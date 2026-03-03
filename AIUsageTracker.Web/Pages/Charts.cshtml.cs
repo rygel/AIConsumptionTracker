@@ -102,7 +102,7 @@ public class ChartsModel : PageModel
             }
 
             return colors;
-        })!;
+        });
     }
 }
 
