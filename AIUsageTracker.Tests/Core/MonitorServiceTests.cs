@@ -1,3 +1,5 @@
+using System.IO;
+using System.Net.Http;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Models;
 using Microsoft.Extensions.Logging.Abstractions;

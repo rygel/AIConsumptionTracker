@@ -927,6 +927,50 @@ protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 
 ---
 
+## Code Quality Enforcement
+
+### Banned API Analyzers
+
+All projects (except CLI) use `Microsoft.CodeAnalysis.BannedApiAnalyzers` to enforce coding standards at compile time:
+
+**Banned APIs:**
+- `System.Console.WriteLine` - Use `ILogger<T>` instead (except in CLI project)
+
+**Why:** Console.WriteLine bypasses the logging infrastructure, making it impossible to:
+- Control log levels
+- Redirect output to files
+- Filter logs in production
+- Test logging behavior
+
+**How to fix banned API errors:**
+1. Replace `Console.WriteLine` with `_logger.LogInformation()` or appropriate log level
+2. Ensure the class has `ILogger<T>` injected via constructor
+3. For CLI project only: `Console.WriteLine` is allowed for user-facing output
+
+**Example:**
+```csharp
+// WRONG - Build will fail with analyzer error
+Console.WriteLine("Provider check failed");
+
+// CORRECT - Build succeeds
+_logger.LogError("Provider check failed");
+```
+
+**Configuration:**
+The analyzer is configured in `.csproj` files:
+```xml
+<PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+  <PrivateAssets>all</PrivateAssets>
+  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+</PackageReference>
+
+<ItemGroup>
+  <BannedSymbols Include="M:System.Console.WriteLine" />
+</ItemGroup>
+```
+
+---
+
 ## Agent API Key Filtering
 
 **CRITICAL RULE: The Agent MUST NOT query upstream providers that don't have API keys configured.**

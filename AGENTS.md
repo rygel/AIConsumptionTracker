@@ -58,6 +58,27 @@ git push origin feature/branch-name
 - **AIUsageTracker.Web**: ASP.NET Core Razor Pages web application for viewing data
 - **AIUsageTracker.Tests**: xUnit unit tests with Moq mocking
 
+## Code Quality Enforcement
+
+### Banned API Analyzers
+
+All projects (except CLI) use `Microsoft.CodeAnalysis.BannedApiAnalyzers` to enforce coding standards:
+
+**Banned APIs:**
+- `Console.WriteLine` - Use `ILogger<T>` instead (except in CLI project)
+
+**If you encounter a banned API error:**
+1. Replace `Console.WriteLine` with `_logger.LogInformation()` or appropriate log level
+2. Ensure the class has `ILogger<T>` injected via constructor
+3. For CLI project only: `Console.WriteLine` is allowed for user-facing output
+
+### Roslyn Analyzers
+
+Configured in `.editorconfig`. Key rules:
+- **CA1031**: Do not catch general exception types (warning)
+- **CA1062**: Validate arguments of public methods (error)
+- **CA1307**: Specify StringComparison for string comparisons (suggestion)
+
 ## Build & Test Commands
 
 ### Building

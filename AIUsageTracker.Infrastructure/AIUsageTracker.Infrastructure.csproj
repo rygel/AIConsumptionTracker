@@ -9,6 +9,14 @@
     <ProjectReference Include="..\AIUsageTracker.Core\AIUsageTracker.Core.csproj" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
     <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <BannedSymbols Include="M:System.Console.WriteLine" />
   </ItemGroup>
 
   <PropertyGroup>

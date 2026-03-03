@@ -12,6 +12,7 @@ using System.Windows.Threading;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Infrastructure.Providers;
+using AIUsageTracker.UI.Slim.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 
@@ -40,6 +41,7 @@ public partial class SettingsWindow : Window
     private bool _hasPendingAutoSave;
     private readonly SemaphoreSlim _autoSaveSemaphore = new(1, 1);
     private readonly DispatcherTimer _autoSaveTimer;
+    private ProviderSettingsContext _settingsContext = new();
 
     public bool SettingsChanged { get; private set; }
 
@@ -104,6 +106,16 @@ public partial class SettingsWindow : Window
             _gitHubAuthUsername = await TryGetGitHubUsernameFromAuthAsync();
             _openAiAuthUsername = await TryGetOpenAiUsernameFromAuthAsync();
             _codexAuthUsername = await TryGetCodexUsernameFromAuthAsync();
+            
+            // Initialize settings context for provider handlers
+            _settingsContext = new ProviderSettingsContext
+            {
+                GitHubAuthUsername = _gitHubAuthUsername,
+                OpenAIAuthUsername = _openAiAuthUsername,
+                CodexAuthUsername = _codexAuthUsername,
+                IsPrivacyMode = _isPrivacyMode
+            };
+            
             _preferences = await UiPreferencesStore.LoadAsync();
             _agentPreferences = await _monitorService.GetPreferencesAsync();
             App.Preferences = _preferences;
@@ -937,6 +949,7 @@ public partial class SettingsWindow : Window
         }
 
         _isPrivacyMode = isPrivacyMode;
+        _settingsContext.IsPrivacyMode = isPrivacyMode;
         _preferences.IsPrivacyMode = isPrivacyMode;
         UpdatePrivacyButtonState();
         PopulateProviders();
@@ -1193,18 +1206,9 @@ public partial class SettingsWindow : Window
         };
         headerPanel.Children.Add(notifyCheckBox);
 
-        // Status badge if not configured
-        bool isInactive = !isDerived && string.IsNullOrEmpty(config.ApiKey);
-        if (config.ProviderId == "antigravity")
-        {
-            isInactive = usage == null || !usage.IsAvailable;
-        }
-        else if (config.ProviderId == "openai")
-        {
-            var hasApiKey = !string.IsNullOrWhiteSpace(config.ApiKey);
-            var hasSessionUsage = usage != null && usage.IsAvailable && usage.IsQuotaBased;
-            isInactive = !hasApiKey && !hasSessionUsage;
-        }
+        // Status badge if not configured - use provider handler for custom logic
+        var handler = ProviderSettingsHandlerFactory.GetHandler(config.ProviderId);
+        bool isInactive = !isDerived && handler.IsInactive(config, usage);
 
         if (isInactive)
         {
@@ -1263,196 +1267,21 @@ public partial class SettingsWindow : Window
             Grid.SetColumn(derivedPanel, 0);
             keyPanel.Children.Add(derivedPanel);
         }
-        else if (config.ProviderId == "antigravity")
-        {
-            // Antigravity: Auto-Detection
-            var statusPanel = new StackPanel { Orientation = Orientation.Vertical };
-            bool isConnected = usage != null && usage.IsAvailable;
-            string accountInfo = usage?.AccountName ?? "Unknown";
-            var displayAccount = _isPrivacyMode
-                ? MaskAccountIdentifier(accountInfo)
-                : accountInfo;
-
-            var statusText = new TextBlock
-            {
-                Text = isConnected ? $"Auto-Detected ({displayAccount})" : "Searching for local process...",
-                VerticalAlignment = VerticalAlignment.Center,
-                FontSize = 11,
-                FontStyle = isConnected ? FontStyles.Normal : FontStyles.Italic
-            };
-            statusText.SetResourceReference(TextBlock.ForegroundProperty, 
-                isConnected ? "ProgressBarGreen" : "TertiaryText");
-
-            statusPanel.Children.Add(statusText);
-
-            var antigravitySubmodels = usage?.Details?
-                .Select(d => d.Name)
-                .Where(name =>
-                    !string.IsNullOrWhiteSpace(name) &&
-                    !name.StartsWith("[", StringComparison.Ordinal))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (antigravitySubmodels is { Count: > 0 })
-            {
-                var modelsText = new TextBlock
-                {
-                    Text = $"Models: {string.Join(", ", antigravitySubmodels)}",
-                    VerticalAlignment = VerticalAlignment.Center,
-                    FontSize = 10,
-                    Margin = new Thickness(0, 4, 0, 0),
-                    TextWrapping = TextWrapping.Wrap
-                };
-                modelsText.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
-                statusPanel.Children.Add(modelsText);
-            }
-
-            Grid.SetColumn(statusPanel, 0);
-            keyPanel.Children.Add(statusPanel);
-        }
-        else if (config.ProviderId == "github-copilot")
-        {
-            // GitHub Copilot: Show username (if available) - privacy mode only shows masked username
-            var statusPanel = new StackPanel { Orientation = Orientation.Horizontal };
-            string? username = usage?.AccountName;
-            if (string.IsNullOrWhiteSpace(username) || username == "Unknown")
-            {
-                username = _gitHubAuthUsername;
-            }
-            bool hasUsername = !string.IsNullOrEmpty(username) && username != "Unknown" && username != "User";
-
-            bool isAuthenticated = !string.IsNullOrEmpty(config.ApiKey) || !string.IsNullOrWhiteSpace(_gitHubAuthUsername);
-
-            string displayText;
-            if (!isAuthenticated)
-            {
-                displayText = "Not Authenticated";
-            }
-            else if (!hasUsername)
-            {
-                displayText = "Authenticated";
-            }
-            else if (_isPrivacyMode && username != null)
-            {
-                displayText = $"Authenticated ({MaskAccountIdentifier(username)})";
-            }
-            else
-            {
-                // Normal mode: show full text with username
-                displayText = $"Authenticated ({username})";
-            }
-
-            var statusText = new TextBlock
-            {
-                Text = displayText,
-                VerticalAlignment = VerticalAlignment.Center,
-                FontSize = 11
-            };
-            statusText.SetResourceReference(TextBlock.ForegroundProperty, 
-                isAuthenticated ? "ProgressBarGreen" : "TertiaryText");
-
-            statusPanel.Children.Add(statusText);
-            Grid.SetColumn(statusPanel, 0);
-            keyPanel.Children.Add(statusPanel);
-        }
-        else if (config.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase))
-        {
-            var statusPanel = new StackPanel { Orientation = Orientation.Vertical };
-            var isAuthenticated = (!string.IsNullOrWhiteSpace(config.ApiKey)) || (usage != null && usage.IsAvailable);
-            
-            var accountName = usage?.AccountName;
-            if (string.IsNullOrWhiteSpace(accountName) || accountName == "Unknown" || accountName == "User")
-            {
-                accountName = _codexAuthUsername ?? _openAiAuthUsername;
-            }
-
-            string displayText;
-            if (!isAuthenticated)
-            {
-                displayText = "Not Authenticated";
-            }
-            else if (!string.IsNullOrWhiteSpace(accountName))
-            {
-                displayText = _isPrivacyMode
-                    ? $"Authenticated ({MaskAccountIdentifier(accountName)})"
-                    : $"Authenticated ({accountName})";
-            }
-            else if (!string.IsNullOrWhiteSpace(config.ApiKey) && (usage == null || !usage.IsAvailable))
-            {
-                displayText = "Authenticated via OpenAI Codex - refresh to load quota";
-            }
-            else
-            {
-                displayText = "Authenticated via OpenAI Codex";
-            }
-
-            var statusText = new TextBlock
-            {
-                Text = displayText,
-                VerticalAlignment = VerticalAlignment.Center,
-                FontSize = 11
-            };
-            statusText.SetResourceReference(TextBlock.ForegroundProperty,
-                isAuthenticated ? "ProgressBarGreen" : "TertiaryText");
-
-            statusPanel.Children.Add(statusText);
-
-            var codexModels = usage?.Details?
-                .Where(d => d.DetailType == ProviderUsageDetailType.Model)
-                .Select(d => d.Name)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (codexModels is { Count: > 0 })
-            {
-                var modelsText = new TextBlock
-                {
-                    Text = $"Models: {string.Join(", ", codexModels)}",
-                    VerticalAlignment = VerticalAlignment.Center,
-                    FontSize = 10,
-                    Margin = new Thickness(0, 4, 0, 0),
-                    TextWrapping = TextWrapping.Wrap
-                };
-                modelsText.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
-                statusPanel.Children.Add(modelsText);
-            }
-
-            var resolvedReset = usage?.NextResetTime ?? InferResetTimeFromDetails(usage);
-            if (resolvedReset is DateTime nextReset)
-            {
-                var resetText = new TextBlock
-                {
-                    Text = $"Next reset: {nextReset:g}",
-                    VerticalAlignment = VerticalAlignment.Center,
-                    FontSize = 10,
-                    Margin = new Thickness(0, 3, 0, 0)
-                };
-                resetText.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
-                statusPanel.Children.Add(resetText);
-            }
-            else if (isAuthenticated)
-            {
-                var resetText = new TextBlock
-                {
-                    Text = "Next reset: loading...",
-                    VerticalAlignment = VerticalAlignment.Center,
-                    FontSize = 10,
-                    Margin = new Thickness(0, 3, 0, 0)
-                };
-                resetText.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
-                statusPanel.Children.Add(resetText);
-            }
-
-            Grid.SetColumn(statusPanel, 0);
-            keyPanel.Children.Add(statusPanel);
-        }
         else
         {
-            // Standard API Key Input
-            var displayKey = config.ApiKey;
+            // Use provider-specific handler for custom input panels
+            // Reuse existing handler instance from above
+            var customPanel = handler.CreateInputPanel(config, usage, _settingsContext);
+            
+            if (customPanel != null)
+            {
+                Grid.SetColumn(customPanel, 0);
+                keyPanel.Children.Add(customPanel);
+            }
+            else
+            {
+                // Standard API Key Input
+                var displayKey = config.ApiKey;
             if (_isPrivacyMode && !string.IsNullOrEmpty(displayKey))
             {
                 if (displayKey.Length > 8)
@@ -1481,6 +1310,7 @@ public partial class SettingsWindow : Window
 
             Grid.SetColumn(keyBox, 0);
             keyPanel.Children.Add(keyBox);
+            }
         }
 
         Grid.SetRow(keyPanel, 1);

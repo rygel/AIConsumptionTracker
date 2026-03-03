@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Added
+- **Provider Settings Handler Architecture**: Extracted provider-specific UI logic from SettingsWindow into dedicated handler classes using Strategy pattern
+- **BannedApiAnalyzers**: Added compile-time enforcement to prevent `Console.WriteLine` usage in non-CLI projects
+- **ILogoResolver service**: Centralized logo resolution logic to eliminate duplication between MainWindow and SettingsWindow
+- **ProviderSettingsHandlerTests**: 33 new unit tests for provider settings handlers
+
+### Changed
+- **SettingsWindow refactored**: Replaced 185 lines of provider-specific if-else chains with Strategy pattern
+- **ProviderMetadataCatalog**: Now used as fallback-only for display names, not as source of truth for business logic
+- **Provider data flow**: Removed all mid-stream corrections - data flows directly from Provider to Database to UI
+
+### Fixed
+- **Window position bug**: Position no longer resets when closing Settings dialog
+- **Git credential documentation**: Added guidance to ask user for help with credential issues instead of modifying system settings
+
 ## [2.2.27-beta.7] - 2026-03-02
 
 ### Added

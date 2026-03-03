@@ -1,3 +1,5 @@
+using System.IO;
+using System.Net.Http;
 using System.Net;
 using System.Text.Json;
 using AIUsageTracker.Core.Interfaces;

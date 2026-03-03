@@ -1,3 +1,4 @@
+using System.Net.Http;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Monitor.Services;

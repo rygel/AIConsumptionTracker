@@ -1,3 +1,5 @@
+using System.IO;
+using System.Net.Http;
 using System.Net;
 using System.Reflection;
 using AIUsageTracker.Core.Models;
