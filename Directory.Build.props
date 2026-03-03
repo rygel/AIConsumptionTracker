@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <TrackerVersion>2.2.27-beta.5</TrackerVersion>
+    <TrackerVersion>2.2.27-beta.7</TrackerVersion>
     <TrackerAssemblyVersion>2.2.27</TrackerAssemblyVersion>
     <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\artifacts\**\*</DefaultItemExcludes>
   </PropertyGroup>

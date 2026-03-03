@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## [2.2.27-beta.7] - 2026-03-03
+
+### Fixed
+- **CI/CD test failures**: Fixed all test failures in CI pipeline
+  - Fixed `NotificationClickedEventArgs` namespace conflicts (duplicate class definitions)
+  - Fixed `IProviderConfigLoader` interface mismatches in test mocks
+  - Fixed test artifact paths with correct target framework version (net8.0-windows10.0.17763.0)
+- **Screenshot baseline workflow**: Temporarily disabled due to non-deterministic rendering causing CI failures
+  - WPF rendering timing variations across CI runs
+  - Font/Anti-aliasing differences across Windows versions
+  - DPI scaling and animation variations
+
 ## [2.2.27-beta.6] - 2026-03-01
 
 ### Added
