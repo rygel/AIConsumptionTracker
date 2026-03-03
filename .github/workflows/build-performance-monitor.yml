@@ -2,7 +2,7 @@ name: Build Performance Monitor
 
 on:
   workflow_run:
-    workflows: ["Run Tests", "Cross-Platform Tests"]
+    workflows: ["Tests"]
     types: [completed]
   pull_request:
     branches: [ main, develop ]
