@@ -1,5 +1,6 @@
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Web.Services;
+using AIUsageTracker.Web.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Mvc.RazorPages;

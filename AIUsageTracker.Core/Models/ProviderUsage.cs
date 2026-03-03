@@ -50,6 +50,21 @@ public class ProviderUsage
     public string? RawJson { get; set; }
     public int HttpStatus { get; set; } = 200;
 
+    /// <summary>
+    /// Unit of usage (e.g., "USD", "tokens", "credits", "Status")
+    /// </summary>
+    public string UsageUnit { get; set; } = "USD";
+
+    /// <summary>
+    /// Whether this provider usage is quota-based (fixed limit) or usage-based (spending)
+    /// </summary>
+    public bool IsQuotaBased { get; set; }
+
+    /// <summary>
+    /// Whether to display usage as a fraction (e.g., "10/100") or percentage
+    /// </summary>
+    public bool DisplayAsFraction { get; set; }
+
     public string GetFriendlyName()
     {
         // Straight Line Architecture: Prefer the name provided by the Provider Class

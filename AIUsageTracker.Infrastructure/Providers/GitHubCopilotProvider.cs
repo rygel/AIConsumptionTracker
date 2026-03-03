@@ -149,13 +149,9 @@ public class GitHubCopilotProvider : IProviderService
                 state.Description = BuildAuthenticatedDescription(state.Username, null);
             }
         }
-        catch
-        {
-            _logger.LogDebug("Fallback source search completed without plan name");
-            state.Description = BuildAuthenticatedDescription(state.Username, null);
-        }
         catch (Exception ex)
         {
+            _logger.LogDebug(ex, "Fallback source search completed without plan name");
             _logger.LogDebug(ex, "Failed to fetch Copilot plan name or quota reset date");
             state.Description = BuildAuthenticatedDescription(state.Username, null);
         }

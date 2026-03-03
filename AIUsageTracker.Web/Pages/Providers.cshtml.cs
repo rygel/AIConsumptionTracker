@@ -1,4 +1,5 @@
 using AIUsageTracker.Web.Services;
+using AIUsageTracker.Web.Models;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace AIUsageTracker.Web.Pages;
