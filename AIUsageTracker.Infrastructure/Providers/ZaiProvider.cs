@@ -37,7 +37,14 @@ public class ZaiProvider : IProviderService
     {
         if (string.IsNullOrEmpty(config.ApiKey))
         {
-            throw new ArgumentException("API Key not found for Z.AI provider.");
+            _logger.LogWarning("API Key not found for Z.AI provider.");
+            return new[] { new ProviderUsage
+            {
+                ProviderId = ProviderId,
+                ProviderName = "Z.AI",
+                IsAvailable = false,
+                Description = "API Key missing - please configure ZAI_CODING_PLAN_API_KEY"
+            }};
         }
 
         var request = new HttpRequestMessage(HttpMethod.Get, "https://api.z.ai/api/monitor/usage/quota/limit");
@@ -52,7 +59,13 @@ public class ZaiProvider : IProviderService
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogError("[ZAI] API returned {StatusCode}", response.StatusCode);
-            throw new Exception($"Z.AI API returned {response.StatusCode}");
+            return new[] { new ProviderUsage
+            {
+                ProviderId = ProviderId,
+                ProviderName = "Z.AI",
+                IsAvailable = false,
+                Description = $"API Error: {response.StatusCode} - Check API key validity"
+            }};
         }
 
         var responseString = await response.Content.ReadAsStringAsync();

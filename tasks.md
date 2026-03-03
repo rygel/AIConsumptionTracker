@@ -1,6 +1,7 @@
 # Architecture Improvement Tasks
 
 Generated from code analysis on 2026-03-03.
+Updated with additional tasks on 2026-03-03.
 
 ---
 
@@ -35,10 +36,11 @@ Generated from code analysis on 2026-03-03.
 
 ### Error Handling Standardization
 
-- [ ] **Fix ZaiProvider exception throwing**
+- [x] **Fix ZaiProvider exception throwing**
   - File: `AIUsageTracker.Infrastructure\Providers\ZaiProvider.cs:40,55`
   - Problem: Throws exceptions instead of returning `ProviderUsage` with `IsAvailable=false`
   - Fix: Return error state objects consistent with other providers
+  - Status: **COMPLETED** - Returns ProviderUsage with IsAvailable=false instead of throwing exceptions
 
 - [ ] **Add logging to silent catch blocks**
   - File: `AIUsageTracker.Infrastructure\Providers\GitHubCopilotProvider.cs:152-155,226-229`
@@ -52,10 +54,12 @@ Generated from code analysis on 2026-03-03.
 
 ### Code Duplication - Shared Models
 
-- [ ] **Move ResetEvent to Core**
+- [x] **Move ResetEvent to Core**
   - Source: `AIUsageTracker.Monitor\Services\UsageDatabase.cs:512-521`
   - Source: `AIUsageTracker.Web\Services\WebDatabaseService.cs:1106-1115`
+  - Description: Identical `ResetEvent` class defined in both projects
   - Fix: Create `AIUsageTracker.Core\Models\ResetEvent.cs`, remove duplicates
+  - Status: **COMPLETED** - Created Core.Models.ResetEvent and removed duplicates from Monitor and Web
 
 - [ ] **Move Web DTOs to proper location**
   - File: `AIUsageTracker.Web\Services\WebDatabaseService.cs:1094-1131`
@@ -64,13 +68,14 @@ Generated from code analysis on 2026-03-03.
 
 ### Missing Abstractions
 
-- [ ] **Create ProviderBase class with shared helpers**
+- [x] **Create ProviderBase class with shared helpers**
   - Files: All providers in `AIUsageTracker.Infrastructure\Providers\`
   - Problem: Every provider independently creates error objects, HTTP requests, reset time parsing
   - Fix: Create abstract `ProviderBase` class with:
     - `CreateUnavailableUsage(string description, int httpStatus = 503)`
     - `CreateAuthorizedRequest(string url, string apiKey)`
     - `FormatResetTime(DateTime? resetTime)`
+  - Status: **COMPLETED** - Created ProviderBase.cs with shared helpers for providers
 
 - [ ] **Create IAuthFileLocator service**
   - Source: `CodexProvider.cs:432-460`
@@ -208,9 +213,9 @@ Generated from code analysis on 2026-03-03.
 | P0 | 3 | Async/deadlock issues |
 | P1 | 9 | Error handling, shared models, abstractions |
 | P2 | 9 | Duplication, interfaces, logging |
-| P3 | 10 | MVVM, UI consolidation, config |
+| P3 | 9 | MVVM, UI consolidation, config |
 
-**Total: 31 tasks**
+**Total: 30 tasks**
 
 ---
 
