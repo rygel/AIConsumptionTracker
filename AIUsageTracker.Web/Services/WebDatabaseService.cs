@@ -126,7 +126,7 @@ public class WebDatabaseService
         var sql = includeInactive ? allSql : activeSql;
         var results = await connection.QueryAsync<ProviderUsage>(sql);
             
-        // Deserialize details from JSON and set IsQuotaBased from provider class
+        // Deserialize details from JSON
         foreach (var usage in results)
         {
             if (!string.IsNullOrEmpty(usage.DetailsJson))
@@ -138,12 +138,12 @@ public class WebDatabaseService
                 catch { /* Ignore deserialization errors */ }
             }
             
-            if (ProviderMetadataCatalog.TryGet(usage.ProviderId, out var definition))
+            // Provider is source of truth for IsQuotaBased and PlanType - do not override
+            // Only use catalog as fallback for display name if provider didn't set one
+            if (string.IsNullOrEmpty(usage.ProviderName))
             {
-                usage.IsQuotaBased = definition.IsQuotaBased;
-                usage.PlanType = definition.PlanType;
+                usage.ProviderName = ProviderMetadataCatalog.GetDisplayName(usage.ProviderId, usage.ProviderName);
             }
-            usage.ProviderName = ProviderMetadataCatalog.GetDisplayName(usage.ProviderId, usage.ProviderName);
         }
 
         var list = results.ToList();
@@ -173,14 +173,14 @@ public class WebDatabaseService
 
         var results = await connection.QueryAsync<ProviderUsage>(sql);
         
+        // Provider is source of truth - do not override IsQuotaBased or PlanType
+        // Only use catalog as fallback for display name if provider didn't set one
         foreach (var usage in results)
         {
-            if (ProviderMetadataCatalog.TryGet(usage.ProviderId, out var definition))
+            if (string.IsNullOrEmpty(usage.ProviderName))
             {
-                usage.IsQuotaBased = definition.IsQuotaBased;
-                usage.PlanType = definition.PlanType;
+                usage.ProviderName = ProviderMetadataCatalog.GetDisplayName(usage.ProviderId, usage.ProviderName);
             }
-            usage.ProviderName = ProviderMetadataCatalog.GetDisplayName(usage.ProviderId, usage.ProviderName);
         }
         
         return results.ToList();
@@ -208,14 +208,14 @@ public class WebDatabaseService
 
         var results = await connection.QueryAsync<ProviderUsage>(sql, new { ProviderId = providerId });
         
+        // Provider is source of truth - do not override IsQuotaBased or PlanType
+        // Only use catalog as fallback for display name if provider didn't set one
         foreach (var usage in results)
         {
-            if (ProviderMetadataCatalog.TryGet(usage.ProviderId, out var definition))
+            if (string.IsNullOrEmpty(usage.ProviderName))
             {
-                usage.IsQuotaBased = definition.IsQuotaBased;
-                usage.PlanType = definition.PlanType;
+                usage.ProviderName = ProviderMetadataCatalog.GetDisplayName(usage.ProviderId, usage.ProviderName);
             }
-            usage.ProviderName = ProviderMetadataCatalog.GetDisplayName(usage.ProviderId, usage.ProviderName);
         }
         
         return results.ToList();
@@ -246,7 +246,11 @@ public class WebDatabaseService
         var results = (await connection.QueryAsync<ProviderInfo>(sql)).ToList();
         foreach (var provider in results)
         {
-            provider.ProviderName = ProviderMetadataCatalog.GetDisplayName(provider.ProviderId, provider.ProviderName);
+            // Only use catalog as fallback if provider didn't set a name
+            if (string.IsNullOrEmpty(provider.ProviderName))
+            {
+                provider.ProviderName = ProviderMetadataCatalog.GetDisplayName(provider.ProviderId, provider.ProviderName);
+            }
         }
 
         return results;
@@ -272,7 +276,11 @@ public class WebDatabaseService
         var results = (await connection.QueryAsync<ResetEvent>(sql, new { ProviderId = providerId })).ToList();
         foreach (var reset in results)
         {
-            reset.ProviderName = ProviderMetadataCatalog.GetDisplayName(reset.ProviderId, reset.ProviderName);
+            // Only use catalog as fallback if provider didn't set a name
+            if (string.IsNullOrEmpty(reset.ProviderName))
+            {
+                reset.ProviderName = ProviderMetadataCatalog.GetDisplayName(reset.ProviderId, reset.ProviderName);
+            }
         }
 
         return results;
@@ -667,7 +675,11 @@ public class WebDatabaseService
         var list = results.ToList();
         foreach (var point in list)
         {
-            point.ProviderName = ProviderMetadataCatalog.GetDisplayName(point.ProviderId, point.ProviderName);
+            // Only use catalog as fallback if provider didn't set a name
+            if (string.IsNullOrEmpty(point.ProviderName))
+            {
+                point.ProviderName = ProviderMetadataCatalog.GetDisplayName(point.ProviderId, point.ProviderName);
+            }
         }
         _logger.LogInformation("WebDB GetChartDataAsync hours={Hours} bucketMinutes={BucketMinutes} rows={Count} elapsedMs={ElapsedMs}",
             hours, bucketMinutes, list.Count, sw.ElapsedMilliseconds);
@@ -711,7 +723,11 @@ public class WebDatabaseService
         var results = (await connection.QueryAsync<ResetEvent>(sql, new { CutoffUtc = cutoffUtc })).ToList();
         foreach (var reset in results)
         {
-            reset.ProviderName = ProviderMetadataCatalog.GetDisplayName(reset.ProviderId, reset.ProviderName);
+            // Only use catalog as fallback if provider didn't set a name
+            if (string.IsNullOrEmpty(reset.ProviderName))
+            {
+                reset.ProviderName = ProviderMetadataCatalog.GetDisplayName(reset.ProviderId, reset.ProviderName);
+            }
         }
         _cache.Set(cacheKey, results, TimeSpan.FromMinutes(5));
         _logger.LogInformation("WebDB GetRecentResetEventsAsync hours={Hours} rows={Count} elapsedMs={ElapsedMs}",

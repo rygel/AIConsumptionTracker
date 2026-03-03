@@ -911,6 +911,8 @@ protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 
 ### Testing Requirements
 
+**Headless Testing:** All UI tests are designed to run headlessly using `skipUiInitialization: true`. This ensures tests can run in CI/CD environments without requiring an interactive desktop session or display. Tests run in STA threads with mocked window behaviors and do not create actual WPF windows.
+
 - [ ] Agent startup does NOT hit provider APIs
 - [ ] Agent serves cached data immediately on startup
 - [ ] First refresh happens only after the configured interval
@@ -921,6 +923,7 @@ protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 - [ ] Always-on-top remains effective after tray show/hide and focus transitions
 - [ ] Slim startup and periodic update checks do not block usage loading
 - [ ] Update banner appears only when newer version is detected
+- [ ] All tests pass when run headlessly (`dotnet test`)
 
 ---
 

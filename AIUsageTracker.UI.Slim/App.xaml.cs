@@ -4,6 +4,8 @@ using System.Windows.Threading;
 using Hardcodet.Wpf.TaskbarNotification;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
+using AIUsageTracker.Core.Services;
+using AIUsageTracker.Infrastructure.Services;
 using System.Runtime.InteropServices;
 using System.Globalization;
 using System.IO;
@@ -20,6 +22,7 @@ public partial class App : Application
     private static ILoggerFactory _loggerFactory = NullLoggerFactory.Instance;
     private static ILogger<App> _logger = NullLogger<App>.Instance;
     public static MonitorService MonitorService { get; } = new();
+    public static ILogoResolver LogoResolver { get; } = new LogoResolver();
     public static AppPreferences Preferences { get; set; } = new();
     public static bool IsPrivacyMode { get; set; } = false;
     private const double ScreenshotScaleFactor = 2.0;

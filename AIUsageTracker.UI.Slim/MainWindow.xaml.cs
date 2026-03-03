@@ -76,8 +76,8 @@ public partial class MainWindow : Window
         _isPrivacyMode = _preferences.IsPrivacyMode;
         App.SetPrivacyMode(_isPrivacyMode);
 
-        // Apply visual preferences
-        ApplyVisualPreferences();
+        // Apply visual preferences (including initial position)
+        ApplyVisualPreferences(includePosition: true);
 
         MonitorLauncher.SetLogger(App.CreateLogger<MonitorLauncher>());
 
@@ -93,11 +93,11 @@ public partial class MainWindow : Window
         Deactivated += MainWindow_Deactivated;
     }
 
-    private void ApplyVisualPreferences()
+    private void ApplyVisualPreferences(bool includePosition = false)
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.InvokeAsync(ApplyVisualPreferences);
+            Dispatcher.InvokeAsync(() => ApplyVisualPreferences(includePosition));
             return;
         }
 
@@ -106,11 +106,14 @@ public partial class MainWindow : Window
 
         if (_preferences.WindowWidth > 0) this.Width = _preferences.WindowWidth;
         if (_preferences.WindowHeight > 0) this.Height = _preferences.WindowHeight;
-        if (_preferences.WindowLeft != null) this.Left = _preferences.WindowLeft.Value;
-        if (_preferences.WindowTop != null) this.Top = _preferences.WindowTop.Value;
-
-        // Ensure window is on screen
-        EnsureWindowIsVisible();
+        
+        // Only set position during initial load, not when reapplying after settings dialog
+        if (includePosition)
+        {
+            if (_preferences.WindowLeft != null) this.Left = _preferences.WindowLeft.Value;
+            if (_preferences.WindowTop != null) this.Top = _preferences.WindowTop.Value;
+            EnsureWindowIsVisible();
+        }
 
         ShowUsedToggle.IsChecked = _preferences.ShowUsedPercentage;
         AlwaysOnTopCheck.IsChecked = _preferences.AlwaysOnTop;
@@ -621,33 +624,27 @@ public partial class MainWindow : Window
     {
         try
         {
-            var normalizedId = providerId.ToLower();
-            string filename = normalizedId;
-            if (ProviderMetadataCatalog.TryGet(normalizedId, out var definition) && !string.IsNullOrEmpty(definition.LogoKey))
-                filename = definition.LogoKey.ToLower();
-            else
-                filename = filename switch { "github-copilot" => "github", "gemini-cli" => "google", "antigravity" => "google", "claude-code" or "claude" => "anthropic", "minimax" or "minimax-io" or "minimax-global" => "minimax", "kimi" => "kimi", "xiaomi" => "xiaomi", "zai" => "zai", "deepseek" => "deepseek", "openrouter" => "openai", "codex" => "openai", "mistral" => "mistral", "openai" => "openai", "anthropic" => "anthropic", "google" => "google", "github" => "github", _ => filename };
+            var logoPath = App.LogoResolver.GetLogoPath(providerId);
+            if (string.IsNullOrEmpty(logoPath))
+                return null;
 
-            var svgPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "ProviderLogos", $"{filename}.svg");
-            if (System.IO.File.Exists(svgPath))
+            var extension = System.IO.Path.GetExtension(logoPath).ToLowerInvariant();
+            
+            if (extension == ".svg")
             {
-                try
+                var settings = new SharpVectors.Renderers.Wpf.WpfDrawingSettings
                 {
-                    var settings = new SharpVectors.Renderers.Wpf.WpfDrawingSettings
-                    {
-                        IncludeRuntime = true,
-                        TextAsGeometry = true
-                    };
-                    var reader = new SharpVectors.Converters.FileSvgReader(settings);
-                    var drawing = reader.Read(svgPath);
-                    if (drawing != null)
-                    {
-                        var image = new DrawingImage(drawing);
-                        image.Freeze();
-                        return image;
-                    }
+                    IncludeRuntime = true,
+                    TextAsGeometry = true
+                };
+                var reader = new SharpVectors.Converters.FileSvgReader(settings);
+                var drawing = reader.Read(logoPath);
+                if (drawing != null)
+                {
+                    var image = new DrawingImage(drawing);
+                    image.Freeze();
+                    return image;
                 }
-                catch { }
             }
             return null;
         }
@@ -656,7 +653,20 @@ public partial class MainWindow : Window
 
     private (Brush Color, string Initial) GetFallbackIconData(string providerId)
     {
-        return providerId.ToLower() switch { "antigravity" or "google" or "gemini" => (Brushes.RoyalBlue, "G"), "openai" or "codex" => (Brushes.DarkCyan, "AI"), "anthropic" or "claude" => (Brushes.IndianRed, "An"), "github-copilot" or "github" => (Brushes.MediumPurple, "GH"), "mistral" => (Brushes.Orange, "M"), "deepseek" => (Brushes.DeepSkyBlue, "DS"), "kimi" => (Brushes.Teal, "K"), "zai" => (Brushes.SlateBlue, "Z"), _ => (Brushes.Gray, "?") };
+        var (brushName, initials) = App.LogoResolver.GetFallbackIconData(providerId);
+        var brush = brushName switch
+        {
+            "RoyalBlue" => Brushes.RoyalBlue,
+            "DarkCyan" => Brushes.DarkCyan,
+            "IndianRed" => Brushes.IndianRed,
+            "MediumPurple" => Brushes.MediumPurple,
+            "Orange" => Brushes.Orange,
+            "DeepSkyBlue" => Brushes.DeepSkyBlue,
+            "Teal" => Brushes.Teal,
+            "SlateBlue" => Brushes.SlateBlue,
+            _ => Brushes.Gray
+        };
+        return (brush, initials);
     }
 
     private static string GetDetailDisplayName(ProviderUsageDetail detail) => detail.Name;

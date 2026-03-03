@@ -136,15 +136,9 @@ public class UsageDatabase : IUsageDatabase
 
     public async Task StoreHistoryAsync(IEnumerable<ProviderUsage> usages)
     {
-        // Filter out placeholder/unconfigured provider entries
-        // These represent providers that were queried but have no API key configured
-        // Check regardless of description - if no usage data and not available, it's a placeholder
-        var validUsages = usages.Where(u => 
-            !(u.RequestsAvailable == 0 && 
-              u.RequestsUsed == 0 && 
-              u.RequestsPercentage == 0 && 
-              !u.IsAvailable)
-        ).ToList();
+        // Provider is source of truth - store all returned data
+        // Do not filter "placeholder" entries here; filtering should be done at provider level if needed
+        var validUsages = usages.ToList();
         
         if (!validUsages.Any())
         {
@@ -359,12 +353,14 @@ public class UsageDatabase : IUsageDatabase
                 }
             }
 
+            // Provider is source of truth - do not override IsQuotaBased or PlanType
+            // These values are already set by the provider and stored in the database
+            // Only use catalog as fallback for display name if needed
             foreach (var usage in results)
             {
-                if (ProviderMetadataCatalog.TryGet(usage.ProviderId, out var definition))
+                if (string.IsNullOrEmpty(usage.ProviderName))
                 {
-                    usage.PlanType = definition.PlanType;
-                    usage.IsQuotaBased = definition.IsQuotaBased;
+                    usage.ProviderName = ProviderMetadataCatalog.GetDisplayName(usage.ProviderId, usage.ProviderName);
                 }
             }
 
@@ -391,9 +387,8 @@ public class UsageDatabase : IUsageDatabase
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
                        h.next_reset_time AS NextResetTime,
                        h.response_latency_ms AS ResponseLatencyMs
-                FROM provider_history h
+                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
-                WHERE h.provider_id != 'antigravity'
                 ORDER BY h.fetched_at DESC
                 LIMIT {limit}";
 

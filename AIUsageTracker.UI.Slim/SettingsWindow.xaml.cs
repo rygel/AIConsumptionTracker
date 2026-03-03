@@ -1604,44 +1604,21 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            var normalizedProviderId = providerId.ToLower();
-            
-            // Resolve filename from LogoKey if available
-            string filename = normalizedProviderId;
-            if (ProviderMetadataCatalog.TryGet(normalizedProviderId, out var definition) && !string.IsNullOrEmpty(definition.LogoKey))
+            var logoPath = App.LogoResolver.GetLogoPath(providerId);
+            if (!string.IsNullOrEmpty(logoPath))
             {
-                filename = definition.LogoKey.ToLower();
-            }
-            else
-            {
-                // Legacy/Fallback mapping
-                filename = filename switch
+                var extension = System.IO.Path.GetExtension(logoPath).ToLowerInvariant();
+                
+                if (extension == ".ico")
                 {
-                    "github-copilot" => "github",
-                    "gemini-cli" or "antigravity" => "google",
-                    "codex" or "codex.spark" => "openai",
-                    "claude-code" => "anthropic",
-                    "zai" or "zai-coding-plan" => "zai",
-                    "minimax" or "minimax-io" or "minimax-global" => "minimax",
-                    "kimi" => "kimi",
-                    "xiaomi" => "xiaomi",
-                    _ => filename
-                };
-            }
-
-            var appDir = AppDomain.CurrentDomain.BaseDirectory;
-
-            // Try ICO
-            var icoPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.ico");
-            if (System.IO.File.Exists(icoPath))
-            {
-                var icoImage = new System.Windows.Media.Imaging.BitmapImage();
-                icoImage.BeginInit();
-                icoImage.UriSource = new Uri(icoPath);
-                icoImage.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                icoImage.EndInit();
-                icoImage.Freeze();
-                return icoImage;
+                    var icoImage = new System.Windows.Media.Imaging.BitmapImage();
+                    icoImage.BeginInit();
+                    icoImage.UriSource = new Uri(logoPath);
+                    icoImage.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    icoImage.EndInit();
+                    icoImage.Freeze();
+                    return icoImage;
+                }
             }
         }
         catch { }
@@ -1652,21 +1629,23 @@ public partial class SettingsWindow : Window
     private ImageSource CreateFallbackIcon(string providerId)
     {
         // Create a simple colored circle as fallback
-        var (color, _) = providerId.ToLower() switch
+        var (brushName, _) = App.LogoResolver.GetFallbackIconData(providerId);
+        var brush = brushName switch
         {
-            "openai" => (Brushes.DarkCyan, "AI"),
-            "codex" => (Brushes.DarkCyan, "AI"),
-            "codex.spark" => (Brushes.DarkCyan, "AI"),
-            "anthropic" => (Brushes.IndianRed, "An"),
-            "github-copilot" => (Brushes.MediumPurple, "GH"),
-            "gemini" or "google" => (Brushes.DodgerBlue, "G"),
-            "deepseek" => (Brushes.DeepSkyBlue, "DS"),
-            _ => (Brushes.Gray, "?")
+            "DarkCyan" => Brushes.DarkCyan,
+            "IndianRed" => Brushes.IndianRed,
+            "MediumPurple" => Brushes.MediumPurple,
+            "RoyalBlue" => Brushes.RoyalBlue,
+            "Orange" => Brushes.Orange,
+            "DeepSkyBlue" => Brushes.DeepSkyBlue,
+            "Teal" => Brushes.Teal,
+            "SlateBlue" => Brushes.SlateBlue,
+            _ => Brushes.Gray
         };
 
         // Return a drawing image with just a colored rectangle (simplified)
         var drawing = new GeometryDrawing(
-            color,
+            brush,
             new Pen(Brushes.Transparent, 0),
             new RectangleGeometry(new Rect(0, 0, 16, 16)));
         var image = new DrawingImage(drawing);

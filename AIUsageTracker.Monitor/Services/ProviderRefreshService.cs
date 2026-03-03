@@ -210,9 +210,10 @@ public class ProviderRefreshService : BackgroundService
 
                 var validatedUsages = usages.Where(u => u != null).ToList();
 
+                // Provider is source of truth - do not filter "placeholder" data here
+                // If filtering is needed, it should be done in the provider class or UsageDatabase
                 var filteredUsages = validatedUsages.Where(u => 
-                    IsUsageForAnyActiveProvider(activeProviderIds, u.ProviderId) &&
-                    !(u.RequestsAvailable == 0 && u.RequestsUsed == 0 && u.RequestsPercentage == 0 && !u.IsAvailable)
+                    IsUsageForAnyActiveProvider(activeProviderIds, u.ProviderId)
                 ).ToList();
 
                 _logger.LogDebug("Provider query results:");
