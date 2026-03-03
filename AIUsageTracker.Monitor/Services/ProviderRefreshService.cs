@@ -18,6 +18,7 @@ public class ProviderRefreshService : BackgroundService
     private readonly INotificationService _notificationService;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfigService _configService;
+    private readonly IAuthFileLocator _authFileLocator;
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
     private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(5);
     private static bool _debugMode = false;
@@ -42,7 +43,8 @@ public class ProviderRefreshService : BackgroundService
         IUsageDatabase database,
         INotificationService notificationService,
         IHttpClientFactory httpClientFactory,
-        IConfigService configService)
+        IConfigService configService,
+        IAuthFileLocator authFileLocator)
     {
         _logger = logger;
         _loggerFactory = loggerFactory;
@@ -50,6 +52,7 @@ public class ProviderRefreshService : BackgroundService
         _notificationService = notificationService;
         _httpClientFactory = httpClientFactory;
         _configService = configService;
+        _authFileLocator = authFileLocator;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -176,7 +179,7 @@ public class ProviderRefreshService : BackgroundService
             new KimiProvider(httpClient, _loggerFactory.CreateLogger<KimiProvider>()),
             new MinimaxProvider(httpClient, _loggerFactory.CreateLogger<MinimaxProvider>()),
             new OpenCodeProvider(httpClient, _loggerFactory.CreateLogger<OpenCodeProvider>()),
-            new CodexProvider(httpClient, _loggerFactory.CreateLogger<CodexProvider>()),
+            new CodexProvider(httpClient, _loggerFactory.CreateLogger<CodexProvider>(), _authFileLocator),
             new AnthropicProvider(_loggerFactory.CreateLogger<AnthropicProvider>()),
             new OpenCodeZenProvider(_loggerFactory.CreateLogger<OpenCodeZenProvider>()),
             new OpenRouterProvider(httpClient, _loggerFactory.CreateLogger<OpenRouterProvider>()),

@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
@@ -17,12 +18,14 @@ public class CodexProviderTests
     private readonly Mock<HttpMessageHandler> _messageHandler;
     private readonly HttpClient _httpClient;
     private readonly Mock<ILogger<CodexProvider>> _logger;
+    private readonly Mock<IAuthFileLocator> _authFileLocator;
 
     public CodexProviderTests()
     {
         _messageHandler = new Mock<HttpMessageHandler>();
         _httpClient = new HttpClient(_messageHandler.Object);
         _logger = new Mock<ILogger<CodexProvider>>();
+        _authFileLocator = new Mock<IAuthFileLocator>();
     }
 
     [Fact]
@@ -30,7 +33,9 @@ public class CodexProviderTests
     {
         // Arrange
         var missingAuthPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}", "auth.json");
-        var provider = new CodexProvider(_httpClient, _logger.Object, missingAuthPath);
+        _authFileLocator.Setup(x => x.GetCodexAuthFileCandidates(missingAuthPath))
+            .Returns(new[] { missingAuthPath });
+        var provider = new CodexProvider(_httpClient, _logger.Object, _authFileLocator.Object, missingAuthPath);
 
         // Act
         var results = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).ToList();
@@ -95,7 +100,9 @@ public class CodexProviderTests
                 Content = new StringContent(rawJsonResponse)
             });
 
-        var provider = new CodexProvider(_httpClient, _logger.Object, authPath);
+        _authFileLocator.Setup(x => x.GetCodexAuthFileCandidates(authPath))
+            .Returns(new[] { authPath });
+        var provider = new CodexProvider(_httpClient, _logger.Object, _authFileLocator.Object, authPath);
 
         try
         {
@@ -163,7 +170,9 @@ public class CodexProviderTests
                 Content = new StringContent(snapshotJson)
             });
 
-        var provider = new CodexProvider(_httpClient, _logger.Object, authPath);
+        _authFileLocator.Setup(x => x.GetCodexAuthFileCandidates(authPath))
+            .Returns(new[] { authPath });
+        var provider = new CodexProvider(_httpClient, _logger.Object, _authFileLocator.Object, authPath);
 
         try
         {
@@ -221,7 +230,9 @@ public class CodexProviderTests
                 Content = new StringContent(rawJsonResponse)
             });
 
-        var provider = new CodexProvider(_httpClient, _logger.Object, authPath);
+        _authFileLocator.Setup(x => x.GetCodexAuthFileCandidates(authPath))
+            .Returns(new[] { authPath });
+        var provider = new CodexProvider(_httpClient, _logger.Object, _authFileLocator.Object, authPath);
 
         try
         {
@@ -280,7 +291,9 @@ public class CodexProviderTests
                 Content = new StringContent(rawJsonResponse)
             });
 
-        var provider = new CodexProvider(_httpClient, _logger.Object, authPath);
+        _authFileLocator.Setup(x => x.GetCodexAuthFileCandidates(authPath))
+            .Returns(new[] { authPath });
+        var provider = new CodexProvider(_httpClient, _logger.Object, _authFileLocator.Object, authPath);
 
         try
         {
@@ -399,7 +412,9 @@ public class CodexProviderTests
                 Content = new StringContent(rawJsonResponse)
             });
 
-        var provider = new CodexProvider(_httpClient, _logger.Object, authPath);
+        _authFileLocator.Setup(x => x.GetCodexAuthFileCandidates(authPath))
+            .Returns(new[] { authPath });
+        var provider = new CodexProvider(_httpClient, _logger.Object, _authFileLocator.Object, authPath);
 
         var config = new ProviderConfig
         {

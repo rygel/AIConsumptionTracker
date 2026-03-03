@@ -154,6 +154,7 @@ else
     builder.Services.AddSingleton<INotificationService, NoOpNotificationService>();
 }
 builder.Services.AddSingleton<IConfigService, ConfigService>();
+builder.Services.AddSingleton<IAuthFileLocator, AuthFileLocator>();
 builder.Services.AddSingleton<ProviderRefreshService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ProviderRefreshService>());
 builder.Services.AddHttpClient();

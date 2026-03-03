@@ -18,8 +18,9 @@ public class StartupAntiHammerTests
             IUsageDatabase database,
             INotificationService notificationService,
             IHttpClientFactory httpClientFactory,
-            IConfigService configService)
-            : base(logger, loggerFactory, database, notificationService, httpClientFactory, configService)
+            IConfigService configService,
+            IAuthFileLocator authFileLocator)
+            : base(logger, loggerFactory, database, notificationService, httpClientFactory, configService, authFileLocator)
         {
         }
 
@@ -56,13 +57,16 @@ public class StartupAntiHammerTests
         mockConfigService.Setup(cs => cs.ScanForKeysAsync())
             .ReturnsAsync(new List<ProviderConfig>());
 
+        var mockAuthFileLocator = new Mock<IAuthFileLocator>();
+
         var service = new TestableProviderRefreshService(
             mockLogger.Object,
             mockLoggerFactory.Object,
             mockDb.Object,
             mockNotificationService.Object,
             mockHttpClientFactory.Object,
-            mockConfigService.Object);
+            mockConfigService.Object,
+            mockAuthFileLocator.Object);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
@@ -93,13 +97,16 @@ public class StartupAntiHammerTests
             .ReturnsAsync(new List<ProviderConfig>())
             .Verifiable();
 
+        var mockAuthFileLocator = new Mock<IAuthFileLocator>();
+
         var service = new TestableProviderRefreshService(
             mockLogger.Object,
             mockLoggerFactory.Object,
             mockDb.Object,
             mockNotificationService.Object,
             mockHttpClientFactory.Object,
-            mockConfigService.Object);
+            mockConfigService.Object,
+            mockAuthFileLocator.Object);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 

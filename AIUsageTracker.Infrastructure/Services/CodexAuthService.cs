@@ -8,11 +8,13 @@ namespace AIUsageTracker.Infrastructure.Services;
 public class CodexAuthService : ICodexAuthService
 {
     private readonly ILogger<CodexAuthService> _logger;
+    private readonly IAuthFileLocator _authFileLocator;
     private readonly string? _authFilePath;
 
-    public CodexAuthService(ILogger<CodexAuthService> logger, string? authFilePath = null)
+    public CodexAuthService(ILogger<CodexAuthService> logger, IAuthFileLocator authFileLocator, string? authFilePath = null)
     {
         _logger = logger;
+        _authFileLocator = authFileLocator;
         _authFilePath = authFilePath;
     }
 
@@ -30,7 +32,7 @@ public class CodexAuthService : ICodexAuthService
 
     private CodexAuth? LoadAuth()
     {
-        foreach (var path in GetAuthFileCandidates())
+        foreach (var path in _authFileLocator.GetCodexAuthFileCandidates(_authFilePath))
         {
             if (!File.Exists(path))
             {
@@ -82,36 +84,6 @@ public class CodexAuthService : ICodexAuthService
         }
 
         return null;
-    }
-
-    private IEnumerable<string> GetAuthFileCandidates()
-    {
-        if (!string.IsNullOrWhiteSpace(_authFilePath))
-        {
-            yield return _authFilePath;
-            yield break;
-        }
-
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        yield return Path.Combine(home, ".codex", "auth.json");
-        yield return Path.Combine(home, ".local", "share", "opencode", "auth.json");
-        yield return Path.Combine(home, ".opencode", "auth.json");
-
-        if (OperatingSystem.IsWindows())
-        {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            if (!string.IsNullOrWhiteSpace(appData))
-            {
-                yield return Path.Combine(appData, "codex", "auth.json");
-                yield return Path.Combine(appData, "opencode", "auth.json");
-            }
-
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            if (!string.IsNullOrWhiteSpace(localAppData))
-            {
-                yield return Path.Combine(localAppData, "opencode", "auth.json");
-            }
-        }
     }
 
     private sealed class CodexAuth

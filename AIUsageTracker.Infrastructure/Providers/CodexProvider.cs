@@ -28,17 +28,19 @@ public class CodexProvider : IProviderService
     public string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<CodexProvider> _logger;
+    private readonly IAuthFileLocator _authFileLocator;
     private readonly string _authFilePath;
 
-    public CodexProvider(HttpClient httpClient, ILogger<CodexProvider> logger)
-        : this(httpClient, logger, null)
+    public CodexProvider(HttpClient httpClient, ILogger<CodexProvider> logger, IAuthFileLocator authFileLocator)
+        : this(httpClient, logger, authFileLocator, null)
     {
     }
 
-    public CodexProvider(HttpClient httpClient, ILogger<CodexProvider> logger, string? authFilePath)
+    public CodexProvider(HttpClient httpClient, ILogger<CodexProvider> logger, IAuthFileLocator authFileLocator, string? authFilePath)
     {
         _httpClient = httpClient;
         _logger = logger;
+        _authFileLocator = authFileLocator;
         _authFilePath = string.IsNullOrWhiteSpace(authFilePath)
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "auth.json")
             : authFilePath;
@@ -368,7 +370,7 @@ public class CodexProvider : IProviderService
 
     private async Task<CodexAuth?> LoadNativeAuthAsync()
     {
-        foreach (var path in GetAuthFileCandidates())
+        foreach (var path in _authFileLocator.GetCodexAuthFileCandidates(_authFilePath))
         {
             if (!File.Exists(path))
             {
@@ -427,36 +429,6 @@ public class CodexProvider : IProviderService
         }
 
         return null;
-    }
-
-    private IEnumerable<string> GetAuthFileCandidates()
-    {
-        if (!string.IsNullOrWhiteSpace(_authFilePath))
-        {
-            yield return _authFilePath;
-            yield break;
-        }
-
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        yield return Path.Combine(home, ".codex", "auth.json");
-        yield return Path.Combine(home, ".local", "share", "opencode", "auth.json");
-        yield return Path.Combine(home, ".opencode", "auth.json");
-
-        if (OperatingSystem.IsWindows())
-        {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            if (!string.IsNullOrWhiteSpace(appData))
-            {
-                yield return Path.Combine(appData, "codex", "auth.json");
-                yield return Path.Combine(appData, "opencode", "auth.json");
-            }
-
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            if (!string.IsNullOrWhiteSpace(localAppData))
-            {
-                yield return Path.Combine(localAppData, "opencode", "auth.json");
-            }
-        }
     }
 
     private static string? ResolveIdentityFromAuthPayload(JsonElement source, string accessToken, string? idToken = null)

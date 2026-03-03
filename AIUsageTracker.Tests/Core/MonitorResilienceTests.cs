@@ -78,8 +78,9 @@ public class TestableProviderRefreshServiceForStopAsync : ProviderRefreshService
         IUsageDatabase database,
         INotificationService notificationService,
         IHttpClientFactory httpClientFactory,
-        IConfigService configService)
-        : base(logger, loggerFactory, database, notificationService, httpClientFactory, configService)
+        IConfigService configService,
+        IAuthFileLocator authFileLocator)
+        : base(logger, loggerFactory, database, notificationService, httpClientFactory, configService, authFileLocator)
     {
     }
 
@@ -268,13 +269,16 @@ public class MonitorMetadataTests
         mockConfigService.Setup(cs => cs.GetConfigsAsync())
             .ReturnsAsync(new List<AIUsageTracker.Core.Models.ProviderConfig>());
 
+        var mockAuthFileLocator = new Mock<IAuthFileLocator>();
+
         var service = new TestableProviderRefreshServiceForStopAsync(
             mockLogger.Object,
             mockLoggerFactory.Object,
             mockDb.Object,
             mockNotificationService.Object,
             mockHttpClientFactory.Object,
-            mockConfigService.Object);
+            mockConfigService.Object,
+            mockAuthFileLocator.Object);
 
         var cts = new CancellationTokenSource();
 
