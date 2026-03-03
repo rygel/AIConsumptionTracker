@@ -77,7 +77,7 @@ public static class JsonHelpers
         {
             if (prop.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
             {
-                property = prop;
+                property = prop.Value;
                 return true;
             }
         }
@@ -119,7 +119,7 @@ public static class JsonHelpers
             }
         }
 
-        value = 0;
+        value = code = 0;
         return false;
     }
 }
