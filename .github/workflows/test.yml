@@ -85,8 +85,8 @@ jobs:
       with:
         name: test-binaries-debug
         path: |
-          AIUsageTracker.Tests/bin/Debug/net8.0-windows10.0.17763.0/**
-          AIUsageTracker.Monitor.Tests/bin/Debug/net8.0-windows10.0.17763.0/**
+          AIUsageTracker.Tests/bin/Debug/net8.0-windows10.0/**
+          AIUsageTracker.Monitor.Tests/bin/Debug/net8.0-windows10.0/**
           scripts/run-vstest-with-retry.ps1
           .github/test-quarantine.txt
 
