@@ -13,21 +13,21 @@ Updated with additional tasks on 2026-03-03.
   - File: `AIUsageTracker.UI.Slim\MainWindow.xaml.cs:74`
   - Problem: `_preferences = UiPreferencesStore.LoadAsync().GetAwaiter().GetResult()` can deadlock UI thread
   - Fix: Initialize with defaults in constructor, load async in Loaded handler
-  - Status: **COMPLETED** - Moved async loading to `MainWindow_Loaded` event handler
+  - Status: **ATTEMPTED** - Moved async loading to `MainWindow_Loaded` event handler
   - Test: Existing `AppStartupTests.LoadPreferencesAsync_DoesNotBlockThread` covers the store behavior
 
 - [x] **Fix fire-and-forget tasks without tracking**
   - File: `AIUsageTracker.Monitor\Services\ProviderRefreshService.cs:64-97`
   - Problem: Background tasks not awaited on shutdown, potential data loss
   - Fix: Track tasks and await them during shutdown, or use `System.Threading.Channels`
-  - Status: **COMPLETED** - Added `_startupTasks` list and `StopAsync` override to await tasks
+  - Status: **ATTEMPTED** - Added `_startupTasks` list and `StopAsync` override to await tasks
   - Test: Added `StopAsync_WaitsForStartupTasks` in `MonitorResilienceTests.cs`
 
 - [x] **Add cancellation token to TriggerRefreshAsync**
   - File: `AIUsageTracker.Monitor\Services\ProviderRefreshService.cs:164-286`
   - Problem: Cannot cancel long-running refresh operations
   - Fix: Add `CancellationToken cancellationToken = default` parameter
-  - Status: **COMPLETED** - Added cancellation token parameter and checks throughout method
+  - Status: **ATTEMPTED** - Added cancellation token parameter and checks throughout method
   - Test: Added `TriggerRefreshAsync_AcceptsCancellationTokenParameter` in `StartupAntiHammerTests.cs`
 
 ---
@@ -40,19 +40,19 @@ Updated with additional tasks on 2026-03-03.
   - File: `AIUsageTracker.Infrastructure\Providers\ZaiProvider.cs:40,55`
   - Problem: Throws exceptions instead of returning `ProviderUsage` with `IsAvailable=false`
   - Fix: Return error state objects consistent with other providers
-  - Status: **COMPLETED** - Returns ProviderUsage with IsAvailable=false instead of throwing exceptions
+  - Status: **ATTEMPTED** - Returns ProviderUsage with IsAvailable=false instead of throwing exceptions
 
 - [x] **Add logging to silent catch blocks**
   - File: `AIUsageTracker.Infrastructure\Providers\GitHubCopilotProvider.cs:152-155,226-229`
   - Problem: Empty catch blocks make debugging impossible
   - Fix: Add `_logger.LogDebug()` calls to catch blocks
-  - Status: **COMPLETED** - Added debug logging to all catch blocks
+  - Status: **ATTEMPTED** - Added debug logging to all catch blocks
 
 - [x] **Standardize IsAvailable semantics**
   - Files: `DeepSeekProvider.cs`, all providers
   - Problem: Inconsistent IsAvailable semantics across providers
   - Fix: Document semantics in ProviderUsage, update DeepSeek to only set IsAvailable=false on auth errors
-  - Status: **COMPLETED** - Added XML documentation, DeepSeek uses auth error check
+  - Status: **ATTEMPTED** - Added XML documentation, DeepSeek uses auth error check
 
 - [ ] **Add logging to silent catch blocks**
   - File: `AIUsageTracker.Infrastructure\Providers\GitHubCopilotProvider.cs:152-155,226-229`
@@ -71,14 +71,14 @@ Updated with additional tasks on 2026-03-03.
   - Source: `AIUsageTracker.Web\Services\WebDatabaseService.cs:1106-1115`
   - Description: Identical `ResetEvent` class defined in both projects
   - Fix: Create `AIUsageTracker.Core\Models\ResetEvent.cs`, remove duplicates
-  - Status: **COMPLETED** - Created Core.Models.ResetEvent and removed duplicates from Monitor and Web
+  - Status: **ATTEMPTED** - Created Core.Models.ResetEvent and removed duplicates from Monitor and Web
 
 - [x] **Move Web DTOs to proper location**
   - File: `AIUsageTracker.Web\Services\WebDatabaseService.cs:1094-1120`
   - Problem: `ProviderInfo`, `UsageSummary`, `ChartDataPoint` defined in service file
   - Fix: Move to `AIUsageTracker.Web\Models\WebModels.cs`
-  - Status: **COMPLETED** - Created Web.Models namespace and moved DTOs
-  - Status: **COMPLETED** - Created Web.Models namespace and moved DTOs
+  - Status: **ATTEMPTED** - Created Web.Models namespace and moved DTOs
+  - Status: **ATTEMPTED** - Created Web.Models namespace and moved DTOs
 
 - [ ] **Move Web DTOs to proper location**
   - File: `AIUsageTracker.Web\Services\WebDatabaseService.cs:1094-1131`
@@ -94,7 +94,7 @@ Updated with additional tasks on 2026-03-03.
     - `CreateUnavailableUsage(string description, int httpStatus = 503)`
     - `CreateAuthorizedRequest(string url, string apiKey)`
     - `FormatResetTime(DateTime? resetTime)`
-  - Status: **COMPLETED** - Created ProviderBase.cs with shared helpers for providers
+  - Status: **ATTEMPTED** - Created ProviderBase.cs with shared helpers for providers
 
 - [ ] **Create IAuthFileLocator service**
   - Source: `CodexProvider.cs:432-460`
@@ -114,21 +114,21 @@ Updated with additional tasks on 2026-03-03.
   - Source: `AIUsageTracker.Web\Services\WebDatabaseService.cs`
   - Problem: Directory path resolution duplicated 3 times
   - Fix: Create `AIUsageTracker.Core\Utilities\AppPaths.cs` for current directory logic only
-  - Status: **COMPLETED** - Created centralized AppPaths class with GetAppDataDirectory, GetAppDirectory, GetDatabasePath, etc.
+  - Status: **ATTEMPTED** - Created centralized AppPaths class with GetAppDataDirectory, GetAppDirectory, GetDatabasePath, etc.
 
 - [x] **Create JsonHelpers utility class**
   - Source: `SyntheticProvider.cs:243-319`
   - Source: `CodexProvider.cs:799-855`
   - Problem: Similar JSON parsing utilities (`TryGetDoubleCandidate`, `ReadString`, etc.)
   - Fix: Create `AIUsageTracker.Infrastructure\Utilities\JsonHelpers.cs` with extension methods
-  - Status: **COMPLETED** - Created JsonHelpers with ReadString, ReadDouble, ReadBool, TryGetPropertyIgnoreCase, TryGetDoubleProperty, TryGetDoubleCandidate
+  - Status: **ATTEMPTED** - Created JsonHelpers with ReadString, ReadDouble, ReadBool, TryGetPropertyIgnoreCase, TryGetDoubleProperty, TryGetDoubleCandidate
 
 - [x] **Consolidate config normalization logic**
   - Source: `AIUsageTracker.Monitor\Services\ConfigService.cs:149-184`
   - Source: `AIUsageTracker.Infrastructure\Configuration\JsonConfigLoader.cs:164-202`
   - Problem: `NormalizeOpenAiCodexSessionOverlap` duplicated in both files
   - Fix: Create `AIUsageTracker.Infrastructure\Configuration\ConfigNormalization.cs` with shared methods
-  - Status: **COMPLETED** - Created ConfigNormalization with NormalizeOpenAiCodexSessionOverlap and NormalizeCodexSparkConfiguration
+  - Status: **ATTEMPTED** - Created ConfigNormalization with NormalizeOpenAiCodexSessionOverlap and NormalizeCodexSparkConfiguration
 
 ### Interface Segregation
 
@@ -200,7 +200,7 @@ Updated with additional tasks on 2026-03-03.
   - Source: `Web\Pages\Index.cshtml:419-429` (90% high, 50% medium)
   - Problem: Inconsistent thresholds between UIs
   - Fix: Extract to shared `ProgressColorCalculator` in Core
-  - Status: **COMPLETED** - Created ProgressColorCalculator with YellowThreshold=70, RedThreshold=90 constants
+  - Status: **ATTEMPTED** - Created ProgressColorCalculator with YellowThreshold=70, RedThreshold=90 constants
 
 ### Hardcoded Values
 
