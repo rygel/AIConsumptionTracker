@@ -426,5 +426,43 @@ public class ZaiProviderTests
         Assert.Equal(100, usage.RequestsPercentage); 
         Assert.Contains("Remaining", usage.Description);
     }
+
+    [Fact]
+    public async Task GetUsageAsync_MissingApiKey_ReturnsProviderUsageWithIsAvailableFalse()
+    {
+        var config = new ProviderConfig { ProviderId = "zai-coding-plan", ApiKey = "" };
+        
+        var result = await _provider.GetUsageAsync(config);
+        
+        var usage = result.Single();
+        
+        Assert.False(usage.IsAvailable);
+        Assert.Contains("API Key missing", usage.Description);
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_ApiFailure_ReturnsProviderUsageWithIsAvailableFalse()
+    {
+        // Arrange - Simulate API failure
+        _msgHandler.Protected().Setup<Task<HttpResponseMessage>>(
+            "SendAsync",
+            ItExpr.IsAny<HttpRequestMessage>(),
+            ItExpr.IsAny<CancellationToken>()
+            )
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.InternalServerError,
+                Content = new StringContent("API Error")
+            });
+
+        // Act
+        var result = await _provider.GetUsageAsync(new ProviderConfig { ProviderId = "zai-coding-plan", ApiKey = "test-key" });
+
+        // Assert
+        var usage = result.Single();
+        
+        Assert.False(usage.IsAvailable);
+        Assert.Contains("API Error (500)", usage.Description);
+    }
 }
 
