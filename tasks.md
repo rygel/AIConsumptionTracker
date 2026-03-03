@@ -42,6 +42,18 @@ Updated with additional tasks on 2026-03-03.
   - Fix: Return error state objects consistent with other providers
   - Status: **COMPLETED** - Returns ProviderUsage with IsAvailable=false instead of throwing exceptions
 
+- [x] **Add logging to silent catch blocks**
+  - File: `AIUsageTracker.Infrastructure\Providers\GitHubCopilotProvider.cs:152-155,226-229`
+  - Problem: Empty catch blocks make debugging impossible
+  - Fix: Add `_logger.LogDebug()` calls to catch blocks
+  - Status: **COMPLETED** - Added debug logging to all catch blocks
+
+- [x] **Standardize IsAvailable semantics**
+  - Files: `DeepSeekProvider.cs`, all providers
+  - Problem: Inconsistent IsAvailable semantics across providers
+  - Fix: Document semantics in ProviderUsage, update DeepSeek to only set IsAvailable=false on auth errors
+  - Status: **COMPLETED** - Added XML documentation, DeepSeek uses auth error check
+
 - [ ] **Add logging to silent catch blocks**
   - File: `AIUsageTracker.Infrastructure\Providers\GitHubCopilotProvider.cs:152-155,226-229`
   - Problem: Empty catch blocks make debugging impossible
@@ -211,11 +223,11 @@ Updated with additional tasks on 2026-03-03.
 | Priority | Count | Focus |
 |----------|-------|-------|
 | P0 | 3 | Async/deadlock issues |
-| P1 | 9 | Error handling, shared models, abstractions |
+| P1 | 8 | Error handling, shared models, abstractions |
 | P2 | 9 | Duplication, interfaces, logging |
 | P3 | 9 | MVVM, UI consolidation, config |
 
-**Total: 30 tasks**
+**Total: 29 tasks**
 
 ---
 
