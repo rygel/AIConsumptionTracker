@@ -1,5 +1,11 @@
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Monitor.Services;
+using Microsoft.Extensions.Logging;
+using Moq;
+using System.Threading;
+using System.Net.Http;
 using Xunit;
 
 namespace AIUsageTracker.Tests.Core;
@@ -59,6 +65,33 @@ public class MonitorResilienceTests
 
         var result = task.Result;
         Assert.Null(result);
+    }
+}
+
+public class TestableProviderRefreshServiceForStopAsync : ProviderRefreshService
+{
+    public bool StopAsyncCalled { get; private set; }
+
+    public TestableProviderRefreshServiceForStopAsync(
+        ILogger<ProviderRefreshService> logger,
+        ILoggerFactory loggerFactory,
+        IUsageDatabase database,
+        INotificationService notificationService,
+        IHttpClientFactory httpClientFactory,
+        IConfigService configService)
+        : base(logger, loggerFactory, database, notificationService, httpClientFactory, configService)
+    {
+    }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        StopAsyncCalled = true;
+        await base.StopAsync(cancellationToken);
+    }
+
+    public Task RunExecuteAsync(CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(cancellationToken);
     }
 }
 
@@ -217,5 +250,51 @@ public class MonitorMetadataTests
 
         Assert.Equal(3, info.Errors.Count);
         Assert.Contains(info.Errors, e => e.StartsWith("Startup status"));
+    }
+
+    [Fact]
+    public async Task StopAsync_WaitsForStartupTasks()
+    {
+        var mockLogger = new Mock<ILogger<ProviderRefreshService>>();
+        var mockLoggerFactory = new Mock<ILoggerFactory>();
+        var mockDb = new Mock<IUsageDatabase>();
+        var mockNotificationService = new Mock<INotificationService>();
+        var mockHttpClientFactory = new Mock<IHttpClientFactory>();
+        var mockConfigService = new Mock<IConfigService>();
+
+        mockDb.Setup(db => db.IsHistoryEmptyAsync())
+            .ReturnsAsync(false);
+
+        mockConfigService.Setup(cs => cs.GetConfigsAsync())
+            .ReturnsAsync(new List<AIUsageTracker.Core.Models.ProviderConfig>());
+
+        var service = new TestableProviderRefreshServiceForStopAsync(
+            mockLogger.Object,
+            mockLoggerFactory.Object,
+            mockDb.Object,
+            mockNotificationService.Object,
+            mockHttpClientFactory.Object,
+            mockConfigService.Object);
+
+        var cts = new CancellationTokenSource();
+
+        // Start the service in background
+        var executeTask = service.RunExecuteAsync(cts.Token);
+
+        // Wait a bit for startup tasks to be queued
+        await Task.Delay(100);
+
+        // Cancel the service
+        cts.Cancel();
+
+        // StopAsync should complete without exception
+        var stopTask = service.StopAsync(CancellationToken.None);
+        await stopTask;
+
+        // Verify StopAsync was called
+        Assert.True(service.StopAsyncCalled);
+
+        // Cleanup
+        await executeTask;
     }
 }

@@ -29,6 +29,7 @@ public class ProviderRefreshService : BackgroundService
     private readonly object _telemetryLock = new();
     private DateTime? _lastRefreshCompletedUtc;
     private string? _lastRefreshError;
+    private readonly List<Task> _startupTasks = new();
 
     public static void SetDebugMode(bool debug)
     {
@@ -61,40 +62,51 @@ public class ProviderRefreshService : BackgroundService
         var isEmpty = await _database.IsHistoryEmptyAsync();
         if (isEmpty)
         {
-            _ = Task.Run(async () =>
+            var startupTask = Task.Run(async () =>
             {
                 try
                 {
                     _logger.LogInformation("First-time startup: scanning for keys and seeding database.");
                     await _configService.ScanForKeysAsync();
-                    await TriggerRefreshAsync(forceAll: true);
+                    await TriggerRefreshAsync(forceAll: true, cancellationToken: stoppingToken);
                     _logger.LogInformation("First-time data seeding complete.");
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogInformation("First-time seeding cancelled during shutdown.");
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error during first-time data seeding.");
                 }
             }, stoppingToken);
+            _startupTasks.Add(startupTask);
         }
         else
         {
             _logger.LogInformation("Startup: serving cached data from database (next refresh in {Minutes}m).", _refreshInterval.TotalMinutes);
-            
-            _ = Task.Run(async () =>
+
+            var startupTask = Task.Run(async () =>
             {
                 try
                 {
                     _logger.LogDebug("Startup: running targeted refresh for system providers...");
                     await TriggerRefreshAsync(
                         forceAll: true,
-                        includeProviderIds: new[] { "antigravity" });
+                        includeProviderIds: new[] { "antigravity" },
+                        cancellationToken: stoppingToken);
                     _logger.LogDebug("Startup: targeted refresh complete.");
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogInformation("Startup targeted refresh cancelled during shutdown.");
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Startup targeted refresh failed");
                 }
             }, stoppingToken);
+            _startupTasks.Add(startupTask);
         }
 
 
@@ -104,7 +116,7 @@ public class ProviderRefreshService : BackgroundService
             {
                 _logger.LogDebug("Next refresh in {Minutes} minutes...", _refreshInterval.TotalMinutes);
                 await Task.Delay(_refreshInterval, stoppingToken);
-                await TriggerRefreshAsync();
+                await TriggerRefreshAsync(cancellationToken: stoppingToken);
             }
             catch (OperationCanceledException)
             {
@@ -117,6 +129,23 @@ public class ProviderRefreshService : BackgroundService
         }
 
         _logger.LogInformation("Stopping...");
+    }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("StopAsync requested: awaiting {Count} startup tasks...", _startupTasks.Count);
+
+        try
+        {
+            await Task.WhenAll(_startupTasks.ToArray());
+            _logger.LogInformation("All startup tasks completed.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error while waiting for startup tasks to complete");
+        }
+
+        await base.StopAsync(cancellationToken);
     }
 
     private void InitializeProviders()
@@ -161,7 +190,7 @@ public class ProviderRefreshService : BackgroundService
             _loggerFactory.CreateLogger<ProviderManager>());
     }
 
-    public virtual async Task TriggerRefreshAsync(bool forceAll = false, IReadOnlyCollection<string>? includeProviderIds = null)
+    public virtual async Task TriggerRefreshAsync(bool forceAll = false, IReadOnlyCollection<string>? includeProviderIds = null, CancellationToken cancellationToken = default)
     {
         var refreshStopwatch = Stopwatch.StartNew();
         var refreshSucceeded = false;
@@ -183,6 +212,7 @@ public class ProviderRefreshService : BackgroundService
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var configs = await _configService.GetConfigsAsync();
             var systemProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "antigravity", "claude-code", "mistral", "opencode-zen" };
             
@@ -201,9 +231,10 @@ public class ProviderRefreshService : BackgroundService
             if (activeConfigs.Count > 0)
             {
                 _logger.LogInformation("Refreshing {Count} providers...", activeConfigs.Count);
-                
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var activeProviderIds = activeConfigs.Select(c => c.ProviderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                
+
                 var usages = await _providerManager.GetAllUsageAsync(
                     forceRefresh: forceAll,
                     overrideConfigs: activeConfigs);
@@ -219,6 +250,7 @@ public class ProviderRefreshService : BackgroundService
                 _logger.LogDebug("Provider query results:");
                 foreach (var usage in filteredUsages)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var status = usage.IsAvailable ? "OK" : "FAILED";
                     var msg = usage.IsAvailable
                         ? $"{usage.RequestsPercentage:F1}% used"
@@ -228,13 +260,14 @@ public class ProviderRefreshService : BackgroundService
 
                 foreach (var usage in filteredUsages)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     if (!activeProviderIds.Contains(usage.ProviderId))
                     {
                         if (!activeProviderIds.Contains(usage.ProviderId))
                         {
                             _logger.LogInformation("Auto-registering dynamic provider: {ProviderId}", usage.ProviderId);
                         }
-                        
+
                         var dynamicConfig = new ProviderConfig
                         {
                             ProviderId = usage.ProviderId,
@@ -242,21 +275,24 @@ public class ProviderRefreshService : BackgroundService
                             AuthSource = usage.AuthSource,
                             ApiKey = "dynamic"
                         };
-                        
+
                         await _database.StoreProviderAsync(dynamicConfig, usage.ProviderName);
                         activeProviderIds.Add(usage.ProviderId);
                     }
                 }
 
+                cancellationToken.ThrowIfCancellationRequested();
                 await _database.StoreHistoryAsync(filteredUsages);
                 _logger.LogDebug("Stored {Count} provider histories", filteredUsages.Count);
 
                 foreach (var usage in filteredUsages.Where(u => !string.IsNullOrEmpty(u.RawJson)))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     await _database.StoreRawSnapshotAsync(usage.ProviderId, usage.RawJson!, usage.HttpStatus);
                 }
 
                 await DetectResetEventsAsync(filteredUsages);
+                cancellationToken.ThrowIfCancellationRequested();
                 var prefs = await _configService.GetPreferencesAsync();
                 CheckUsageAlerts(filteredUsages, prefs, configs);
 

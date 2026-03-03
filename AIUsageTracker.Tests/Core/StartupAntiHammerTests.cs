@@ -27,7 +27,8 @@ public class StartupAntiHammerTests
 
         public override Task TriggerRefreshAsync(
             bool forceAll = false,
-            IReadOnlyCollection<string>? includeProviderIds = null)
+            IReadOnlyCollection<string>? includeProviderIds = null,
+            CancellationToken cancellationToken = default)
         {
             TriggerCalls.Add((forceAll, includeProviderIds));
             return Task.CompletedTask;
@@ -127,13 +128,30 @@ public class StartupAntiHammerTests
     {
         var type = typeof(ProviderRefreshService);
         var method = type.GetMethod("TriggerRefreshAsync");
-        
+
         Assert.NotNull(method);
         var parameters = method.GetParameters();
-        
+
         var includeProviderIdsParam = parameters.FirstOrDefault(p => p.Name == "includeProviderIds");
         Assert.NotNull(includeProviderIdsParam);
         Assert.True(includeProviderIdsParam.ParameterType == typeof(IReadOnlyCollection<string>),
             "includeProviderIds should be IReadOnlyCollection<string>");
+    }
+
+    [Fact]
+    public void TriggerRefreshAsync_AcceptsCancellationTokenParameter()
+    {
+        var type = typeof(ProviderRefreshService);
+        var method = type.GetMethod("TriggerRefreshAsync");
+
+        Assert.NotNull(method);
+        var parameters = method.GetParameters();
+
+        var cancellationTokenParam = parameters.FirstOrDefault(p => p.Name == "cancellationToken");
+        Assert.NotNull(cancellationTokenParam);
+        Assert.True(cancellationTokenParam.ParameterType == typeof(CancellationToken),
+            "cancellationToken should be of type CancellationToken");
+        Assert.True(cancellationTokenParam.HasDefaultValue,
+            "cancellationToken should have default value");
     }
 }

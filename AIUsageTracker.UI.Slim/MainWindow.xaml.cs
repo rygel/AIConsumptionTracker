@@ -70,13 +70,9 @@ public partial class MainWindow : Window
 
         if (skipUiInitialization) return;
 
-        // Load preferences early
-        _preferences = UiPreferencesStore.LoadAsync().GetAwaiter().GetResult() ?? new AppPreferences();
-        _preferencesLoaded = true;
         _isPrivacyMode = _preferences.IsPrivacyMode;
         App.SetPrivacyMode(_isPrivacyMode);
 
-        // Apply visual preferences (including initial position)
         ApplyVisualPreferences(includePosition: true);
 
         MonitorLauncher.SetLogger(App.CreateLogger<MonitorLauncher>());
@@ -136,7 +132,15 @@ public partial class MainWindow : Window
         {
             LogDiagnostic("[DIAGNOSTIC] MainWindow Loaded");
 
-            // Initial load
+            if (!_preferencesLoaded)
+            {
+                _preferences = await UiPreferencesStore.LoadAsync() ?? new AppPreferences();
+                _preferencesLoaded = true;
+                _isPrivacyMode = _preferences.IsPrivacyMode;
+                App.SetPrivacyMode(_isPrivacyMode);
+                ApplyVisualPreferences(includePosition: true);
+            }
+
             await RefreshDataAsync();
             _refreshTimer.Start();
         }
