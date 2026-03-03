@@ -116,25 +116,31 @@ Identified during code review on 2026-03-03. These are areas where the codebase 
 
 ### Phase 1 - Quick Wins (High Impact, Low Effort)
 
-- [ ] Security scanning workflow (Priority: P1, Effort: S): Add dependency vulnerability scanning with `dotnet list package --vulnerable`
+- [x] Security scanning workflow (Priority: P1, Effort: S): Add dependency vulnerability scanning with `dotnet list package --vulnerable`
   - Run on PR and scheduled basis
   - Upload results to GitHub Security tab
   - Benefit: Catch vulnerable dependencies before production
 
-- [ ] Conditional workflow skipping (Priority: P1, Effort: S): Skip unnecessary workflows for documentation-only changes
+- [x] Conditional workflow skipping (Priority: P1, Effort: S): Skip unnecessary workflows for documentation-only changes
   - Use `paths-filter` or `paths-ignore` more aggressively
   - Skip builds when only markdown files change
   - Benefit: 30-40% reduction in CI minutes for docs PRs
 
-- [ ] Cache optimization (Priority: P1, Effort: S): Add Playwright browser caching, Docker layer caching
+- [x] Cache optimization (Priority: P1, Effort: S): Add Playwright browser caching, Docker layer caching
   - Cache `~/.cache/ms-playwright` separately
   - Use `restore-keys` for fallback cache hits
   - Benefit: Faster workflow execution
 
-- [ ] Build artifact compression (Priority: P2, Effort: S): Compress artifacts before upload, reduce retention days
+- [x] Build artifact compression (Priority: P2, Effort: S): Compress artifacts before upload, reduce retention days
   - Use `tar.gz` compression before upload
   - Reduce retention from 7 to 3 days for non-release builds
   - Benefit: Faster uploads, lower storage costs
+
+- [x] Add aggressive timeout safeguards (Priority: P1, Effort: S): Prevent runaway CI jobs
+  - All 12 workflows now have explicit timeout-minutes
+  - Reduced from default 6 hours to 2-15 minutes per job
+  - Documented timeout strategy at docs/CI_CD_TIMEOUTS.md
+  - Benefit: Prevents hung jobs, reduces CI cost waste
 
 ### Phase 2 - Medium Effort Improvements
 
