@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Changed (Architecture)
+- **Refactored all 18 providers to use ProviderBase**
+  - Created `ProviderBase` abstract class in `AIUsageTracker.Core/Providers/`
+  - Provides `CreateUnavailableUsage`, `CreateUnavailableUsageFromStatus`, and `CreateUnavailableUsageFromException` methods
+  - Eliminates ~174 lines of duplicate code across all providers
+  - Ensures consistent error handling and unavailable usage creation
+  - Providers refactored:
+    * AnthropicProvider, AntigravityProvider, ClaudeCodeProvider, CodexProvider
+    * DeepSeekProvider, EvolveMigrationProvider, GeminiProvider, GitHubCopilotProvider
+    * KimiProvider, MinimaxProvider, MistralProvider, OpenCodeProvider
+    * OpenCodeZenProvider, OpenAIProvider, OpenRouterProvider, SyntheticProvider
+    * XiaomiProvider, ZaiProvider
+  - Benefit: Easier maintenance, consistent error handling, reduced code duplication
+
 ## [2.2.27-beta.7] - 2026-03-03
 
 ### Fixed
