@@ -8,7 +8,7 @@ namespace AIUsageTracker.Core.Services;
 public class ProviderManager : IDisposable
 {
     private readonly IReadOnlyList<IProviderService> _providers;
-    private readonly IConfigLoader _configLoader;
+    private readonly IProviderConfigLoader _configLoader;
     private readonly Microsoft.Extensions.Logging.ILogger<ProviderManager> _logger;
     private List<ProviderUsage> _lastUsages = new();
     private List<ProviderConfig>? _lastConfigs;
@@ -18,7 +18,7 @@ public class ProviderManager : IDisposable
     public List<ProviderUsage> LastUsages => _lastUsages;
     public List<ProviderConfig>? LastConfigs => _lastConfigs;
 
-    public ProviderManager(IEnumerable<IProviderService> providers, IConfigLoader configLoader, Microsoft.Extensions.Logging.ILogger<ProviderManager> logger)
+    public ProviderManager(IEnumerable<IProviderService> providers, IProviderConfigLoader configLoader, Microsoft.Extensions.Logging.ILogger<ProviderManager> logger)
     {
         _providers = providers.ToList();
         _configLoader = configLoader;

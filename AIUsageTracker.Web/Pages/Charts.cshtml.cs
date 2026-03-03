@@ -12,13 +12,13 @@ namespace AIUsageTracker.Web.Pages;
 public class ChartsModel : PageModel
 {
     private const string ProviderColorsCacheKey = "charts-provider-colors-v1";
-    private readonly AIUsageTracker.Core.Interfaces.IConfigLoader _configLoader;
+    private readonly AIUsageTracker.Core.Interfaces.IProviderConfigLoader _configLoader;
     private readonly WebDatabaseService _dbService;
     private readonly IMemoryCache _memoryCache;
 
     public ChartsModel(
         WebDatabaseService dbService,
-        AIUsageTracker.Core.Interfaces.IConfigLoader configLoader,
+        AIUsageTracker.Core.Interfaces.IProviderConfigLoader configLoader,
         IMemoryCache memoryCache)
     {
         _dbService = dbService;

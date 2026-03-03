@@ -66,7 +66,7 @@ try
     });
     builder.Services.AddSingleton<WebDatabaseService>();
     builder.Services.AddSingleton<MonitorProcessService>();
-    builder.Services.AddSingleton<AIUsageTracker.Core.Interfaces.IConfigLoader, AIUsageTracker.Infrastructure.Configuration.JsonConfigLoader>();
+    builder.Services.AddSingleton<AIUsageTracker.Core.Interfaces.IProviderConfigLoader, AIUsageTracker.Infrastructure.Configuration.JsonConfigLoader>();
 
     var app = builder.Build();
 

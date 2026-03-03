@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AIUsageTracker.Infrastructure.Configuration;
 
-public class JsonConfigLoader : IConfigLoader
+public class JsonConfigLoader : IProviderConfigLoader, IPreferencesLoader
 {
     private readonly ILogger<JsonConfigLoader> _logger;
     private readonly ILogger<TokenDiscoveryService> _tokenDiscoveryLogger;
