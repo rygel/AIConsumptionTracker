@@ -69,11 +69,14 @@ function Get-FromMonitorApi {
     
     try {
         $response = Invoke-RestMethod -Uri "http://localhost:5000/api/usage/$ProviderId" -ErrorAction SilentlyContinue
-        return $response
+        if ($response -and $response.provider_id) {
+            return $response
+        }
     }
     catch {
-        return $null
+        # Ignore
     }
+    return $null
 }
 
 $availableProviders = @{
@@ -154,7 +157,15 @@ $availableProviders = @{
             $endpoint = "https://account.synthetic.ai/api/usage"
             Invoke-ProviderRequest -Name "Synthetic" -ApiKey $apiKey -Endpoint $endpoint -Headers @{ "Authorization" = "Bearer $apiKey" }
         }
-        else { Write-Host "[Synthetic] SYNTHETIC_API_KEY not set" -ForegroundColor Yellow }
+        else {
+            $monitorData = Get-FromMonitorApi -ProviderId "synthetic"
+            if ($monitorData) {
+                $filename = Join-Path $OutputDir "synthetic-$timestamp.json"
+                $monitorData | ConvertTo-Json -Depth 10 | Out-File -FilePath $filename -Encoding UTF8
+                Write-Host "[Synthetic] Saved from Monitor cache to $filename" -ForegroundColor Green
+            }
+            else { Write-Host "[Synthetic] No API key or Monitor not available" -ForegroundColor Yellow }
+        }
     }
     
     "opencode" = {
