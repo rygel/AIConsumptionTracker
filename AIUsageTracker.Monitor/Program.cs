@@ -12,6 +12,7 @@ using AIUsageTracker.Infrastructure.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 // Check for debug flag early
 bool isDebugMode = args.Contains("--debug");
@@ -155,6 +156,7 @@ else
     builder.Services.AddSingleton<INotificationService, NoOpNotificationService>();
 }
 builder.Services.AddSingleton<IConfigService, ConfigService>();
+builder.Services.AddProvidersFromAssembly();
 builder.Services.AddSingleton<ProviderRefreshService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ProviderRefreshService>());
 

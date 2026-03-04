@@ -27,7 +27,7 @@ public class ProviderRefreshServiceTests
         _mockDatabase = new Mock<IUsageDatabase>();
         _mockNotificationService = new Mock<INotificationService>();
         _mockHttpClientFactory = new Mock<IHttpClientFactory>();
-        
+
         // ConfigService needs a logger, using NullLogger
         var configLogger = new Mock<ILogger<ConfigService>>();
         _mockConfigService = new Mock<ConfigService>(configLogger.Object);
@@ -38,7 +38,8 @@ public class ProviderRefreshServiceTests
             _mockDatabase.Object,
             _mockNotificationService.Object,
             _mockHttpClientFactory.Object,
-            _mockConfigService.Object);
+            _mockConfigService.Object,
+            Enumerable.Empty<IProviderService>());
     }
 
     [Fact]
