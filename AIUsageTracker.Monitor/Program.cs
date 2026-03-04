@@ -669,9 +669,11 @@ public class FileLogger : ILogger
             {
                 File.AppendAllText(_logFile, logEntry + Environment.NewLine);
             }
-            catch
+            catch (Exception)
             {
-                // Ignore logging errors
+                // Intentionally suppressed: File logging failure in custom logger.
+                // Cannot log this error anywhere since logging itself failed.
+                // This prevents recursive logging attempts and ensures the application continues.
             }
         }
     }

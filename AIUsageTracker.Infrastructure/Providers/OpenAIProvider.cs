@@ -243,9 +243,10 @@ public class OpenAIProvider : ProviderBase
                     AccountId = ReadString(openai, "accountId")
                 };
             }
-            catch
+            catch (Exception)
             {
-                // continue with next candidate
+                // Intentionally suppressed: scanning multiple candidate auth file paths.
+                // Malformed or inaccessible files are skipped to try next candidate.
             }
         }
 
@@ -459,8 +460,10 @@ public class OpenAIProvider : ProviderBase
 
             return (email, planType);
         }
-        catch
+        catch (Exception)
         {
+            // Intentionally suppressed: JWT parsing failures are non-critical.
+            // Returns (null, null) to indicate claims could not be extracted.
             return (null, null);
         }
     }
