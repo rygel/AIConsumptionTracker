@@ -18,6 +18,7 @@ public class ProviderRefreshService : BackgroundService
     private readonly INotificationService _notificationService;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfigService _configService;
+    private readonly IEnumerable<IProviderService> _providers;
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
     private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(5);
     private static bool _debugMode = false;
@@ -53,7 +54,8 @@ public class ProviderRefreshService : BackgroundService
         IUsageDatabase database,
         INotificationService notificationService,
         IHttpClientFactory httpClientFactory,
-        IConfigService configService)
+        IConfigService configService,
+        IEnumerable<IProviderService> providers)
     {
         _logger = logger;
         _loggerFactory = loggerFactory;
@@ -61,6 +63,7 @@ public class ProviderRefreshService : BackgroundService
         _notificationService = notificationService;
         _httpClientFactory = httpClientFactory;
         _configService = configService;
+        _providers = providers;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -142,49 +145,21 @@ public class ProviderRefreshService : BackgroundService
     {
         _logger.LogDebug("Initializing providers...");
 
-        var httpClient = _httpClientFactory.CreateClient();
         var configLoader = new JsonConfigLoader(
             _loggerFactory.CreateLogger<JsonConfigLoader>(),
             _loggerFactory.CreateLogger<TokenDiscoveryService>());
 
-        var gitHubAuthService = new GitHubAuthService(
-            httpClient,
-            _loggerFactory.CreateLogger<GitHubAuthService>());
-
-        var providers = new List<IProviderService>
-        {
-            new ZaiProvider(httpClient, _loggerFactory.CreateLogger<ZaiProvider>()),
-            new AntigravityProvider(_loggerFactory.CreateLogger<AntigravityProvider>()),
-            new OpenCodeProvider(httpClient, _loggerFactory.CreateLogger<OpenCodeProvider>()),
-            new CodexProvider(httpClient, _loggerFactory.CreateLogger<CodexProvider>()),
-            new OpenAIProvider(httpClient, _loggerFactory.CreateLogger<OpenAIProvider>()),
-            new AnthropicProvider(_loggerFactory.CreateLogger<AnthropicProvider>()),
-            new GeminiProvider(httpClient, _loggerFactory.CreateLogger<GeminiProvider>()),
-            new DeepSeekProvider(httpClient, _loggerFactory.CreateLogger<DeepSeekProvider>()),
-            new OpenRouterProvider(httpClient, _loggerFactory.CreateLogger<OpenRouterProvider>()),
-            new KimiProvider(httpClient, _loggerFactory.CreateLogger<KimiProvider>()),
-            new MinimaxProvider(httpClient, _loggerFactory.CreateLogger<MinimaxProvider>()),
-            new MistralProvider(httpClient, _loggerFactory.CreateLogger<MistralProvider>()),
-            new XiaomiProvider(httpClient, _loggerFactory.CreateLogger<XiaomiProvider>()),
-            new GitHubCopilotProvider(
-                httpClient,
-                _loggerFactory.CreateLogger<GitHubCopilotProvider>(),
-                gitHubAuthService),
-            new ClaudeCodeProvider(_loggerFactory.CreateLogger<ClaudeCodeProvider>(), httpClient),
-            new OpenCodeZenProvider(_loggerFactory.CreateLogger<OpenCodeZenProvider>()),
-            new EvolveMigrationProvider(_loggerFactory.CreateLogger<EvolveMigrationProvider>()),
-            new SyntheticProvider(httpClient, _loggerFactory.CreateLogger<SyntheticProvider>()),
-        };
+        var providerList = _providers.ToList();
 
         _providerManager = new ProviderManager(
-            providers,
+            providerList,
             configLoader,
             _loggerFactory.CreateLogger<ProviderManager>());
 
         _logger.LogDebug("Initialized {Count} providers: {Providers}",
-            providers.Count, string.Join(", ", providers.Select(p => p.ProviderId)));
+            providerList.Count, string.Join(", ", providerList.Select(p => p.ProviderId)));
 
-        _logger.LogInformation("Loaded {Count} providers", providers.Count);
+        _logger.LogInformation("Loaded {Count} providers", providerList.Count);
     }
 
     public virtual async Task TriggerRefreshAsync(

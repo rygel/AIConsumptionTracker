@@ -3,6 +3,7 @@ using AIUsageTracker.Core.Models;
 using AIUsageTracker.Monitor.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
+using System.Linq;
 using Xunit;
 
 namespace AIUsageTracker.Tests.Core;
@@ -17,8 +18,9 @@ public class StartupAntiHammerTests
             IUsageDatabase database,
             INotificationService notificationService,
             IHttpClientFactory httpClientFactory,
-            IConfigService configService)
-            : base(logger, loggerFactory, database, notificationService, httpClientFactory, configService)
+            IConfigService configService,
+            System.Collections.Generic.IEnumerable<IProviderService> providers)
+            : base(logger, loggerFactory, database, notificationService, httpClientFactory, configService, providers)
         {
         }
 
@@ -61,7 +63,8 @@ public class StartupAntiHammerTests
             mockDb.Object,
             mockNotificationService.Object,
             mockHttpClientFactory.Object,
-            mockConfigService.Object);
+            mockConfigService.Object,
+            Enumerable.Empty<IProviderService>());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
@@ -98,7 +101,8 @@ public class StartupAntiHammerTests
             mockDb.Object,
             mockNotificationService.Object,
             mockHttpClientFactory.Object,
-            mockConfigService.Object);
+            mockConfigService.Object,
+            Enumerable.Empty<IProviderService>());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
