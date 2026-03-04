@@ -4,6 +4,42 @@
 
 ## Unreleased
 
+### Added (Architecture Improvements - Phase 1)
+- **Provider Exception Types** (P1 Task 3)
+  - Created structured exception hierarchy in `AIUsageTracker.Core/Exceptions/`
+  - Base `ProviderException` with ProviderId, ErrorType, HttpStatusCode properties
+  - Specific exceptions: `ProviderAuthenticationException`, `ProviderNetworkException`, `ProviderTimeoutException`, `ProviderRateLimitException`, `ProviderServerException`, `ProviderConfigurationException`, `ProviderResponseException`, `ProviderDeserializationException`
+  - Error type enumeration: AuthenticationError, NetworkError, TimeoutError, RateLimitError, ServerError, ConfigurationError, DeserializationError, InvalidResponseError
+  - Updated `ProviderBase` with `CreateUnavailableUsageFromProviderException()` helper
+  - Enables targeted retry logic and better error monitoring
+- **HTTP Request Builder Extensions** (P2 Task 1)
+  - Created `HttpRequestBuilderExtensions.cs` with standardized request patterns
+  - `CreateBearerRequest()` - Creates GET request with Bearer token
+  - `CreateBearerPostRequest<T>()` - Creates POST with Bearer token and JSON body
+  - `SendGetBearerAsync()` - Sends GET with automatic exception mapping
+  - `SendGetBearerAsync<T>()` - Sends GET and deserializes JSON response
+  - Automatic HTTP status code to ProviderException mapping
+  - Configurable timeouts and CancellationToken support
+  - Eliminates duplicate request creation code across 15+ providers
+- **Shared Helper Utilities** (P2 Task 2)
+  - Created `ResetTimeParser` utility class for consistent reset time handling
+  - `FromUnixSeconds()` / `FromUnixMilliseconds()` - Unix timestamp parsing
+  - `FromSecondsFromNow()` - Relative time offset parsing
+  - `FromIso8601()` - ISO 8601 date parsing
+  - `Parse()` - Multi-format parsing with fallbacks
+  - `FromJsonElement()` - JSON auto-detection
+  - `FormatForDisplay()` - Consistent display formatting
+  - `GetSoonest()` / `IsFuture()` / `GetTimeRemaining()` - Utility operations
+  - Enhanced `UsageMath` with `CalculateUtilizationPercent()` and `PercentOf()`
+  - Eliminates duplicate reset time parsing logic across 10+ providers
+- **Magic String Constants** (P3 Task 1)
+  - Created `ProviderEndpoints.cs` with API endpoint URLs for 15+ providers
+  - Created `HttpHeaders.cs` with standard HTTP header names and values
+  - Created `ProviderErrorMessages.cs` with standardized error messages
+  - Consistent error messaging across all providers
+  - Foundation for localization support
+  - Reduces typos and enables IntelliSense
+
 ### Security
 - **Fixed CVE-2024-30105**: Updated System.Text.Json from 8.0.0 to 8.0.5
   - HIGH severity vulnerability in `JsonSerializer.DeserializeAsyncEnumerable`
