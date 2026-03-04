@@ -9,6 +9,9 @@ public static class UsageMath
     private const double AnomalyMadScale = 1.4826;
     private const double MinimumAbsoluteRateDeltaPerDay = 1.0;
 
+    /// <summary>
+    /// Clamps a percentage value to the range [0, 100], handling NaN and Infinity.
+    /// </summary>
     public static double ClampPercent(double value)
     {
         if (double.IsNaN(value) || double.IsInfinity(value))
@@ -19,6 +22,12 @@ public static class UsageMath
         return Math.Clamp(value, 0d, 100d);
     }
 
+    /// <summary>
+    /// Calculates the percentage of used items out of total.
+    /// </summary>
+    /// <param name="used">Number of items used</param>
+    /// <param name="total">Total number of items</param>
+    /// <returns>Percentage used (0-100), or 0 if total is invalid</returns>
     public static double CalculateUsedPercent(double used, double total)
     {
         if (total <= 0)
@@ -29,6 +38,12 @@ public static class UsageMath
         return ClampPercent((used / total) * 100d);
     }
 
+    /// <summary>
+    /// Calculates the percentage of remaining items out of total.
+    /// </summary>
+    /// <param name="used">Number of items used</param>
+    /// <param name="total">Total number of items</param>
+    /// <returns>Percentage remaining (0-100), or 100 if total is invalid</returns>
     public static double CalculateRemainingPercent(double used, double total)
     {
         if (total <= 0)
@@ -39,6 +54,41 @@ public static class UsageMath
         return ClampPercent(((total - used) / total) * 100d);
     }
 
+    /// <summary>
+    /// Calculates the utilization percentage for display purposes.
+    /// For quota-based providers, shows remaining percentage.
+    /// For usage-based providers, shows used percentage.
+    /// </summary>
+    public static double CalculateUtilizationPercent(double used, double total, bool isQuotaBased)
+    {
+        if (total <= 0)
+        {
+            return isQuotaBased ? 100 : 0;
+        }
+
+        var usedPercent = CalculateUsedPercent(used, total);
+        return isQuotaBased ? (100 - usedPercent) : usedPercent;
+    }
+
+    /// <summary>
+    /// Calculates what percentage one value is of another.
+    /// </summary>
+    /// <param name="value">The value to calculate percentage for</param>
+    /// <param name="of">The total/reference value</param>
+    /// <returns>Percentage (0-100), or 0 if reference is invalid</returns>
+    public static double PercentOf(double value, double of)
+    {
+        if (of <= 0 || double.IsNaN(value) || double.IsInfinity(value))
+        {
+            return 0;
+        }
+
+        return ClampPercent((value / of) * 100d);
+    }
+
+    /// <summary>
+    /// Gets the effective used percentage for a provider, accounting for quota vs usage-based.
+    /// </summary>
     public static double GetEffectiveUsedPercent(ProviderUsage usage)
     {
         ArgumentNullException.ThrowIfNull(usage);
