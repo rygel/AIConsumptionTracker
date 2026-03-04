@@ -33,6 +33,15 @@
     * OpenCodeZenProvider, OpenAIProvider, OpenRouterProvider, SyntheticProvider
     * XiaomiProvider, ZaiProvider
   - Benefit: Easier maintenance, consistent error handling, reduced code duplication
+- **Added HTTP Retry Policy with Polly** (P1 Architecture)
+  - Added Polly and Microsoft.Extensions.Http.Polly packages
+  - Created `ResilientHttpClient` with retry and circuit breaker patterns
+  - Created `AddResilientHttpClient()` extension method for DI registration
+  - Retry policy: 3 attempts with exponential backoff (2^n seconds)
+  - Circuit breaker: 5 failures triggers 30s break
+  - Integrated into Monitor and CLI applications
+  - All HTTP requests now automatically resilient to transient failures
+  - Benefit: Improved reliability, automatic retries, circuit breaker protection
 
 ### Changed (CI/CD Phase 1 Fixes)
 - **Fixed security scan workflow** to run on Windows instead of Ubuntu
