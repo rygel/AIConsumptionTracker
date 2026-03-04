@@ -1,5 +1,7 @@
 # Changelog
 
+## [2.2.28-beta.9] - 2026-03-04
+
 ## Unreleased
 
 ### Security
@@ -21,6 +23,15 @@
 - **Test expectations**: Updated CodexProviderTests to match actual model name extraction behavior
 
 ### Changed (Architecture)
+- **Provider Registration Consolidation** (P2 Architecture)
+  - Created `ProviderRegistrationExtensions.cs` with `AddProvidersFromAssembly()` extension method
+  - Uses reflection to scan and register all `IProviderService` implementations automatically
+  - Refactored `ProviderRefreshService` to accept `IEnumerable<IProviderService>` via constructor injection
+  - Removed manual `InitializeProviders()` method - providers now injected via DI
+  - Updated `Monitor/Program.cs` to use `AddProvidersFromAssembly()` for registration
+  - Eliminates manual registration maintenance when adding new providers
+  - All 162 tests pass with updated test fixtures
+  - Benefit: Automatic provider discovery, reduced manual configuration, cleaner architecture
 - **Refactored all 18 providers to use ProviderBase**
   - Created `ProviderBase` abstract class in `AIUsageTracker.Core/Providers/`
   - Provides `CreateUnavailableUsage`, `CreateUnavailableUsageFromStatus`, and `CreateUnavailableUsageFromException` methods
