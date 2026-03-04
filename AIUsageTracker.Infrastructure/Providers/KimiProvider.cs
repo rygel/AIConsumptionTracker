@@ -64,6 +64,34 @@ public class KimiProvider : ProviderBase
             var details = new List<ProviderUsageDetail>();
             TimeSpan minDiff = TimeSpan.MaxValue;
 
+            // Add weekly limit from usage as Secondary detail
+            if (limit > 0 && remaining >= 0)
+            {
+                var weeklyRemainingPct = UsageMath.CalculateRemainingPercent(used, limit);
+                DateTime? weeklyResetDt = null;
+                if (!string.IsNullOrEmpty(data.Usage.ResetTime) && 
+                    DateTime.TryParse(data.Usage.ResetTime, CultureInfo.InvariantCulture, DateTimeStyles.None, out var weeklyDt))
+                {
+                    weeklyResetDt = weeklyDt.ToLocalTime();
+                    var diff = weeklyResetDt.Value - DateTime.Now;
+                    if (diff.TotalSeconds > 0 && diff < minDiff)
+                    {
+                        minDiff = diff;
+                        soonestResetDt = weeklyResetDt;
+                    }
+                }
+
+                details.Add(new ProviderUsageDetail
+                {
+                    Name = "Weekly Limit",
+                    Used = $"{weeklyRemainingPct.ToString("F1", CultureInfo.InvariantCulture)}%",
+                    Description = $"{remaining} remaining{(!string.IsNullOrEmpty(data.Usage.ResetTime) ? $" (Resets: {FormatResetTime(data.Usage.ResetTime)})" : "")}",
+                    NextResetTime = weeklyResetDt,
+                    DetailType = ProviderUsageDetailType.QuotaWindow,
+                    WindowKind = WindowKind.Secondary
+                });
+            }
+
             if (data.Limits != null)
             {
                 foreach (var limitItem in data.Limits)
