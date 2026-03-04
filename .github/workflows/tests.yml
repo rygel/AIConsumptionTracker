@@ -68,10 +68,7 @@ jobs:
           path: |
             AIUsageTracker.Tests/bin/Debug/net8.0-windows10.0.17763.0/**
             AIUsageTracker.Monitor.Tests/bin/Debug/net8.0-windows10.0.17763.0/**
-            AIUsageTracker.Web/bin/Debug/net8.0/**
             AIUsageTracker.Web.Tests/bin/Debug/net8.0/**
-            AIUsageTracker.Infrastructure/bin/Debug/net8.0/**
-            AIUsageTracker.Core/bin/Debug/net8.0/**
             scripts/Seeder/bin/Debug/net8.0/**
             scripts/run-vstest-with-retry.ps1
             .github/test-quarantine.txt
@@ -166,8 +163,8 @@ jobs:
       - name: Install Playwright browsers
         shell: pwsh
         run: |
-          $ciBinaries = Join-Path $PWD "_ci_test_binaries"
-          $playwrightDir = Join-Path $ciBinaries "AIUsageTracker.Web.Tests\bin\Debug\net8.0\.playwright"
+          dotnet build .\AIUsageTracker.Web.Tests\AIUsageTracker.Web.Tests.csproj -c Debug
+          $playwrightDir = ".\AIUsageTracker.Web.Tests\bin\Debug\net8.0\.playwright"
           if (Test-Path $playwrightDir) {
             Push-Location $playwrightDir
             try {
@@ -178,6 +175,10 @@ jobs:
           } else {
             Write-Host "Warning: Playwright package not found at expected location: $playwrightDir"
           }
+
+      - name: Build Web project
+        shell: pwsh
+        run: dotnet build .\AIUsageTracker.Web\AIUsageTracker.Web.csproj -c Debug
 
       - name: Seed test database from fixture
         shell: pwsh
@@ -197,8 +198,7 @@ jobs:
       - name: Start Web Application
         shell: pwsh
         run: |
-          $ciBinaries = Join-Path $PWD "_ci_test_binaries"
-          $webProject = Join-Path $ciBinaries "AIUsageTracker.Web\AIUsageTracker.Web.csproj"
+          $webProject = ".\AIUsageTracker.Web\AIUsageTracker.Web.csproj"
           $proc = Start-Process -FilePath "dotnet" -ArgumentList "run --project $webProject --configuration Debug --urls=http://localhost:5100" -PassThru -NoNewWindow
           $env:WEB_APP_PID = $proc.Id
           Write-Host "Web app started with PID: $($proc.Id)"
@@ -233,7 +233,7 @@ jobs:
         run: |
           $ciBinaries = Join-Path $PWD "_ci_test_binaries"
           $scriptPath = Join-Path $ciBinaries "scripts\run-vstest-with-retry.ps1"
-          $assemblyPath = Join-Path $ciBinaries "AIUsageTracker.Web.Tests\bin\Debug\net8.0\AIUsageTracker.Web.Tests.dll"
+          $assemblyPath = ".\AIUsageTracker.Web.Tests\bin\Debug\net8.0\AIUsageTracker.Web.Tests.dll"
           $quarantinePath = Join-Path $ciBinaries ".github\test-quarantine.txt"
           powershell -NoProfile -ExecutionPolicy Bypass -File $scriptPath -AssemblyPath $assemblyPath -SuiteName web-tests -QuarantineFile $quarantinePath -MaxRetries 0 -AttemptTimeoutMinutes 8 -HangTimeoutSeconds 480
 
