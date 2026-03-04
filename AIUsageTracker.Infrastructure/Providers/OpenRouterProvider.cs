@@ -2,12 +2,12 @@ using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class OpenRouterProvider : IProviderService
+public class OpenRouterProvider : ProviderBase
 {
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "openrouter",
@@ -17,8 +17,8 @@ public class OpenRouterProvider : IProviderService
         defaultConfigType: "pay-as-you-go",
         includeInWellKnownProviders: true);
 
-    public ProviderDefinition Definition => StaticDefinition;
-    public string ProviderId => StaticDefinition.ProviderId;
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenRouterProvider> _logger;
 
@@ -28,7 +28,7 @@ public class OpenRouterProvider : IProviderService
         _logger = logger;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         _logger.LogDebug("Starting OpenRouter usage fetch for provider {ProviderId}", config.ProviderId);
 
@@ -226,12 +226,15 @@ public class OpenRouterProvider : IProviderService
         _logger.LogInformation("OpenRouter usage calculated - Total: {Total}, Used: {Used}, Remaining: {Remaining}, RemainingPercentage: {RemainingPercentage}%",
             total, used, remaining, remainingPercentage);
         
+        // Find spending limit detail for reset time (use typed fields, not string matching)
         string mainReset = "";
-        var spendingLimitDetail = details.FirstOrDefault(d => d.Name == "Spending Limit");
+        DateTime? spendingLimitResetTime = null;
+        var spendingLimitDetail = details.FirstOrDefault(d => d.DetailType == ProviderUsageDetailType.Other && d.NextResetTime.HasValue);
         if (spendingLimitDetail != null && spendingLimitDetail.Description.Contains("(Resets:"))
         {
             var idx = spendingLimitDetail.Description.IndexOf("(Resets:");
             if (idx >= 0) mainReset = " " + spendingLimitDetail.Description.Substring(idx);
+            spendingLimitResetTime = spendingLimitDetail.NextResetTime;
         }
 
         return new[] { new ProviderUsage
@@ -246,7 +249,7 @@ public class OpenRouterProvider : IProviderService
             IsQuotaBased = true,
             IsAvailable = true,
             Description = $"{remaining.ToString("F2", CultureInfo.InvariantCulture)} Credits Remaining{mainReset}",
-            NextResetTime = spendingLimitDetail?.NextResetTime,
+            NextResetTime = spendingLimitResetTime,
             Details = details
         }};
     }

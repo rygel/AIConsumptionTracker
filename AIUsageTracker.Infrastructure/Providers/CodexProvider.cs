@@ -2,13 +2,13 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class CodexProvider : IProviderService
+public class CodexProvider : ProviderBase
 {
     private const string UsageEndpoint = "https://chatgpt.com/backend-api/wham/usage";
     private const string ProfileClaimKey = "https://api.openai.com/profile";
@@ -26,8 +26,8 @@ public class CodexProvider : IProviderService
         },
         supportsChildProviderIds: true);
 
-    public ProviderDefinition Definition => StaticDefinition;
-    public string ProviderId => StaticDefinition.ProviderId;
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<CodexProvider> _logger;
     private readonly string _authFilePath;
@@ -46,7 +46,7 @@ public class CodexProvider : IProviderService
             : authFilePath;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         try
         {
@@ -73,10 +73,9 @@ public class CodexProvider : IProviderService
             using var response = await _httpClient.SendAsync(request);
             var content = await response.Content.ReadAsStringAsync();
 
-            var unavailableFromStatus = CreateUnavailableUsageFromStatus(response);
-            if (unavailableFromStatus != null)
+            if (!response.IsSuccessStatusCode)
             {
-                return new[] { unavailableFromStatus };
+                return new[] { CreateUnavailableUsageFromStatus(response) };
             }
 
             using var jsonDoc = JsonDocument.Parse(content);
@@ -115,21 +114,6 @@ public class CodexProvider : IProviderService
         }
 
         return request;
-    }
-
-    private ProviderUsage? CreateUnavailableUsageFromStatus(HttpResponseMessage response)
-    {
-        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-        {
-            return CreateUnavailableUsage($"Authentication failed ({(int)response.StatusCode})");
-        }
-
-        if (!response.IsSuccessStatusCode)
-        {
-            return CreateUnavailableUsage($"Usage request failed ({(int)response.StatusCode})");
-        }
-
-        return null;
     }
 
     private static bool TryGetErrorDetailMessage(JsonElement root, out string message)
@@ -701,18 +685,15 @@ public class CodexProvider : IProviderService
 
     private static SparkWindow ExtractSparkWindow(JsonElement root)
     {
+        // Look in additional_rate_limits array - these are spark windows by structure
         if (root.TryGetProperty("additional_rate_limits", out var additionalRateLimits) &&
             additionalRateLimits.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in additionalRateLimits.EnumerateArray())
             {
-                var limitName = ReadString(item, "limit_name");
-                if (string.IsNullOrWhiteSpace(limitName) ||
-                    !limitName.Contains("spark", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
+                // Spark windows have a model_name or model field and rate_limit data
+                var modelName = ReadString(item, "model_name") ?? ReadString(item, "model");
+                
                 if (!item.TryGetProperty("rate_limit", out var sparkRateLimit))
                 {
                     continue;
@@ -722,21 +703,17 @@ public class CodexProvider : IProviderService
                 var resetAfterSeconds = ReadDouble(sparkRateLimit, "primary_window", "reset_after_seconds");
                 if (usedPercent.HasValue || resetAfterSeconds.HasValue)
                 {
-                    var modelName = ReadString(item, "model_name") ?? ReadString(item, "model");
+                    var limitName = ReadString(item, "limit_name");
                     return new SparkWindow(limitName, modelName, usedPercent, resetAfterSeconds);
                 }
             }
         }
 
+        // Look in rate_limit object properties
         if (root.TryGetProperty("rate_limit", out var rateLimit) && rateLimit.ValueKind == JsonValueKind.Object)
         {
             foreach (var property in rateLimit.EnumerateObject())
             {
-                if (!property.Name.Contains("spark", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
                 var usedPercent = ReadDouble(property.Value, "primary_window", "used_percent");
                 var resetAfterSeconds = ReadDouble(property.Value, "primary_window", "reset_after_seconds");
                 if (usedPercent.HasValue || resetAfterSeconds.HasValue)
@@ -811,24 +788,6 @@ public class CodexProvider : IProviderService
     private static bool IsEmailLike(string? value)
     {
         return !string.IsNullOrWhiteSpace(value) && value.Contains('@');
-    }
-
-    private ProviderUsage CreateUnavailableUsage(string message)
-    {
-        return new ProviderUsage
-        {
-            ProviderId = ProviderId,
-            ProviderName = "OpenAI (Codex)",
-            IsAvailable = false,
-            IsQuotaBased = true,
-            PlanType = PlanType.Coding,
-            RequestsPercentage = 0,
-            RequestsUsed = 0,
-            RequestsAvailable = 100,
-            UsageUnit = "Quota %",
-            Description = message,
-            AuthSource = "Codex Native"
-        };
     }
 
     private sealed class CodexAuth
