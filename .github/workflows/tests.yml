@@ -166,7 +166,8 @@ jobs:
       - name: Install Playwright browsers
         shell: pwsh
         run: |
-          $playwrightDir = "\_ci_test_binaries\AIUsageTracker.Web.Tests\bin\Debug\net8.0\.playwright"
+          $ciBinaries = Join-Path $PWD "_ci_test_binaries"
+          $playwrightDir = Join-Path $ciBinaries "AIUsageTracker.Web.Tests\bin\Debug\net8.0\.playwright"
           if (Test-Path $playwrightDir) {
             Push-Location $playwrightDir
             try {
@@ -175,25 +176,29 @@ jobs:
               Pop-Location
             }
           } else {
-            Write-Host "Warning: Playwright package not found at expected location."
+            Write-Host "Warning: Playwright package not found at expected location: $playwrightDir"
           }
 
       - name: Seed test database from fixture
         shell: pwsh
         run: |
-          $seederPath = "\_ci_test_binaries\scripts\Seeder\bin\Debug\net8.0\Seeder.dll"
-          $fixturePath = "\_ci_test_binaries\test-fixtures\provider-data.json"
+          $ciBinaries = Join-Path $PWD "_ci_test_binaries"
+          $seederPath = Join-Path $ciBinaries "scripts\Seeder\bin\Debug\net8.0\Seeder.dll"
+          $fixturePath = Join-Path $ciBinaries "test-fixtures\provider-data.json"
           if (Test-Path $seederPath) {
             & dotnet $seederPath $fixturePath
           } else {
             Write-Host "Error: Seeder not found at expected location: $seederPath"
+            Write-Host "Listing _ci_test_binaries contents:"
+            Get-ChildItem -Path $ciBinaries -Recurse -Depth 2 | Select-Object -First 20 FullName
             exit 1
           }
 
       - name: Start Web Application
         shell: pwsh
         run: |
-          $webProject = "\_ci_test_binaries\AIUsageTracker.Web\AIUsageTracker.Web.csproj"
+          $ciBinaries = Join-Path $PWD "_ci_test_binaries"
+          $webProject = Join-Path $ciBinaries "AIUsageTracker.Web\AIUsageTracker.Web.csproj"
           $proc = Start-Process -FilePath "dotnet" -ArgumentList "run --project $webProject --configuration Debug --urls=http://localhost:5100" -PassThru -NoNewWindow
           $env:WEB_APP_PID = $proc.Id
           Write-Host "Web app started with PID: $($proc.Id)"
@@ -225,14 +230,12 @@ jobs:
       - name: Run Web tests
         timeout-minutes: 8
         shell: pwsh
-        run: >
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1
-          -AssemblyPath .\_ci_test_binaries\AIUsageTracker.Web.Tests\bin\Debug\net8.0\AIUsageTracker.Web.Tests.dll
-          -SuiteName web-tests
-          -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt
-          -MaxRetries 0
-          -AttemptTimeoutMinutes 8
-          -HangTimeoutSeconds 480
+        run: |
+          $ciBinaries = Join-Path $PWD "_ci_test_binaries"
+          $scriptPath = Join-Path $ciBinaries "scripts\run-vstest-with-retry.ps1"
+          $assemblyPath = Join-Path $ciBinaries "AIUsageTracker.Web.Tests\bin\Debug\net8.0\AIUsageTracker.Web.Tests.dll"
+          $quarantinePath = Join-Path $ciBinaries ".github\test-quarantine.txt"
+          powershell -NoProfile -ExecutionPolicy Bypass -File $scriptPath -AssemblyPath $assemblyPath -SuiteName web-tests -QuarantineFile $quarantinePath -MaxRetries 0 -AttemptTimeoutMinutes 8 -HangTimeoutSeconds 480
 
       - name: Stop Web Application
         if: always()
