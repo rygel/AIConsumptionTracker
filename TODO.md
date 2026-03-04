@@ -28,7 +28,50 @@ All architecture streamlining tasks completed! See remaining feature backlog bel
 - [ ] Comparison views (Priority: P3, Effort: S/M): Add period-over-period comparisons (day/week/month) and provider leaderboard by cost and growth.
 - [ ] Data portability (Priority: P3, Effort: S): Support CSV/JSON export and import, plus scheduled encrypted SQLite backups.
 - [ ] Plugin-style provider SDK (Priority: P3, Effort: L): Add a provider extension model with shared auth/HTTP/parsing helpers and conformance tests.
-- [ ] Alert rules and notifications (Priority: P4, Effort: S/M): Add per-provider thresholds for remaining quota, spend percentage, and API failures with desktop and webhook notifications.
+
+---
+
+## CI/CD Improvements: Web Testing Infrastructure
+
+- [ ] Add Web project reference to Web.Tests project (Priority: P1, Effort: M)
+  - Currently: Web.Tests does not reference AIUsageTracker.Web
+  - Action: Add `<ProjectReference>` to Web.Tests.csproj
+  - Benefit: Enables Razor view testing with Playwright
+  - Files: AIUsageTracker.Web.Tests/AIUsageTracker.Web.Tests.csproj
+
+- [ ] Create Razor view compilation tests (Priority: P1, Effort: M)
+  - Currently: Only screenshot tests exist for Web
+  - Action: Add view rendering tests (Dashboard, Providers, Charts, History, Provider, Reliability)
+  - Action: Add model binding tests
+  - Action: Add layout partial tests
+  - Benefit: Validates Razor syntax, model binding, and view compilation
+  - Location: AIUsageTracker.Web.Tests/ViewTests.cs (new file)
+
+- [ ] Create Web service unit tests (Priority: P1, Effort: M)
+  - Currently: Web.Services have no test coverage
+  - Action: Add unit tests for WebDatabaseService, usage calculation services
+  - Action: Add tests for authentication/authorization (if any)
+  - Benefit: Comprehensive service layer testing
+  - Location: AIUsageTracker.Web.Tests/Services/ (new directory)
+
+- [ ] Create CI/CD workflow for Web tests (Priority: P1, Effort: M)
+  - Currently: No CI/CD job builds or tests Web project
+  - Action: Create `test-web.yml` workflow
+  - Action: Build Web.csproj in prepare job
+  - Action: Run Web unit tests and Playwright screenshot tests
+  - Action: Upload test results
+  - Benefit: Catches Razor/CSHTML errors before runtime
+  - Location: .github/workflows/test-web.yml (new file)
+
+- [ ] Test infrastructure complete (Priority: P1, Effort: S)
+  - Currently: Web.Tests lacks proper setup and validation
+  - Action: Add MSTestSettings.cs with proper configuration
+  - Action: Validate TestFixture/TestContext setup
+  - Action: Verify Playwright browser integration
+  - Benefit: Comprehensive testing foundation for Web UI
+  - Files: Complete Web.Tests project structure
+
+---
 
 ## Migration Plan: Provider-Owned Usage Details (Strict Contract)
 
