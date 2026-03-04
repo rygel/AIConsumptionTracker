@@ -49,7 +49,7 @@ Identified during code review on 2026-03-03. These are areas where the codebase 
   - Pattern: Each provider has `CreateUnavailableUsage(string message)` with nearly identical implementation
   - Benefit: Centralized error handling, consistent unavailable states, reduced code duplication
 
-- [ ] Standardize HTTP Retry Policy (Priority: P1, Effort: M): Create `ResilientHttpClient` wrapper with Polly policies (exponential backoff, circuit breaker, timeout) to replace inconsistent retry handling across providers.
+- [ ] Standardize HTTP Retry Policy (Priority: P1, Effort: M): Create `ResilientHttpClient` wrapper with Polly - DONE policies (exponential backoff, circuit breaker, timeout) to replace inconsistent retry handling across providers.
   - Current: Some providers don't retry, others have custom implementations
   - Locations: All HTTP-dependent providers
   - Benefit: Consistent resilience, centralized configuration, better reliability
