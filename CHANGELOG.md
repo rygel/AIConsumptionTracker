@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.2.28-beta.10] - 2026-03-04
+
+### Fixed
+- **Kimi Provider Dual Progress Bars**: Added `DetermineWindowKind()` method to correctly set `WindowKind.Secondary` for weekly limits (7+ days), enabling dual progress bar display in UI
+- Added test fixtures for Kimi API responses (`test-fixtures/kimi-api-responses.json`)
+- Added test case `GetUsageAsync_WithHourlyAndWeeklyLimits_SetsCorrectWindowKinds` to verify dual window logic
+
+### CI/CD
+- Added Web Tests job to CI pipeline
+- Improved Playwright browser installation in CI workflow
+- Fixed path handling in GitHub Actions PowerShell scripts
+
+## Unreleased
+
 ## [2.2.28-beta.9] - 2026-03-04
 
 ## Unreleased
