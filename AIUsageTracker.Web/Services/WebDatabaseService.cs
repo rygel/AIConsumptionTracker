@@ -135,7 +135,11 @@ public class WebDatabaseService
                 {
                     usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson);
                 }
-                catch { /* Ignore deserialization errors */ }
+                catch (JsonException ex)
+                {
+                    _logger.LogDebug(ex, "Failed to deserialize Details JSON for provider {ProviderId}: {Json}", 
+                        usage.ProviderId, usage.DetailsJson);
+                }
             }
             
             if (ProviderMetadataCatalog.TryGet(usage.ProviderId, out var definition))
