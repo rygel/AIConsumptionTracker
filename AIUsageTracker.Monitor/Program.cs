@@ -144,6 +144,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 if (isDebugMode) logger.LogDebug("Registering services...");
 builder.Services.AddSingleton(loggerFactory);
+builder.Services.AddSingleton(pathProvider);
 builder.Services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
 builder.Services.AddSingleton<UsageDatabase>();
 builder.Services.AddSingleton<IUsageDatabase>(sp => sp.GetRequiredService<UsageDatabase>());

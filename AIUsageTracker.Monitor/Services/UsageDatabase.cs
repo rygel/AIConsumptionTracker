@@ -1,4 +1,4 @@
-using System.Text.Json;
+using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
 using Dapper;
@@ -12,26 +12,22 @@ public class UsageDatabase : IUsageDatabase
     private readonly string _dbPath;
     private readonly string _connectionString;
     private readonly ILogger<UsageDatabase> _logger;
+    private readonly IAppPathProvider _pathProvider;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
-    public UsageDatabase(ILogger<UsageDatabase> logger)
+    public UsageDatabase(ILogger<UsageDatabase> logger, IAppPathProvider pathProvider)
     {
         _logger = logger;
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var dbDir = ResolveDatabaseDirectory(appData);
-        Directory.CreateDirectory(dbDir);
-        _dbPath = Path.Combine(dbDir, "usage.db");
-        _logger.LogInformation("Database path: {DbPath}", _dbPath);
+        _pathProvider = pathProvider;
+        _dbPath = _pathProvider.GetDatabasePath();
         
-        // Also write to file log
-        try {
-            var logDir = Path.Combine(appData, "AIUsageTracker", "logs");
-            Directory.CreateDirectory(logDir);
-            var logFile = Path.Combine(logDir, $"monitor_{DateTime.Now:yyyy-MM-dd}.log");
-            File.AppendAllText(logFile, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} Database path: {_dbPath}{Environment.NewLine}");
-        } catch (Exception ex) {
-            _logger.LogError(ex, "Database log write error");
+        var dbDir = Path.GetDirectoryName(_dbPath);
+        if (!string.IsNullOrEmpty(dbDir))
+        {
+            Directory.CreateDirectory(dbDir);
         }
+
+        _logger.LogInformation("Database path: {DbPath}", _dbPath);
         
         _connectionString = new SqliteConnectionStringBuilder
         {
@@ -41,27 +37,6 @@ public class UsageDatabase : IUsageDatabase
             Pooling = true,
             DefaultTimeout = 15
         }.ToString();
-    }
-
-    private static string ResolveDatabaseDirectory(string appData)
-    {
-        var primaryDir = Path.Combine(appData, "AIUsageTracker");
-        var legacyDir = Path.Combine(appData, "AIConsumptionTracker");
-
-        var primaryDb = Path.Combine(primaryDir, "usage.db");
-        var legacyDb = Path.Combine(legacyDir, "usage.db");
-
-        if (File.Exists(primaryDb))
-        {
-            return primaryDir;
-        }
-
-        if (File.Exists(legacyDb))
-        {
-            return legacyDir;
-        }
-
-        return primaryDir;
     }
 
     public async Task InitializeAsync()
