@@ -74,12 +74,40 @@ public partial class App : Application
         await Host.StartAsync();
         base.OnStartup(e);
 
+        if (e.Args.Contains("--test", StringComparer.OrdinalIgnoreCase) &&
+            e.Args.Contains("--screenshot", StringComparer.OrdinalIgnoreCase))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            _ = RunHeadlessScreenshotCaptureAsync(e.Args);
+            return;
+        }
+
+        try
+        {
+            Preferences = await UiPreferencesStore.LoadAsync();
+            ApplyTheme(Preferences.Theme);
+            IsPrivacyMode = Preferences.IsPrivacyMode;
+        }
+        catch
+        {
+            ApplyTheme(AppTheme.Dark);
+        }
+
+        InitializeTrayIcon();
+
         _mainWindow = Host.Services.GetRequiredService<MainWindow>();
         _mainWindow.Show();
     }
 
     protected override async void OnExit(ExitEventArgs e)
     {
+        _trayIcon?.Dispose();
+        foreach (var tray in _providerTrayIcons.Values)
+        {
+            tray.Dispose();
+        }
+        _providerTrayIcons.Clear();
+
         using (_host)
         {
             await Host.StopAsync();
@@ -92,31 +120,6 @@ public partial class App : Application
         IsPrivacyMode = enabled;
         Preferences.IsPrivacyMode = enabled;
         PrivacyChanged?.Invoke(null, enabled);
-    }
-
-    public static void ApplyTheme(Window window)
-    {
-    }
-
-    public static void ApplyTheme(AppTheme theme)
-    {
-    }
-
-    public static void ApplyTheme(Window window, string themeName)
-    {
-    }
-
-    public static void RenderWindowContent(Window window, Brush? accent = null)
-    {
-    }
-
-    public static void RenderWindowContent(Window window, string colorHex)
-    {
-    }
-
-    // Stub for tray icon logic - in a real refactor, these would be in a TrayIconService
-    public void UpdateProviderTrayIcons(IEnumerable<ProviderUsage> usages, IEnumerable<ProviderConfig> configs, AppPreferences prefs)
-    {
     }
 
     // Testing Support
