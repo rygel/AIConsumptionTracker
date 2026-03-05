@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.2.28-beta.17] - 2026-03-05
+
+### Added
+- **Web Project Architectural Extraction**: Completed the decoupling of the Web project by extracting core models (`ProviderInfo`, `ResetEvent`, `UsageSummary`, `ChartDataPoint`) and database interfaces (`IWebDatabaseRepository`, `IUsageAnalyticsService`, `IDataExportService`) into `AIUsageTracker.Core`.
+- **Improved Test Infrastructure**: Refactored `KestrelWebApplicationFactory` to robustly host a real Kestrel instance for Web Tests, eliminating `InvalidCastException` and allowing tests to pass both locally and in CI without manual app startup.
+- **Streamlined CI Workflow**: Simplified `.github/workflows/tests.yml` by removing manual web server orchestration steps, leveraging the improved self-hosting test logic.
+
+### Fixed
+- **CI Stability**: Resolved transient GitHub Actions infrastructure failures by improving action download reliability and streamlining job dependencies.
+
 ## [2.2.28-beta.16] - 2026-03-05
 
 ### Added
