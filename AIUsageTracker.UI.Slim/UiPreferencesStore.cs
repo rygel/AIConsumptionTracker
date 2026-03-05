@@ -2,12 +2,24 @@ using System.IO;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AIUsageTracker.UI.Slim;
 
 internal static class UiPreferencesStore
 {
-    private static readonly ILogger _logger = App.CreateLogger<App>();
+    private static ILogger GetLogger()
+    {
+        try
+        {
+            return App.CreateLogger<App>();
+        }
+        catch
+        {
+            return NullLogger.Instance;
+        }
+    }
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true
@@ -59,15 +71,15 @@ internal static class UiPreferencesStore
         }
         catch (JsonException ex)
         {
-            _logger.LogWarning(ex, "Failed to parse Slim preferences");
+            GetLogger().LogWarning(ex, "Failed to parse Slim preferences");
         }
         catch (IOException ex)
         {
-            _logger.LogWarning(ex, "Failed to read Slim preferences");
+            GetLogger().LogWarning(ex, "Failed to read Slim preferences");
         }
         catch (UnauthorizedAccessException ex)
         {
-            _logger.LogWarning(ex, "Access denied reading Slim preferences");
+            GetLogger().LogWarning(ex, "Access denied reading Slim preferences");
         }
 
         return new AppPreferences();
@@ -79,7 +91,7 @@ internal static class UiPreferencesStore
         var directory = Path.GetDirectoryName(path);
         if (string.IsNullOrWhiteSpace(directory))
         {
-            _logger.LogWarning("Failed to resolve Slim preferences directory");
+            GetLogger().LogWarning("Failed to resolve Slim preferences directory");
             return false;
         }
 
@@ -92,11 +104,11 @@ internal static class UiPreferencesStore
         }
         catch (IOException ex)
         {
-            _logger.LogWarning(ex, "Failed to write Slim preferences");
+            GetLogger().LogWarning(ex, "Failed to write Slim preferences");
         }
         catch (UnauthorizedAccessException ex)
         {
-            _logger.LogWarning(ex, "Access denied writing Slim preferences");
+            GetLogger().LogWarning(ex, "Access denied writing Slim preferences");
         }
 
         return false;
@@ -126,18 +138,17 @@ internal static class UiPreferencesStore
         }
         catch (JsonException ex)
         {
-            _logger.LogWarning(ex, "Failed to parse legacy Slim preferences");
+            GetLogger().LogWarning(ex, "Failed to parse legacy Slim preferences");
         }
         catch (IOException ex)
         {
-            _logger.LogWarning(ex, "Failed to read legacy Slim preferences");
+            GetLogger().LogWarning(ex, "Failed to read legacy Slim preferences");
         }
         catch (UnauthorizedAccessException ex)
         {
-            _logger.LogWarning(ex, "Access denied reading legacy Slim preferences");
+            GetLogger().LogWarning(ex, "Access denied reading legacy Slim preferences");
         }
 
         return null;
     }
 }
-
