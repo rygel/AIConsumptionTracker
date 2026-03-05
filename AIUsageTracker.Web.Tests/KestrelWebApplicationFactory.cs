@@ -1,13 +1,13 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.Net;
 
 namespace AIUsageTracker.Web.Tests;
 
-// We inherit from Object instead of WebApplicationFactory to completely avoid the TestServer cast issues.
 public class KestrelWebApplicationFactory<TEntryPoint> : IDisposable where TEntryPoint : class
 {
     private IHost? _host;
@@ -37,7 +37,7 @@ public class KestrelWebApplicationFactory<TEntryPoint> : IDisposable where TEntr
                 {
                     options.Listen(IPAddress.Loopback, 0); // Random port
                 });
-                webBuilder.UseStartup<AIUsageTracker.Web.Startup>();
+                webBuilder.UseStartup<TEntryPoint>();
             })
             .Build();
 
