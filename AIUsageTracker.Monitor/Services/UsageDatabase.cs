@@ -1,5 +1,6 @@
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Infrastructure.Providers;
 using Dapper;
 using Microsoft.Data.Sqlite;
@@ -67,24 +68,19 @@ public class UsageDatabase : IUsageDatabase
             using var connection = new SqliteConnection(_connectionString);
             await connection.OpenAsync();
 
-            // Important: do NOT use INSERT OR REPLACE here.
-            // REPLACE deletes then reinserts the parent row, which can cascade-delete
-            // provider_history/reset_events due FK ON DELETE CASCADE.
             const string sql = @"
                 INSERT INTO providers (
-                    provider_id, provider_name, auth_source,
-                    account_name, updated_at, is_active, config_json
+                    provider_id, provider_name, auth_source, account_name, created_at, updated_at, is_active, config_json
                 ) VALUES (
-                    @ProviderId, @ProviderName, @AuthSource,
-                    @AccountName, CURRENT_TIMESTAMP, @IsActive, @ConfigJson
+                    @ProviderId, @ProviderName, @AuthSource, @AccountName, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, @ConfigJson
                 )
                 ON CONFLICT(provider_id) DO UPDATE SET
                     provider_name = excluded.provider_name,
                     auth_source = excluded.auth_source,
                     account_name = excluded.account_name,
                     updated_at = CURRENT_TIMESTAMP,
-                    is_active = excluded.is_active,
-                    config_json = excluded.config_json";
+                    config_json = excluded.config_json,
+                    is_active = 1";
 
             var safeConfig = new
             {
@@ -96,14 +92,11 @@ public class UsageDatabase : IUsageDatabase
             await connection.ExecuteAsync(sql, new
             {
                 ProviderId = config.ProviderId,
-                ProviderName = !string.IsNullOrEmpty(friendlyName) ? friendlyName : config.ProviderId,
+                ProviderName = friendlyName ?? config.ProviderId,
                 AuthSource = config.AuthSource ?? "manual",
                 AccountName = (string?)null,
-                IsActive = !string.IsNullOrEmpty(config.ApiKey) ? 1 : 0,
                 ConfigJson = JsonSerializer.Serialize(safeConfig)
             });
-
-            _logger.LogDebug("Stored provider configuration: {ProviderId} ({Name})", config.ProviderId, friendlyName ?? config.ProviderId);
         }
         finally
         {
@@ -113,21 +106,18 @@ public class UsageDatabase : IUsageDatabase
 
     public async Task StoreHistoryAsync(IEnumerable<ProviderUsage> usages)
     {
-        // Filter out placeholder/unconfigured provider entries
-        // These represent providers that were queried but have no API key configured
-        // Check regardless of description - if no usage data and not available, it's a placeholder
-        var validUsages = usages.Where(u => 
-            !(u.RequestsAvailable == 0 && 
-              u.RequestsUsed == 0 && 
-              u.RequestsPercentage == 0 && 
+        var validUsages = usages.Where(u =>
+            !(u.RequestsAvailable == 0 &&
+              u.RequestsUsed == 0 &&
+              u.RequestsPercentage == 0 &&
               !u.IsAvailable)
         ).ToList();
-        
+
         if (!validUsages.Any())
         {
             return;
         }
-        
+
         await _semaphore.WaitAsync();
         try
         {
@@ -143,7 +133,7 @@ public class UsageDatabase : IUsageDatabase
                     @AccountName, CURRENT_TIMESTAMP, @IsActive, '{}'
                 )
                 ON CONFLICT(provider_id) DO UPDATE SET
-                    provider_name = CASE 
+                    provider_name = CASE
                         WHEN excluded.provider_name IS NOT NULL AND excluded.provider_name != '' THEN excluded.provider_name
                         ELSE providers.provider_name
                     END,
@@ -192,14 +182,13 @@ public class UsageDatabase : IUsageDatabase
                 StatusMessage = u.Description ?? "",
                 NextResetTime = u.NextResetTime?.ToString("O"),
                 FetchedAt = (u.FetchedAt == default ? DateTime.UtcNow : u.FetchedAt).ToString("O"),
-                DetailsJson = u.Details != null && u.Details.Any() 
-                    ? JsonSerializer.Serialize(u.Details) 
+                DetailsJson = u.Details != null && u.Details.Any()
+                    ? JsonSerializer.Serialize(u.Details)
                     : null,
                 ResponseLatencyMs = u.ResponseLatencyMs
             });
 
             await connection.ExecuteAsync(sql, parameters);
-            _logger.LogInformation("{Count} records stored", validUsages.Count);
         }
         finally
         {
@@ -220,7 +209,6 @@ public class UsageDatabase : IUsageDatabase
                 VALUES (@ProviderId, @RawJson, @HttpStatus, CURRENT_TIMESTAMP)";
 
             await connection.ExecuteAsync(sql, new { ProviderId = providerId, RawJson = rawJson, HttpStatus = httpStatus });
-            _logger.LogDebug("Stored raw snapshot for {ProviderId}", providerId);
         }
         finally
         {
@@ -237,12 +225,7 @@ public class UsageDatabase : IUsageDatabase
             await connection.OpenAsync();
 
             const string sql = "DELETE FROM raw_snapshots WHERE fetched_at < datetime('now', '-7 days')";
-            var deletedCount = await connection.ExecuteAsync(sql);
-            
-            if (deletedCount > 0)
-            {
-                _logger.LogInformation("Cleaned {Count} snapshots", deletedCount);
-            }
+            await connection.ExecuteAsync(sql);
         }
         finally
         {
@@ -265,7 +248,7 @@ public class UsageDatabase : IUsageDatabase
         }
     }
 
-    public async Task StoreResetEventAsync(string providerId, string providerName, 
+    public async Task StoreResetEventAsync(string providerId, string providerName,
         double? previousUsage, double? newUsage, string resetType)
     {
         await _semaphore.WaitAsync();
@@ -289,8 +272,6 @@ public class UsageDatabase : IUsageDatabase
                 NewUsage = newUsage,
                 ResetType = resetType
             });
-
-            _logger.LogInformation("Reset: {ProviderId} ({ResetType})", providerId, resetType);
         }
         finally
         {
@@ -473,10 +454,10 @@ public class UsageDatabase : IUsageDatabase
                     FROM provider_history h
                     JOIN providers p ON h.provider_id = p.provider_id
                 )
-                SELECT ProviderId, ProviderName, RequestsUsed, RequestsAvailable, 
-                       RequestsPercentage, IsAvailable, Description, FetchedAt, NextResetTime, 
+                SELECT ProviderId, ProviderName, RequestsUsed, RequestsAvailable,
+                       RequestsPercentage, IsAvailable, Description, FetchedAt, NextResetTime,
                        DetailsJson, ResponseLatencyMs
-                FROM RankedHistory 
+                FROM RankedHistory
                 WHERE pos <= @Count
                 ORDER BY ProviderId, FetchedAt DESC";
 
@@ -543,6 +524,23 @@ public class UsageDatabase : IUsageDatabase
             _semaphore.Release();
         }
     }
+
+    public async Task SetProviderActiveAsync(string providerId, bool isActive)
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            await connection.OpenAsync();
+
+            await connection.ExecuteAsync("UPDATE providers SET is_active = @IsActive, updated_at = CURRENT_TIMESTAMP WHERE provider_id = @ProviderId", 
+                new { ProviderId = providerId, IsActive = isActive ? 1 : 0 });
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
 }
 
 public class ResetEvent
@@ -555,5 +553,3 @@ public class ResetEvent
     public string ResetType { get; set; } = string.Empty;
     public string Timestamp { get; set; } = string.Empty;
 }
-
-
