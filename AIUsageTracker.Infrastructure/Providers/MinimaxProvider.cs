@@ -2,25 +2,52 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class MinimaxProvider : GenericPayAsYouGoProvider
+public class MinimaxProvider : ProviderBase
 {
-    public override string ProviderId => "minimax";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "minimax",
+        displayName: "Minimax (China)",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        includeInWellKnownProviders: true,
+        handledProviderIds: new[] { "minimax", "minimax-io", "minimax-global" },
+        displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["minimax-io"] = "Minimax (International)",
+            ["minimax-global"] = "Minimax (International)"
+        });
 
-    public MinimaxProvider(HttpClient httpClient, ILogger<MinimaxProvider> logger) : base(httpClient, logger)
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<MinimaxProvider> _logger;
+
+    public MinimaxProvider(HttpClient httpClient, ILogger<MinimaxProvider> logger)
     {
+        _httpClient = httpClient;
+        _logger = logger;
     }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         if (string.IsNullOrEmpty(config.ApiKey))
         {
-            throw new ArgumentException("API Key not found.");
+            return new[] { new ProviderUsage
+            {
+                ProviderId = config.ProviderId,
+                ProviderName = "Minimax",
+                IsAvailable = false,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                Description = "API Key not found."
+            }};
         }
 
         string url;
@@ -48,17 +75,28 @@ public class MinimaxProvider : GenericPayAsYouGoProvider
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.ApiKey);
 
         var response = await _httpClient.SendAsync(request);
+        var httpStatus = (int)response.StatusCode;
         
         if (!response.IsSuccessStatusCode)
         {
-            throw new Exception($"API returned {response.StatusCode} for {url}");
+            var errorContent = await response.Content.ReadAsStringAsync();
+            return new[] { new ProviderUsage
+            {
+                ProviderId = config.ProviderId,
+                ProviderName = "Minimax",
+                IsAvailable = false,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                Description = $"API returned {response.StatusCode} for {url}",
+                RawJson = errorContent,
+                HttpStatus = httpStatus
+            }};
         }
 
         var responseString = await response.Content.ReadAsStringAsync();
         
         double used = 0;
         double total = 0;
-        PlanType paymentType = PlanType.Usage;
 
         try
         {
@@ -67,16 +105,35 @@ public class MinimaxProvider : GenericPayAsYouGoProvider
             {
                 used = minimax.Usage.TokensUsed;
                 total = minimax.Usage.TokensLimit > 0 ? minimax.Usage.TokensLimit : 0; 
-                paymentType = PlanType.Usage;
             }
             else
             {
-                 throw new Exception("Invalid Minimax response format");
+             return new[] { new ProviderUsage
+             {
+                 ProviderId = config.ProviderId,
+                 ProviderName = "Minimax",
+                 IsAvailable = false,
+                 IsQuotaBased = true,
+                 PlanType = PlanType.Coding,
+                 Description = "Invalid Minimax response format",
+                 RawJson = responseString,
+                 HttpStatus = httpStatus
+             }};
             }
         }
         catch (JsonException ex)
         {
-             throw new Exception($"Failed to parse Minimax response: {ex.Message}");
+            return new[] { new ProviderUsage
+            {
+                ProviderId = config.ProviderId,
+                ProviderName = "Minimax",
+                IsAvailable = false,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                Description = $"Failed to parse Minimax response: {ex.Message}",
+                RawJson = responseString,
+                HttpStatus = httpStatus
+            }};
         }
 
         var utilization = total > 0 ? (used / total) * 100.0 : 0;
@@ -88,11 +145,29 @@ public class MinimaxProvider : GenericPayAsYouGoProvider
             RequestsPercentage = Math.Min(utilization, 100),
             RequestsUsed = used,
             RequestsAvailable = total,
-            PlanType = paymentType,
+            PlanType = PlanType.Coding,
             UsageUnit = "Tokens", 
-            IsQuotaBased = false,
-            Description = $"{used:N0} tokens used" + (total > 0 ? $" / {total:N0} limit" : "")
+            IsQuotaBased = true,
+            Description = $"{used:N0} tokens used" + (total > 0 ? $" / {total:N0} limit" : ""),
+            RawJson = responseString,
+            HttpStatus = httpStatus
         }};
     }
+    
+    private class MinimaxResponse
+    {
+        [JsonPropertyName("usage")]
+        public MinimaxUsage? Usage { get; set; }
+    }
+    
+    private class MinimaxUsage
+    {
+        [JsonPropertyName("tokens_used")]
+        public double TokensUsed { get; set; }
+        
+        [JsonPropertyName("tokens_limit")]
+        public double TokensLimit { get; set; }
+    }
 }
+
 

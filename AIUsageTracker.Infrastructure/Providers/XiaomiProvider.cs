@@ -2,14 +2,23 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class XiaomiProvider : IProviderService
+public class XiaomiProvider : ProviderBase
 {
-    public string ProviderId => "xiaomi";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "xiaomi",
+        displayName: "Xiaomi",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        includeInWellKnownProviders: true);
+
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<XiaomiProvider> _logger;
 
@@ -19,7 +28,7 @@ public class XiaomiProvider : IProviderService
         _logger = logger;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         if (string.IsNullOrEmpty(config.ApiKey))
         {
@@ -28,6 +37,8 @@ public class XiaomiProvider : IProviderService
                 ProviderId = config.ProviderId,
                 ProviderName = "Xiaomi",
                 IsAvailable = false,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
                 Description = "API Key missing"
             }};
         }
@@ -65,13 +76,15 @@ public class XiaomiProvider : IProviderService
                 RequestsPercentage = percentage,
                 RequestsUsed = used,
                 RequestsAvailable = quota > 0 ? quota : balance, 
-                UsageUnit = "Points", // or CNY
-                IsQuotaBased = quota > 0,
-                PlanType = quota > 0 ? PlanType.Coding : PlanType.Usage,
+                UsageUnit = "Points",
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
                 IsAvailable = true,
                 Description = quota > 0 
                     ? $"{balance} remaining / {quota} total" 
-                    : $"Balance: {balance}"
+                    : $"Balance: {balance}",
+                RawJson = content,
+                HttpStatus = (int)response.StatusCode
             }};
         }
         catch (Exception ex)
@@ -82,6 +95,8 @@ public class XiaomiProvider : IProviderService
                 ProviderId = config.ProviderId,
                 ProviderName = "Xiaomi",
                 IsAvailable = false,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
                 Description = $"Error: {ex.Message}"
             }};
         }
@@ -105,4 +120,5 @@ public class XiaomiProvider : IProviderService
         public double Quota { get; set; }
     }
 }
+
 

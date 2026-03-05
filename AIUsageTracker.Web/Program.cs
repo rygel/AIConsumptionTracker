@@ -1,4 +1,7 @@
 using AIUsageTracker.Web.Services;
+using AIUsageTracker.Infrastructure.Services;
+using AIUsageTracker.Infrastructure.Helpers;
+using AIUsageTracker.Core.Interfaces;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.FileProviders;
@@ -45,8 +48,8 @@ try
     builder.Services.AddResponseCompression(options =>
     {
         options.EnableForHttps = true;
-        options.Providers.Add<BrotliCompressionProvider>();
         options.Providers.Add<GzipCompressionProvider>();
+        options.Providers.Add<BrotliCompressionProvider>();
         options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[]
         {
             "application/javascript",
@@ -64,9 +67,22 @@ try
     {
         options.Level = CompressionLevel.Fastest;
     });
+
+    // Infrastructure & Domain Services
+    builder.Services.AddSingleton<IAppPathProvider, DefaultAppPathProvider>();
     builder.Services.AddSingleton<WebDatabaseService>();
+    builder.Services.AddSingleton<IWebDatabaseRepository>(sp => sp.GetRequiredService<WebDatabaseService>());
+    builder.Services.AddSingleton<IUsageAnalyticsService, UsageAnalyticsService>();
+    builder.Services.AddSingleton<IDataExportService>(sp => 
+    {
+        var repo = sp.GetRequiredService<IWebDatabaseRepository>();
+        var logger = sp.GetRequiredService<ILogger<DataExportService>>();
+        var dbPath = sp.GetRequiredService<WebDatabaseService>().GetDatabasePath();
+        return new DataExportService(repo, logger, dbPath);
+    });
+    
     builder.Services.AddSingleton<MonitorProcessService>();
-    builder.Services.AddSingleton<AIUsageTracker.Core.Interfaces.IConfigLoader, AIUsageTracker.Infrastructure.Configuration.JsonConfigLoader>();
+    builder.Services.AddSingleton<IConfigLoader, AIUsageTracker.Infrastructure.Configuration.JsonConfigLoader>();
 
     var app = builder.Build();
 
@@ -187,6 +203,31 @@ try
             : Results.BadRequest(new { message });
     });
 
+    // Data export endpoints
+    app.MapGet("/api/export/csv", async (IDataExportService exportService) =>
+    {
+        var csv = await exportService.ExportHistoryToCsvAsync();
+        if (string.IsNullOrEmpty(csv))
+            return Results.NotFound("No data to export");
+
+        return Results.Text(csv, "text/csv", System.Text.Encoding.UTF8);
+    });
+
+    app.MapGet("/api/export/json", async (IDataExportService exportService) =>
+    {
+        var json = await exportService.ExportHistoryToJsonAsync();
+        return Results.Text(json, "application/json", System.Text.Encoding.UTF8);
+    });
+
+    app.MapGet("/api/export/backup", async (IDataExportService exportService) =>
+    {
+        var backup = await exportService.CreateDatabaseBackupAsync();
+        if (backup == null)
+            return Results.NotFound("No database to backup");
+
+        return Results.File(backup, "application/octet-stream", $"usage_backup_{DateTime.Now:yyyyMMdd_HHmmss}.db");
+    });
+
     app.MapRazorPages();
 
     var dbService = app.Services.GetRequiredService<WebDatabaseService>();
@@ -211,3 +252,9 @@ finally
     Log.CloseAndFlush();
 }
 
+public partial class Program 
+{
+    public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+    {
+    }
+}

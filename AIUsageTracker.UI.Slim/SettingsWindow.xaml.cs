@@ -10,7 +10,11 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.MonitorClient;
+using AIUsageTracker.Infrastructure.Providers;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 
 namespace AIUsageTracker.UI.Slim;
@@ -23,11 +27,14 @@ public partial class SettingsWindow : Window
         public string Label { get; init; } = string.Empty;
     }
 
-    private readonly MonitorService _agentService;
+    private readonly IMonitorService _monitorService;
+    private readonly ILogger<SettingsWindow> _logger;
+    private readonly UiPreferencesStore _preferencesStore;
     private List<ProviderConfig> _configs = new();
     private List<ProviderUsage> _usages = new();
     private string? _gitHubAuthUsername;
     private string? _openAiAuthUsername;
+    private string? _codexAuthUsername;
     private AppPreferences _preferences = new();
     private AppPreferences _agentPreferences = new();
     private bool _isPrivacyMode = App.IsPrivacyMode;
@@ -39,7 +46,7 @@ public partial class SettingsWindow : Window
 
     public bool SettingsChanged { get; private set; }
 
-    public SettingsWindow()
+    public SettingsWindow(IMonitorService monitorService, ILogger<SettingsWindow> logger, UiPreferencesStore preferencesStore)
     {
         _autoSaveTimer = new DispatcherTimer
         {
@@ -48,24 +55,33 @@ public partial class SettingsWindow : Window
         _autoSaveTimer.Tick += AutoSaveTimer_Tick;
 
         InitializeComponent();
-        _agentService = new MonitorService();
+        _monitorService = monitorService;
+        _logger = logger;
+        _preferencesStore = preferencesStore;
         App.PrivacyChanged += OnPrivacyChanged;
         Closed += SettingsWindow_Closed;
         Loaded += SettingsWindow_Loaded;
         UpdatePrivacyButtonState();
     }
 
+    public SettingsWindow() : this(
+        App.Host.Services.GetRequiredService<IMonitorService>(),
+        App.Host.Services.GetRequiredService<ILogger<SettingsWindow>>(),
+        App.Host.Services.GetRequiredService<UiPreferencesStore>())
+    {
+    }
+
     private async void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
     {
         try
         {
-            await _agentService.RefreshPortAsync();
-            await _agentService.RefreshAgentInfoAsync();
+            await _monitorService.RefreshPortAsync();
+            await _monitorService.RefreshAgentInfoAsync();
             await LoadDataAsync();
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Settings load failed: {ex.Message}");
+            _logger.LogError(ex, "Settings load failed");
             MessageBox.Show(
                 $"Failed to load Settings: {ex.Message}",
                 "Settings Error",
@@ -84,13 +100,8 @@ public partial class SettingsWindow : Window
         {
             _isDeterministicScreenshotMode = false;
             
-            var configsTask = _agentService.GetConfigsAsync();
-            var usagesTask = _agentService.GetUsageAsync();
-            
-            await Task.WhenAll(configsTask, usagesTask);
-            
-            _configs = configsTask.Result;
-            _usages = usagesTask.Result;
+            _configs = await _monitorService.GetConfigsAsync();
+            _usages = await _monitorService.GetUsageAsync();
             
             if (_configs.Count == 0)
             {
@@ -103,8 +114,9 @@ public partial class SettingsWindow : Window
             
             _gitHubAuthUsername = await TryGetGitHubUsernameFromAuthAsync();
             _openAiAuthUsername = await TryGetOpenAiUsernameFromAuthAsync();
-            _preferences = await UiPreferencesStore.LoadAsync();
-            _agentPreferences = await _agentService.GetPreferencesAsync();
+            _codexAuthUsername = await TryGetCodexUsernameFromAuthAsync();
+            _preferences = await _preferencesStore.LoadAsync();
+            _agentPreferences = await _monitorService.GetPreferencesAsync();
             App.Preferences = _preferences;
             _isPrivacyMode = _preferences.IsPrivacyMode;
             App.SetPrivacyMode(_isPrivacyMode);
@@ -114,7 +126,7 @@ public partial class SettingsWindow : Window
             RefreshTrayIcons();
             PopulateLayoutSettings();
             await LoadHistoryAsync();
-            await UpdateAgentStatusAsync();
+            await UpdateMonitorStatusAsync();
             RefreshDiagnosticsLog();
         }
         catch (HttpRequestException ex)
@@ -244,6 +256,81 @@ public partial class SettingsWindow : Window
         catch
         {
             // OpenAI/OpenCode auth may be unavailable.
+        }
+
+        return null;
+    }
+
+    private static async Task<string?> TryGetCodexUsernameFromAuthAsync()
+    {
+        try
+        {
+            var candidates = new[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "auth.json"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "codex", "auth.json"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "opencode", "auth.json"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "auth.json"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode", "auth.json"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".opencode", "auth.json")
+            };
+
+            foreach (var path in candidates)
+            {
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
+                var json = await File.ReadAllTextAsync(path);
+                using var doc = JsonDocument.Parse(json);
+
+                var directIdentity = FindIdentityInJson(doc.RootElement);
+                if (!string.IsNullOrWhiteSpace(directIdentity))
+                {
+                    return directIdentity;
+                }
+
+                if (doc.RootElement.TryGetProperty("tokens", out var tokens) &&
+                    tokens.ValueKind == JsonValueKind.Object)
+                {
+                    if (tokens.TryGetProperty("id_token", out var idToken) &&
+                        idToken.ValueKind == JsonValueKind.String)
+                    {
+                        var fromIdToken = TryGetUsernameFromJwt(idToken.GetString());
+                        if (!string.IsNullOrWhiteSpace(fromIdToken))
+                        {
+                            return fromIdToken;
+                        }
+                    }
+
+                    if (tokens.TryGetProperty("access_token", out var accessToken) &&
+                        accessToken.ValueKind == JsonValueKind.String)
+                    {
+                        var fromToken = TryGetUsernameFromJwt(accessToken.GetString());
+                        if (!string.IsNullOrWhiteSpace(fromToken))
+                        {
+                            return fromToken;
+                        }
+                    }
+                }
+
+                if (doc.RootElement.TryGetProperty("openai", out var openai) &&
+                    openai.ValueKind == JsonValueKind.Object &&
+                    openai.TryGetProperty("access", out var openAiAccessToken) &&
+                    openAiAccessToken.ValueKind == JsonValueKind.String)
+                {
+                    var fromOpenAiToken = TryGetUsernameFromJwt(openAiAccessToken.GetString());
+                    if (!string.IsNullOrWhiteSpace(fromOpenAiToken))
+                    {
+                        return fromOpenAiToken;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Codex auth may be unavailable.
         }
 
         return null;
@@ -511,7 +598,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "antigravity",
-                ProviderName = "Antigravity",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("antigravity"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -579,7 +666,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "anthropic",
-                ProviderName = "Anthropic",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("anthropic"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -591,7 +678,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "claude-code",
-                ProviderName = "Claude Code",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("claude-code"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -603,7 +690,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "deepseek",
-                ProviderName = "DeepSeek",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("deepseek"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -615,7 +702,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "gemini-cli",
-                ProviderName = "Gemini CLI",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("gemini-cli"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -626,7 +713,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "github-copilot",
-                ProviderName = "GitHub Copilot",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("github-copilot"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -637,7 +724,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "kimi",
-                ProviderName = "Kimi",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("kimi"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -648,7 +735,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "minimax",
-                ProviderName = "Minimax",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("minimax"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -659,7 +746,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "minimax-io",
-                ProviderName = "Minimax International",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("minimax-io"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -671,7 +758,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "mistral",
-                ProviderName = "Mistral",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("mistral"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -683,7 +770,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "openai",
-                ProviderName = "OpenAI (Codex)",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("openai"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -694,7 +781,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "opencode",
-                ProviderName = "OpenCode",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("opencode"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -706,7 +793,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "opencode-zen",
-                ProviderName = "Opencode Zen",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("opencode-zen"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -718,7 +805,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "openrouter",
-                ProviderName = "OpenRouter",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("openrouter"),
                 IsAvailable = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
@@ -730,7 +817,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "synthetic",
-                ProviderName = "Synthetic",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("synthetic"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -741,7 +828,7 @@ public partial class SettingsWindow : Window
             new()
             {
                 ProviderId = "zai-coding-plan",
-                ProviderName = "Z.AI",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("zai-coding-plan"),
                 IsAvailable = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
@@ -758,7 +845,7 @@ public partial class SettingsWindow : Window
         {
             new
             {
-                ProviderName = "GitHub Copilot",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("github-copilot"),
                 UsagePercentage = 27.5,
                 Used = 27.5,
                 Limit = 100.0,
@@ -768,7 +855,7 @@ public partial class SettingsWindow : Window
             },
             new
             {
-                ProviderName = "OpenAI",
+                ProviderName = ProviderMetadataCatalog.GetDisplayName("openai"),
                 UsagePercentage = 31.1,
                 Used = 12.45,
                 Limit = 40.0,
@@ -778,19 +865,19 @@ public partial class SettingsWindow : Window
             }
         };
 
-        if (AgentStatusText != null)
+        if (MonitorStatusText != null)
         {
-            AgentStatusText.Text = "Running";
+            MonitorStatusText.Text = "Running";
         }
 
-        if (AgentPortText != null)
+        if (MonitorPortText != null)
         {
-            AgentPortText.Text = "5000";
+            MonitorPortText.Text = "5000";
         }
 
-        if (AgentLogsText != null)
+        if (MonitorLogsText != null)
         {
-            AgentLogsText.Text = "Monitor health check: OK" + Environment.NewLine +
+            MonitorLogsText.Text = "Monitor health check: OK" + Environment.NewLine +
                                  "Diagnostics available in Settings > Monitor.";
         }
     }
@@ -829,8 +916,15 @@ public partial class SettingsWindow : Window
 
     private async void AutoSaveTimer_Tick(object? sender, EventArgs e)
     {
-        _autoSaveTimer.Stop();
-        await PersistAllSettingsAsync(showErrorDialog: false);
+        try
+        {
+            _autoSaveTimer.Stop();
+            await PersistAllSettingsAsync(showErrorDialog: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AutoSaveTimer_Tick failed");
+        }
     }
 
     private void ScheduleAutoSave()
@@ -872,7 +966,7 @@ public partial class SettingsWindow : Window
             : (TryFindResource("SecondaryText") as Brush ?? Brushes.Gray);
     }
 
-    private async Task UpdateAgentStatusAsync()
+    private async Task UpdateMonitorStatusAsync()
     {
         try
         {
@@ -882,23 +976,23 @@ public partial class SettingsWindow : Window
             // Get the actual port from the agent
             int port = await MonitorLauncher.GetAgentPortAsync();
             
-            if (AgentStatusText != null)
+            if (MonitorStatusText != null)
             {
-                AgentStatusText.Text = isRunning ? "Running" : "Not Running";
+                MonitorStatusText.Text = isRunning ? "Running" : "Not Running";
             }
             
             // Update port display
-            if (FindName("AgentPortText") is TextBlock portText)
+            if (FindName("MonitorPortText") is TextBlock portText)
             {
                 portText.Text = port.ToString();
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Failed to update agent status: {ex.Message}");
-            if (AgentStatusText != null)
+            _logger.LogWarning(ex, "Failed to update monitor status");
+            if (MonitorStatusText != null)
             {
-                AgentStatusText.Text = "Error";
+                MonitorStatusText.Text = "Error";
             }
         }
         finally
@@ -909,16 +1003,16 @@ public partial class SettingsWindow : Window
 
     private void RefreshDiagnosticsLog()
     {
-        if (AgentLogsText == null)
+        if (MonitorLogsText == null)
         {
             return;
         }
 
         if (_isDeterministicScreenshotMode)
         {
-            AgentLogsText.Text = "Monitor health check: OK" + Environment.NewLine +
+            MonitorLogsText.Text = "Monitor health check: OK" + Environment.NewLine +
                                  "Diagnostics available in Settings > Monitor.";
-            AgentLogsText.ScrollToEnd();
+            MonitorLogsText.ScrollToEnd();
             return;
         }
 
@@ -940,20 +1034,20 @@ public partial class SettingsWindow : Window
         lines.Add(
             $"Refresh: count={telemetry.RefreshRequestCount}, avg={telemetry.RefreshAverageLatencyMs:F1}ms, last={telemetry.RefreshLastLatencyMs}ms, errors={telemetry.RefreshErrorCount} ({telemetry.RefreshErrorRatePercent:F1}%)");
 
-        AgentLogsText.Text = string.Join(Environment.NewLine, lines);
-        AgentLogsText.ScrollToEnd();
+        MonitorLogsText.Text = string.Join(Environment.NewLine, lines);
+        MonitorLogsText.ScrollToEnd();
     }
 
     private async Task LoadHistoryAsync()
     {
         try
         {
-            var history = await _agentService.GetHistoryAsync(100);
+            var history = await _monitorService.GetHistoryAsync(100);
             HistoryDataGrid.ItemsSource = history;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Failed to load history: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to load history");
         }
     }
 
@@ -973,19 +1067,41 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var groupedConfigs = _configs
-            .OrderBy(c => GetProviderDisplayName(c.ProviderId), StringComparer.OrdinalIgnoreCase)
-            .ThenBy(c => c.ProviderId, StringComparer.OrdinalIgnoreCase)
+        var displayConfigs = _configs
+            .Select(config => (Config: config, IsDerived: false))
             .ToList();
 
-        foreach (var config in groupedConfigs)
+        var configuredProviderIds = _configs
+            .Select(c => c.ProviderId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var derivedConfigs = _usages
+            .Where(u =>
+                IsDerivedProviderVisibleInSettings(u.ProviderId) &&
+                !configuredProviderIds.Contains(u.ProviderId))
+            .Select(u => new ProviderConfig
+            {
+                ProviderId = u.ProviderId,
+                Type = u.IsQuotaBased ? "quota-based" : "pay-as-you-go",
+                PlanType = u.PlanType
+            })
+            .Select(config => (Config: config, IsDerived: true));
+
+        displayConfigs.AddRange(derivedConfigs);
+
+        var orderedDisplayConfigs = displayConfigs
+            .OrderBy(item => GetProviderDisplayName(item.Config.ProviderId), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Config.ProviderId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var (config, isDerived) in orderedDisplayConfigs)
         {
             var usage = _usages.FirstOrDefault(u => u.ProviderId.Equals(config.ProviderId, StringComparison.OrdinalIgnoreCase));
-            AddProviderCard(config, usage);
+            AddProviderCard(config, usage, isDerived);
         }
     }
 
-    private void AddProviderCard(ProviderConfig config, ProviderUsage? usage)
+    private void AddProviderCard(ProviderConfig config, ProviderUsage? usage, bool isDerived = false)
     {
         // Compact card with minimal padding
         var card = new Border
@@ -1035,7 +1151,8 @@ public partial class SettingsWindow : Window
             FontSize = 10,
             VerticalAlignment = VerticalAlignment.Center,
             Cursor = System.Windows.Input.Cursors.Hand,
-            Margin = new Thickness(12, 0, 0, 0)
+            Margin = new Thickness(12, 0, 0, 0),
+            IsEnabled = !isDerived
         };
         trayCheckBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
         trayCheckBox.Checked += (s, e) =>
@@ -1062,7 +1179,8 @@ public partial class SettingsWindow : Window
             FontSize = 10,
             VerticalAlignment = VerticalAlignment.Center,
             Cursor = System.Windows.Input.Cursors.Hand,
-            Margin = new Thickness(8, 0, 0, 0)
+            Margin = new Thickness(8, 0, 0, 0),
+            IsEnabled = !isDerived
         };
         notifyCheckBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
         notifyCheckBox.Checked += (s, e) =>
@@ -1080,7 +1198,7 @@ public partial class SettingsWindow : Window
         headerPanel.Children.Add(notifyCheckBox);
 
         // Status badge if not configured
-        bool isInactive = string.IsNullOrEmpty(config.ApiKey);
+        bool isInactive = !isDerived && string.IsNullOrEmpty(config.ApiKey);
         if (config.ProviderId == "antigravity")
         {
             isInactive = usage == null || !usage.IsAvailable;
@@ -1088,7 +1206,7 @@ public partial class SettingsWindow : Window
         else if (config.ProviderId == "openai")
         {
             var hasApiKey = !string.IsNullOrWhiteSpace(config.ApiKey);
-            var hasSessionUsage = usage != null && usage.IsAvailable && usage.PlanType == PlanType.Coding;
+            var hasSessionUsage = usage != null && usage.IsAvailable && usage.IsQuotaBased;
             isInactive = !hasApiKey && !hasSessionUsage;
         }
 
@@ -1119,7 +1237,37 @@ public partial class SettingsWindow : Window
         var keyPanel = new Grid { Margin = new Thickness(0, 0, 0, 0) };
         keyPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        if (config.ProviderId == "antigravity")
+        if (isDerived)
+        {
+            var derivedPanel = new StackPanel { Orientation = Orientation.Vertical };
+            var statusText = new TextBlock
+            {
+                Text = usage?.IsAvailable == true ? "Derived from Codex usage (read-only)" : "Derived provider (waiting for usage data)",
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 11
+            };
+            statusText.SetResourceReference(
+                TextBlock.ForegroundProperty,
+                usage?.IsAvailable == true ? "ProgressBarGreen" : "TertiaryText");
+            derivedPanel.Children.Add(statusText);
+
+            if (usage?.NextResetTime is DateTime derivedReset)
+            {
+                var resetText = new TextBlock
+                {
+                    Text = $"Next reset: {derivedReset:g}",
+                    VerticalAlignment = VerticalAlignment.Center,
+                    FontSize = 10,
+                    Margin = new Thickness(0, 3, 0, 0)
+                };
+                resetText.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
+                derivedPanel.Children.Add(resetText);
+            }
+
+            Grid.SetColumn(derivedPanel, 0);
+            keyPanel.Children.Add(derivedPanel);
+        }
+        else if (config.ProviderId == "antigravity")
         {
             // Antigravity: Auto-Detection
             var statusPanel = new StackPanel { Orientation = Orientation.Vertical };
@@ -1212,18 +1360,23 @@ public partial class SettingsWindow : Window
             Grid.SetColumn(statusPanel, 0);
             keyPanel.Children.Add(statusPanel);
         }
-        else if (config.ProviderId == "openai" &&
-                 (usage?.PlanType == PlanType.Coding ||
-                  (!string.IsNullOrWhiteSpace(config.ApiKey) && !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase))))
+        else if ((config.ProviderId == "openai" &&
+                  (usage?.IsQuotaBased == true ||
+                   (!string.IsNullOrWhiteSpace(config.ApiKey) && !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase))))
+                 || config.ProviderId == "codex")
         {
             var statusPanel = new StackPanel { Orientation = Orientation.Vertical };
+            var isCodex = config.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase);
+            var providerSessionLabel = isCodex ? "OpenAI Codex" : "OpenAI";
             var hasSessionToken = !string.IsNullOrWhiteSpace(config.ApiKey) &&
                                   !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
             var isAuthenticated = hasSessionToken || (usage != null && usage.IsAvailable);
             var accountName = usage?.AccountName;
             if (string.IsNullOrWhiteSpace(accountName) || accountName == "Unknown" || accountName == "User")
             {
-                accountName = _openAiAuthUsername;
+                accountName = isCodex
+                    ? (_codexAuthUsername ?? _openAiAuthUsername)
+                    : _openAiAuthUsername;
             }
 
             string displayText;
@@ -1239,11 +1392,11 @@ public partial class SettingsWindow : Window
             }
             else if (hasSessionToken && (usage == null || !usage.IsAvailable))
             {
-                displayText = "Authenticated via OpenCode (Codex) - refresh to load quota";
+                displayText = $"Authenticated via {providerSessionLabel} - refresh to load quota";
             }
             else
             {
-                displayText = "Authenticated via OpenCode (Codex)";
+                displayText = $"Authenticated via {providerSessionLabel}";
             }
 
             var statusText = new TextBlock
@@ -1333,7 +1486,7 @@ public partial class SettingsWindow : Window
             .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (subTrayDetails is { Count: > 0 })
+        if (!isDerived && subTrayDetails is { Count: > 0 })
         {
             config.EnabledSubTrays ??= new List<string>();
 
@@ -1412,10 +1565,10 @@ public partial class SettingsWindow : Window
     private async Task<bool> SaveUiPreferencesAsync(bool showErrorDialog = false)
     {
         App.Preferences = _preferences;
-        var saved = await UiPreferencesStore.SaveAsync(_preferences);
+        var saved = await _preferencesStore.SaveAsync(_preferences);
         if (!saved)
         {
-            Debug.WriteLine("Failed to save Slim UI preferences.");
+            _logger.LogWarning("Failed to save Slim UI preferences");
             if (showErrorDialog)
             {
                 MessageBox.Show(
@@ -1446,6 +1599,8 @@ public partial class SettingsWindow : Window
                 "github-copilot" => "github",
                 "gemini-cli" => "google",
                 "antigravity" => "google",
+                "codex" => "openai",
+                "codex.spark" => "openai",
                 "claude-code" => "claude",
                 "zai" => "zai",
                 "zai-coding-plan" => "zai",
@@ -1491,6 +1646,8 @@ public partial class SettingsWindow : Window
         var (color, _) = providerId.ToLower() switch
         {
             "openai" => (Brushes.DarkCyan, "AI"),
+            "codex" => (Brushes.DarkCyan, "AI"),
+            "codex.spark" => (Brushes.DarkCyan, "AI"),
             "anthropic" => (Brushes.IndianRed, "An"),
             "github-copilot" => (Brushes.MediumPurple, "GH"),
             "gemini" or "google" => (Brushes.DodgerBlue, "G"),
@@ -1723,11 +1880,19 @@ public partial class SettingsWindow : Window
 
     private async void PrivacyBtn_Click(object sender, RoutedEventArgs e)
     {
-        var newPrivacyMode = !_isPrivacyMode;
-        _preferences.IsPrivacyMode = newPrivacyMode;
-        App.SetPrivacyMode(newPrivacyMode);
-        await SaveUiPreferencesAsync();
-        SettingsChanged = true;
+        try
+        {
+            var newPrivacyMode = !_isPrivacyMode;
+            _preferences.IsPrivacyMode = newPrivacyMode;
+            App.SetPrivacyMode(newPrivacyMode);
+            await SaveUiPreferencesAsync();
+            SettingsChanged = true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "PrivacyBtn_Click failed");
+            MessageBox.Show($"Failed to update privacy mode: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void CloseBtn_Click(object sender, RoutedEventArgs e)
@@ -1742,7 +1907,7 @@ public partial class SettingsWindow : Window
             ScanBtn.IsEnabled = false;
             ScanBtn.Content = "Scanning...";
             
-            var (count, configs) = await _agentService.ScanForKeysAsync();
+            var (count, configs) = await _monitorService.ScanForKeysAsync();
             
             if (count > 0)
             {
@@ -1773,7 +1938,7 @@ public partial class SettingsWindow : Window
         try
         {
             // Trigger refresh on agent
-            await _agentService.TriggerRefreshAsync();
+            await _monitorService.TriggerRefreshAsync();
             
             // Wait a moment for refresh to complete
             await Task.Delay(2000);
@@ -1795,7 +1960,7 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            var history = await _agentService.GetHistoryAsync(100);
+            var history = await _monitorService.GetHistoryAsync(100);
             HistoryDataGrid.ItemsSource = history;
             
             if (history.Count == 0)
@@ -1816,7 +1981,113 @@ public partial class SettingsWindow : Window
         HistoryDataGrid.ItemsSource = null;
     }
 
-    private async void RestartAgentBtn_Click(object sender, RoutedEventArgs e)
+    private async void ExportCsvBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _monitorService.RefreshPortAsync();
+            var csv = await _monitorService.ExportDataAsync("csv");
+            if (string.IsNullOrEmpty(csv))
+            {
+                MessageBox.Show("No data to export or Monitor is not running.", "Export", 
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "CSV files (*.csv)|*.csv",
+                DefaultExt = ".csv",
+                FileName = $"usage_export_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                await File.WriteAllTextAsync(dialog.FileName, csv);
+                MessageBox.Show($"Exported to {dialog.FileName}", "Export Complete", 
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Export failed: {ex.Message}", "Export Error", 
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void ExportJsonBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _monitorService.RefreshPortAsync();
+            var json = await _monitorService.ExportDataAsync("json");
+            if (json == "[]" || string.IsNullOrEmpty(json))
+            {
+                MessageBox.Show("No data to export or Monitor is not running.", "Export", 
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "JSON files (*.json)|*.json",
+                DefaultExt = ".json",
+                FileName = $"usage_export_{DateTime.Now:yyyyMMdd_HHmmss}.json"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                await File.WriteAllTextAsync(dialog.FileName, json);
+                MessageBox.Show($"Exported to {dialog.FileName}", "Export Complete", 
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Export failed: {ex.Message}", "Export Error", 
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void BackupDbBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new SaveFileDialog
+            {
+                Filter = "Database files (*.db)|*.db",
+                DefaultExt = ".db",
+                FileName = $"usage_backup_{DateTime.Now:yyyyMMdd_HHmmss}.db"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                var dbPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "AIUsageTracker",
+                    "usage.db");
+
+                if (File.Exists(dbPath))
+                {
+                    File.Copy(dbPath, dialog.FileName, true);
+                    MessageBox.Show($"Backup saved to {dialog.FileName}", "Backup Complete", 
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show("Database file not found.", "Backup Error", 
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Backup failed: {ex.Message}", "Backup Error", 
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void RestartMonitorBtn_Click(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -1877,12 +2148,12 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            await _agentService.RefreshPortAsync();
-            await _agentService.RefreshAgentInfoAsync();
+            await _monitorService.RefreshPortAsync();
+            await _monitorService.RefreshAgentInfoAsync();
 
             var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync();
-            var healthDetails = await _agentService.GetHealthDetailsAsync();
-            var diagnosticsDetails = await _agentService.GetDiagnosticsDetailsAsync();
+            var healthDetails = await _monitorService.GetHealthDetailsAsync();
+            var diagnosticsDetails = await _monitorService.GetDiagnosticsDetailsAsync();
 
             var saveDialog = new SaveFileDialog
             {
@@ -1902,7 +2173,7 @@ public partial class SettingsWindow : Window
             bundle.AppendLine("AI Usage Tracker - Diagnostics Bundle");
             bundle.AppendLine($"GeneratedAtUtc: {DateTime.UtcNow:O}");
             bundle.AppendLine($"SlimVersion: {typeof(SettingsWindow).Assembly.GetName().Version?.ToString() ?? "unknown"}");
-            bundle.AppendLine($"AgentUrl: {_agentService.AgentUrl}");
+            bundle.AppendLine($"AgentUrl: {_monitorService.AgentUrl}");
             bundle.AppendLine($"AgentRunning: {isRunning}");
             bundle.AppendLine($"AgentPort: {port}");
             bundle.AppendLine();
@@ -1916,13 +2187,13 @@ public partial class SettingsWindow : Window
             bundle.AppendLine();
 
             bundle.AppendLine("=== Monitor Errors (monitor.json) ===");
-            if (_agentService.LastAgentErrors.Count == 0)
+            if (_monitorService.LastAgentErrors.Count == 0)
             {
                 bundle.AppendLine("None");
             }
             else
             {
-                foreach (var error in _agentService.LastAgentErrors)
+                foreach (var error in _monitorService.LastAgentErrors)
                 {
                     bundle.AppendLine($"- {error}");
                 }
@@ -2017,13 +2288,7 @@ public partial class SettingsWindow : Window
             return false;
         }
 
-        if (IsWindowQuotaDetail(detail.Name))
-        {
-            return false;
-        }
-
-        if (detail.Name.Contains("window", StringComparison.OrdinalIgnoreCase) ||
-            detail.Name.Contains("credit", StringComparison.OrdinalIgnoreCase))
+        if (detail.DetailType != ProviderUsageDetailType.Model && detail.DetailType != ProviderUsageDetailType.Other)
         {
             return false;
         }
@@ -2037,28 +2302,14 @@ public partial class SettingsWindow : Window
         return double.TryParse(match.Groups["percent"].Value, out _);
     }
 
-    private static bool IsWindowQuotaDetail(string detailName)
-    {
-        return detailName.Equals("5-hour quota", StringComparison.OrdinalIgnoreCase) ||
-               detailName.Equals("Weekly quota", StringComparison.OrdinalIgnoreCase);
-    }
-
     private static string GetProviderDisplayName(string providerId)
     {
-        return providerId switch
-        {
-            "antigravity" => "Google Antigravity",
-            "gemini-cli" => "Google Gemini",
-            "github-copilot" => "GitHub Copilot",
-            "openai" => "OpenAI (Codex)",
-            "minimax" => "Minimax (China)",
-            "minimax-io" => "Minimax (International)",
-            "opencode" => "OpenCode",
-            "claude-code" => "Claude Code",
-            "zai-coding-plan" => "Z.ai Coding Plan",
-            _ => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(
-                providerId.Replace("_", " ").Replace("-", " "))
-        };
+        return ProviderMetadataCatalog.GetDisplayName(providerId);
+    }
+
+    private static bool IsDerivedProviderVisibleInSettings(string? providerId)
+    {
+        return string.Equals(providerId, "codex.spark", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task PersistAllSettingsAsync(bool showErrorDialog)
@@ -2136,7 +2387,7 @@ public partial class SettingsWindow : Window
                 return;
             }
 
-            var agentPrefsSaved = await _agentService.SavePreferencesAsync(_agentPreferences);
+            var agentPrefsSaved = await _monitorService.SavePreferencesAsync(_agentPreferences);
             if (!agentPrefsSaved)
             {
                 if (showErrorDialog)
@@ -2154,7 +2405,7 @@ public partial class SettingsWindow : Window
             var failedConfigs = new List<string>();
             foreach (var config in _configs)
             {
-                var saved = await _agentService.SaveConfigAsync(config);
+                var saved = await _monitorService.SaveConfigAsync(config);
                 if (!saved)
                 {
                     failedConfigs.Add(config.ProviderId);
@@ -2186,9 +2437,17 @@ public partial class SettingsWindow : Window
 
     private async void CancelBtn_Click(object sender, RoutedEventArgs e)
     {
-        _autoSaveTimer.Stop();
-        await PersistAllSettingsAsync(showErrorDialog: false);
-        this.Close();
+        try
+        {
+            _autoSaveTimer.Stop();
+            await PersistAllSettingsAsync(showErrorDialog: false);
+            this.Close();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CancelBtn_Click failed");
+            MessageBox.Show($"Failed to save settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void ThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -2310,16 +2569,24 @@ public partial class SettingsWindow : Window
 
     private async void SendTestNotificationBtn_Click(object sender, RoutedEventArgs e)
     {
-        NotificationTestStatusText.Text = "Sending...";
-
-        if (!(EnableWindowsNotificationsCheck.IsChecked ?? false))
+        try
         {
-            NotificationTestStatusText.Text = "Enable notifications first.";
-            return;
-        }
+            NotificationTestStatusText.Text = "Sending...";
 
-        var result = await _agentService.SendTestNotificationDetailedAsync();
-        NotificationTestStatusText.Text = result.Message;
+            if (!(EnableWindowsNotificationsCheck.IsChecked ?? false))
+            {
+                NotificationTestStatusText.Text = "Enable notifications first.";
+                return;
+            }
+
+            var result = await _monitorService.SendTestNotificationDetailedAsync();
+            NotificationTestStatusText.Text = result.Message;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SendTestNotificationBtn_Click failed");
+            NotificationTestStatusText.Text = $"Error: {ex.Message}";
+        }
     }
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
@@ -2330,5 +2597,6 @@ public partial class SettingsWindow : Window
         }
     }
 }
+
 
 

@@ -1,6 +1,8 @@
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Infrastructure.Providers;
+using AIUsageTracker.Infrastructure.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -81,6 +83,7 @@ class Program
         });
 
         services.AddHttpClient();
+        services.AddResilientHttpClient();
         services.AddSingleton<MonitorService>();
 
         var serviceProvider = services.BuildServiceProvider();
@@ -240,18 +243,24 @@ class Program
         foreach (var item in history)
         {
              // Flatten details for simplified view
-             if (item.Details != null && item.Details.Any())
+                  var displayableHistoryDetails = item.Details?
+                      .Where(d => d.DetailType == ProviderUsageDetailType.Model || d.DetailType == ProviderUsageDetailType.Other)
+                      .ToList();
+
+                 if (displayableHistoryDetails is { Count: > 0 })
              {
-                 foreach(var detail in item.Details)
+                 foreach(var detail in displayableHistoryDetails)
                  {
-                      Console.WriteLine($"{item.FetchedAt.ToShortDateString(),-12} | {item.ProviderName,-20} | {detail.Name,-25} | {detail.Used,-15}");
+                      var providerDisplayName = ProviderMetadataCatalog.GetDisplayName(item.ProviderId, item.ProviderName);
+                      Console.WriteLine($"{item.FetchedAt.ToShortDateString(),-12} | {providerDisplayName,-20} | {detail.Name,-25} | {detail.Used,-15}");
                  }
              }
              else
              {
                  // Fallback for providers without details
                  var used = $"{item.RequestsUsed} {item.UsageUnit}";
-                 Console.WriteLine($"{item.FetchedAt.ToShortDateString(),-12} | {item.ProviderName,-20} | {"(Total)",-25} | {used,-15}");
+                 var providerDisplayName = ProviderMetadataCatalog.GetDisplayName(item.ProviderId, item.ProviderName);
+                 Console.WriteLine($"{item.FetchedAt.ToShortDateString(),-12} | {providerDisplayName,-20} | {"(Total)",-25} | {used,-15}");
              }
         }
     }
@@ -449,6 +458,7 @@ class Program
                 // Handle missing PlanType or IsQuotaBased if relying on serialized data
                 var type = u.IsQuotaBased ? "Quota" : "Pay-As-You-Go";
                 var accountInfo = !string.IsNullOrWhiteSpace(u.AccountName) ? $" [{u.AccountName}]" : "";
+                var providerDisplayName = ProviderMetadataCatalog.GetDisplayName(u.ProviderId, u.ProviderName);
                 
                 var description = u.Description;
                 if (u.Details != null && u.Details.Any() && string.IsNullOrEmpty(description))
@@ -469,16 +479,19 @@ class Program
 
                 var lines = description.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
                 
-                Console.WriteLine($"{u.ProviderName,-36} | {type,-14} | {pct,-10} | {lines[0]}");
+                Console.WriteLine($"{providerDisplayName,-36} | {type,-14} | {pct,-10} | {lines[0]}");
                 
                 for (int i = 1; i < lines.Length; i++)
                 {
                     Console.WriteLine($"{"",-36} | {"",-14} | {"",-10} | {lines[i]}");
                 }
                 
-                if (u.Details != null)
+                var displayableDetails = u.Details?
+                    .Where(d => d.DetailType == ProviderUsageDetailType.Model || d.DetailType == ProviderUsageDetailType.Other)
+                    .ToList();
+                if (displayableDetails != null)
                 {
-                    foreach (var d in u.Details)
+                    foreach (var d in displayableDetails)
                     {
                         var name = "  " + d.Name;
                         Console.WriteLine($"{name,-36} | {"",-14} | {d.Used,-10} | {d.Description}");
@@ -499,9 +512,10 @@ class Program
         {
             foreach (var c in configs)
             {
-                Console.WriteLine($"ID: {c.ProviderId}, Type: {c.Type}");
+                Console.WriteLine($"ID: {c.ProviderId}, Name: {ProviderMetadataCatalog.GetDisplayName(c.ProviderId)}, Type: {c.Type}");
             }
         }
     }
 }
+
 

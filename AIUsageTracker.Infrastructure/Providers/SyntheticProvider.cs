@@ -1,20 +1,27 @@
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public sealed class SyntheticProvider : IProviderService
+public sealed class SyntheticProvider : ProviderBase
 {
     private const string DefaultQuotaEndpoint = "https://api.synthetic.new/v2/quotas";
 
     private readonly HttpClient _httpClient;
     private readonly ILogger<SyntheticProvider> _logger;
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "synthetic",
+        displayName: "Synthetic",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based");
 
-    public string ProviderId => "synthetic";
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
 
     public SyntheticProvider(HttpClient httpClient, ILogger<SyntheticProvider> logger)
     {
@@ -22,13 +29,13 @@ public sealed class SyntheticProvider : IProviderService
         _logger = logger;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(
         ProviderConfig config,
         Action<ProviderUsage>? progressCallback = null)
     {
         if (string.IsNullOrWhiteSpace(config.ApiKey))
         {
-            return new[] { CreateUnavailableUsage("API Key missing", config.AuthSource, 401) };
+            return new[] { CreateUnavailableUsage("API Key missing", 401, config.AuthSource) };
         }
 
         var endpoint = string.IsNullOrWhiteSpace(config.BaseUrl)
@@ -46,18 +53,18 @@ public sealed class SyntheticProvider : IProviderService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogDebug("Synthetic quota request failed with status code {StatusCode}", response.StatusCode);
-                return new[] { CreateUnavailableUsage($"API Error: {response.StatusCode}", config.AuthSource, (int)response.StatusCode) };
+                return new[] { CreateUnavailableUsage($"API Error: {response.StatusCode}", (int)response.StatusCode, config.AuthSource) };
             }
 
             if (content.Trim().Equals("Not Found", StringComparison.OrdinalIgnoreCase))
             {
-                return new[] { CreateUnavailableUsage("Invalid key or quota endpoint", config.AuthSource, (int)response.StatusCode) };
+                return new[] { CreateUnavailableUsage("Invalid key or quota endpoint", (int)response.StatusCode, config.AuthSource) };
             }
 
             using var document = JsonDocument.Parse(content);
             if (!TryResolveUsage(document.RootElement, out var total, out var used, out var resetRaw))
             {
-                return new[] { CreateUnavailableUsage("Unexpected quota response format", config.AuthSource, (int)response.StatusCode) };
+                return new[] { CreateUnavailableUsage("Unexpected quota response format", (int)response.StatusCode, config.AuthSource) };
             }
 
             var remainingPercent = Math.Clamp(((total - used) / total) * 100.0, 0, 100);
@@ -94,7 +101,7 @@ public sealed class SyntheticProvider : IProviderService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Synthetic provider check failed");
-            return new[] { CreateUnavailableUsage("Connection failed", config.AuthSource, 503) };
+            return new[] { CreateUnavailableUsage("Connection failed", 503, config.AuthSource) };
         }
     }
 
@@ -323,20 +330,5 @@ public sealed class SyntheticProvider : IProviderService
         nextResetTime = localTime;
         return $" (Resets: {localTime:MMM dd HH:mm})";
     }
-
-    private ProviderUsage CreateUnavailableUsage(string message, string? authSource, int httpStatus)
-    {
-        return new ProviderUsage
-        {
-            ProviderId = ProviderId,
-            ProviderName = "Synthetic",
-            IsAvailable = false,
-            Description = message,
-            PlanType = PlanType.Coding,
-            IsQuotaBased = true,
-            UsageUnit = "Credits",
-            AuthSource = authSource ?? string.Empty,
-            HttpStatus = httpStatus
-        };
-    }
 }
+

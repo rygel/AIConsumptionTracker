@@ -3,14 +3,23 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class DeepSeekProvider : IProviderService
+public class DeepSeekProvider : ProviderBase
 {
-    public string ProviderId => "deepseek";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "deepseek",
+        displayName: "DeepSeek",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go",
+        includeInWellKnownProviders: true);
+
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<DeepSeekProvider> _logger;
 
@@ -20,19 +29,14 @@ public class DeepSeekProvider : IProviderService
         _logger = logger;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         if (string.IsNullOrEmpty(config.ApiKey))
         {
-            return new[] { new ProviderUsage
-            {
-                ProviderId = ProviderId,
-                ProviderName = "DeepSeek",
-                IsAvailable = false,
-                Description = "API Key missing",
-                IsQuotaBased = false,
-                PlanType = PlanType.Usage
-            }};
+            return new[] { CreateUnavailableUsage(
+                "API Key missing",
+                planType: PlanType.Usage,
+                isQuotaBased: false) };
         }
 
         try
@@ -42,37 +46,36 @@ public class DeepSeekProvider : IProviderService
             request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 
             var response = await _httpClient.SendAsync(request);
+            var content = await response.Content.ReadAsStringAsync();
             
             if (!response.IsSuccessStatusCode)
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogWarning($"DeepSeek API error: {response.StatusCode} - {errorContent}");
-                
+                _logger.LogWarning("DeepSeek API error: {StatusCode} - {ErrorContent}", response.StatusCode, content);
+
                 return new[] { new ProviderUsage
                 {
                     ProviderId = ProviderId,
-                    ProviderName = "DeepSeek",
+                    ProviderName = Definition.DisplayName ?? ProviderId,
                     IsAvailable = true, // Key exists, just failed request
                     Description = $"API Error ({response.StatusCode})",
-                    RequestsPercentage = 0,
+                    PlanType = PlanType.Usage,
                     IsQuotaBased = false,
-                    PlanType = PlanType.Usage
+                    HttpStatus = (int)response.StatusCode,
+                    RequestsPercentage = 0,
+                    RequestsUsed = 0,
+                    RequestsAvailable = 0,
+                    RawJson = content
                 }};
             }
 
-            var result = await response.Content.ReadFromJsonAsync<DeepSeekBalanceResponse>();
+            var result = JsonSerializer.Deserialize<DeepSeekBalanceResponse>(content);
             
             if (result == null)
             {
-                return new[] { new ProviderUsage
-                {
-                    ProviderId = ProviderId,
-                    ProviderName = "DeepSeek",
-                    IsAvailable = false,
-                    Description = "Failed to parse DeepSeek response",
-                    IsQuotaBased = false,
-                    PlanType = PlanType.Usage
-                }};
+                return new[] { CreateUnavailableUsage(
+                    "Failed to parse DeepSeek response",
+                    planType: PlanType.Usage,
+                    isQuotaBased: false) };
             }
 
             var details = new List<ProviderUsageDetail>();
@@ -88,7 +91,9 @@ public class DeepSeekProvider : IProviderService
                     {
                         Name = detailName,
                         Used = $"{currencySymbol}{info.TotalBalance.ToString("F2", CultureInfo.InvariantCulture)}",
-                        Description = $"{currencySymbol}{info.ToppedUpBalance.ToString("F2", CultureInfo.InvariantCulture)} (Topped-up: {currencySymbol}{info.ToppedUpBalance.ToString("F2", CultureInfo.InvariantCulture)}, Granted: {currencySymbol}{info.GrantedBalance.ToString("F2", CultureInfo.InvariantCulture)})"
+                        Description = $"{currencySymbol}{info.ToppedUpBalance.ToString("F2", CultureInfo.InvariantCulture)} (Topped-up: {currencySymbol}{info.ToppedUpBalance.ToString("F2", CultureInfo.InvariantCulture)}, Granted: {currencySymbol}{info.GrantedBalance.ToString("F2", CultureInfo.InvariantCulture)})",
+                        DetailType = ProviderUsageDetailType.Credit,
+                        WindowKind = WindowKind.None
                     });
 
                     // If it's the first or a primary currency, use for main description
@@ -111,21 +116,15 @@ public class DeepSeekProvider : IProviderService
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
                 Description = mainDescription,
-                Details = details
+                Details = details,
+                RawJson = content,
+                HttpStatus = (int)response.StatusCode
             }};
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "DeepSeek check failed");
-            return new[] { new ProviderUsage
-            {
-                ProviderId = ProviderId,
-                ProviderName = "DeepSeek",
-                IsAvailable = false,
-                Description = "Check failed",
-                IsQuotaBased = false,
-                PlanType = PlanType.Usage
-            }};
+            return new[] { CreateUnavailableUsageFromException(ex, "DeepSeek check failed") };
         }
     }
 
@@ -153,4 +152,5 @@ public class DeepSeekProvider : IProviderService
         public double ToppedUpBalance { get; set; }
     }
 }
+
 

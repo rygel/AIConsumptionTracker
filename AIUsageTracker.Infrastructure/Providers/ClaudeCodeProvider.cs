@@ -4,14 +4,23 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class ClaudeCodeProvider : IProviderService
+public class ClaudeCodeProvider : ProviderBase
 {
-    public string ProviderId => "claude-code";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "claude-code",
+        displayName: "Claude Code",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go",
+        autoIncludeWhenUnconfigured: true);
+
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly ILogger<ClaudeCodeProvider> _logger;
     private readonly HttpClient _httpClient;
 
@@ -21,7 +30,7 @@ public class ClaudeCodeProvider : IProviderService
         _httpClient = httpClient;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         // Check if API key is configured
         if (string.IsNullOrEmpty(config.ApiKey))
@@ -34,7 +43,9 @@ public class ClaudeCodeProvider : IProviderService
                 Description = "No API key configured",
                 UsageUnit = "Status",
                 IsQuotaBased = false,
-                PlanType = PlanType.Usage
+                PlanType = PlanType.Usage,
+                RawJson = "{\"source\":\"claude-code\",\"status\":\"api_key_missing\"}",
+                HttpStatus = 401
             }};
         }
 
@@ -68,6 +79,7 @@ public class ClaudeCodeProvider : IProviderService
             testRequest.Content = new StringContent("{\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}", System.Text.Encoding.UTF8, "application/json");
 
             using var testResponse = await _httpClient.SendAsync(testRequest);
+            var responseBody = await testResponse.Content.ReadAsStringAsync();
             
             // Extract rate limit information from headers
             var rateLimitHeaders = ExtractRateLimitInfo(testResponse.Headers);
@@ -101,12 +113,12 @@ public class ClaudeCodeProvider : IProviderService
 
                 // Build detailed tooltip info
                 var tooltipDetails = new List<ProviderUsageDetail>();
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Rate Limit Tier", Used = rateLimitHeaders.GetTierName() });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Limit", Used = rateLimitHeaders.RequestsLimit.ToString("N0") });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Remaining", Used = rateLimitHeaders.RequestsRemaining.ToString("N0") });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Limit", Used = rateLimitHeaders.InputTokensLimit.ToString("N0") });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Remaining", Used = rateLimitHeaders.InputTokensRemaining.ToString("N0") });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Current RPM Usage", Used = $"{usagePercentage:F1}%" });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Rate Limit Tier", Used = rateLimitHeaders.GetTierName(), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Limit", Used = rateLimitHeaders.RequestsLimit.ToString("N0"), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Remaining", Used = rateLimitHeaders.RequestsRemaining.ToString("N0"), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Limit", Used = rateLimitHeaders.InputTokensLimit.ToString("N0"), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Remaining", Used = rateLimitHeaders.InputTokensRemaining.ToString("N0"), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Current RPM Usage", Used = $"{usagePercentage:F1}%", DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
 
                 return new ProviderUsage
                 {
@@ -121,7 +133,9 @@ public class ClaudeCodeProvider : IProviderService
                     IsAvailable = true,
                     Description = description,
                     Details = tooltipDetails,
-                    AccountName = warningMessage // Using AccountName to carry warning state
+                    AccountName = warningMessage, // Using AccountName to carry warning state
+                    RawJson = responseBody,
+                    HttpStatus = (int)testResponse.StatusCode
                 };
             }
             
@@ -194,13 +208,23 @@ public class ClaudeCodeProvider : IProviderService
                         Description = "Connected (API key configured)",
                         UsageUnit = "Status",
                         IsQuotaBased = false,
-                        PlanType = PlanType.Usage
+                        PlanType = PlanType.Usage,
+                        RawJson = "{\"source\":\"claude-cli\",\"status\":\"process_start_failed\"}",
+                        HttpStatus = 503
                     }};
                 }
 
                 var outputTask = process.StandardOutput.ReadToEndAsync();
                 var errorTask = process.StandardError.ReadToEndAsync();
-                process.WaitForExit(5000);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                try
+                {
+                    await process.WaitForExitAsync(cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("Claude Code CLI timed out");
+                }
                 var output = await outputTask;
                 var error = await errorTask;
 
@@ -216,7 +240,9 @@ public class ClaudeCodeProvider : IProviderService
                         Description = "Connected (API key configured)",
                         UsageUnit = "Status",
                         IsQuotaBased = false,
-                        PlanType = PlanType.Usage
+                        PlanType = PlanType.Usage,
+                        RawJson = string.IsNullOrWhiteSpace(error) ? "{\"source\":\"claude-cli\",\"status\":\"failed\"}" : error,
+                        HttpStatus = 500
                     }};
                 }
 
@@ -234,7 +260,9 @@ public class ClaudeCodeProvider : IProviderService
                     Description = "Connected (API key configured)",
                     UsageUnit = "Status",
                     IsQuotaBased = false,
-                    PlanType = PlanType.Usage
+                    PlanType = PlanType.Usage,
+                    RawJson = ex.ToString(),
+                    HttpStatus = 500
                 }};
             }
         });
@@ -283,7 +311,9 @@ public class ClaudeCodeProvider : IProviderService
             IsAvailable = true,
             Description = budgetLimit > 0 
                 ? $"${currentUsage.ToString("F2", CultureInfo.InvariantCulture)} used of ${budgetLimit.ToString("F2", CultureInfo.InvariantCulture)} limit"
-                : $"${currentUsage.ToString("F2", CultureInfo.InvariantCulture)} used"
+                : $"${currentUsage.ToString("F2", CultureInfo.InvariantCulture)} used",
+            RawJson = output,
+            HttpStatus = 200
         };
     }
 
@@ -312,4 +342,5 @@ public class ClaudeCodeProvider : IProviderService
         }
     }
 }
+
 

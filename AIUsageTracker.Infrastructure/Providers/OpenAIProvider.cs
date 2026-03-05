@@ -3,17 +3,25 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text;
 using Microsoft.Extensions.Logging;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 using System.Net;
 using System.Net.Http.Headers;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class OpenAIProvider : IProviderService
+public class OpenAIProvider : ProviderBase
 {
     private const string WhamUsageEndpoint = "https://chatgpt.com/backend-api/wham/usage";
-    public string ProviderId => "openai";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "openai",
+        displayName: "OpenAI",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based");
+
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenAIProvider> _logger;
 
@@ -23,7 +31,7 @@ public class OpenAIProvider : IProviderService
         _logger = logger;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         if (!string.IsNullOrWhiteSpace(config.ApiKey) && IsApiKey(config.ApiKey))
         {
@@ -50,8 +58,8 @@ public class OpenAIProvider : IProviderService
                     ProviderName = "OpenAI",
                     IsAvailable = false,
                     Description = "OpenAI API key or OpenCode session not found.",
-                    IsQuotaBased = false,
-                    PlanType = PlanType.Usage
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Coding
                 }
             };
         }
@@ -79,8 +87,8 @@ public class OpenAIProvider : IProviderService
                     ProviderName = "OpenAI",
                     IsAvailable = false,
                     Description = "Project keys (sk-proj-...) not supported yet. Use a standard user API key.",
-                    IsQuotaBased = false,
-                    PlanType = PlanType.Usage
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Coding
                 }
             };
         }
@@ -101,8 +109,8 @@ public class OpenAIProvider : IProviderService
                         ProviderName = "OpenAI",
                         IsAvailable = true,
                         RequestsPercentage = 0,
-                        IsQuotaBased = false,
-                        PlanType = PlanType.Usage,
+                        IsQuotaBased = true,
+                        PlanType = PlanType.Coding,
                         Description = "Connected (API Key)",
                         UsageUnit = "Status"
                     }
@@ -117,8 +125,8 @@ public class OpenAIProvider : IProviderService
                     ProviderName = "OpenAI",
                     IsAvailable = false,
                     Description = $"Invalid Key ({response.StatusCode})",
-                    IsQuotaBased = false,
-                    PlanType = PlanType.Usage
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Coding
                 }
             };
         }
@@ -133,8 +141,8 @@ public class OpenAIProvider : IProviderService
                     ProviderName = "OpenAI",
                     IsAvailable = false,
                     Description = "Connection Failed",
-                    IsQuotaBased = false,
-                    PlanType = PlanType.Usage
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Coding
                 }
             };
         }
@@ -154,18 +162,18 @@ public class OpenAIProvider : IProviderService
 
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
-            return CreateUnavailableUsage($"Session invalid ({(int)response.StatusCode})");
+            return CreateUnavailableUsage($"Session invalid ({(int)response.StatusCode})", (int)response.StatusCode);
         }
 
         if (!response.IsSuccessStatusCode)
         {
-            return CreateUnavailableUsage($"Session usage request failed ({(int)response.StatusCode})");
+            return CreateUnavailableUsage($"Session usage request failed ({(int)response.StatusCode})", (int)response.StatusCode);
         }
 
         using var doc = JsonDocument.Parse(content);
         if (doc.RootElement.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String)
         {
-            return CreateUnavailableUsage(detail.GetString() ?? "Session usage request failed");
+            return CreateUnavailableUsage(detail.GetString() ?? "Session usage request failed", (int)response.StatusCode);
         }
 
         var planType = ReadString(doc.RootElement, "plan_type") ?? "chatgpt";
@@ -176,7 +184,7 @@ public class OpenAIProvider : IProviderService
         return new ProviderUsage
         {
             ProviderId = ProviderId,
-            ProviderName = "OpenAI (Codex)",
+            ProviderName = "OpenAI",
             AccountName = GetAccountIdentity(doc.RootElement, accessToken, accountId) ?? string.Empty,
             IsAvailable = true,
             IsQuotaBased = true,
@@ -188,21 +196,9 @@ public class OpenAIProvider : IProviderService
             Description = $"{remaining:F0}% remaining ({used:F0}% used) | Plan: {planType}",
             AuthSource = "OpenCode Session",
             NextResetTime = nextResetTime,
-            Details = BuildOpenAiSessionDetails(doc.RootElement)
-        };
-    }
-
-    private ProviderUsage CreateUnavailableUsage(string description)
-    {
-        return new ProviderUsage
-        {
-            ProviderId = ProviderId,
-            ProviderName = "OpenAI",
-            IsAvailable = false,
-            Description = description,
-            IsQuotaBased = true,
-            PlanType = PlanType.Coding,
-            UsageUnit = "Quota %"
+            Details = BuildOpenAiSessionDetails(doc.RootElement),
+            RawJson = content,
+            HttpStatus = (int)response.StatusCode
         };
     }
 
@@ -249,9 +245,10 @@ public class OpenAIProvider : IProviderService
                     AccountId = ReadString(openai, "accountId")
                 };
             }
-            catch
+            catch (Exception)
             {
-                // continue with next candidate
+                // Intentionally suppressed: scanning multiple candidate auth file paths.
+                // Malformed or inaccessible files are skipped to try next candidate.
             }
         }
 
@@ -272,7 +269,9 @@ public class OpenAIProvider : IProviderService
                 Name = "5-hour quota",
                 Used = $"{used.Value:F0}% used",
                 Description = reset.HasValue && reset.Value > 0 ? $"Resets in {(int)reset.Value}s" : string.Empty,
-                NextResetTime = primaryResetTime
+                NextResetTime = primaryResetTime,
+                DetailType = ProviderUsageDetailType.QuotaWindow,
+                WindowKind = WindowKind.Primary
             });
         }
 
@@ -286,7 +285,9 @@ public class OpenAIProvider : IProviderService
                 Name = "Weekly quota",
                 Used = $"{weeklyUsed.Value:F0}% used",
                 Description = weeklyReset.HasValue && weeklyReset.Value > 0 ? $"Resets in {(int)weeklyReset.Value}s" : string.Empty,
-                NextResetTime = weeklyResetTime
+                NextResetTime = weeklyResetTime,
+                DetailType = ProviderUsageDetailType.QuotaWindow,
+                WindowKind = WindowKind.Secondary
             });
         }
 
@@ -297,7 +298,9 @@ public class OpenAIProvider : IProviderService
             details.Add(new ProviderUsageDetail
             {
                 Name = "Credits",
-                Used = unlimited == true ? "Unlimited" : credits?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "Unknown"
+                Used = unlimited == true ? "Unlimited" : credits?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "Unknown",
+                DetailType = ProviderUsageDetailType.Credit,
+                WindowKind = WindowKind.None
             });
         }
 
@@ -459,8 +462,10 @@ public class OpenAIProvider : IProviderService
 
             return (email, planType);
         }
-        catch
+        catch (Exception)
         {
+            // Intentionally suppressed: JWT parsing failures are non-critical.
+            // Returns (null, null) to indicate claims could not be extracted.
             return (null, null);
         }
     }
@@ -538,4 +543,5 @@ public class OpenAIProvider : IProviderService
         public string? AccountId { get; set; }
     }
 }
+
 

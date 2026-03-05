@@ -1,0 +1,144 @@
+{
+  "description": "Sanitized Codex (OpenAI) API response fixtures for testing",
+  "api_endpoint": "https://chatgpt.com/backend-api/wham/usage",
+  "fixtures": [
+    {
+      "name": "plus_plan_with_hourly_and_weekly_limits",
+      "description": "User on Plus plan with both hourly and weekly limits",
+      "response": {
+        "user_id": "user-0OaAGl8fyOnxpFIVZK9rFL2E",
+        "account_id": "user-0OaAGl8fyOnxpFIVZK9rFL2E",
+        "email": "[REDACTED]@gmail.com",
+        "plan_type": "plus",
+        "rate_limit": {
+          "allowed": true,
+          "limit_reached": false,
+          "primary_window": {
+            "used_percent": 0,
+            "limit_window_seconds": 18000,
+            "reset_after_seconds": 18000,
+            "reset_at": 1772654666
+          },
+          "secondary_window": {
+            "used_percent": 19,
+            "limit_window_seconds": 604800,
+            "reset_after_seconds": 580741,
+            "reset_at": 1773217407
+          }
+        },
+        "code_review_rate_limit": {
+          "allowed": true,
+          "limit_reached": false,
+          "primary_window": {
+            "used_percent": 0,
+            "limit_window_seconds": 604800,
+            "reset_after_seconds": 604800,
+            "reset_at": 1773241466
+          },
+          "secondary_window": null
+        },
+        "additional_rate_limits": null,
+        "credits": {
+          "has_credits": false,
+          "unlimited": false,
+          "balance": "0",
+          "approx_local_messages": [0, 0],
+          "approx_cloud_messages": [0, 0]
+        },
+        "promo": null
+      }
+    },
+    {
+      "name": "near_weekly_limit",
+      "description": "User close to weekly limit but with hourly remaining",
+      "response": {
+        "user_id": "user-xxx",
+        "account_id": "user-xxx",
+        "email": "[REDACTED]@example.com",
+        "plan_type": "plus",
+        "rate_limit": {
+          "allowed": true,
+          "limit_reached": false,
+          "primary_window": {
+            "used_percent": 45,
+            "limit_window_seconds": 18000,
+            "reset_after_seconds": 9000,
+            "reset_at": 1773000000
+          },
+          "secondary_window": {
+            "used_percent": 85,
+            "limit_window_seconds": 604800,
+            "reset_after_seconds": 90000,
+            "reset_at": 1773100000
+          }
+        },
+        "code_review_rate_limit": {
+          "allowed": true,
+          "limit_reached": false,
+          "primary_window": {
+            "used_percent": 10,
+            "limit_window_seconds": 604800,
+            "reset_after_seconds": 544000,
+            "reset_at": 1773200000
+          },
+          "secondary_window": null
+        },
+        "additional_rate_limits": null,
+        "credits": {
+          "has_credits": false,
+          "unlimited": false,
+          "balance": "0",
+          "approx_local_messages": [0, 0],
+          "approx_cloud_messages": [0, 0]
+        },
+        "promo": null
+      }
+    },
+    {
+      "name": "limit_reached",
+      "description": "User who has reached their hourly limit",
+      "response": {
+        "user_id": "user-xxx",
+        "account_id": "user-xxx",
+        "email": "[REDACTED]@example.com",
+        "plan_type": "plus",
+        "rate_limit": {
+          "allowed": false,
+          "limit_reached": true,
+          "primary_window": {
+            "used_percent": 100,
+            "limit_window_seconds": 18000,
+            "reset_after_seconds": 5000,
+            "reset_at": 1773000000
+          },
+          "secondary_window": {
+            "used_percent": 50,
+            "limit_window_seconds": 604800,
+            "reset_after_seconds": 300000,
+            "reset_at": 1773100000
+          }
+        },
+        "code_review_rate_limit": {
+          "allowed": true,
+          "limit_reached": false,
+          "primary_window": {
+            "used_percent": 5,
+            "limit_window_seconds": 604800,
+            "reset_after_seconds": 575000,
+            "reset_at": 1773200000
+          },
+          "secondary_window": null
+        },
+        "additional_rate_limits": null,
+        "credits": {
+          "has_credits": false,
+          "unlimited": false,
+          "balance": "0",
+          "approx_local_messages": [0, 0],
+          "approx_cloud_messages": [0, 0]
+        },
+        "promo": null
+      }
+    }
+  ]
+}

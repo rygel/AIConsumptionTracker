@@ -8,16 +8,27 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 
 using AIUsageTracker.Infrastructure.Helpers;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-    public class AntigravityProvider : IProviderService
+public class AntigravityProvider : ProviderBase
 {
-    public string ProviderId => "antigravity";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "antigravity",
+        displayName: "Google Antigravity",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        autoIncludeWhenUnconfigured: true,
+        includeInWellKnownProviders: true,
+        supportsChildProviderIds: true);
+
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<AntigravityProvider> _logger;
     private ProviderUsage? _cachedUsage;
@@ -50,7 +61,7 @@ namespace AIUsageTracker.Infrastructure.Providers;
         return new HttpClient(handler);
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         var results = new List<ProviderUsage>();
 
@@ -155,7 +166,7 @@ namespace AIUsageTracker.Infrastructure.Providers;
                         candidatePorts.Add(commandLinePort.Value);
                     }
 
-                    foreach (var listeningPort in FindListeningPorts(pid))
+                    foreach (var listeningPort in await FindListeningPorts(pid))
                     {
                         if (!candidatePorts.Contains(listeningPort))
                         {
@@ -366,25 +377,35 @@ namespace AIUsageTracker.Infrastructure.Providers;
         }
     }
 
-    private List<int> FindListeningPorts(int pid)
+    private async Task<List<int>> FindListeningPorts(int pid)
     {
-        var startInfo = new ProcessStartInfo
+        var psi = new ProcessStartInfo
         {
             FileName = "netstat",
             Arguments = "-ano",
             RedirectStandardOutput = true,
+            RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
 
-        using var process = Process.Start(startInfo);
+        using var process = Process.Start(psi);
         if (process == null)
         {
             return new List<int>();
         }
 
-        var output = process.StandardOutput.ReadToEnd();
-        process.WaitForExit();
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            await process.WaitForExitAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return new List<int>();
+        }
+        var output = await outputTask;
 
         var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         var regex = new Regex($@"\s+TCP\s+(?:127\.0\.0\.1|\[::1\]):(\d+)\s+.*LISTENING\s+{pid}");
@@ -409,6 +430,7 @@ namespace AIUsageTracker.Infrastructure.Providers;
     {
         var body = new { metadata = new { ideName = "antigravity", extensionName = "antigravity", ideVersion = "unknown", locale = "en" } };
         string? responseString = null;
+        int httpStatus = 200;
         Exception? lastRequestException = null;
 
         foreach (var scheme in new[] { "https", "http" })
@@ -424,6 +446,7 @@ namespace AIUsageTracker.Infrastructure.Providers;
                 var response = await _httpClient.SendAsync(request);
                 response.EnsureSuccessStatusCode();
 
+                httpStatus = (int)response.StatusCode;
                 responseString = await response.Content.ReadAsStringAsync();
                 _logger.LogDebug(
                     "[Antigravity] Raw response from {Scheme} port {Port}: {Response}",
@@ -480,7 +503,9 @@ namespace AIUsageTracker.Infrastructure.Providers;
                     : "Ungrouped Models",
                 Used = $"{remainingPct.Value.ToString("F0", CultureInfo.InvariantCulture)}%",
                 Description = resetDescription,
-                NextResetTime = nextResetTime
+                NextResetTime = nextResetTime,
+                DetailType = ProviderUsageDetailType.Model,
+                WindowKind = WindowKind.None
             });
 
             minRemaining = minRemaining.HasValue
@@ -512,7 +537,7 @@ namespace AIUsageTracker.Infrastructure.Providers;
         }
 
         var sortedDetails = SortDetails(details);
-        var summary = BuildSummaryUsage(data.UserStatus, sortedDetails, minRemaining.Value);
+        var summary = BuildSummaryUsage(data.UserStatus, sortedDetails, minRemaining.Value, responseString, httpStatus);
         ApplySummaryRawNumbers(summary, configMap);
 
         var results = BuildChildUsages(sortedDetails, configMap, config, data.UserStatus.Email ?? string.Empty);
@@ -645,7 +670,7 @@ namespace AIUsageTracker.Infrastructure.Providers;
             .ToList();
     }
 
-    private ProviderUsage BuildSummaryUsage(UserStatus userStatus, List<ProviderUsageDetail> sortedDetails, double remainingPctTotal)
+    private ProviderUsage BuildSummaryUsage(UserStatus userStatus, List<ProviderUsageDetail> sortedDetails, double remainingPctTotal, string? rawJson = null, int httpStatus = 200)
     {
         return new ProviderUsage
         {
@@ -660,7 +685,9 @@ namespace AIUsageTracker.Infrastructure.Providers;
             Description = $"{remainingPctTotal.ToString("F1", CultureInfo.InvariantCulture)}% Remaining",
             Details = sortedDetails,
             AccountName = userStatus.Email ?? string.Empty,
-            NextResetTime = sortedDetails.Where(d => d.NextResetTime.HasValue).OrderBy(d => d.NextResetTime).FirstOrDefault()?.NextResetTime
+            NextResetTime = sortedDetails.Where(d => d.NextResetTime.HasValue).OrderBy(d => d.NextResetTime).FirstOrDefault()?.NextResetTime,
+            RawJson = rawJson,
+            HttpStatus = httpStatus
         };
     }
 
@@ -1097,4 +1124,5 @@ namespace AIUsageTracker.Infrastructure.Providers;
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 }
+
 

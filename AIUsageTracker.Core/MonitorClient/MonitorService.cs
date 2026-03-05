@@ -1,40 +1,44 @@
-using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Core.MonitorClient;
 
-public class MonitorService
+public class MonitorService : IMonitorService
 {
     private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ILogger<MonitorService>? _logger;
+    private const int UsageRequestTimeoutSeconds = 8;
+    private const int ConfigRequestTimeoutSeconds = 3;
 
     public const string ExpectedApiContractVersion = "1";
     public string AgentUrl { get; set; } = "http://localhost:5000";
 
-    public MonitorService() : this(new HttpClient { Timeout = TimeSpan.FromSeconds(30) })
+    private static HttpClient? _sharedHttpClient;
+
+    public MonitorService() : this(GetOrCreateHttpClient(), null)
     {
     }
 
-    public List<string> LastAgentErrors { get; private set; } = new();
-    private static readonly List<string> _diagnosticsLog = new();
-    public static IReadOnlyList<string> DiagnosticsLog => _diagnosticsLog;
-    private static long _usageRequestCount;
-    private static long _usageErrorCount;
-    private static long _usageTotalLatencyMs;
-    private static long _usageLastLatencyMs;
-    private static long _refreshRequestCount;
-    private static long _refreshErrorCount;
-    private static long _refreshTotalLatencyMs;
-    private static long _refreshLastLatencyMs;
+    private static HttpClient GetOrCreateHttpClient()
+    {
+        if (_sharedHttpClient == null)
+        {
+            _sharedHttpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+        }
+        return _sharedHttpClient;
+    }
 
-    public MonitorService(HttpClient httpClient)
+    public MonitorService(HttpClient httpClient, ILogger<MonitorService>? logger)
     {
         _httpClient = httpClient;
+        _logger = logger;
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
@@ -46,6 +50,18 @@ public class MonitorService
         // to avoid race conditions where the Monitor port changes
     }
 
+    public IReadOnlyList<string> LastAgentErrors { get; private set; } = new List<string>();
+    private static readonly List<string> _diagnosticsLog = new();
+    public static IReadOnlyList<string> DiagnosticsLog => _diagnosticsLog;
+    private static long _usageRequestCount;
+    private static long _usageErrorCount;
+    private static long _usageTotalLatencyMs;
+    private static long _usageLastLatencyMs;
+    private static long _refreshRequestCount;
+    private static long _refreshErrorCount;
+    private static long _refreshTotalLatencyMs;
+    private static long _refreshLastLatencyMs;
+
     public static void LogDiagnostic(string message)
     {
         var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
@@ -55,7 +71,6 @@ public class MonitorService
             if (_diagnosticsLog.Count > 100) _diagnosticsLog.RemoveAt(0);
         }
         System.Diagnostics.Debug.WriteLine($"[{timestamp}] [DIAG] {message}");
-        Console.WriteLine($"[{timestamp}] [DIAG] {message}");
     }
 
     public static AgentTelemetrySnapshot GetTelemetrySnapshot()
@@ -110,65 +125,50 @@ public class MonitorService
     
     public async Task RefreshAgentInfoAsync()
     {
-        LogDiagnostic("Refreshing Agent Info from file...");
+        LogDiagnostic("Refreshing Monitor Info from file...");
         try
         {
-            var path = GetExistingAgentInfoPath();
-
-            if (path != null)
+            var info = await MonitorLauncher.GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+            if (info != null)
             {
-                var json = await File.ReadAllTextAsync(path);
-                var info = JsonSerializer.Deserialize<MonitorInfo>(json, new JsonSerializerOptions
+                if (info.Port > 0)
                 {
-                    PropertyNameCaseInsensitive = true
-                });
-                
-                if (info != null)
-                {
-                    if (info.Port > 0) 
-                    {
-                        AgentUrl = $"http://localhost:{info.Port}";
-                        LogDiagnostic($"Found Agent running on port {info.Port} from monitor.json");
-                    }
-                    LastAgentErrors = info.Errors ?? new List<string>();
-                    return;
+                    AgentUrl = $"http://localhost:{info.Port}";
+                    LogDiagnostic($"Found Monitor running on port {info.Port} from monitor.json");
                 }
+
+                LastAgentErrors = info.Errors ?? new List<string>();
+                return;
             }
             
-            LogDiagnostic("monitor.json not found or invalid, using default port 5000");
+            LogDiagnostic("monitor.json missing, stale, or invalid; using default port 5000");
             LastAgentErrors = new List<string>();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error refreshing agent info: {ex.Message}");
+            _logger?.LogWarning(ex, "Error refreshing monitor info");
             AgentUrl = "http://localhost:5000";
             LastAgentErrors = new List<string>();
         }
     }
 
-    private static string? GetExistingAgentInfoPath()
-    {
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var candidates = new[]
-        {
-            Path.Combine(appData, "AIUsageTracker", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "monitor.json")
-        };
-
-        return candidates.FirstOrDefault(File.Exists);
-    }
-    
-    
     public async Task RefreshPortAsync()
     {
-        // Read port from monitor.json file - that's the authoritative source
-        var port = await MonitorLauncher.GetAgentPortAsync();
+        var info = await MonitorLauncher.GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+        if (info != null && info.Port > 0)
+        {
+            AgentUrl = $"http://localhost:{info.Port}";
+            return;
+        }
+
+        // Fallback when monitor info is missing or stale.
+        var port = await MonitorLauncher.GetAgentPortAsync().ConfigureAwait(false);
         
         // Verify the Monitor is actually running on that port
         if (!await MonitorLauncher.IsAgentRunningAsync())
         {
-            // Only as very last resort, try scanning - but this should rarely happen
-            MonitorService.LogDiagnostic($"Monitor not found on port {port}, this should not happen");
+            // Monitor not responding on expected port, will need to locate or start it
+            MonitorService.LogDiagnostic($"Monitor not responding on port {port}. Attempting to locate...");
         }
         
         AgentUrl = $"http://localhost:{port}";
@@ -180,9 +180,11 @@ public class MonitorService
         var stopwatch = Stopwatch.StartNew();
         try
         {
+            using var requestTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(UsageRequestTimeoutSeconds));
             var usage = await _httpClient.GetFromJsonAsync<List<ProviderUsage>>(
                 $"{AgentUrl}/api/usage", 
-                _jsonOptions);
+                _jsonOptions,
+                requestTimeout.Token).ConfigureAwait(false);
             LogDiagnostic($"Successfully fetched usage from {AgentUrl}");
             stopwatch.Stop();
             RecordUsageTelemetry(stopwatch.Elapsed, true);
@@ -197,9 +199,11 @@ public class MonitorService
             
             try
             {
+                using var requestTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(UsageRequestTimeoutSeconds));
                 var usage = await _httpClient.GetFromJsonAsync<List<ProviderUsage>>(
                     $"{AgentUrl}/api/usage", 
-                    _jsonOptions);
+                    _jsonOptions,
+                    requestTimeout.Token);
                 LogDiagnostic($"Successfully fetched usage from {AgentUrl} after port refresh");
                 stopwatch.Stop();
                 RecordUsageTelemetry(stopwatch.Elapsed, true);
@@ -212,6 +216,13 @@ public class MonitorService
                 LogDiagnostic($"Failed to fetch usage from {AgentUrl} after port refresh: Connection error");
                 return new List<ProviderUsage>();
             }
+        }
+        catch (TaskCanceledException)
+        {
+            stopwatch.Stop();
+            RecordUsageTelemetry(stopwatch.Elapsed, false);
+            LogDiagnostic($"Failed to fetch usage from {AgentUrl}: request timed out after {UsageRequestTimeoutSeconds}s");
+            return new List<ProviderUsage>();
         }
         catch (Exception ex)
         {
@@ -289,14 +300,22 @@ public class MonitorService
     {
         try
         {
+            using var requestTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(ConfigRequestTimeoutSeconds));
             var configs = await _httpClient.GetFromJsonAsync<List<ProviderConfig>>(
                 $"{AgentUrl}/api/config",
-                _jsonOptions);
+                _jsonOptions,
+                requestTimeout.Token);
             return configs ?? new List<ProviderConfig>();
+        }
+        catch (TaskCanceledException)
+        {
+            _logger?.LogWarning("GetConfigsAsync timeout after {Timeout}s at {Url}", 
+                ConfigRequestTimeoutSeconds, $"{AgentUrl}/api/config");
+            return new List<ProviderConfig>();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"GetConfigsAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "GetConfigsAsync error");
             return new List<ProviderConfig>();
         }
     }
@@ -313,7 +332,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"SaveConfigAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "SaveConfigAsync error");
             return false;
         }
     }
@@ -327,7 +346,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"RemoveConfigAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "RemoveConfigAsync error");
             return false;
         }
     }
@@ -344,7 +363,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"GetPreferencesAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "GetPreferencesAsync error");
             return new AppPreferences();
         }
     }
@@ -361,7 +380,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"SavePreferencesAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "SavePreferencesAsync error");
             return false;
         }
     }
@@ -372,7 +391,7 @@ public class MonitorService
         return result.Success;
     }
 
-    public async Task<(bool Success, string Message)> SendTestNotificationDetailedAsync()
+    public async Task<AgentTestNotificationResult> SendTestNotificationDetailedAsync()
     {
         try
         {
@@ -381,20 +400,21 @@ public class MonitorService
 
             if (response.IsSuccessStatusCode)
             {
-                return (true, "Test sent. Check Windows notifications.");
+                var result = await response.Content.ReadFromJsonAsync<AgentTestNotificationResult>(_jsonOptions);
+                return result ?? new AgentTestNotificationResult { Success = true, Message = "Test sent. Check system notifications." };
             }
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                return (false, "Monitor endpoint not available. Restart Monitor and try again.");
+                return new AgentTestNotificationResult { Success = false, Message = "Monitor endpoint not available. Restart Monitor and try again." };
             }
 
-            return (false, $"Monitor returned {(int)response.StatusCode} ({response.ReasonPhrase}).");
+            return new AgentTestNotificationResult { Success = false, Message = $"Monitor returned {(int)response.StatusCode} ({response.ReasonPhrase})." };
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"SendTestNotificationAsync error: {ex.Message}");
-            return (false, "Could not reach Monitor. Ensure it is running and try again.");
+            _logger?.LogWarning(ex, "SendTestNotificationAsync error");
+            return new AgentTestNotificationResult { Success = false, Message = "Could not reach Monitor. Ensure it is running and try again." };
         }
     }
 
@@ -415,7 +435,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"ScanForKeysAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "ScanForKeysAsync error");
         }
         return (0, new List<ProviderConfig>());
     }
@@ -596,6 +616,23 @@ public class MonitorService
         }
     }
 
+    public async Task<string> ExportDataAsync(string format)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{AgentUrl}/api/export/{format}");
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsStringAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "ExportDataAsync error");
+        }
+        return string.Empty;
+    }
+
     public async Task<Stream?> ExportDataAsync(string format, int days)
     {
         try
@@ -608,7 +645,7 @@ public class MonitorService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"ExportDataAsync error: {ex.Message}");
+            _logger?.LogWarning(ex, "ExportDataAsync error");
         }
         return null; // or throw
     }
@@ -618,6 +655,12 @@ public class MonitorService
         public bool Success { get; set; }
         public string Message { get; set; } = string.Empty;
     }
+}
+
+public sealed class AgentTestNotificationResult
+{
+    public bool Success { get; init; }
+    public string Message { get; init; } = string.Empty;
 }
 
 public sealed class AgentTelemetrySnapshot
@@ -642,4 +685,3 @@ public sealed class AgentContractHandshakeResult
     public string? AgentVersion { get; init; }
     public string Message { get; init; } = string.Empty;
 }
-

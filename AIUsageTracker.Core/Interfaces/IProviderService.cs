@@ -5,6 +5,13 @@ namespace AIUsageTracker.Core.Interfaces;
 public interface IProviderService
 {
     string ProviderId { get; }
+    ProviderDefinition Definition { get; }
+
+    bool CanHandleProviderId(string providerId)
+    {
+        return Definition.HandlesProviderId(providerId);
+    }
+
     Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null);
 }
 

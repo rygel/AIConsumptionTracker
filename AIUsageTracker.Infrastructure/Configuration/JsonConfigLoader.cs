@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Helpers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -10,37 +11,40 @@ public class JsonConfigLoader : IConfigLoader
 {
     private readonly ILogger<JsonConfigLoader> _logger;
     private readonly ILogger<TokenDiscoveryService> _tokenDiscoveryLogger;
+    private readonly IAppPathProvider _pathProvider;
 
-    public JsonConfigLoader(ILogger<JsonConfigLoader>? logger = null, ILogger<TokenDiscoveryService>? tokenDiscoveryLogger = null)
+    public JsonConfigLoader(
+        ILogger<JsonConfigLoader>? logger = null, 
+        ILogger<TokenDiscoveryService>? tokenDiscoveryLogger = null,
+        IAppPathProvider? pathProvider = null)
     {
         _logger = logger ?? NullLogger<JsonConfigLoader>.Instance;
         _tokenDiscoveryLogger = tokenDiscoveryLogger ?? NullLogger<TokenDiscoveryService>.Instance;
+        _pathProvider = pathProvider ?? new DefaultAppPathProvider();
     }
 
-    private string GetTrackerConfigPath() => 
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ai-consumption-tracker", "auth.json");
+    private string GetTrackerConfigPath() => _pathProvider.GetAuthFilePath();
 
-    private string GetProvidersConfigPath() => 
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ai-consumption-tracker", "providers.json");
+    private string GetProvidersConfigPath() => _pathProvider.GetProviderConfigFilePath();
 
     public async Task<List<ProviderConfig>> LoadConfigAsync()
     {
         var authPaths = new List<string>
         {
             GetTrackerConfigPath(),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "opencode", "auth.json"),
+            Path.Combine(_pathProvider.GetUserProfileRoot(), ".local", "share", "opencode", "auth.json"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "auth.json"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode", "auth.json"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".opencode", "auth.json")
+            Path.Combine(_pathProvider.GetUserProfileRoot(), ".opencode", "auth.json")
         };
 
         var providerPaths = new List<string>
         {
             GetProvidersConfigPath(),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "opencode", "providers.json"),
+            Path.Combine(_pathProvider.GetUserProfileRoot(), ".local", "share", "opencode", "providers.json"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "providers.json"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode", "providers.json"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".opencode", "providers.json")
+            Path.Combine(_pathProvider.GetUserProfileRoot(), ".opencode", "providers.json")
         };
 
         // Dictionary to merge configs: ProviderId -> Config
@@ -60,7 +64,6 @@ public class JsonConfigLoader : IConfigLoader
                     {
                         var providerId = kvp.Key;
                         if (providerId.Equals("kimi-for-coding", StringComparison.OrdinalIgnoreCase)) providerId = "kimi";
-                        if (providerId.Equals("codex", StringComparison.OrdinalIgnoreCase)) providerId = "openai";
                         if (providerId.Equals("app_settings", StringComparison.OrdinalIgnoreCase)) continue;
 
                         if (!mergedConfigs.TryGetValue(providerId, out var config))
@@ -130,7 +133,7 @@ public class JsonConfigLoader : IConfigLoader
 
         var result = mergedConfigs.Values.ToList();
 
-        var discoveryService = new TokenDiscoveryService(_tokenDiscoveryLogger);
+        var discoveryService = new TokenDiscoveryService(_tokenDiscoveryLogger, _pathProvider);
         var discovered = await discoveryService.DiscoverTokensAsync();
         
         foreach (var d in discovered)
@@ -142,14 +145,7 @@ public class JsonConfigLoader : IConfigLoader
             }
             else
             {
-                var discoveredOpenAiSession =
-                    d.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase) &&
-                    !string.IsNullOrWhiteSpace(d.ApiKey) &&
-                    !d.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase) &&
-                    (d.AuthSource?.Contains("OpenCode", StringComparison.OrdinalIgnoreCase) == true ||
-                     d.AuthSource?.Contains("Codex", StringComparison.OrdinalIgnoreCase) == true);
-
-                if (string.IsNullOrEmpty(existing.ApiKey) && !string.IsNullOrEmpty(d.ApiKey) || discoveredOpenAiSession)
+                if (string.IsNullOrEmpty(existing.ApiKey) && !string.IsNullOrEmpty(d.ApiKey))
                 {
                     existing.ApiKey = d.ApiKey;
                     existing.Description = d.Description;
@@ -163,7 +159,104 @@ public class JsonConfigLoader : IConfigLoader
             }
         }
 
+        NormalizeOpenAiCodexSessionOverlap(result);
+        NormalizeCodexSparkConfiguration(result);
+
         return result;
+    }
+
+    private static void NormalizeOpenAiCodexSessionOverlap(List<ProviderConfig> configs)
+    {
+        var openAiConfig = configs.FirstOrDefault(c => c.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase));
+        if (openAiConfig == null)
+        {
+            return;
+        }
+
+        var openAiHasApiKey = !string.IsNullOrWhiteSpace(openAiConfig.ApiKey);
+        var openAiHasExplicitApiKey = openAiHasApiKey &&
+                                      openAiConfig.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
+        if (openAiHasExplicitApiKey)
+        {
+            return;
+        }
+
+        var codexConfig = configs.FirstOrDefault(c => c.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase));
+        if (codexConfig == null)
+        {
+            codexConfig = new ProviderConfig
+            {
+                ProviderId = "codex",
+                Type = "quota-based",
+                PlanType = PlanType.Coding
+            };
+            configs.Add(codexConfig);
+        }
+
+        if (string.IsNullOrWhiteSpace(codexConfig.ApiKey) && openAiHasApiKey)
+        {
+            codexConfig.ApiKey = openAiConfig.ApiKey;
+            codexConfig.AuthSource = openAiConfig.AuthSource;
+            codexConfig.Description = "Migrated from OpenAI session config";
+            codexConfig.Type = "quota-based";
+            codexConfig.PlanType = PlanType.Coding;
+        }
+
+        configs.RemoveAll(c => c.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void NormalizeCodexSparkConfiguration(List<ProviderConfig> configs)
+    {
+        var sparkConfigs = configs
+            .Where(c => c.ProviderId.Equals("codex.spark", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (sparkConfigs.Count == 0)
+        {
+            return;
+        }
+
+        var codexConfig = configs.FirstOrDefault(c => c.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase));
+        if (codexConfig == null)
+        {
+            codexConfig = new ProviderConfig
+            {
+                ProviderId = "codex",
+                Type = "quota-based",
+                PlanType = PlanType.Coding
+            };
+            configs.Add(codexConfig);
+        }
+
+        foreach (var sparkConfig in sparkConfigs)
+        {
+            if (string.IsNullOrWhiteSpace(codexConfig.ApiKey) && !string.IsNullOrWhiteSpace(sparkConfig.ApiKey))
+            {
+                codexConfig.ApiKey = sparkConfig.ApiKey;
+            }
+
+            if (string.IsNullOrWhiteSpace(codexConfig.AuthSource) && !string.IsNullOrWhiteSpace(sparkConfig.AuthSource))
+            {
+                codexConfig.AuthSource = sparkConfig.AuthSource;
+            }
+
+            if (string.IsNullOrWhiteSpace(codexConfig.Description) && !string.IsNullOrWhiteSpace(sparkConfig.Description))
+            {
+                codexConfig.Description = sparkConfig.Description;
+            }
+
+            if (string.IsNullOrWhiteSpace(codexConfig.BaseUrl) && !string.IsNullOrWhiteSpace(sparkConfig.BaseUrl))
+            {
+                codexConfig.BaseUrl = sparkConfig.BaseUrl;
+            }
+
+            codexConfig.ShowInTray = codexConfig.ShowInTray || sparkConfig.ShowInTray;
+            codexConfig.EnableNotifications = codexConfig.EnableNotifications || sparkConfig.EnableNotifications;
+            codexConfig.Type = "quota-based";
+            codexConfig.PlanType = PlanType.Coding;
+        }
+
+        configs.RemoveAll(c => c.ProviderId.Equals("codex.spark", StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task SaveConfigAsync(List<ProviderConfig> configs)
@@ -203,6 +296,10 @@ public class JsonConfigLoader : IConfigLoader
             }
             catch { }
         }
+
+        // Keep Codex as a single top-level provider track; spark is represented as model detail.
+        exportAuth.Remove("codex.spark");
+        exportProviders.Remove("codex.spark");
 
         foreach (var config in configs)
         {
@@ -256,8 +353,7 @@ public class JsonConfigLoader : IConfigLoader
         await File.WriteAllTextAsync(providersPath, JsonSerializer.Serialize(exportProviders, opts));
     }
 
-    private string GetPreferencesPath() => 
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ai-consumption-tracker", "preferences.json");
+    private string GetPreferencesPath() => _pathProvider.GetPreferencesFilePath();
 
     public async Task<AppPreferences> LoadPreferencesAsync()
     {
@@ -325,5 +421,3 @@ public class JsonConfigLoader : IConfigLoader
         await File.WriteAllTextAsync(path, output);
     }
 }
-
-

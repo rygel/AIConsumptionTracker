@@ -52,7 +52,7 @@ public class DialogOpenBehaviorTests
             var shown = 0;
 
             app.SetMainWindowForTesting(mainWindow);
-            app.IsMainWindowVisible = _ => false;
+            app.IsMainWindowVisible = () => false;
             app.InfoDialogFactory = () => infoDialog;
             app.ShowInfoDialogAction = _ => shown++;
 
@@ -68,6 +68,47 @@ public class DialogOpenBehaviorTests
         });
     }
 
+    [Fact]
+    public Task CloseSettingsDialog_DoesNotMoveWindowPosition()
+    {
+        return RunInStaAsync(async () =>
+        {
+            EnsureAppCreated();
+
+            var mainWindow = new MainWindow(skipUiInitialization: true);
+            var dialogWindow = new Window();
+
+            mainWindow.Show();
+            
+            // Set initial position and preferences
+            var initialLeft = 500.0;
+            var initialTop = 300.0;
+            mainWindow.Left = initialLeft;
+            mainWindow.Top = initialTop;
+            
+            SetPrivateField(mainWindow, "_preferences", new AppPreferences 
+            { 
+                AlwaysOnTop = true,
+                WindowLeft = 100.0,  // Different from current position
+                WindowTop = 200.0
+            });
+            SetPrivateField(mainWindow, "_preferencesLoaded", true);
+            
+            mainWindow.SettingsDialogFactory = () => (dialogWindow, () => false);
+            mainWindow.ShowOwnedDialog = _ => true;
+
+            // Open and close settings dialog
+            await mainWindow.OpenSettingsDialogAsync();
+
+            // Verify window position hasn't changed
+            Assert.Equal(initialLeft, mainWindow.Left);
+            Assert.Equal(initialTop, mainWindow.Top);
+
+            dialogWindow.Close();
+            mainWindow.Close();
+        });
+    }
+
     private static App EnsureAppCreated()
     {
         if (Application.Current is App app)
@@ -75,7 +116,9 @@ public class DialogOpenBehaviorTests
             return app;
         }
 
-        return new App();
+        var newApp = new App();
+        // Use reflection to initialize Host if needed, or rely on App.xaml.cs default init
+        return newApp;
     }
 
     private static void SetPrivateField(object target, string fieldName, object value)

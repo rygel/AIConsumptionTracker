@@ -10,6 +10,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -18,15 +19,10 @@
     <FileVersion>$(TrackerAssemblyVersion)</FileVersion>
     <AssemblyName>AIUsageTracker.CLI</AssemblyName>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <ApplicationIcon>..\AIUsageTracker.UI.Slim\Assets\app_icon.ico</ApplicationIcon>
   </PropertyGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="..\AIUsageTracker.UI.Slim\Assets\app_icon.ico" />
-  </ItemGroup>
 
 </Project>
 

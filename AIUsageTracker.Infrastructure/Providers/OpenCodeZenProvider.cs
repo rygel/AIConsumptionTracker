@@ -1,14 +1,23 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class OpenCodeZenProvider : IProviderService
+public class OpenCodeZenProvider : ProviderBase
 {
-    public string ProviderId => "opencode-zen";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "opencode-zen",
+        displayName: "OpenCode Zen",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go",
+        autoIncludeWhenUnconfigured: true);
+
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly ILogger<OpenCodeZenProvider> _logger;
     private string _cliPath;
 
@@ -26,11 +35,11 @@ public class OpenCodeZenProvider : IProviderService
         _cliPath = cliPath;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         // Check if CLI exists first
         var pathExists = _cliPath == "opencode"
-            ? IsInPath("opencode")
+            ? await IsInPath("opencode")
             : File.Exists(_cliPath);
 
         if (!pathExists)
@@ -45,7 +54,9 @@ public class OpenCodeZenProvider : IProviderService
                     Description = "CLI not found at expected path",
                     IsQuotaBased = false,
                     PlanType = PlanType.Usage,
-                    AuthSource = config.AuthSource
+                    AuthSource = config.AuthSource,
+                    RawJson = $"CLI not found at path: {_cliPath}",
+                    HttpStatus = 404
                 }
             };
         }
@@ -68,7 +79,9 @@ public class OpenCodeZenProvider : IProviderService
                     Description = $"CLI Error: {ex.Message} (Check log or clear storage if JSON error)",
                     IsQuotaBased = false,
                     PlanType = PlanType.Usage,
-                    AuthSource = config.AuthSource
+                    AuthSource = config.AuthSource,
+                    RawJson = ex.ToString(),
+                    HttpStatus = 500
                 }
             };
         }
@@ -107,6 +120,9 @@ public class OpenCodeZenProvider : IProviderService
     private ProviderUsage ParseOutput(string output, ProviderConfig config)
     {
         var totalCost = 0.0;
+        var sessions = 0;
+        var messages = 0;
+        var avgCostPerDay = 0.0;
 
         // Clean ANSI codes (simplified - remove common escape sequences)
         var cleaned = output
@@ -124,6 +140,52 @@ public class OpenCodeZenProvider : IProviderService
             double.TryParse(costMatch.Groups[1].Value, out totalCost);
         }
 
+        // Parse Sessions
+        var sessionsMatch = Regex.Match(cleaned, @"Sessions\s+([0-9,]+)");
+        if (sessionsMatch.Success && sessionsMatch.Groups.Count > 1)
+        {
+            int.TryParse(sessionsMatch.Groups[1].Value.Replace(",", ""), out sessions);
+        }
+
+        // Parse Messages
+        var messagesMatch = Regex.Match(cleaned, @"Messages\s+([0-9,]+)");
+        if (messagesMatch.Success && messagesMatch.Groups.Count > 1)
+        {
+            int.TryParse(messagesMatch.Groups[1].Value.Replace(",", ""), out messages);
+        }
+
+        // Parse Avg Cost/Day
+        var avgCostMatch = Regex.Match(cleaned, @"Avg Cost/Day\s+\$([0-9.]+)");
+        if (avgCostMatch.Success && avgCostMatch.Groups.Count > 1)
+        {
+            double.TryParse(avgCostMatch.Groups[1].Value, out avgCostPerDay);
+        }
+
+        var details = new List<ProviderUsageDetail>
+        {
+            new ProviderUsageDetail
+            {
+                Name = "Sessions",
+                Description = $"{sessions} sessions",
+                DetailType = ProviderUsageDetailType.Other,
+                WindowKind = WindowKind.None
+            },
+            new ProviderUsageDetail
+            {
+                Name = "Messages",
+                Description = $"{messages} messages",
+                DetailType = ProviderUsageDetailType.Other,
+                WindowKind = WindowKind.None
+            },
+            new ProviderUsageDetail
+            {
+                Name = "Avg Cost/Day",
+                Description = $"${avgCostPerDay:F2}",
+                DetailType = ProviderUsageDetailType.Other,
+                WindowKind = WindowKind.None
+            }
+        };
+
         return new ProviderUsage
         {
             ProviderId = ProviderId,
@@ -135,12 +197,15 @@ public class OpenCodeZenProvider : IProviderService
             IsQuotaBased = false,
             PlanType = PlanType.Usage,
             IsAvailable = true,
-            Description = $"${totalCost:F2} (7 days)",
-            AuthSource = config.AuthSource
+            Description = $"${totalCost:F2} ({sessions} sessions, {messages} msgs)",
+            Details = details,
+            AuthSource = config.AuthSource,
+            RawJson = output,
+            HttpStatus = 200
         };
     }
 
-    private bool IsInPath(string command)
+    private async Task<bool> IsInPath(string command)
     {
         try
         {
@@ -156,13 +221,25 @@ public class OpenCodeZenProvider : IProviderService
             using var process = Process.Start(psi);
             if (process != null)
             {
-                process.WaitForExit();
-                return process.ExitCode == 0;
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                try
+                {
+                    await process.WaitForExitAsync(cts.Token);
+                    return process.ExitCode == 0;
+                }
+                catch (OperationCanceledException)
+                {
+                    return false;
+                }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger?.LogDebug("IsInPath check failed: {Message}", ex.Message);
+        }
 
         return false;
     }
 }
+
 

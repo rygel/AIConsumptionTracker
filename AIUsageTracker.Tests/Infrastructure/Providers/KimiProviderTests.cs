@@ -2,38 +2,27 @@ using System.Net;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
-using Microsoft.Extensions.Logging;
+using AIUsageTracker.Tests.Infrastructure;
 using Moq;
 using Moq.Protected;
 using Xunit;
 
 namespace AIUsageTracker.Tests.Infrastructure.Providers;
 
-public class KimiProviderTests
+public class KimiProviderTests : HttpProviderTestBase<KimiProvider>
 {
-    private readonly Mock<HttpMessageHandler> _msgHandler;
-    private readonly HttpClient _httpClient;
-    private readonly Mock<ILogger<KimiProvider>> _logger;
     private readonly KimiProvider _provider;
 
     public KimiProviderTests()
     {
-        _msgHandler = new Mock<HttpMessageHandler>();
-        _httpClient = new HttpClient(_msgHandler.Object);
-        _logger = new Mock<ILogger<KimiProvider>>();
-        _provider = new KimiProvider(_httpClient, _logger.Object);
+        _provider = new KimiProvider(HttpClient, Logger.Object);
+        Config.ApiKey = "test-key";
     }
 
     [Fact]
     public async Task GetUsageAsync_ValidResponse_CalculatesPercentageCorrectly()
     {
         // Arrange
-        var config = new ProviderConfig
-        {
-            ProviderId = "kimi",
-            ApiKey = "test-key"
-        };
-        
         // 10 used, 100 limit, 90 remaining. RequestsPercentage uses remaining semantics.
         var responseContent = JsonSerializer.Serialize(new
         {
@@ -41,22 +30,14 @@ public class KimiProviderTests
             limits = new object[] {} 
         });
 
-        _msgHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(req => 
-                    req.Method == HttpMethod.Get && 
-                    req.RequestUri != null && req.RequestUri.AbsoluteUri == "https://api.kimi.com/coding/v1/usages"),
-                ItExpr.IsAny<CancellationToken>()
-            )
-            .ReturnsAsync(new HttpResponseMessage
-            {
-                StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(responseContent)
-            });
+        SetupHttpResponse("https://api.kimi.com/coding/v1/usages", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent(responseContent)
+        });
 
         // Act
-        var result = await _provider.GetUsageAsync(config);
+        var result = await _provider.GetUsageAsync(Config);
 
         // Assert
         var usage = result.Single();
@@ -71,8 +52,6 @@ public class KimiProviderTests
     public async Task GetUsageAsync_WithLimitDetails_ParsesDetailsCorrectly()
     {
          // Arrange
-        var config = new ProviderConfig { ProviderId = "kimi", ApiKey = "test-key" };
-
         var resetTime = DateTime.UtcNow.AddHours(1).ToString("o"); // ISO 8601
         
         var responseData = new
@@ -88,20 +67,76 @@ public class KimiProviderTests
             }
         };
 
-        _msgHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage { StatusCode = HttpStatusCode.OK, Content = new StringContent(JsonSerializer.Serialize(responseData)) });
+        SetupHttpResponse("https://api.kimi.com/coding/v1/usages", new HttpResponseMessage 
+        { 
+            StatusCode = HttpStatusCode.OK, 
+            Content = new StringContent(JsonSerializer.Serialize(responseData)) 
+        });
 
         // Act
-        var result = await _provider.GetUsageAsync(config);
+        var result = await _provider.GetUsageAsync(Config);
         
         // Assert
         var usage = result.Single();
         Assert.NotNull(usage.Details);
-        Assert.Single(usage.Details);
-        var detail = usage.Details.First();
+        Assert.Equal(2, usage.Details.Count); // Weekly limit from usage + Hourly limit from limits array
+        var detail = usage.Details.Last(); // Hourly limit is from limits array
         Assert.Equal("Hourly Limit", detail.Name);
-        Assert.Contains("50.0%", detail.Used); // Hardcoded 50.0% to enforce InvariantCulture
+        Assert.Contains("50.0%", detail.Used);
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_WithHourlyAndWeeklyLimits_SetsCorrectWindowKinds()
+    {
+        // Arrange
+        var hourlyResetTime = DateTime.UtcNow.AddMinutes(30).ToString("o");
+        var weeklyResetTime = DateTime.UtcNow.AddDays(7).ToString("o");
+        
+        var responseData = new
+        {
+            usage = new { limit = 100000, used = 25000, remaining = 75000 },
+            limits = new object[] 
+            {
+                new 
+                {
+                    window = new { duration = 60, timeUnit = "TIME_UNIT_MINUTE" },
+                    detail = new { limit = 3000, remaining = 1800, resetTime = hourlyResetTime }
+                },
+                new 
+                {
+                    window = new { duration = 7, timeUnit = "TIME_UNIT_DAY" },
+                    detail = new { limit = 100000, remaining = 75000, resetTime = weeklyResetTime }
+                }
+            }
+        };
+
+        SetupHttpResponse("https://api.kimi.com/coding/v1/usages", new HttpResponseMessage 
+        { 
+            StatusCode = HttpStatusCode.OK, 
+            Content = new StringContent(JsonSerializer.Serialize(responseData)) 
+        });
+
+        // Act
+        var result = await _provider.GetUsageAsync(Config);
+        
+        // Assert
+        var usage = result.Single();
+        Assert.NotNull(usage.Details);
+        Assert.Equal(3, usage.Details.Count); // Weekly limit from usage + Hourly + Weekly from limits array
+        
+        var hourlyDetail = usage.Details.FirstOrDefault(d => d.WindowKind == WindowKind.Primary);
+        var weeklyDetailFromUsage = usage.Details.FirstOrDefault(d => d.WindowKind == WindowKind.Secondary && d.Name == "Weekly Limit");
+        var weeklyDetailFromLimits = usage.Details.FirstOrDefault(d => d.WindowKind == WindowKind.Secondary && d.Name == "7d Limit");
+        
+        Assert.NotNull(hourlyDetail);
+        Assert.NotNull(weeklyDetailFromUsage);
+        Assert.NotNull(weeklyDetailFromLimits);
+        Assert.Equal("Hourly Limit", hourlyDetail.Name);
+        Assert.Equal("Weekly Limit", weeklyDetailFromUsage.Name);
+        Assert.Equal("7d Limit", weeklyDetailFromLimits.Name);
+
+        // Verify "used" percentage format for UI parsing
+        Assert.Contains("% used", hourlyDetail.Used);
+        Assert.Contains("% used", weeklyDetailFromUsage.Used);
     }
 }
-

@@ -8,11 +8,13 @@ using System.Runtime.InteropServices;
 using System.IO;
 using System.Threading.Tasks;
 using AIUsageTracker.Core.Models;
+using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim
 {
     public partial class InfoDialog : Window
     {
+        private readonly ILogger<InfoDialog> _logger;
         private bool _isPrivacyMode = false;
         private string? _realUserName;
         private string? _realConfigDir;
@@ -21,6 +23,7 @@ namespace AIUsageTracker.UI.Slim
         public InfoDialog()
         {
             InitializeComponent();
+            _logger = App.CreateLogger<InfoDialog>();
             
             // In Slim UI, we rely on App.Preferences or direct theme resources
             // No need for complex theme loading or IConfigLoader here
@@ -126,10 +129,17 @@ namespace AIUsageTracker.UI.Slim
 
         internal async Task PrivacyBtn_ClickAsync(object sender, RoutedEventArgs e)
         {
-            _isPrivacyMode = !_isPrivacyMode;
-            App.SetPrivacyMode(_isPrivacyMode); 
-            // App.PrivacyChanged event will handle UI update
-            await Task.CompletedTask;
+            try
+            {
+                _isPrivacyMode = !_isPrivacyMode;
+                App.SetPrivacyMode(_isPrivacyMode); 
+                // App.PrivacyChanged event will handle UI update
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "PrivacyBtn_ClickAsync failed");
+            }
         }
 
         private void CloseBtn_Click(object sender, RoutedEventArgs e)
@@ -160,7 +170,7 @@ namespace AIUsageTracker.UI.Slim
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Failed to open config dir: {ex.Message}");
+                    _logger.LogWarning(ex, "Failed to open config directory");
                 }
             }
         }
@@ -180,7 +190,7 @@ namespace AIUsageTracker.UI.Slim
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Failed to open data dir: {ex.Message}");
+                    _logger.LogWarning(ex, "Failed to open data directory");
                 }
             }
         }

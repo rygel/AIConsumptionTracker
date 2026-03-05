@@ -49,22 +49,10 @@ public class ProviderManagerTests
     }
 
     [Fact]
-    public async Task GetAllUsageAsync_FallsBackToGenericProvider()
+    public async Task GetAllUsageAsync_WhenProviderIntegrationMissing_ReturnsUnavailableUsage()
     {
         // Arrange
-        var genericMock = new MockProviderService
-        {
-            ProviderId = "generic-pay-as-you-go",
-            UsageHandler = config => Task.FromResult<IEnumerable<ProviderUsage>>(new[] { new ProviderUsage
-            {
-                ProviderId = config.ProviderId,
-                ProviderName = "Fallback Provider",
-                IsAvailable = true,
-                Description = "Generic Fallback"
-            }})
-        };
-
-        var providers = new List<IProviderService> { genericMock };
+        var providers = new List<IProviderService>();
         var configs = new List<ProviderConfig>
         {
             new ProviderConfig { ProviderId = "unknown-api", Type = "api" }
@@ -77,7 +65,10 @@ public class ProviderManagerTests
         var result = await manager.GetAllUsageAsync();
 
         // Assert
-        Assert.Contains(result, r => r.ProviderId == "unknown-api" && r.Description == "Generic Fallback");
+        Assert.Contains(result, r =>
+            r.ProviderId == "unknown-api" &&
+            !r.IsAvailable &&
+            r.Description == "Usage unknown (provider integration missing)");
     }
 
     [Fact]

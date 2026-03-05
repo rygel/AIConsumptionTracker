@@ -7,7 +7,29 @@ namespace AIUsageTracker.Tests.Mocks;
 
 public class MockProviderService : IProviderService
 {
-    public string ProviderId { get; set; } = "mock-provider";
+    private string _providerId = "mock-provider";
+    public string ProviderId
+    {
+        get => _providerId;
+        set
+        {
+            _providerId = value;
+            Definition = new ProviderDefinition(
+                providerId: value,
+                displayName: value,
+                planType: PlanType.Usage,
+                isQuotaBased: false,
+                defaultConfigType: "pay-as-you-go");
+        }
+    }
+
+    public ProviderDefinition Definition { get; set; } = new(
+        providerId: "mock-provider",
+        displayName: "mock-provider",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go");
+
     public Func<ProviderConfig, Task<IEnumerable<ProviderUsage>>>? UsageHandler { get; set; }
 
     // Added for the new GetUsageAsync implementation

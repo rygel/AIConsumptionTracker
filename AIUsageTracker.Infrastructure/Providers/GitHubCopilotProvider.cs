@@ -1,12 +1,22 @@
 using Microsoft.Extensions.Logging;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class GitHubCopilotProvider : IProviderService
+public class GitHubCopilotProvider : ProviderBase
 {
-    public string ProviderId => "github-copilot";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "github-copilot",
+        displayName: "GitHub Copilot",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        includeInWellKnownProviders: true);
+
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly IGitHubAuthService _authService;
     private readonly HttpClient _httpClient;
     private readonly ILogger<GitHubCopilotProvider> _logger;
@@ -18,7 +28,7 @@ public class GitHubCopilotProvider : IProviderService
         _authService = authService;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         var token = ResolveToken(config);
         if (string.IsNullOrEmpty(token))
@@ -38,6 +48,7 @@ public class GitHubCopilotProvider : IProviderService
         {
             using var request = CreateBearerRequest("https://api.github.com/user", token);
             using var response = await _httpClient.SendAsync(request);
+            state.HttpStatus = (int)response.StatusCode;
 
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
@@ -106,6 +117,7 @@ public class GitHubCopilotProvider : IProviderService
     private async Task PopulateProfileAndCopilotDataAsync(string token, HttpResponseMessage response, CopilotUsageState state)
     {
         var json = await response.Content.ReadAsStringAsync();
+        state.RawJson = json;
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         if (doc.RootElement.TryGetProperty("login", out var loginElement))
         {
@@ -236,7 +248,9 @@ public class GitHubCopilotProvider : IProviderService
             PlanType = PlanType.Coding,
             IsQuotaBased = true,
             AuthSource = string.IsNullOrEmpty(state.PlanName) ? "Unknown" : state.PlanName,
-            NextResetTime = state.ResetTime
+            NextResetTime = state.ResetTime,
+            RawJson = state.RawJson,
+            HttpStatus = state.HttpStatus
         };
     }
 
@@ -288,19 +302,6 @@ public class GitHubCopilotProvider : IProviderService
         return "Authenticated";
     }
 
-    private ProviderUsage CreateUnavailableUsage(string description)
-    {
-        return new ProviderUsage
-        {
-            ProviderId = ProviderId,
-            ProviderName = "GitHub Copilot",
-            IsAvailable = false,
-            Description = description,
-            IsQuotaBased = true,
-            PlanType = PlanType.Coding
-        };
-    }
-
     private static string NormalizeCopilotPlanName(string plan)
     {
         return plan switch
@@ -324,6 +325,9 @@ public class GitHubCopilotProvider : IProviderService
         public double CostUsed { get; set; }
         public double CostLimit { get; set; }
         public bool HasCopilotQuotaData { get; set; }
+        public string? RawJson { get; set; }
+        public int HttpStatus { get; set; } = 200;
     }
 }
+
 

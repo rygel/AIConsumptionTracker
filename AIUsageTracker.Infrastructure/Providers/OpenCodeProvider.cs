@@ -2,14 +2,23 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class OpenCodeProvider : IProviderService
+public class OpenCodeProvider : ProviderBase
 {
-    public string ProviderId => "opencode";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "opencode",
+        displayName: "OpenCode",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go",
+        includeInWellKnownProviders: true);
+
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenCodeProvider> _logger;
 
@@ -19,7 +28,7 @@ public class OpenCodeProvider : IProviderService
         _logger = logger;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         _logger.LogDebug("OpenCode GetUsageAsync called for provider {ProviderId}", ProviderId);
         
@@ -44,10 +53,12 @@ public class OpenCodeProvider : IProviderService
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", config.ApiKey);
 
             var response = await _httpClient.SendAsync(request);
+            var httpStatus = (int)response.StatusCode;
             
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("OpenCode API failed with status {StatusCode}", response.StatusCode);
+                var errorContent = await response.Content.ReadAsStringAsync();
                 return new[] { new ProviderUsage
                 {
                     ProviderId = ProviderId,
@@ -55,12 +66,14 @@ public class OpenCodeProvider : IProviderService
                     IsAvailable = false,
                     Description = $"API Error: {response.StatusCode}",
                     IsQuotaBased = false,
-                    PlanType = PlanType.Usage
+                    PlanType = PlanType.Usage,
+                    RawJson = errorContent,
+                    HttpStatus = httpStatus
                 }};
             }
 
             var responseString = await response.Content.ReadAsStringAsync();
-            var result = ParseJsonResponse(responseString);
+            var result = ParseJsonResponse(responseString, httpStatus);
             _logger.LogInformation("OpenCode usage retrieved successfully - Total Cost: ${TotalCost:F2}", result.RequestsUsed);
             
             return new[] { result };
@@ -80,7 +93,7 @@ public class OpenCodeProvider : IProviderService
         }
     }
 
-private ProviderUsage ParseJsonResponse(string json)
+private ProviderUsage ParseJsonResponse(string json, int httpStatus = 200)
     {
         try
         {
@@ -95,7 +108,9 @@ private ProviderUsage ParseJsonResponse(string json)
                     IsAvailable = false,
                     Description = "Empty API response",
                     IsQuotaBased = false,
-                    PlanType = PlanType.Usage
+                    PlanType = PlanType.Usage,
+                    RawJson = json,
+                    HttpStatus = httpStatus
                 };
             }
 
@@ -121,7 +136,9 @@ private ProviderUsage ParseJsonResponse(string json)
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
                 IsAvailable = true,
-                Description = $"${totalCost.ToString("F2", CultureInfo.InvariantCulture)} used (7 days)"
+                Description = $"${totalCost.ToString("F2", CultureInfo.InvariantCulture)} used (7 days)",
+                RawJson = json,
+                HttpStatus = httpStatus
             };
         }
         catch (JsonException ex)
@@ -169,4 +186,5 @@ private ProviderUsage ParseJsonResponse(string json)
     }
 
 }
+
 

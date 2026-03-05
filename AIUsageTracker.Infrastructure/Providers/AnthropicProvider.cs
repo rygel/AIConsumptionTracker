@@ -1,12 +1,20 @@
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class AnthropicProvider : IProviderService
+public class AnthropicProvider : ProviderBase
 {
-    public string ProviderId => "anthropic";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "anthropic",
+        displayName: "Anthropic",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go");
+
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly ILogger<AnthropicProvider> _logger;
 
     public AnthropicProvider(ILogger<AnthropicProvider> logger)
@@ -14,7 +22,7 @@ public class AnthropicProvider : IProviderService
         _logger = logger;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         if (string.IsNullOrEmpty(config.ApiKey))
         {
@@ -28,7 +36,9 @@ public class AnthropicProvider : IProviderService
                     Description = "API Key missing",
                     IsQuotaBased = false,
                     PlanType = PlanType.Usage,
-                    AuthSource = config.AuthSource
+                    AuthSource = config.AuthSource,
+                    RawJson = "{\"source\":\"anthropic\",\"status\":\"api_key_missing\"}",
+                    HttpStatus = 401
                 }
             };
         }
@@ -45,9 +55,12 @@ public class AnthropicProvider : IProviderService
                 PlanType = PlanType.Usage,
                 Description = "Connected (Check Dashboard)",
                 UsageUnit = "Status",
-                AuthSource = config.AuthSource
+                AuthSource = config.AuthSource,
+                RawJson = "{\"source\":\"anthropic\",\"status\":\"connected_no_usage_endpoint\"}",
+                HttpStatus = 200
             }
         };
     }
 }
+
 

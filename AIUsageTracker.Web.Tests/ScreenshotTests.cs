@@ -1,14 +1,15 @@
 using Microsoft.Playwright;
 using Microsoft.Playwright.MSTest;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace AIUsageTracker.Web.Tests;
 
 [TestClass]
-public class ScreenshotTests : PageTest
+public class ScreenshotTests : WebTestBase
 {
-    private const string BaseUrl = "http://127.0.0.1:5100";
     private sealed class ThemeCatalog
     {
         [JsonPropertyName("themes")]
@@ -41,6 +42,57 @@ public class ScreenshotTests : PageTest
     private readonly Dictionary<string, (string BgPrimary, string AccentPrimary)> _representativeThemeTokens;
     private readonly string _outputDir;
     private readonly string _themeOutputDir;
+
+    [ClassInitialize(InheritanceBehavior.BeforeEachDerivedClass)]
+    public static void EnsurePlaywrightBrowserCanLaunch(TestContext context)
+    {
+        // Call base initialize
+        InitializeFactory(context);
+
+        var chromiumPath = FindPlaywrightChromiumPath();
+        if (string.IsNullOrWhiteSpace(chromiumPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = chromiumPath,
+                Arguments = "--version",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo);
+            if (process == null)
+            {
+                return;
+            }
+
+            if (!process.WaitForExit(5000))
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                    // Ignore cleanup errors.
+                }
+                return;
+            }
+        }
+        catch (Win32Exception ex) when (IsPermissionError(ex))
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
 
     public ScreenshotTests()
     {
@@ -95,6 +147,26 @@ public class ScreenshotTests : PageTest
         return catalog;
     }
 
+    private static string? FindPlaywrightChromiumPath()
+    {
+        var browsersRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "ms-playwright");
+        if (!Directory.Exists(browsersRoot))
+        {
+            return null;
+        }
+
+        return Directory
+            .EnumerateFiles(browsersRoot, "chrome.exe", SearchOption.AllDirectories)
+            .FirstOrDefault();
+    }
+
+    private static bool IsPermissionError(Win32Exception ex)
+    {
+        return ex.NativeErrorCode is 5 or 13;
+    }
+
     private static double ContrastRatio(string hex1, string hex2)
     {
         static (double R, double G, double B) ParseHex(string hex)
@@ -142,7 +214,7 @@ public class ScreenshotTests : PageTest
     public async Task Dashboard_StylesheetAssetsLoadAndStylesApply()
     {
         await Page.SetViewportSizeAsync(1280, 800);
-        await Page.GotoAsync(BaseUrl);
+        await Page.GotoAsync(ServerUrl);
         await Page.WaitForSelectorAsync(".sidebar", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
 
         var siteCssStatus = await Page.EvaluateAsync<int>("""
@@ -175,7 +247,7 @@ public class ScreenshotTests : PageTest
         Assert.AreEqual("fixed", sidebarPosition, "Sidebar CSS is not applied (expected fixed sidebar). ");
         Assert.AreEqual("flex", appContainerDisplay, "Layout CSS is not applied (expected flex app container).");
         Assert.AreEqual("200px", sidebarWidth, "Sidebar width does not match expected styled layout.");
-        Assert.IsFalse(string.IsNullOrWhiteSpace(footerText), "Footer text should be present.");
+        Assert.IsNotNull(footerText, "Footer text should be present.");
         StringAssert.Contains(footerText, "v", "Footer should include Web UI version string.");
     }
 
@@ -183,7 +255,7 @@ public class ScreenshotTests : PageTest
     public async Task Dashboard_ReliabilityPanelStylesAndMarkupArePresent()
     {
         await Page.SetViewportSizeAsync(1280, 800);
-        await Page.GotoAsync(BaseUrl);
+        await Page.GotoAsync(ServerUrl);
         await Page.WaitForSelectorAsync(".sidebar", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
 
         var cssText = await Page.EvaluateAsync<string>("""
@@ -231,22 +303,21 @@ public class ScreenshotTests : PageTest
 
         // 2. Dashboard
         Console.WriteLine("[TEST] Navigating to Dashboard...");
-        await Page.GotoAsync(BaseUrl);
+        await Page.GotoAsync(ServerUrl);
         await Page.WaitForSelectorAsync(".stat-card, .alert", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
         await Page.ScreenshotAsync(new() { Path = Path.Combine(_outputDir, "screenshot_web_dashboard.png"), FullPage = true });
 
         // 3. Providers List
         Console.WriteLine("[TEST] Navigating to Providers...");
-        await Page.GotoAsync($"{BaseUrl}/providers");
+        await Page.GotoAsync($"{ServerUrl}/providers");
         await Page.WaitForSelectorAsync("table, .alert", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
         await Page.ScreenshotAsync(new() { Path = Path.Combine(_outputDir, "screenshot_web_providers.png"), FullPage = true });
 
         // 4. Charts
         Console.WriteLine("[TEST] Navigating to Charts...");
-        await Page.GotoAsync($"{BaseUrl}/charts");
+        await Page.GotoAsync($"{ServerUrl}/charts");
         
         // Wait for either the canvas (if data exists) or the info alert (if no data)
-        // We also wait for the container itself to be sure the page structure is there
         await Page.WaitForSelectorAsync(".chart-container, .alert", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
         
         // Give chart animation a moment to settle
@@ -259,7 +330,7 @@ public class ScreenshotTests : PageTest
     public async Task ThemeSelector_AppliesAllThemes()
     {
         await Page.SetViewportSizeAsync(1280, 800);
-        await Page.GotoAsync(BaseUrl);
+        await Page.GotoAsync(ServerUrl);
         await Page.WaitForSelectorAsync("#theme-select", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
 
         var availableThemes = await Page.EvaluateAsync<string[]>("""
@@ -298,7 +369,7 @@ public class ScreenshotTests : PageTest
     public async Task RepresentativeThemes_RenderDistinctVisualSnapshots()
     {
         await Page.SetViewportSizeAsync(1280, 800);
-        await Page.GotoAsync(BaseUrl);
+        await Page.GotoAsync(ServerUrl);
         await Page.WaitForSelectorAsync("#theme-select", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
 
         var representativeThemes = _representativeThemeTokens.Keys.OrderBy(x => x, StringComparer.Ordinal).ToArray();
@@ -350,7 +421,7 @@ public class ScreenshotTests : PageTest
     public async Task RepresentativeThemes_ExposeExpectedCssTokens()
     {
         await Page.SetViewportSizeAsync(1280, 800);
-        await Page.GotoAsync(BaseUrl);
+        await Page.GotoAsync(ServerUrl);
         await Page.WaitForSelectorAsync("#theme-select", new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
 
         foreach (var (theme, expectedTokens) in _representativeThemeTokens)
@@ -392,4 +463,3 @@ public class ScreenshotTests : PageTest
         }
     }
 }
-

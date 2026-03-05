@@ -2,7 +2,7 @@ name: Release Script Validation
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths:
       - "setup.iss"
       - "scripts/setup.iss"
@@ -13,7 +13,7 @@ on:
       - ".github/workflows/release-script-validation.yml"
       - ".github/workflows/publish.yml"
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
     paths:
       - "setup.iss"
       - "scripts/setup.iss"
@@ -32,6 +32,7 @@ concurrency:
 jobs:
   release-script-checks:
     runs-on: windows-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4

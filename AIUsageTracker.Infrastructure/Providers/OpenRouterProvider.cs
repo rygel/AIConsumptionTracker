@@ -2,14 +2,23 @@ using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class OpenRouterProvider : IProviderService
+public class OpenRouterProvider : ProviderBase
 {
-    public string ProviderId => "openrouter";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "openrouter",
+        displayName: "OpenRouter",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go",
+        includeInWellKnownProviders: true);
+
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenRouterProvider> _logger;
 
@@ -19,25 +28,23 @@ public class OpenRouterProvider : IProviderService
         _logger = logger;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         _logger.LogDebug("Starting OpenRouter usage fetch for provider {ProviderId}", config.ProviderId);
 
         if (string.IsNullOrEmpty(config.ApiKey))
         {
             _logger.LogWarning("OpenRouter API key is missing for provider {ProviderId}", config.ProviderId);
-            return new[] { new ProviderUsage
-            {
-                ProviderId = config.ProviderId,
-                ProviderName = "OpenRouter",
-                IsAvailable = false,
-                Description = "API Key missing - please configure OPENROUTER_API_KEY"
-            }};
+            return new[] { CreateUnavailableUsage(
+                "API Key missing - please configure OPENROUTER_API_KEY",
+                planType: PlanType.Usage,
+                isQuotaBased: false) };
         }
 
         // Try to fetch credits first
         OpenRouterCreditsResponse? creditsData = null;
         string? creditsResponseBody = null;
+        int httpStatus = 200;
         
         try
         {
@@ -47,6 +54,7 @@ public class OpenRouterProvider : IProviderService
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", config.ApiKey);
 
             var response = await _httpClient.SendAsync(request);
+            httpStatus = (int)response.StatusCode;
             creditsResponseBody = await response.Content.ReadAsStringAsync();
             
             _logger.LogDebug("OpenRouter credits API response status: {StatusCode}", response.StatusCode);
@@ -54,15 +62,9 @@ public class OpenRouterProvider : IProviderService
             
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError("OpenRouter credits API failed with status {StatusCode}. Response: {Response}", 
+                _logger.LogError("OpenRouter credits API failed with status {StatusCode}. Response: {Response}",
                     response.StatusCode, creditsResponseBody);
-                return new[] { new ProviderUsage
-                {
-                    ProviderId = config.ProviderId,
-                    ProviderName = "OpenRouter",
-                    IsAvailable = false,
-                    Description = $"API Error: {response.StatusCode} - Check API key validity"
-                }};
+                return new[] { CreateUnavailableUsageFromStatus(response) };
             }
 
             try
@@ -72,25 +74,19 @@ public class OpenRouterProvider : IProviderService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to deserialize OpenRouter credits response. Raw response: {Response}", creditsResponseBody);
-                return new[] { new ProviderUsage
-                {
-                    ProviderId = config.ProviderId,
-                    ProviderName = "OpenRouter",
-                    IsAvailable = false,
-                    Description = "Failed to parse credits response - API format may have changed"
-                }};
+                return new[] { CreateUnavailableUsage(
+                    "Failed to parse credits response - API format may have changed",
+                    planType: PlanType.Usage,
+                    isQuotaBased: false) };
             }
             
             if (creditsData?.Data == null)
             {
                 _logger.LogError("OpenRouter credits response missing 'data' field. Response: {Response}", creditsResponseBody);
-                return new[] { new ProviderUsage
-                {
-                    ProviderId = config.ProviderId,
-                    ProviderName = "OpenRouter",
-                    IsAvailable = false,
-                    Description = "Invalid response format - missing data field"
-                }};
+                return new[] { CreateUnavailableUsage(
+                    "Invalid response format - missing data field",
+                    planType: PlanType.Usage,
+                    isQuotaBased: false) };
             }
 
             _logger.LogDebug("Successfully parsed credits data - Total: {Total}, Usage: {Usage}", 
@@ -99,13 +95,9 @@ public class OpenRouterProvider : IProviderService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Exception while calling OpenRouter credits API");
-            return new[] { new ProviderUsage
-            {
-                ProviderId = config.ProviderId,
-                ProviderName = "OpenRouter",
-                IsAvailable = false,
-                Description = $"Connection error: {ex.Message}"
-            }};
+            return new[] { CreateUnavailableUsageFromException(
+                ex,
+                context: "Credits API call failed") };
         }
 
         // Try to fetch additional key info (optional - for limits, labels, etc.)
@@ -169,23 +161,27 @@ public class OpenRouterProvider : IProviderService
                             }
                         }
 
-                        details.Add(new ProviderUsageDetail 
-                        { 
-                            Name = "Spending Limit", 
-                            Description = $"{keyData.Data.Limit.ToString("F2", CultureInfo.InvariantCulture)}{resetStr}", 
+                        details.Add(new ProviderUsageDetail
+                        {
+                            Name = "Spending Limit",
+                            Description = $"{keyData.Data.Limit.ToString("F2", CultureInfo.InvariantCulture)}{resetStr}",
                             Used = "",
-                            NextResetTime = nextResetTime
+                            NextResetTime = nextResetTime,
+                            DetailType = ProviderUsageDetailType.Other,
+                            WindowKind = WindowKind.None
                         });
                     }
                     else
                     {
                         _logger.LogDebug("No spending limit set for this key");
                     }
-                    
-                    details.Add(new ProviderUsageDetail { 
-                        Name = "Free Tier", 
-                        Description = keyData.Data.IsFreeTier ? "Yes" : "No", 
-                        Used = "" 
+
+                    details.Add(new ProviderUsageDetail {
+                        Name = "Free Tier",
+                        Description = keyData.Data.IsFreeTier ? "Yes" : "No",
+                        Used = "",
+                        DetailType = ProviderUsageDetailType.Other,
+                        WindowKind = WindowKind.None
                     });
                 }
                 else
@@ -213,12 +209,15 @@ public class OpenRouterProvider : IProviderService
         _logger.LogInformation("OpenRouter usage calculated - Total: {Total}, Used: {Used}, Remaining: {Remaining}, RemainingPercentage: {RemainingPercentage}%",
             total, used, remaining, remainingPercentage);
         
+        // Find spending limit detail for reset time (use typed fields, not string matching)
         string mainReset = "";
-        var spendingLimitDetail = details.FirstOrDefault(d => d.Name == "Spending Limit");
+        DateTime? spendingLimitResetTime = null;
+        var spendingLimitDetail = details.FirstOrDefault(d => d.DetailType == ProviderUsageDetailType.Other && d.NextResetTime.HasValue);
         if (spendingLimitDetail != null && spendingLimitDetail.Description.Contains("(Resets:"))
         {
             var idx = spendingLimitDetail.Description.IndexOf("(Resets:");
             if (idx >= 0) mainReset = " " + spendingLimitDetail.Description.Substring(idx);
+            spendingLimitResetTime = spendingLimitDetail.NextResetTime;
         }
 
         return new[] { new ProviderUsage
@@ -233,8 +232,10 @@ public class OpenRouterProvider : IProviderService
             IsQuotaBased = true,
             IsAvailable = true,
             Description = $"{remaining.ToString("F2", CultureInfo.InvariantCulture)} Credits Remaining{mainReset}",
-            NextResetTime = spendingLimitDetail?.NextResetTime,
-            Details = details
+            NextResetTime = spendingLimitResetTime,
+            Details = details,
+            RawJson = creditsResponseBody,
+            HttpStatus = httpStatus
         }};
     }
 
@@ -274,4 +275,5 @@ public class OpenRouterProvider : IProviderService
         public bool IsFreeTier { get; set; }
     }
 }
+
 

@@ -1,6 +1,8 @@
 using Dapper;
 using Microsoft.Data.Sqlite;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
@@ -9,7 +11,7 @@ using System.Text.Json;
 
 namespace AIUsageTracker.Web.Services;
 
-public class WebDatabaseService
+public class WebDatabaseService : IWebDatabaseRepository
 {
     private readonly string _dbPath;
     private readonly string _readConnectionString;
@@ -18,28 +20,22 @@ public class WebDatabaseService
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private static int _chartIndexesEnsured;
 
-    public WebDatabaseService(IMemoryCache cache, ILogger<WebDatabaseService> logger)
-        : this(cache, logger, databasePathOverride: null)
+    public WebDatabaseService(IMemoryCache cache, ILogger<WebDatabaseService> logger, IAppPathProvider pathProvider)
+        : this(cache, logger, pathProvider, databasePathOverride: null)
     {
     }
 
     public WebDatabaseService(
         IMemoryCache cache,
         ILogger<WebDatabaseService> logger,
+        IAppPathProvider pathProvider,
         string? databasePathOverride)
     {
         _cache = cache;
         _logger = logger;
-        if (!string.IsNullOrWhiteSpace(databasePathOverride))
-        {
-            _dbPath = databasePathOverride;
-        }
-        else
-        {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var dbDir = ResolveDatabaseDirectory(appData);
-            _dbPath = Path.Combine(dbDir, "usage.db");
-        }
+        _dbPath = !string.IsNullOrWhiteSpace(databasePathOverride) 
+            ? databasePathOverride 
+            : pathProvider.GetDatabasePath();
 
         _readConnectionString = new SqliteConnectionStringBuilder
         {
@@ -51,30 +47,45 @@ public class WebDatabaseService
         }.ToString();
     }
 
-    private static string ResolveDatabaseDirectory(string appData)
-    {
-        var primaryDir = Path.Combine(appData, "AIUsageTracker");
-        var legacyDir = Path.Combine(appData, "AIConsumptionTracker");
-
-        var primaryDb = Path.Combine(primaryDir, "usage.db");
-        var legacyDb = Path.Combine(legacyDir, "usage.db");
-
-        if (File.Exists(primaryDb))
-        {
-            return primaryDir;
-        }
-
-        if (File.Exists(legacyDb))
-        {
-            return legacyDir;
-        }
-
-        return primaryDir;
-    }
-
     public bool IsDatabaseAvailable()
     {
         return File.Exists(_dbPath);
+    }
+
+    public async Task<List<ProviderInfo>> GetProvidersAsync()
+    {
+        if (!IsDatabaseAvailable())
+            return new List<ProviderInfo>();
+
+        var sw = Stopwatch.StartNew();
+        using var connection = CreateReadConnection();
+        await connection.OpenAsync();
+
+        const string sql = @"
+            SELECT 
+                p.provider_id AS ProviderId, 
+                p.provider_name AS ProviderName, 
+                p.is_active AS IsActive,
+                p.auth_source AS AuthSource,
+                p.account_name AS AccountName,
+                h.requests_percentage AS LatestUsage,
+                h.next_reset_time AS NextResetTime
+            FROM providers p
+            LEFT JOIN (
+                SELECT provider_id, requests_percentage, next_reset_time, MAX(id)
+                FROM provider_history
+                GROUP BY provider_id
+            ) h ON p.provider_id = h.provider_id
+            WHERE p.is_active = 1";
+
+        var results = (await connection.QueryAsync<ProviderInfo>(sql)).ToList();
+        foreach (var p in results)
+        {
+            p.ProviderName = ProviderMetadataCatalog.GetDisplayName(p.ProviderId, p.ProviderName);
+        }
+        _logger.LogInformation("WebDB GetProvidersAsync count={Count} elapsedMs={ElapsedMs}",
+            results.Count, sw.ElapsedMilliseconds);
+        return results;
     }
 
     public async Task<List<ProviderUsage>> GetLatestUsageAsync(bool includeInactive = false)
@@ -82,68 +93,26 @@ public class WebDatabaseService
         if (!IsDatabaseAvailable())
             return new List<ProviderUsage>();
 
-        var cacheKey = $"db:latest-usage:{includeInactive}";
-        if (_cache.TryGetValue<List<ProviderUsage>>(cacheKey, out var cached) && cached != null)
-        {
-            _logger.LogDebug("WebDB cache hit for GetLatestUsageAsync(includeInactive={IncludeInactive}) count={Count}",
-                includeInactive, cached.Count);
-            return cached;
-        }
-
         var sw = Stopwatch.StartNew();
-
         using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
-            const string activeSql = @"
-                SELECT h.provider_id AS ProviderId, p.provider_name AS ProviderName,
-                       h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
-                       h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
-                       h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson
-                FROM provider_history h
-                JOIN providers p ON h.provider_id = p.provider_id
-                WHERE h.id IN (
-                    SELECT MAX(id) FROM provider_history GROUP BY provider_id
-                )
-                AND h.is_available = 1
-                ORDER BY p.provider_name";
+        string sql = @"
+            SELECT h.*, p.provider_name as ProviderName 
+            FROM provider_history h
+            JOIN providers p ON h.provider_id = p.provider_id
+            WHERE h.id IN (SELECT MAX(id) FROM provider_history GROUP BY provider_id)";
 
-            const string allSql = @"
-                SELECT h.provider_id AS ProviderId, p.provider_name AS ProviderName,
-                       h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
-                       h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
-                       h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson
-                FROM provider_history h
-                JOIN providers p ON h.provider_id = p.provider_id
-                WHERE h.id IN (
-                    SELECT MAX(id) FROM provider_history GROUP BY provider_id
-                )
-                ORDER BY p.provider_name";
-
-        var sql = includeInactive ? allSql : activeSql;
-        var results = await connection.QueryAsync<ProviderUsage>(sql);
-            
-        // Deserialize details from JSON and set IsQuotaBased from provider class
-        foreach (var usage in results)
+        if (!includeInactive)
         {
-            if (!string.IsNullOrEmpty(usage.DetailsJson))
-            {
-                try
-                {
-                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson);
-                }
-                catch { /* Ignore deserialization errors */ }
-            }
-            
-            // Set IsQuotaBased using the existing ProviderPlanClassifier
-            usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
+            sql += " AND p.is_active = 1 AND h.is_available = 1";
         }
 
-        var list = results.ToList();
-        _cache.Set(cacheKey, list, TimeSpan.FromMinutes(5));
-        _logger.LogInformation("WebDB GetHistoryAsync rows={Count} elapsedMs={ElapsedMs}", list.Count, sw.ElapsedMilliseconds);
+        var results = await connection.QueryAsync<dynamic>(sql);
+        var list = results.Select(MapToProviderUsage).ToList();
+        
+        _logger.LogInformation("WebDB GetLatestUsageAsync count={Count} includeInactive={IncludeInactive} elapsedMs={ElapsedMs}",
+            list.Count, includeInactive, sw.ElapsedMilliseconds);
         return list;
     }
 
@@ -155,25 +124,15 @@ public class WebDatabaseService
         using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
-            var sql = $@"
-                SELECT h.provider_id AS ProviderId, p.provider_name AS ProviderName,
-                       h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
-                       h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
-                       h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime
-                FROM provider_history h
-                JOIN providers p ON h.provider_id = p.provider_id
-                ORDER BY h.fetched_at DESC
-                LIMIT {limit}";
+        var sql = $@"
+            SELECT h.*, p.provider_name as ProviderName
+            FROM provider_history h
+            JOIN providers p ON h.provider_id = p.provider_id
+            ORDER BY h.fetched_at DESC
+            LIMIT {limit}";
 
-        var results = await connection.QueryAsync<ProviderUsage>(sql);
-        
-        foreach (var usage in results)
-        {
-            usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
-        }
-        
-        return results.ToList();
+        var results = await connection.QueryAsync<dynamic>(sql);
+        return results.Select(MapToProviderUsage).ToList();
     }
 
     public async Task<List<ProviderUsage>> GetProviderHistoryAsync(string providerId, int limit = 100)
@@ -184,101 +143,42 @@ public class WebDatabaseService
         using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
-            var sql = $@"
-                SELECT h.provider_id AS ProviderId, p.provider_name AS ProviderName,
-                       h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
-                       h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
-                       h.status_message AS Description, h.fetched_at AS FetchedAt,
-                       h.next_reset_time AS NextResetTime
-                FROM provider_history h
-                JOIN providers p ON h.provider_id = p.provider_id
-                WHERE h.provider_id = @ProviderId
-                ORDER BY h.fetched_at DESC
-                LIMIT {limit}";
+        var sql = $@"
+            SELECT h.*, p.provider_name as ProviderName
+            FROM provider_history h
+            JOIN providers p ON h.provider_id = p.provider_id
+            WHERE h.provider_id = @ProviderId
+            ORDER BY h.fetched_at DESC
+            LIMIT {limit}";
 
-        var results = await connection.QueryAsync<ProviderUsage>(sql, new { ProviderId = providerId });
-        
-        foreach (var usage in results)
-        {
-            usage.IsQuotaBased = ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId);
-        }
-        
-        return results.ToList();
-    }
-
-    public async Task<List<ProviderInfo>> GetProvidersAsync()
-    {
-        if (!IsDatabaseAvailable())
-            return new List<ProviderInfo>();
-
-        using var connection = CreateReadConnection();
-        await connection.OpenAsync();
-
-            const string sql = @"
-                SELECT p.provider_id AS ProviderId, p.provider_name AS ProviderName,
-                       p.is_active AS IsActive,
-                       p.auth_source AS AuthSource, p.account_name AS AccountName,
-                       (SELECT requests_percentage FROM provider_history 
-                        WHERE provider_id = p.provider_id 
-                        ORDER BY fetched_at DESC LIMIT 1) as LatestUsage,
-                       (SELECT next_reset_time FROM provider_history 
-                        WHERE provider_id = p.provider_id 
-                        ORDER BY fetched_at DESC LIMIT 1) as NextResetTime
-                FROM providers p
-                WHERE p.is_active = 1
-                ORDER BY p.provider_name";
-
-        var results = await connection.QueryAsync<ProviderInfo>(sql);
-        return results.ToList();
-    }
-
-    public async Task<List<ResetEvent>> GetResetEventsAsync(string providerId, int limit = 50)
-    {
-        if (!IsDatabaseAvailable())
-            return new List<ResetEvent>();
-
-        using var connection = CreateReadConnection();
-        await connection.OpenAsync();
-
-            var sql = $@"
-                SELECT id AS Id, provider_id AS ProviderId, provider_name AS ProviderName,
-                       previous_usage AS PreviousUsage, new_usage AS NewUsage,
-                       reset_type AS ResetType, timestamp AS Timestamp
-                FROM reset_events
-                WHERE provider_id = @ProviderId
-                ORDER BY timestamp DESC
-                LIMIT {limit}";
-
-        var results = await connection.QueryAsync<ResetEvent>(sql, new { ProviderId = providerId });
-        return results.ToList();
+        var results = await connection.QueryAsync<dynamic>(sql, new { ProviderId = providerId });
+        return results.Select(MapToProviderUsage).ToList();
     }
 
     public async Task<UsageSummary> GetUsageSummaryAsync()
     {
-        if (!IsDatabaseAvailable())
-            return new UsageSummary();
-
-        const string cacheKey = "db:usage-summary";
+        var cacheKey = "db:usage-summary";
         if (_cache.TryGetValue<UsageSummary>(cacheKey, out var cached) && cached != null)
         {
-            _logger.LogDebug("WebDB cache hit for GetUsageSummaryAsync");
             return cached;
         }
 
-        var sw = Stopwatch.StartNew();
+        if (!IsDatabaseAvailable())
+            return new UsageSummary();
 
+        var sw = Stopwatch.StartNew();
         using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
-            const string sql = @"
-                SELECT 
-                    COUNT(DISTINCT provider_id) as ProviderCount,
-                    AVG(requests_percentage) as AverageUsage,
-                    MAX(fetched_at) as LastUpdate
-                FROM provider_history
-                WHERE id IN (
-                    SELECT MAX(id) FROM provider_history GROUP BY provider_id
-                )";
+        const string sql = @"
+            SELECT 
+                COUNT(DISTINCT provider_id) as ProviderCount,
+                AVG(requests_percentage) as AverageUsage,
+                MAX(fetched_at) as LastUpdate
+            FROM provider_history
+            WHERE id IN (
+                SELECT MAX(id) FROM provider_history GROUP BY provider_id
+            )";
 
         var result = await connection.QuerySingleOrDefaultAsync<UsageSummary>(sql) ?? new UsageSummary();
         _cache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
@@ -287,145 +187,20 @@ public class WebDatabaseService
         return result;
     }
 
-    public async Task<Dictionary<string, BurnRateForecast>> GetBurnRateForecastsAsync(
-        IEnumerable<string> providerIds,
-        int lookbackHours = 72,
-        int maxSamplesPerProvider = 720)
+    public async Task<List<ProviderUsage>> GetHistorySamplesAsync(IEnumerable<string> providerIds, int lookbackHours, int maxSamples)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(lookbackHours);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSamplesPerProvider);
-
-        if (!IsDatabaseAvailable())
-        {
-            return new Dictionary<string, BurnRateForecast>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        ArgumentNullException.ThrowIfNull(providerIds);
-
-        var normalizedProviderIds = providerIds
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (normalizedProviderIds.Count == 0)
-        {
-            return new Dictionary<string, BurnRateForecast>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        var cacheKey = $"db:burn-rate:{lookbackHours}:{maxSamplesPerProvider}:{string.Join(",", normalizedProviderIds)}";
-        if (_cache.TryGetValue<Dictionary<string, BurnRateForecast>>(cacheKey, out var cached) && cached != null)
-        {
-            _logger.LogDebug("WebDB cache hit for GetBurnRateForecastsAsync providers={Count}", normalizedProviderIds.Count);
-            return cached;
-        }
-
-        var sw = Stopwatch.StartNew();
         using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
         var cutoffUtc = DateTime.UtcNow
             .AddHours(-lookbackHours)
             .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            
         const string sql = @"
             WITH ranked AS (
                 SELECT h.provider_id AS ProviderId,
                        h.requests_used AS RequestsUsed,
                        h.requests_available AS RequestsAvailable,
-                       h.is_available AS IsAvailable,
-                       h.fetched_at AS FetchedAt,
-                       ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY datetime(h.fetched_at) DESC) AS RowNum
-                FROM provider_history h
-                WHERE h.provider_id IN @ProviderIds
-                  AND datetime(h.fetched_at) >= datetime(@CutoffUtc)
-            )
-            SELECT ProviderId, RequestsUsed, RequestsAvailable, IsAvailable, FetchedAt
-            FROM ranked
-            WHERE RowNum <= @MaxSamplesPerProvider
-            ORDER BY ProviderId, datetime(FetchedAt) ASC";
-
-        var rows = (await connection.QueryAsync<BurnRateSampleRow>(sql, new
-        {
-            ProviderIds = normalizedProviderIds,
-            CutoffUtc = cutoffUtc,
-            MaxSamplesPerProvider = maxSamplesPerProvider
-        })).ToList();
-
-        var forecasts = normalizedProviderIds.ToDictionary(
-            id => id,
-            _ => BurnRateForecast.Unavailable("Insufficient history"),
-            StringComparer.OrdinalIgnoreCase);
-
-        foreach (var group in rows.GroupBy(r => r.ProviderId, StringComparer.OrdinalIgnoreCase))
-        {
-            var samples = group
-                .Where(x => x.IsAvailable)
-                .Select(x => new ProviderUsage
-                {
-                    ProviderId = x.ProviderId,
-                    RequestsUsed = x.RequestsUsed,
-                    RequestsAvailable = x.RequestsAvailable,
-                    IsAvailable = x.IsAvailable,
-                    FetchedAt = x.FetchedAt
-                })
-                .ToList();
-
-            forecasts[group.Key] = UsageMath.CalculateBurnRateForecast(samples);
-        }
-
-        _cache.Set(cacheKey, forecasts, TimeSpan.FromMinutes(10));
-        _logger.LogInformation(
-            "WebDB GetBurnRateForecastsAsync providers={ProviderCount} rows={RowCount} elapsedMs={ElapsedMs}",
-            normalizedProviderIds.Count,
-            rows.Count,
-            sw.ElapsedMilliseconds);
-
-        return forecasts;
-    }
-
-    public async Task<Dictionary<string, ProviderReliabilitySnapshot>> GetProviderReliabilityAsync(
-        IEnumerable<string> providerIds,
-        int lookbackHours = 168,
-        int maxSamplesPerProvider = 1000)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(lookbackHours);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSamplesPerProvider);
-
-        if (!IsDatabaseAvailable())
-        {
-            return new Dictionary<string, ProviderReliabilitySnapshot>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        ArgumentNullException.ThrowIfNull(providerIds);
-
-        var normalizedProviderIds = providerIds
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (normalizedProviderIds.Count == 0)
-        {
-            return new Dictionary<string, ProviderReliabilitySnapshot>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        var cacheKey = $"db:reliability:{lookbackHours}:{maxSamplesPerProvider}:{string.Join(",", normalizedProviderIds)}";
-        if (_cache.TryGetValue<Dictionary<string, ProviderReliabilitySnapshot>>(cacheKey, out var cached) && cached != null)
-        {
-            _logger.LogDebug("WebDB cache hit for GetProviderReliabilityAsync providers={Count}", normalizedProviderIds.Count);
-            return cached;
-        }
-
-        var sw = Stopwatch.StartNew();
-        using var connection = CreateReadConnection();
-        await connection.OpenAsync();
-
-        var cutoffUtc = DateTime.UtcNow
-            .AddHours(-lookbackHours)
-            .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-        const string sqlWithLatency = @"
-            WITH ranked AS (
-                SELECT h.provider_id AS ProviderId,
                        h.is_available AS IsAvailable,
                        h.response_latency_ms AS ResponseLatencyMs,
                        h.fetched_at AS FetchedAt,
@@ -434,170 +209,58 @@ public class WebDatabaseService
                 WHERE h.provider_id IN @ProviderIds
                   AND datetime(h.fetched_at) >= datetime(@CutoffUtc)
             )
-            SELECT ProviderId, IsAvailable, ResponseLatencyMs, FetchedAt
-            FROM ranked
-            WHERE RowNum <= @MaxSamplesPerProvider
-            ORDER BY ProviderId, datetime(FetchedAt) ASC";
-        const string sqlWithoutLatency = @"
-            WITH ranked AS (
-                SELECT h.provider_id AS ProviderId,
-                       h.is_available AS IsAvailable,
-                       0 AS ResponseLatencyMs,
-                       h.fetched_at AS FetchedAt,
-                       ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY datetime(h.fetched_at) DESC) AS RowNum
-                FROM provider_history h
-                WHERE h.provider_id IN @ProviderIds
-                  AND datetime(h.fetched_at) >= datetime(@CutoffUtc)
-            )
-            SELECT ProviderId, IsAvailable, ResponseLatencyMs, FetchedAt
-            FROM ranked
-            WHERE RowNum <= @MaxSamplesPerProvider
+            SELECT * FROM ranked
+            WHERE RowNum <= @MaxSamples
             ORDER BY ProviderId, datetime(FetchedAt) ASC";
 
-        List<ProviderReliabilityRow> rows;
-        try
+        var rows = await connection.QueryAsync<dynamic>(sql, new
         {
-            rows = (await connection.QueryAsync<ProviderReliabilityRow>(sqlWithLatency, new
-            {
-                ProviderIds = normalizedProviderIds,
-                CutoffUtc = cutoffUtc,
-                MaxSamplesPerProvider = maxSamplesPerProvider
-            })).ToList();
-        }
-        catch (SqliteException ex) when (ex.Message.Contains("response_latency_ms", StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.LogWarning(
-                "provider_history.response_latency_ms is unavailable; falling back to zero latency snapshots until migration runs.");
-            rows = (await connection.QueryAsync<ProviderReliabilityRow>(sqlWithoutLatency, new
-            {
-                ProviderIds = normalizedProviderIds,
-                CutoffUtc = cutoffUtc,
-                MaxSamplesPerProvider = maxSamplesPerProvider
-            })).ToList();
-        }
+            ProviderIds = providerIds,
+            CutoffUtc = cutoffUtc,
+            MaxSamples = maxSamples
+        });
 
-        var snapshots = normalizedProviderIds.ToDictionary(
-            id => id,
-            _ => ProviderReliabilitySnapshot.Unavailable("No history"),
-            StringComparer.OrdinalIgnoreCase);
-
-        foreach (var group in rows.GroupBy(r => r.ProviderId, StringComparer.OrdinalIgnoreCase))
-        {
-            var samples = group.Select(x => new ProviderUsage
-            {
-                ProviderId = x.ProviderId,
-                IsAvailable = x.IsAvailable,
-                ResponseLatencyMs = x.ResponseLatencyMs,
-                FetchedAt = x.FetchedAt
-            });
-
-            snapshots[group.Key] = UsageMath.CalculateReliabilitySnapshot(samples);
-        }
-
-        _cache.Set(cacheKey, snapshots, TimeSpan.FromMinutes(10));
-        _logger.LogInformation(
-            "WebDB GetProviderReliabilityAsync providers={ProviderCount} rows={RowCount} elapsedMs={ElapsedMs}",
-            normalizedProviderIds.Count,
-            rows.Count,
-            sw.ElapsedMilliseconds);
-
-        return snapshots;
+        return rows.Select(MapToProviderUsage).ToList();
     }
 
-    public async Task<Dictionary<string, UsageAnomalySnapshot>> GetUsageAnomaliesAsync(
-        IEnumerable<string> providerIds,
-        int lookbackHours = 72,
-        int maxSamplesPerProvider = 720)
+    public async Task<List<ProviderUsage>> GetAllHistoryForExportAsync(int limit = 0)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(lookbackHours);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSamplesPerProvider);
-
-        if (!IsDatabaseAvailable())
-        {
-            return new Dictionary<string, UsageAnomalySnapshot>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        ArgumentNullException.ThrowIfNull(providerIds);
-
-        var normalizedProviderIds = providerIds
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (normalizedProviderIds.Count == 0)
-        {
-            return new Dictionary<string, UsageAnomalySnapshot>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        var cacheKey = $"db:anomaly:{lookbackHours}:{maxSamplesPerProvider}:{string.Join(",", normalizedProviderIds)}";
-        if (_cache.TryGetValue<Dictionary<string, UsageAnomalySnapshot>>(cacheKey, out var cached) && cached != null)
-        {
-            _logger.LogDebug("WebDB cache hit for GetUsageAnomaliesAsync providers={Count}", normalizedProviderIds.Count);
-            return cached;
-        }
-
-        var sw = Stopwatch.StartNew();
         using var connection = CreateReadConnection();
         await connection.OpenAsync();
 
-        var cutoffUtc = DateTime.UtcNow
-            .AddHours(-lookbackHours)
-            .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-        const string sql = @"
-            WITH ranked AS (
-                SELECT h.provider_id AS ProviderId,
-                       h.requests_used AS RequestsUsed,
-                       h.requests_available AS RequestsAvailable,
-                       h.is_available AS IsAvailable,
-                       h.fetched_at AS FetchedAt,
-                       ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY datetime(h.fetched_at) DESC) AS RowNum
-                FROM provider_history h
-                WHERE h.provider_id IN @ProviderIds
-                  AND datetime(h.fetched_at) >= datetime(@CutoffUtc)
-            )
-            SELECT ProviderId, RequestsUsed, RequestsAvailable, IsAvailable, FetchedAt
-            FROM ranked
-            WHERE RowNum <= @MaxSamplesPerProvider
-            ORDER BY ProviderId, datetime(FetchedAt) ASC";
+        string sql = @"
+            SELECT h.*, p.provider_name as ProviderName
+            FROM provider_history h
+            JOIN providers p ON h.provider_id = p.provider_id
+            ORDER BY h.fetched_at DESC";
 
-        var rows = (await connection.QueryAsync<BurnRateSampleRow>(sql, new
+        if (limit > 0) sql += $" LIMIT {limit}";
+
+        var rows = await connection.QueryAsync<dynamic>(sql);
+        return rows.Select(MapToProviderUsage).ToList();
+    }
+
+    private ProviderUsage MapToProviderUsage(dynamic row)
+    {
+        var usage = new ProviderUsage
         {
-            ProviderIds = normalizedProviderIds,
-            CutoffUtc = cutoffUtc,
-            MaxSamplesPerProvider = maxSamplesPerProvider
-        })).ToList();
+            ProviderId = row.provider_id ?? row.ProviderId,
+            ProviderName = row.ProviderName,
+            IsAvailable = row.is_available == 1 || (row.IsAvailable != null && row.IsAvailable == 1),
+            Description = row.status_message ?? string.Empty,
+            RequestsUsed = (double)(row.requests_used ?? row.RequestsUsed ?? 0.0),
+            RequestsAvailable = (double)(row.requests_available ?? row.RequestsAvailable ?? 0.0),
+            RequestsPercentage = (double)(row.requests_percentage ?? row.RequestsPercentage ?? 0.0),
+            ResponseLatencyMs = (double)(row.response_latency_ms ?? row.ResponseLatencyMs ?? 0.0),
+            FetchedAt = DateTime.Parse(row.fetched_at ?? row.FetchedAt)
+        };
 
-        var snapshots = normalizedProviderIds.ToDictionary(
-            id => id,
-            _ => UsageAnomalySnapshot.Unavailable("Insufficient history"),
-            StringComparer.OrdinalIgnoreCase);
-
-        foreach (var group in rows.GroupBy(r => r.ProviderId, StringComparer.OrdinalIgnoreCase))
+        if (row.next_reset_time != null)
         {
-            var samples = group
-                .Where(x => x.IsAvailable)
-                .Select(x => new ProviderUsage
-                {
-                    ProviderId = x.ProviderId,
-                    RequestsUsed = x.RequestsUsed,
-                    RequestsAvailable = x.RequestsAvailable,
-                    IsAvailable = x.IsAvailable,
-                    FetchedAt = x.FetchedAt
-                })
-                .ToList();
-
-            snapshots[group.Key] = UsageMath.CalculateUsageAnomalySnapshot(samples);
+            usage.NextResetTime = DateTime.Parse(row.next_reset_time);
         }
 
-        _cache.Set(cacheKey, snapshots, TimeSpan.FromMinutes(10));
-        _logger.LogInformation(
-            "WebDB GetUsageAnomaliesAsync providers={ProviderCount} rows={RowCount} elapsedMs={ElapsedMs}",
-            normalizedProviderIds.Count,
-            rows.Count,
-            sw.ElapsedMilliseconds);
-
-        return snapshots;
+        return usage;
     }
 
     public async Task<List<ChartDataPoint>> GetChartDataAsync(int hours = 24)
@@ -640,6 +303,10 @@ public class WebDatabaseService
             BucketSeconds = bucketSeconds
         });
         var list = results.ToList();
+        foreach (var point in list)
+        {
+            point.ProviderName = ProviderMetadataCatalog.GetDisplayName(point.ProviderId, point.ProviderName);
+        }
         _logger.LogInformation("WebDB GetChartDataAsync hours={Hours} bucketMinutes={BucketMinutes} rows={Count} elapsedMs={ElapsedMs}",
             hours, bucketMinutes, list.Count, sw.ElapsedMilliseconds);
         return list;
@@ -650,19 +317,9 @@ public class WebDatabaseService
         if (!IsDatabaseAvailable())
             return new List<ResetEvent>();
 
-        var cacheKey = $"db:recent-reset-events:{hours}";
-        if (_cache.TryGetValue<List<ResetEvent>>(cacheKey, out var cached) && cached != null)
-        {
-            _logger.LogDebug("WebDB cache hit for GetRecentResetEventsAsync(hours={Hours}) count={Count}",
-                hours, cached.Count);
-            return cached;
-        }
-
         var sw = Stopwatch.StartNew();
-
         using var connection = CreateReadConnection();
         await connection.OpenAsync();
-        await EnsureChartIndexesAsync(connection);
 
         var cutoffUtc = DateTime.UtcNow.AddHours(-hours).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
 
@@ -680,9 +337,40 @@ public class WebDatabaseService
             ORDER BY timestamp ASC";
 
         var results = (await connection.QueryAsync<ResetEvent>(sql, new { CutoffUtc = cutoffUtc })).ToList();
-        _cache.Set(cacheKey, results, TimeSpan.FromMinutes(5));
-        _logger.LogInformation("WebDB GetRecentResetEventsAsync hours={Hours} rows={Count} elapsedMs={ElapsedMs}",
-            hours, results.Count, sw.ElapsedMilliseconds);
+        foreach (var reset in results)
+        {
+            reset.ProviderName = ProviderMetadataCatalog.GetDisplayName(reset.ProviderId, reset.ProviderName);
+        }
+        return results;
+    }
+
+    public async Task<List<ResetEvent>> GetResetEventsAsync(string providerId, int limit = 50)
+    {
+        if (!IsDatabaseAvailable())
+            return new List<ResetEvent>();
+
+        using var connection = CreateReadConnection();
+        await connection.OpenAsync();
+
+        const string sql = @"
+            SELECT 
+                id AS Id, 
+                provider_id AS ProviderId, 
+                provider_name AS ProviderName,
+                previous_usage AS PreviousUsage, 
+                new_usage AS NewUsage,
+                reset_type AS ResetType, 
+                timestamp AS Timestamp
+            FROM reset_events
+            WHERE provider_id = @ProviderId
+            ORDER BY timestamp DESC
+            LIMIT @Limit";
+
+        var results = (await connection.QueryAsync<ResetEvent>(sql, new { ProviderId = providerId, Limit = limit })).ToList();
+        foreach (var reset in results)
+        {
+            reset.ProviderName = ProviderMetadataCatalog.GetDisplayName(reset.ProviderId, reset.ProviderName);
+        }
         return results;
     }
 
@@ -770,60 +458,5 @@ public class WebDatabaseService
         return new SqliteConnection(_readConnectionString);
     }
 
-    private sealed class BurnRateSampleRow
-    {
-        public string ProviderId { get; set; } = string.Empty;
-        public double RequestsUsed { get; set; }
-        public double RequestsAvailable { get; set; }
-        public bool IsAvailable { get; set; }
-        public DateTime FetchedAt { get; set; }
-    }
-
-    private sealed class ProviderReliabilityRow
-    {
-        public string ProviderId { get; set; } = string.Empty;
-        public bool IsAvailable { get; set; }
-        public double ResponseLatencyMs { get; set; }
-        public DateTime FetchedAt { get; set; }
-    }
+    public string GetDatabasePath() => _dbPath;
 }
-
-public class ProviderInfo
-{
-    public string ProviderId { get; set; } = string.Empty;
-    public string ProviderName { get; set; } = string.Empty;
-    public string PlanType { get; set; } = string.Empty;
-    public bool IsActive { get; set; }
-    public string? AuthSource { get; set; }
-    public string? AccountName { get; set; }
-    public double LatestUsage { get; set; }
-    public DateTime? NextResetTime { get; set; }
-}
-
-public class ResetEvent
-{
-    public string Id { get; set; } = string.Empty;
-    public string ProviderId { get; set; } = string.Empty;
-    public string ProviderName { get; set; } = string.Empty;
-    public double? PreviousUsage { get; set; }
-    public double? NewUsage { get; set; }
-    public string ResetType { get; set; } = string.Empty;
-    public string Timestamp { get; set; } = string.Empty;
-}
-
-public class UsageSummary
-{
-    public int ProviderCount { get; set; }
-    public double AverageUsage { get; set; }
-    public string? LastUpdate { get; set; }
-}
-
-public class ChartDataPoint
-{
-    public string ProviderId { get; set; } = string.Empty;
-    public string ProviderName { get; set; } = string.Empty;
-    public DateTime Timestamp { get; set; }
-    public double RequestsPercentage { get; set; }
-    public double RequestsUsed { get; set; }
-}
-

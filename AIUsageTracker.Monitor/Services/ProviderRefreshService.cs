@@ -17,7 +17,9 @@ public class ProviderRefreshService : BackgroundService
     private readonly IUsageDatabase _database;
     private readonly INotificationService _notificationService;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ConfigService _configService;
+    private readonly IConfigService _configService;
+    private readonly IAppPathProvider _pathProvider;
+    private readonly IEnumerable<IProviderService> _providers;
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
     private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(5);
     private static bool _debugMode = false;
@@ -53,7 +55,9 @@ public class ProviderRefreshService : BackgroundService
         IUsageDatabase database,
         INotificationService notificationService,
         IHttpClientFactory httpClientFactory,
-        ConfigService configService)
+        IConfigService configService,
+        IAppPathProvider pathProvider,
+        IEnumerable<IProviderService> providers)
     {
         _logger = logger;
         _loggerFactory = loggerFactory;
@@ -61,6 +65,8 @@ public class ProviderRefreshService : BackgroundService
         _notificationService = notificationService;
         _httpClientFactory = httpClientFactory;
         _configService = configService;
+        _pathProvider = pathProvider;
+        _providers = providers;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -93,25 +99,25 @@ public class ProviderRefreshService : BackgroundService
         }
         else
         {
-            // Database has existing data — serve it immediately WITHOUT refreshing.
+            // Database has existing data — serve it immediately WITHOUT refreshing all providers.
             // Do NOT hammer 3rd party APIs on startup. The scheduled interval will refresh on time.
             _logger.LogInformation("Startup: serving cached data from database (next refresh in {Minutes}m).", _refreshInterval.TotalMinutes);
             
-            // Background task only refreshes antigravity (system provider, no external API)
+            // Only do targeted refresh for system providers that need immediate correctness
+            // All other providers will be refreshed on the normal scheduled interval
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    _logger.LogInformation("Startup: refreshing antigravity quotas...");
+                    _logger.LogDebug("Startup: running targeted refresh for system providers...");
                     await TriggerRefreshAsync(
                         forceAll: true,
-                        includeProviderIds: new[] { "antigravity" },
-                        bypassCircuitBreaker: true);
-                    _logger.LogInformation("Startup: antigravity refresh complete.");
+                        includeProviderIds: new[] { "antigravity" });
+                    _logger.LogDebug("Startup: targeted refresh complete.");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Startup antigravity refresh failed: {Message}", ex.Message);
+                    _logger.LogWarning(ex, "Startup targeted refresh failed");
                 }
             }, stoppingToken);
         }
@@ -142,52 +148,25 @@ public class ProviderRefreshService : BackgroundService
     {
         _logger.LogDebug("Initializing providers...");
 
-        var httpClient = _httpClientFactory.CreateClient();
         var configLoader = new JsonConfigLoader(
             _loggerFactory.CreateLogger<JsonConfigLoader>(),
-            _loggerFactory.CreateLogger<TokenDiscoveryService>());
+            _loggerFactory.CreateLogger<TokenDiscoveryService>(),
+            _pathProvider);
 
-        var gitHubAuthService = new GitHubAuthService(
-            httpClient,
-            _loggerFactory.CreateLogger<GitHubAuthService>());
-
-        var providers = new List<IProviderService>
-        {
-            new ZaiProvider(httpClient, _loggerFactory.CreateLogger<ZaiProvider>()),
-            new AntigravityProvider(_loggerFactory.CreateLogger<AntigravityProvider>()),
-            new OpenCodeProvider(httpClient, _loggerFactory.CreateLogger<OpenCodeProvider>()),
-            new OpenAIProvider(httpClient, _loggerFactory.CreateLogger<OpenAIProvider>()),
-            new AnthropicProvider(_loggerFactory.CreateLogger<AnthropicProvider>()),
-            new GeminiProvider(httpClient, _loggerFactory.CreateLogger<GeminiProvider>()),
-            new DeepSeekProvider(httpClient, _loggerFactory.CreateLogger<DeepSeekProvider>()),
-            new OpenRouterProvider(httpClient, _loggerFactory.CreateLogger<OpenRouterProvider>()),
-            new KimiProvider(httpClient, _loggerFactory.CreateLogger<KimiProvider>()),
-            new MinimaxProvider(httpClient, _loggerFactory.CreateLogger<MinimaxProvider>()),
-            new MistralProvider(httpClient, _loggerFactory.CreateLogger<MistralProvider>()),
-            new XiaomiProvider(httpClient, _loggerFactory.CreateLogger<XiaomiProvider>()),
-            new GitHubCopilotProvider(
-                httpClient,
-                _loggerFactory.CreateLogger<GitHubCopilotProvider>(),
-                gitHubAuthService),
-            new ClaudeCodeProvider(_loggerFactory.CreateLogger<ClaudeCodeProvider>(), httpClient),
-            new OpenCodeZenProvider(_loggerFactory.CreateLogger<OpenCodeZenProvider>()),
-            new EvolveMigrationProvider(_loggerFactory.CreateLogger<EvolveMigrationProvider>()),
-            new SyntheticProvider(httpClient, _loggerFactory.CreateLogger<SyntheticProvider>()),
-            new GenericPayAsYouGoProvider(httpClient, _loggerFactory.CreateLogger<GenericPayAsYouGoProvider>()),
-        };
+        var providerList = _providers.ToList();
 
         _providerManager = new ProviderManager(
-            providers,
+            providerList,
             configLoader,
             _loggerFactory.CreateLogger<ProviderManager>());
 
         _logger.LogDebug("Initialized {Count} providers: {Providers}",
-            providers.Count, string.Join(", ", providers.Select(p => p.ProviderId)));
+            providerList.Count, string.Join(", ", providerList.Select(p => p.ProviderId)));
 
-        _logger.LogInformation("Loaded {Count} providers", providers.Count);
+        _logger.LogInformation("Loaded {Count} providers", providerList.Count);
     }
 
-    public async Task TriggerRefreshAsync(
+    public virtual async Task TriggerRefreshAsync(
         bool forceAll = false,
         IReadOnlyCollection<string>? includeProviderIds = null,
         bool bypassCircuitBreaker = false)
@@ -243,6 +222,17 @@ public class ProviderRefreshService : BackgroundService
                 c.ProviderId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) ||
                 !string.IsNullOrEmpty(c.ApiKey)).ToList();
 
+            if (ShouldSuppressOpenAiSession(activeConfigs))
+            {
+                var beforeCount = activeConfigs.Count;
+                activeConfigs = activeConfigs
+                    .Where(c => !IsOpenAiSessionConfig(c))
+                    .ToList();
+                _logger.LogInformation(
+                    "Suppressed duplicate OpenAI session provider while Codex is active (removed {Count}).",
+                    beforeCount - activeConfigs.Count);
+            }
+
             if (includeProviderIds != null && includeProviderIds.Count > 0)
             {
                 var includeSet = includeProviderIds
@@ -293,13 +283,17 @@ public class ProviderRefreshService : BackgroundService
 
                 _logger.LogDebug("Received {Count} total usage results", usages.Count());
 
+                // Validate detail contract - mark providers with invalid details as unavailable
+                var validatedUsages = ValidateDetailContract(usages).ToList();
+                _logger.LogDebug("Validated {Count} usage results after detail contract check", validatedUsages.Count);
+
                 var activeProviderIds = refreshableConfigs.Select(c => c.ProviderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 
-                // Allow dynamic children (e.g. antigravity.claude-3-5-sonnet) through the filter even if not in config explicitly yet.
+                // Allow dynamic children (e.g. antigravity.* / codex.*) through the filter
+                // when their parent provider is active.
                 // Filter out entries where the API Key was missing to prevent logging empty data over and over.
-                var filteredUsages = usages.Where(u => 
-                    (activeProviderIds.Contains(u.ProviderId) || 
-                    (u.ProviderId.StartsWith("antigravity.") && activeProviderIds.Contains("antigravity"))) &&
+                var filteredUsages = validatedUsages.Where(u => 
+                    IsUsageForAnyActiveProvider(activeProviderIds, u.ProviderId) &&
                     // Drop unconfigured providers that returned no usage
                     // Check regardless of description - if no usage data and not available, it's a placeholder
                     !(u.RequestsAvailable == 0 && u.RequestsUsed == 0 && u.RequestsPercentage == 0 && !u.IsAvailable)
@@ -321,9 +315,10 @@ public class ProviderRefreshService : BackgroundService
                 // This ensures we have a provider record for foreign keys
                 foreach (var usage in filteredUsages)
                 {
-                    // Auto-register OR update dynamic sub-providers (e.g. antigravity models)
+                    // Auto-register OR update dynamic sub-providers (e.g. antigravity.* / codex.*)
                     // We update even if existing to ensure Friendly Name changes (like adding prefix) are persisted
-                    if (usage.ProviderId.StartsWith("antigravity.") || !activeProviderIds.Contains(usage.ProviderId))
+                    if (IsDynamicChildOfAnyActiveProvider(activeProviderIds, usage.ProviderId) ||
+                        !activeProviderIds.Contains(usage.ProviderId))
                     {
                         if (!activeProviderIds.Contains(usage.ProviderId))
                         {
@@ -333,7 +328,7 @@ public class ProviderRefreshService : BackgroundService
                         var dynamicConfig = new ProviderConfig
                         {
                             ProviderId = usage.ProviderId,
-                            Type = usage.PlanType == Core.Models.PlanType.Coding ? "coding" : "usage",
+                            Type = usage.IsQuotaBased ? "quota-based" : "pay-as-you-go",
                             AuthSource = usage.AuthSource,
                             ApiKey = "dynamic" // Placeholder to mark as active
                         };
@@ -376,7 +371,7 @@ public class ProviderRefreshService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Refresh failed: {Message}", ex.Message);
-            Program.ReportError($"Refresh failed: {ex.Message}");
+            Program.ReportError($"Refresh failed: {ex.Message}", _pathProvider, _logger);
             refreshError = ex.Message;
         }
         finally
@@ -544,6 +539,32 @@ public class ProviderRefreshService : BackgroundService
         }
 
         return usageProviderId.StartsWith($"{providerId}.", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldSuppressOpenAiSession(IReadOnlyCollection<ProviderConfig> activeConfigs)
+    {
+        var hasCodex = activeConfigs.Any(c =>
+            c.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(c.ApiKey));
+        return hasCodex && activeConfigs.Any(IsOpenAiSessionConfig);
+    }
+
+    private static bool IsOpenAiSessionConfig(ProviderConfig config)
+    {
+        return config.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase) &&
+               !string.IsNullOrWhiteSpace(config.ApiKey) &&
+               !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsUsageForAnyActiveProvider(HashSet<string> activeProviderIds, string usageProviderId)
+    {
+        return activeProviderIds.Any(providerId => IsUsageForProvider(providerId, usageProviderId));
+    }
+
+    private static bool IsDynamicChildOfAnyActiveProvider(HashSet<string> activeProviderIds, string usageProviderId)
+    {
+        return activeProviderIds.Any(providerId =>
+            usageProviderId.StartsWith($"{providerId}.", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsSuccessfulUsage(ProviderUsage usage)
@@ -774,6 +795,60 @@ public class ProviderRefreshService : BackgroundService
         catch (Exception ex)
         {
             return (false, ex.Message, 500);
+        }
+    }
+
+    private IEnumerable<ProviderUsage> ValidateDetailContract(IEnumerable<ProviderUsage> usages)
+    {
+        foreach (var usage in usages)
+        {
+            var validationErrors = new List<string>();
+
+            if (usage.Details != null)
+            {
+                foreach (var detail in usage.Details)
+                {
+                    if (string.IsNullOrWhiteSpace(detail.Name))
+                    {
+                        validationErrors.Add("Detail Name is empty");
+                    }
+
+                    if (detail.DetailType == ProviderUsageDetailType.Unknown)
+                    {
+                        validationErrors.Add($"DetailType is Unknown (must be QuotaWindow, Credit, Model, or Other)");
+                    }
+
+                    if (detail.DetailType == ProviderUsageDetailType.QuotaWindow)
+                    {
+                        if (detail.WindowKind == WindowKind.None)
+                        {
+                            validationErrors.Add("QuotaWindow details must have WindowKind set (Primary, Secondary, or Spark)");
+                        }
+                    }
+                }
+            }
+
+            if (validationErrors.Count > 0)
+            {
+                _logger.LogWarning(
+                    "Provider {ProviderId} emitted invalid details: {Errors}. Marking as unavailable.",
+                    usage.ProviderId,
+                    string.Join("; ", validationErrors));
+
+                yield return new ProviderUsage
+                {
+                    ProviderId = usage.ProviderId,
+                    ProviderName = usage.ProviderName,
+                    IsAvailable = false,
+                    Description = $"Invalid detail contract: {string.Join("; ", validationErrors)}",
+                    PlanType = usage.PlanType,
+                    IsQuotaBased = usage.IsQuotaBased
+                };
+            }
+            else
+            {
+                yield return usage;
+            }
         }
     }
 }

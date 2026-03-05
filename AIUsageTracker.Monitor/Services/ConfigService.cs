@@ -1,24 +1,27 @@
-using System.Text.Json;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AIUsageTracker.Monitor.Services;
 
-public class ConfigService
+public class ConfigService : IConfigService
 {
     private readonly ILogger<ConfigService> _logger;
     private readonly JsonConfigLoader _configLoader;
     private readonly TokenDiscoveryService _tokenDiscovery;
+    private readonly IAppPathProvider _pathProvider;
 
-    public ConfigService(ILogger<ConfigService> logger)
+    public ConfigService(ILogger<ConfigService> logger, IAppPathProvider pathProvider)
     {
         _logger = logger;
+        _pathProvider = pathProvider;
         _configLoader = new JsonConfigLoader(
-            logger: null,
-            tokenDiscoveryLogger: null);
-        _tokenDiscovery = new TokenDiscoveryService(null);
+            logger: NullLogger<JsonConfigLoader>.Instance,
+            tokenDiscoveryLogger: NullLogger<TokenDiscoveryService>.Instance,
+            pathProvider: _pathProvider);
+        _tokenDiscovery = new TokenDiscoveryService(NullLogger<TokenDiscoveryService>.Instance, _pathProvider);
     }
 
     public async Task<List<ProviderConfig>> GetConfigsAsync()
@@ -134,6 +137,8 @@ public class ConfigService
                     _logger.LogInformation("Key updated: {ProviderId}", newConfig.ProviderId);
                 }
             }
+
+            NormalizeOpenAiCodexSessionOverlap(existing);
             
             await _configLoader.SaveConfigAsync(existing);
             return discovered;
@@ -143,6 +148,43 @@ public class ConfigService
             _logger.LogError(ex, "Failed to scan for keys: {Message}", ex.Message);
             return new List<ProviderConfig>();
         }
+    }
+
+    private static void NormalizeOpenAiCodexSessionOverlap(List<ProviderConfig> configs)
+    {
+        var openAiConfig = configs.FirstOrDefault(c => c.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase));
+        if (openAiConfig == null)
+        {
+            return;
+        }
+
+        var hasOpenAiApiKey = !string.IsNullOrWhiteSpace(openAiConfig.ApiKey) &&
+                              openAiConfig.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
+        if (hasOpenAiApiKey)
+        {
+            return;
+        }
+
+        var codexConfig = configs.FirstOrDefault(c => c.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase));
+        if (codexConfig == null)
+        {
+            codexConfig = new ProviderConfig
+            {
+                ProviderId = "codex",
+                Type = "quota-based",
+                PlanType = PlanType.Coding
+            };
+            configs.Add(codexConfig);
+        }
+
+        if (string.IsNullOrWhiteSpace(codexConfig.ApiKey) && !string.IsNullOrWhiteSpace(openAiConfig.ApiKey))
+        {
+            codexConfig.ApiKey = openAiConfig.ApiKey;
+            codexConfig.AuthSource = openAiConfig.AuthSource;
+            codexConfig.Description = "Migrated from OpenAI session config";
+        }
+
+        configs.RemoveAll(c => c.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase));
     }
 }
 

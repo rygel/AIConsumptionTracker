@@ -2,14 +2,27 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
-public class ZaiProvider : IProviderService
+public class ZaiProvider : ProviderBase
 {
-    public string ProviderId => "zai-coding-plan";
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "zai-coding-plan",
+        displayName: "Z.ai Coding Plan",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        handledProviderIds: new[] { "zai-coding-plan", "zai" },
+        displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["zai"] = "Z.AI"
+        });
+
+    public override ProviderDefinition Definition => StaticDefinition;
+    public override string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<ZaiProvider> _logger;
 
@@ -19,7 +32,7 @@ public class ZaiProvider : IProviderService
         _logger = logger;
     }
 
-    public async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         if (string.IsNullOrEmpty(config.ApiKey))
         {
@@ -34,6 +47,7 @@ public class ZaiProvider : IProviderService
 
         _logger.LogDebug("[ZAI] Sending API request to https://api.z.ai/api/monitor/usage/quota/limit");
         var response = await _httpClient.SendAsync(request);
+        var httpStatus = (int)response.StatusCode;
 
         if (!response.IsSuccessStatusCode)
         {
@@ -63,7 +77,9 @@ public class ZaiProvider : IProviderService
                  IsAvailable = false,
                  Description = "No usage data available",
                  IsQuotaBased = true,
-                 PlanType = PlanType.Coding
+                 PlanType = PlanType.Coding,
+                 RawJson = responseString,
+                 HttpStatus = httpStatus
              }};
         }
 
@@ -227,7 +243,9 @@ public class ZaiProvider : IProviderService
                 IsAvailable = false,
                 Description = "Usage unknown (missing quota metrics)",
                 IsQuotaBased = true,
-                PlanType = PlanType.Coding
+                PlanType = PlanType.Coding,
+                RawJson = responseString,
+                HttpStatus = httpStatus
             }};
         }
 
@@ -257,7 +275,9 @@ public class ZaiProvider : IProviderService
             DisplayAsFraction = finalRequestsAvailable > 100, // Explicitly request fraction display if we have real numbers
             Description = finalDescription,
             NextResetTime = nextResetTime,
-            IsAvailable = true
+            IsAvailable = true,
+            RawJson = responseString,
+            HttpStatus = httpStatus
         }};
     }
 
@@ -294,4 +314,5 @@ public class ZaiProvider : IProviderService
         public long? NextResetTime { get; set; }
     }
 }
+
 

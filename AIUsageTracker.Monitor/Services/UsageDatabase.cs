@@ -1,5 +1,7 @@
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Infrastructure.Providers;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -11,24 +13,22 @@ public class UsageDatabase : IUsageDatabase
     private readonly string _dbPath;
     private readonly string _connectionString;
     private readonly ILogger<UsageDatabase> _logger;
+    private readonly IAppPathProvider _pathProvider;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
-    public UsageDatabase(ILogger<UsageDatabase> logger)
+    public UsageDatabase(ILogger<UsageDatabase> logger, IAppPathProvider pathProvider)
     {
         _logger = logger;
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var dbDir = ResolveDatabaseDirectory(appData);
-        Directory.CreateDirectory(dbDir);
-        _dbPath = Path.Combine(dbDir, "usage.db");
-        _logger.LogInformation("Database path: {DbPath}", _dbPath);
+        _pathProvider = pathProvider;
+        _dbPath = _pathProvider.GetDatabasePath();
         
-        // Also write to file log
-        try {
-            var logDir = Path.Combine(appData, "AIUsageTracker", "logs");
-            Directory.CreateDirectory(logDir);
-            var logFile = Path.Combine(logDir, $"monitor_{DateTime.Now:yyyy-MM-dd}.log");
-            File.AppendAllText(logFile, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} Database path: {_dbPath}{Environment.NewLine}");
-        } catch { /* Ignore */ }
+        var dbDir = Path.GetDirectoryName(_dbPath);
+        if (!string.IsNullOrEmpty(dbDir))
+        {
+            Directory.CreateDirectory(dbDir);
+        }
+
+        _logger.LogInformation("Database path: {DbPath}", _dbPath);
         
         _connectionString = new SqliteConnectionStringBuilder
         {
@@ -38,27 +38,6 @@ public class UsageDatabase : IUsageDatabase
             Pooling = true,
             DefaultTimeout = 15
         }.ToString();
-    }
-
-    private static string ResolveDatabaseDirectory(string appData)
-    {
-        var primaryDir = Path.Combine(appData, "AIUsageTracker");
-        var legacyDir = Path.Combine(appData, "AIConsumptionTracker");
-
-        var primaryDb = Path.Combine(primaryDir, "usage.db");
-        var legacyDb = Path.Combine(legacyDir, "usage.db");
-
-        if (File.Exists(primaryDb))
-        {
-            return primaryDir;
-        }
-
-        if (File.Exists(legacyDb))
-        {
-            return legacyDir;
-        }
-
-        return primaryDir;
     }
 
     public async Task InitializeAsync()
@@ -90,13 +69,18 @@ public class UsageDatabase : IUsageDatabase
             await connection.OpenAsync();
 
             const string sql = @"
-                INSERT OR REPLACE INTO providers (
-                    provider_id, provider_name, auth_source, 
-                    account_name, updated_at, is_active, config_json
+                INSERT INTO providers (
+                    provider_id, provider_name, auth_source, account_name, created_at, updated_at, is_active, config_json
                 ) VALUES (
-                    @ProviderId, @ProviderName, @AuthSource,
-                    @AccountName, CURRENT_TIMESTAMP, @IsActive, @ConfigJson
-                )";
+                    @ProviderId, @ProviderName, @AuthSource, @AccountName, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, @ConfigJson
+                )
+                ON CONFLICT(provider_id) DO UPDATE SET
+                    provider_name = excluded.provider_name,
+                    auth_source = excluded.auth_source,
+                    account_name = excluded.account_name,
+                    updated_at = CURRENT_TIMESTAMP,
+                    config_json = excluded.config_json,
+                    is_active = 1";
 
             var safeConfig = new
             {
@@ -108,14 +92,11 @@ public class UsageDatabase : IUsageDatabase
             await connection.ExecuteAsync(sql, new
             {
                 ProviderId = config.ProviderId,
-                ProviderName = !string.IsNullOrEmpty(friendlyName) ? friendlyName : config.ProviderId,
+                ProviderName = friendlyName ?? config.ProviderId,
                 AuthSource = config.AuthSource ?? "manual",
                 AccountName = (string?)null,
-                IsActive = !string.IsNullOrEmpty(config.ApiKey) ? 1 : 0,
                 ConfigJson = JsonSerializer.Serialize(safeConfig)
             });
-
-            _logger.LogDebug("Stored provider configuration: {ProviderId} ({Name})", config.ProviderId, friendlyName ?? config.ProviderId);
         }
         finally
         {
@@ -125,21 +106,18 @@ public class UsageDatabase : IUsageDatabase
 
     public async Task StoreHistoryAsync(IEnumerable<ProviderUsage> usages)
     {
-        // Filter out placeholder/unconfigured provider entries
-        // These represent providers that were queried but have no API key configured
-        // Check regardless of description - if no usage data and not available, it's a placeholder
-        var validUsages = usages.Where(u => 
-            !(u.RequestsAvailable == 0 && 
-              u.RequestsUsed == 0 && 
-              u.RequestsPercentage == 0 && 
+        var validUsages = usages.Where(u =>
+            !(u.RequestsAvailable == 0 &&
+              u.RequestsUsed == 0 &&
+              u.RequestsPercentage == 0 &&
               !u.IsAvailable)
         ).ToList();
-        
+
         if (!validUsages.Any())
         {
             return;
         }
-        
+
         await _semaphore.WaitAsync();
         try
         {
@@ -155,7 +133,7 @@ public class UsageDatabase : IUsageDatabase
                     @AccountName, CURRENT_TIMESTAMP, @IsActive, '{}'
                 )
                 ON CONFLICT(provider_id) DO UPDATE SET
-                    provider_name = CASE 
+                    provider_name = CASE
                         WHEN excluded.provider_name IS NOT NULL AND excluded.provider_name != '' THEN excluded.provider_name
                         ELSE providers.provider_name
                     END,
@@ -204,14 +182,13 @@ public class UsageDatabase : IUsageDatabase
                 StatusMessage = u.Description ?? "",
                 NextResetTime = u.NextResetTime?.ToString("O"),
                 FetchedAt = (u.FetchedAt == default ? DateTime.UtcNow : u.FetchedAt).ToString("O"),
-                DetailsJson = u.Details != null && u.Details.Any() 
-                    ? JsonSerializer.Serialize(u.Details) 
+                DetailsJson = u.Details != null && u.Details.Any()
+                    ? JsonSerializer.Serialize(u.Details)
                     : null,
                 ResponseLatencyMs = u.ResponseLatencyMs
             });
 
             await connection.ExecuteAsync(sql, parameters);
-            _logger.LogInformation("{Count} records stored", validUsages.Count);
         }
         finally
         {
@@ -232,7 +209,6 @@ public class UsageDatabase : IUsageDatabase
                 VALUES (@ProviderId, @RawJson, @HttpStatus, CURRENT_TIMESTAMP)";
 
             await connection.ExecuteAsync(sql, new { ProviderId = providerId, RawJson = rawJson, HttpStatus = httpStatus });
-            _logger.LogDebug("Stored raw snapshot for {ProviderId}", providerId);
         }
         finally
         {
@@ -248,13 +224,8 @@ public class UsageDatabase : IUsageDatabase
             using var connection = new SqliteConnection(_connectionString);
             await connection.OpenAsync();
 
-            const string sql = "DELETE FROM raw_snapshots WHERE fetched_at < datetime('now', '-14 days')";
-            var deletedCount = await connection.ExecuteAsync(sql);
-            
-            if (deletedCount > 0)
-            {
-                _logger.LogInformation("Cleaned {Count} snapshots", deletedCount);
-            }
+            const string sql = "DELETE FROM raw_snapshots WHERE fetched_at < datetime('now', '-7 days')";
+            await connection.ExecuteAsync(sql);
         }
         finally
         {
@@ -277,7 +248,7 @@ public class UsageDatabase : IUsageDatabase
         }
     }
 
-    public async Task StoreResetEventAsync(string providerId, string providerName, 
+    public async Task StoreResetEventAsync(string providerId, string providerName,
         double? previousUsage, double? newUsage, string resetType)
     {
         await _semaphore.WaitAsync();
@@ -301,8 +272,6 @@ public class UsageDatabase : IUsageDatabase
                 NewUsage = newUsage,
                 ResetType = resetType
             });
-
-            _logger.LogInformation("Reset: {ProviderId} ({ResetType})", providerId, resetType);
         }
         finally
         {
@@ -351,17 +320,19 @@ public class UsageDatabase : IUsageDatabase
 
             foreach (var usage in results)
             {
-                if (ProviderPlanClassifier.IsCodingPlanProvider(usage.ProviderId))
+                if (ProviderMetadataCatalog.TryGet(usage.ProviderId, out var definition))
                 {
-                    usage.PlanType = PlanType.Coding;
-                    usage.IsQuotaBased = true;
-                }
-                else if (usage.PlanType == PlanType.Coding)
-                {
-                    usage.IsQuotaBased = true;
+                    usage.PlanType = definition.PlanType;
+                    usage.IsQuotaBased = definition.IsQuotaBased;
+
+                    var mappedName = definition.ResolveDisplayName(usage.ProviderId);
+                    if (!string.IsNullOrWhiteSpace(mappedName))
+                    {
+                        usage.ProviderName = mappedName;
+                    }
                 }
 
-                if (!usage.DisplayAsFraction && usage.PlanType == PlanType.Coding && usage.RequestsAvailable > 100)
+                if (!usage.DisplayAsFraction && usage.IsQuotaBased && usage.RequestsAvailable > 100)
                 {
                     usage.DisplayAsFraction = true;
                 }
@@ -389,15 +360,28 @@ public class UsageDatabase : IUsageDatabase
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
                        h.next_reset_time AS NextResetTime,
+                       h.details_json AS DetailsJson,
                        h.response_latency_ms AS ResponseLatencyMs
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
-                WHERE h.provider_id != 'antigravity'
                 ORDER BY h.fetched_at DESC
                 LIMIT {limit}";
 
-            var results = await connection.QueryAsync<ProviderUsage>(sql);
-            return results.ToList();
+            var results = (await connection.QueryAsync<ProviderUsage>(sql)).ToList();
+
+            foreach (var usage in results.Where(u => !string.IsNullOrWhiteSpace(u.DetailsJson)))
+            {
+                try
+                {
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                }
+            }
+
+            return results;
         }
         finally
         {
@@ -419,6 +403,7 @@ public class UsageDatabase : IUsageDatabase
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
                        h.next_reset_time AS NextResetTime,
+                       h.details_json AS DetailsJson,
                        h.response_latency_ms AS ResponseLatencyMs
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
@@ -426,8 +411,21 @@ public class UsageDatabase : IUsageDatabase
                 ORDER BY h.fetched_at DESC
                 LIMIT {limit}";
 
-            var results = await connection.QueryAsync<ProviderUsage>(sql, new { ProviderId = providerId });
-            return results.ToList();
+            var results = (await connection.QueryAsync<ProviderUsage>(sql, new { ProviderId = providerId })).ToList();
+
+            foreach (var usage in results.Where(u => !string.IsNullOrWhiteSpace(u.DetailsJson)))
+            {
+                try
+                {
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                }
+            }
+
+            return results;
         }
         finally
         {
@@ -450,19 +448,34 @@ public class UsageDatabase : IUsageDatabase
                            h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                            h.status_message AS Description, h.fetched_at AS FetchedAt,
                            h.next_reset_time AS NextResetTime,
+                           h.details_json AS DetailsJson,
                            h.response_latency_ms AS ResponseLatencyMs,
                            ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY h.fetched_at DESC) as pos
                     FROM provider_history h
                     JOIN providers p ON h.provider_id = p.provider_id
                 )
-                SELECT ProviderId, ProviderName, RequestsUsed, RequestsAvailable, 
-                       RequestsPercentage, IsAvailable, Description, FetchedAt, NextResetTime, ResponseLatencyMs
-                FROM RankedHistory 
+                SELECT ProviderId, ProviderName, RequestsUsed, RequestsAvailable,
+                       RequestsPercentage, IsAvailable, Description, FetchedAt, NextResetTime,
+                       DetailsJson, ResponseLatencyMs
+                FROM RankedHistory
                 WHERE pos <= @Count
                 ORDER BY ProviderId, FetchedAt DESC";
 
-            var results = await connection.QueryAsync<ProviderUsage>(sql, new { Count = countPerProvider });
-            return results.ToList();
+            var results = (await connection.QueryAsync<ProviderUsage>(sql, new { Count = countPerProvider })).ToList();
+
+            foreach (var usage in results.Where(u => !string.IsNullOrWhiteSpace(u.DetailsJson)))
+            {
+                try
+                {
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                }
+            }
+
+            return results;
         }
         finally
         {
@@ -511,17 +524,21 @@ public class UsageDatabase : IUsageDatabase
             _semaphore.Release();
         }
     }
+
+    public async Task SetProviderActiveAsync(string providerId, bool isActive)
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            await connection.OpenAsync();
+
+            await connection.ExecuteAsync("UPDATE providers SET is_active = @IsActive, updated_at = CURRENT_TIMESTAMP WHERE provider_id = @ProviderId", 
+                new { ProviderId = providerId, IsActive = isActive ? 1 : 0 });
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
 }
-
-public class ResetEvent
-{
-    public string Id { get; set; } = string.Empty;
-    public string ProviderId { get; set; } = string.Empty;
-    public string ProviderName { get; set; } = string.Empty;
-    public double? PreviousUsage { get; set; }
-    public double? NewUsage { get; set; }
-    public string ResetType { get; set; } = string.Empty;
-    public string Timestamp { get; set; } = string.Empty;
-}
-
-
