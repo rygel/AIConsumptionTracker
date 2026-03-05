@@ -1,49 +1,43 @@
 using System.IO;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim;
 
-internal static class UiPreferencesStore
+public class UiPreferencesStore
 {
-    private static readonly ILogger _logger = App.CreateLogger<App>();
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    private readonly ILogger<UiPreferencesStore> _logger;
+    private readonly IAppPathProvider _pathProvider;
+    private readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true
     };
-    private static string? _preferencesPathOverride;
+    private string? _preferencesPathOverride;
 
-    internal static void SetPreferencesPathOverrideForTesting(string? path)
+    public UiPreferencesStore(ILogger<UiPreferencesStore> logger, IAppPathProvider pathProvider)
+    {
+        _logger = logger;
+        _pathProvider = pathProvider;
+    }
+
+    internal void SetPreferencesPathOverrideForTesting(string? path)
     {
         _preferencesPathOverride = string.IsNullOrWhiteSpace(path) ? null : path;
     }
 
-    private static string GetPreferencesPath()
+    private string GetPreferencesPath()
     {
         if (!string.IsNullOrWhiteSpace(_preferencesPathOverride))
         {
             return _preferencesPathOverride;
         }
 
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var primaryPath = Path.Combine(appData, "AIUsageTracker", "preferences.json");
-        var legacyPath = Path.Combine(appData, "AIConsumptionTracker", "preferences.json");
-
-        if (File.Exists(primaryPath))
-        {
-            return primaryPath;
-        }
-
-        if (File.Exists(legacyPath))
-        {
-            return legacyPath;
-        }
-
-        return primaryPath;
+        return _pathProvider.GetPreferencesFilePath();
     }
 
-    public static async Task<AppPreferences> LoadAsync()
+    public async Task<AppPreferences> LoadAsync()
     {
         var path = GetPreferencesPath();
         if (!File.Exists(path))
@@ -73,7 +67,7 @@ internal static class UiPreferencesStore
         return new AppPreferences();
     }
 
-    public static async Task<bool> SaveAsync(AppPreferences preferences)
+    public async Task<bool> SaveAsync(AppPreferences preferences)
     {
         var path = GetPreferencesPath();
         var directory = Path.GetDirectoryName(path);
@@ -86,7 +80,7 @@ internal static class UiPreferencesStore
         try
         {
             Directory.CreateDirectory(directory);
-            var json = JsonSerializer.Serialize(preferences, JsonOptions);
+            var json = JsonSerializer.Serialize(preferences, _jsonOptions);
             await File.WriteAllTextAsync(path, json);
             return true;
         }
@@ -102,12 +96,9 @@ internal static class UiPreferencesStore
         return false;
     }
 
-    private static async Task<AppPreferences?> TryLoadLegacyPreferencesAsync()
+    private async Task<AppPreferences?> TryLoadLegacyPreferencesAsync()
     {
-        var legacyPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".ai-consumption-tracker",
-            "auth.json");
+        var legacyPath = _pathProvider.GetAuthFilePath();
         if (!File.Exists(legacyPath))
         {
             return null;
@@ -140,4 +131,3 @@ internal static class UiPreferencesStore
         return null;
     }
 }
-
