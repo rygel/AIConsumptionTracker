@@ -70,6 +70,11 @@ public class OpenAIProviderTests : HttpProviderTestBase<OpenAIProvider>
                 {
                     used_percent = 45.5,
                     reset_after_seconds = 3600
+                },
+                secondary_window = new
+                {
+                    used_percent = 10.0,
+                    reset_after_seconds = 86400
                 }
             }
         };
@@ -91,9 +96,18 @@ public class OpenAIProviderTests : HttpProviderTestBase<OpenAIProvider>
         Assert.Equal(45.5, usage.RequestsUsed);
         Assert.Contains("Plan: plus", usage.Description);
         
-        var detail = usage.Details!.First();
-        Assert.Equal("5-hour quota", detail.Name);
-        Assert.Equal("46% used", detail.Used);
+        // Regression test for Dual Progress Bars
+        Assert.NotNull(usage.Details);
+        var primary = usage.Details.FirstOrDefault(d => d.WindowKind == WindowKind.Primary);
+        var secondary = usage.Details.FirstOrDefault(d => d.WindowKind == WindowKind.Secondary);
+        
+        Assert.NotNull(primary);
+        Assert.Equal("5-hour quota", primary.Name);
+        Assert.Contains("46% used", primary.Used);
+
+        Assert.NotNull(secondary);
+        Assert.Equal("Weekly quota", secondary.Name);
+        Assert.Contains("10% used", secondary.Used);
     }
 
     [Fact]

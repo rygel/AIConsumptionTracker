@@ -1783,6 +1783,20 @@ public partial class MainWindow : Window
             }
         }
 
+        // Try to find percentage followed by "remaining" (e.g., "80% remaining")
+        var remainingMatch = Regex.Match(used, @"(?<percent>\d+(?:\.\d+)?)\s*%\s*remaining", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        if (remainingMatch.Success)
+        {
+            if (double.TryParse(
+                    remainingMatch.Groups["percent"].Value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var percent))
+            {
+                return Math.Clamp(100.0 - percent, 0, 100);
+            }
+        }
+
         // Fallback: match first percentage (for backwards compatibility)
         var match = Regex.Match(used, @"(?<percent>\d+(?:\.\d+)?)\s*%", RegexOptions.CultureInvariant);
         if (!match.Success)
