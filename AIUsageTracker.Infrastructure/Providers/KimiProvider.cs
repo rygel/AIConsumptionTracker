@@ -44,7 +44,8 @@ public class KimiProvider : ProviderBase
             var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
 
-            var data = await response.Content.ReadFromJsonAsync<KimiUsageResponse>();
+            var content = await response.Content.ReadAsStringAsync();
+            var data = JsonSerializer.Deserialize<KimiUsageResponse>(content);
             if (data == null || data.Usage == null) throw new Exception("Invalid response from Kimi API");
 
             double used = data.Usage.Used;
@@ -63,6 +64,34 @@ public class KimiProvider : ProviderBase
             DateTime? soonestResetDt = null;
             var details = new List<ProviderUsageDetail>();
             TimeSpan minDiff = TimeSpan.MaxValue;
+
+            // Add weekly limit from usage as Secondary detail (always, as this is the primary quota)
+            if (limit > 0 && remaining >= 0)
+            {
+                var weeklyRemainingPct = UsageMath.CalculateRemainingPercent(used, limit);
+                DateTime? weeklyResetDt = null;
+                if (!string.IsNullOrEmpty(data.Usage.ResetTime) && 
+                    DateTime.TryParse(data.Usage.ResetTime, CultureInfo.InvariantCulture, DateTimeStyles.None, out var weeklyDt))
+                {
+                    weeklyResetDt = weeklyDt.ToLocalTime();
+                    var diff = weeklyResetDt.Value - DateTime.Now;
+                    if (diff.TotalSeconds > 0 && diff < minDiff)
+                    {
+                        minDiff = diff;
+                        soonestResetDt = weeklyResetDt;
+                    }
+                }
+
+                details.Add(new ProviderUsageDetail
+                {
+                    Name = "Weekly Limit",
+                    Used = $"{weeklyRemainingPct.ToString("F1", CultureInfo.InvariantCulture)}%",
+                    Description = $"{remaining} remaining{(!string.IsNullOrEmpty(data.Usage.ResetTime) ? $" (Resets: {FormatResetTime(data.Usage.ResetTime)})" : "")}",
+                    NextResetTime = weeklyResetDt,
+                    DetailType = ProviderUsageDetailType.QuotaWindow,
+                    WindowKind = WindowKind.Secondary
+                });
+            }
 
             if (data.Limits != null)
             {
@@ -121,6 +150,8 @@ public class KimiProvider : ProviderBase
                 PlanType = PlanType.Coding,
                 IsAvailable = true,
                 Description = description,
+                RawJson = content,
+                HttpStatus = (int)response.StatusCode,
 
                 Details = details,
                 NextResetTime = soonestResetDt

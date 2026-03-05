@@ -261,7 +261,7 @@ public class UsageDatabase : IUsageDatabase
             using var connection = new SqliteConnection(_connectionString);
             await connection.OpenAsync();
 
-            const string sql = "DELETE FROM raw_snapshots WHERE fetched_at < datetime('now', '-14 days')";
+            const string sql = "DELETE FROM raw_snapshots WHERE fetched_at < datetime('now', '-7 days')";
             var deletedCount = await connection.ExecuteAsync(sql);
             
             if (deletedCount > 0)
@@ -404,15 +404,28 @@ public class UsageDatabase : IUsageDatabase
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
                        h.next_reset_time AS NextResetTime,
+                       h.details_json AS DetailsJson,
                        h.response_latency_ms AS ResponseLatencyMs
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
-                WHERE h.provider_id != 'antigravity'
                 ORDER BY h.fetched_at DESC
                 LIMIT {limit}";
 
-            var results = await connection.QueryAsync<ProviderUsage>(sql);
-            return results.ToList();
+            var results = (await connection.QueryAsync<ProviderUsage>(sql)).ToList();
+
+            foreach (var usage in results.Where(u => !string.IsNullOrWhiteSpace(u.DetailsJson)))
+            {
+                try
+                {
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                }
+            }
+
+            return results;
         }
         finally
         {
@@ -434,6 +447,7 @@ public class UsageDatabase : IUsageDatabase
                        h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
                        h.next_reset_time AS NextResetTime,
+                       h.details_json AS DetailsJson,
                        h.response_latency_ms AS ResponseLatencyMs
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
@@ -441,8 +455,21 @@ public class UsageDatabase : IUsageDatabase
                 ORDER BY h.fetched_at DESC
                 LIMIT {limit}";
 
-            var results = await connection.QueryAsync<ProviderUsage>(sql, new { ProviderId = providerId });
-            return results.ToList();
+            var results = (await connection.QueryAsync<ProviderUsage>(sql, new { ProviderId = providerId })).ToList();
+
+            foreach (var usage in results.Where(u => !string.IsNullOrWhiteSpace(u.DetailsJson)))
+            {
+                try
+                {
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                }
+            }
+
+            return results;
         }
         finally
         {
@@ -465,19 +492,34 @@ public class UsageDatabase : IUsageDatabase
                            h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
                            h.status_message AS Description, h.fetched_at AS FetchedAt,
                            h.next_reset_time AS NextResetTime,
+                           h.details_json AS DetailsJson,
                            h.response_latency_ms AS ResponseLatencyMs,
                            ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY h.fetched_at DESC) as pos
                     FROM provider_history h
                     JOIN providers p ON h.provider_id = p.provider_id
                 )
                 SELECT ProviderId, ProviderName, RequestsUsed, RequestsAvailable, 
-                       RequestsPercentage, IsAvailable, Description, FetchedAt, NextResetTime, ResponseLatencyMs
+                       RequestsPercentage, IsAvailable, Description, FetchedAt, NextResetTime, 
+                       DetailsJson, ResponseLatencyMs
                 FROM RankedHistory 
                 WHERE pos <= @Count
                 ORDER BY ProviderId, FetchedAt DESC";
 
-            var results = await connection.QueryAsync<ProviderUsage>(sql, new { Count = countPerProvider });
-            return results.ToList();
+            var results = (await connection.QueryAsync<ProviderUsage>(sql, new { Count = countPerProvider })).ToList();
+
+            foreach (var usage in results.Where(u => !string.IsNullOrWhiteSpace(u.DetailsJson)))
+            {
+                try
+                {
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                }
+            }
+
+            return results;
         }
         finally
         {

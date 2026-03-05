@@ -1,0 +1,31 @@
+﻿{
+    "user":  {
+                 "userId":  "d6k24go64o3rt3ucqc10",
+                 "region":  "REGION_OVERSEA",
+                 "membership":  {
+                                    "level":  "LEVEL_BASIC"
+                                },
+                 "businessId":  "",
+                 "discountPlan":  true
+             },
+    "limited":  true,
+    "usage":  {
+                  "limit":  "100",
+                  "used":  "26",
+                  "remaining":  "74",
+                  "resetTime":  "2026-03-11T12:46:26.451100Z"
+              },
+    "limits":  [
+                   {
+                       "window":  {
+                                      "duration":  300,
+                                      "timeUnit":  "TIME_UNIT_MINUTE"
+                                  },
+                       "detail":  {
+                                      "limit":  "100",
+                                      "used":  "100",
+                                      "resetTime":  "2026-03-04T17:46:26.451100Z"
+                                  }
+                   }
+               ]
+}

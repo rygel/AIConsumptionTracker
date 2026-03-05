@@ -473,4 +473,3 @@ public class ScreenshotTests : PageTest
         }
     }
 }
-
