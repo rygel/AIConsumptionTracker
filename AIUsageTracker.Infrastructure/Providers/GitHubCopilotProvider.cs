@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Providers;
+using System.Text.Json;
 
 namespace AIUsageTracker.Infrastructure.Providers;
 
@@ -210,26 +211,73 @@ public class GitHubCopilotProvider : ProviderBase
                 }
             }
 
-            if (root.TryGetProperty("quota_snapshots", out var snapshots) &&
-                snapshots.TryGetProperty("premium_interactions", out var premium) &&
-                premium.TryGetProperty("entitlement", out var entitlementProp) &&
-                premium.TryGetProperty("remaining", out var remainingProp) &&
-                entitlementProp.TryGetDouble(out var entitlement) &&
-                remainingProp.TryGetDouble(out var remaining) &&
-                entitlement > 0)
+            if (root.TryGetProperty("quota_snapshots", out var snapshots))
             {
-                var normalizedRemaining = Math.Clamp(remaining, 0, entitlement);
-                var used = Math.Max(0, entitlement - normalizedRemaining);
-                state.CostLimit = entitlement;
-                state.CostUsed = used;
-                state.Percentage = UsageMath.CalculateRemainingPercent(used, entitlement);
-                state.HasCopilotQuotaData = true;
+                var details = new List<ProviderUsageDetail>();
+
+                // 1. Check for Primary/Spark window
+                // In some Copilot environments, there's a smaller window often called 'spark' or just the first snapshot
+                foreach (var prop in snapshots.EnumerateObject())
+                {
+                    if (prop.Name.Equals("premium_interactions", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    if (prop.Value.TryGetProperty("entitlement", out var entProp) &&
+                        prop.Value.TryGetProperty("remaining", out var remProp) &&
+                        entProp.TryGetDouble(out var ent) &&
+                        remProp.TryGetDouble(out var rem) &&
+                        ent > 0)
+                    {
+                        var normRem = Math.Clamp(rem, 0, ent);
+                        var remPct = UsageMath.CalculateRemainingPercent(ent - normRem, ent);
+                        
+                        details.Add(new ProviderUsageDetail
+                        {
+                            Name = $"{NormalizeSnapshotName(prop.Name)} quota",
+                            Used = $"{remPct:F1}% remaining ({ent - normRem:F0}/{ent:F0} used)",
+                            Description = "Short-term quota window",
+                            DetailType = ProviderUsageDetailType.QuotaWindow,
+                            WindowKind = prop.Name.Contains("spark", StringComparison.OrdinalIgnoreCase) ? WindowKind.Spark : WindowKind.Primary
+                        });
+                    }
+                }
+
+                // 2. Premium Interactions (usually the main/secondary long-term window)
+                if (snapshots.TryGetProperty("premium_interactions", out var premium) &&
+                    premium.TryGetProperty("entitlement", out var entitlementProp) &&
+                    premium.TryGetProperty("remaining", out var remainingProp) &&
+                    entitlementProp.TryGetDouble(out var entitlement) &&
+                    remainingProp.TryGetDouble(out var remaining) &&
+                    entitlement > 0)
+                {
+                    var normalizedRemaining = Math.Clamp(remaining, 0, entitlement);
+                    var used = Math.Max(0, entitlement - normalizedRemaining);
+                    state.CostLimit = entitlement;
+                    state.CostUsed = used;
+                    state.Percentage = UsageMath.CalculateRemainingPercent(used, entitlement);
+                    state.HasCopilotQuotaData = true;
+
+                    details.Add(new ProviderUsageDetail
+                    {
+                        Name = "Premium Interactions",
+                        Used = $"{state.Percentage:F1}% remaining ({used:F0}/{entitlement:F0} used)",
+                        Description = "Main interactions quota",
+                        DetailType = ProviderUsageDetailType.QuotaWindow,
+                        WindowKind = WindowKind.Secondary
+                    });
+                }
+
+                state.Details = details;
             }
         }
         catch
         {
             // Continue with fallback sources.
         }
+    }
+
+    private static string NormalizeSnapshotName(string name)
+    {
+        return name.Replace("_", " ").Trim();
     }
 
     private ProviderUsage BuildUsageResult(CopilotUsageState state)
@@ -249,6 +297,7 @@ public class GitHubCopilotProvider : ProviderBase
             IsQuotaBased = true,
             AuthSource = string.IsNullOrEmpty(state.PlanName) ? "Unknown" : state.PlanName,
             NextResetTime = state.ResetTime,
+            Details = state.Details,
             RawJson = state.RawJson,
             HttpStatus = state.HttpStatus
         };
@@ -325,9 +374,8 @@ public class GitHubCopilotProvider : ProviderBase
         public double CostUsed { get; set; }
         public double CostLimit { get; set; }
         public bool HasCopilotQuotaData { get; set; }
+        public List<ProviderUsageDetail>? Details { get; set; }
         public string? RawJson { get; set; }
         public int HttpStatus { get; set; } = 200;
     }
 }
-
-

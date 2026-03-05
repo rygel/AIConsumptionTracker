@@ -260,6 +260,25 @@ public class WebDatabaseService : IWebDatabaseRepository
             usage.NextResetTime = DateTime.Parse(row.next_reset_time);
         }
 
+        string? detailsJson = null;
+        try { detailsJson = row.details_json; } catch { }
+        if (string.IsNullOrEmpty(detailsJson))
+        {
+            try { detailsJson = row.DetailsJson; } catch { }
+        }
+
+        if (!string.IsNullOrEmpty(detailsJson))
+        {
+            try
+            {
+                usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(detailsJson);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+            }
+        }
+
         return usage;
     }
 
