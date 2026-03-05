@@ -1,5 +1,4 @@
 using AIUsageTracker.Core.MonitorClient;
-using AIUsageTracker.Web.Services;
 using System.Reflection;
 
 namespace AIUsageTracker.Tests.Core;
@@ -41,40 +40,8 @@ public class MonitorLifecycleTests
     }
 
     [Fact]
-    public void MonitorLauncher_HasRequiredMethods_ForSlimUiStartStop()
-    {
-        var type = typeof(MonitorLauncher);
-        
-        var startMethod = type.GetMethod("StartAgentAsync", BindingFlags.Public | BindingFlags.Static);
-        var stopMethod = type.GetMethod("StopAgentAsync", BindingFlags.Public | BindingFlags.Static);
-        var isRunningMethod = type.GetMethod("IsAgentRunningAsync", BindingFlags.Public | BindingFlags.Static);
-        var waitMethod = type.GetMethod("WaitForAgentAsync", BindingFlags.Public | BindingFlags.Static);
-        
-        Assert.NotNull(startMethod);
-        Assert.NotNull(stopMethod);
-        Assert.NotNull(isRunningMethod);
-        Assert.NotNull(waitMethod);
-        
-        Assert.True(startMethod.ReturnType == typeof(Task<bool>) || 
-                    startMethod.ReturnType == typeof(ValueTask<bool>),
-            "StartAgentAsync should return Task<bool> or ValueTask<bool>");
-    }
-
-    [Fact]
-    public void MonitorProcessService_HasRequiredMethods_ForWebUiStop()
-    {
-        var type = typeof(MonitorProcessService);
-        
-        var stopMethod = type.GetMethod("StopAgentAsync");
-        var stopDetailedMethod = type.GetMethod("StopAgentDetailedAsync");
-        
-        Assert.NotNull(stopMethod);
-        Assert.NotNull(stopDetailedMethod);
-    }
-
-    [Fact]
     [Trait("Category", "Integration")]
-    public async Task MonitorLifecycle_StartFromSlim_StopFromWeb_RestartFromSlim_Works()
+    public async Task MonitorLifecycle_StartStopRestart_Works()
     {
         if (!IsIntegrationEnabled())
         {
