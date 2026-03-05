@@ -134,5 +134,9 @@ public class KimiProviderTests : HttpProviderTestBase<KimiProvider>
         Assert.Equal("Hourly Limit", hourlyDetail.Name);
         Assert.Equal("Weekly Limit", weeklyDetailFromUsage.Name);
         Assert.Equal("7d Limit", weeklyDetailFromLimits.Name);
+
+        // Verify "used" percentage format for UI parsing
+        Assert.Contains("% used", hourlyDetail.Used);
+        Assert.Contains("% used", weeklyDetailFromUsage.Used);
     }
 }
