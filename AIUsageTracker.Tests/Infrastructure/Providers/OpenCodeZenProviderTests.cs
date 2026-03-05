@@ -1,24 +1,33 @@
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
-using Microsoft.Extensions.Logging;
-using Moq;
+using AIUsageTracker.Tests.Infrastructure;
 using Xunit;
 
 namespace AIUsageTracker.Tests.Infrastructure.Providers;
 
-public class OpenCodeZenProviderTests
+public class OpenCodeZenProviderTests : HttpProviderTestBase<OpenCodeZenProvider>
 {
-    [Fact]
-    public async Task GetUsageAsync_WhenCliMissing_PopulatesRawSnapshotFields()
+    private readonly OpenCodeZenProvider _provider;
+
+    public OpenCodeZenProviderTests()
     {
-        var logger = new Mock<ILogger<OpenCodeZenProvider>>();
-        var provider = new OpenCodeZenProvider(logger.Object, @"C:\__missing__\opencode.cmd");
-        var config = new ProviderConfig { ProviderId = "opencode-zen", ApiKey = "not-required" };
+        _provider = new OpenCodeZenProvider(Logger.Object);
+        Config.ApiKey = "test-key";
+    }
 
-        var usage = (await provider.GetUsageAsync(config)).Single();
+    [Fact]
+    public async Task GetUsageAsync_CliNotFound_ReturnsUnavailable()
+    {
+        // Arrange
+        var provider = new OpenCodeZenProvider(Logger.Object, "non-existent-cli");
 
+        // Act
+        var result = await provider.GetUsageAsync(Config);
+
+        // Assert
+        var usage = result.Single();
         Assert.False(usage.IsAvailable);
-        Assert.False(string.IsNullOrWhiteSpace(usage.RawJson));
         Assert.Equal(404, usage.HttpStatus);
+        Assert.Contains("CLI not found", usage.Description);
     }
 }

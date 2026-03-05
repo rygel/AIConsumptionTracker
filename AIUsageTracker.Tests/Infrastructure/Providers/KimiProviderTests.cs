@@ -2,38 +2,27 @@ using System.Net;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
-using Microsoft.Extensions.Logging;
+using AIUsageTracker.Tests.Infrastructure;
 using Moq;
 using Moq.Protected;
 using Xunit;
 
 namespace AIUsageTracker.Tests.Infrastructure.Providers;
 
-public class KimiProviderTests
+public class KimiProviderTests : HttpProviderTestBase<KimiProvider>
 {
-    private readonly Mock<HttpMessageHandler> _msgHandler;
-    private readonly HttpClient _httpClient;
-    private readonly Mock<ILogger<KimiProvider>> _logger;
     private readonly KimiProvider _provider;
 
     public KimiProviderTests()
     {
-        _msgHandler = new Mock<HttpMessageHandler>();
-        _httpClient = new HttpClient(_msgHandler.Object);
-        _logger = new Mock<ILogger<KimiProvider>>();
-        _provider = new KimiProvider(_httpClient, _logger.Object);
+        _provider = new KimiProvider(HttpClient, Logger.Object);
+        Config.ApiKey = "test-key";
     }
 
     [Fact]
     public async Task GetUsageAsync_ValidResponse_CalculatesPercentageCorrectly()
     {
         // Arrange
-        var config = new ProviderConfig
-        {
-            ProviderId = "kimi",
-            ApiKey = "test-key"
-        };
-        
         // 10 used, 100 limit, 90 remaining. RequestsPercentage uses remaining semantics.
         var responseContent = JsonSerializer.Serialize(new
         {
@@ -41,22 +30,14 @@ public class KimiProviderTests
             limits = new object[] {} 
         });
 
-        _msgHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(req => 
-                    req.Method == HttpMethod.Get && 
-                    req.RequestUri != null && req.RequestUri.AbsoluteUri == "https://api.kimi.com/coding/v1/usages"),
-                ItExpr.IsAny<CancellationToken>()
-            )
-            .ReturnsAsync(new HttpResponseMessage
-            {
-                StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(responseContent)
-            });
+        SetupHttpResponse("https://api.kimi.com/coding/v1/usages", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent(responseContent)
+        });
 
         // Act
-        var result = await _provider.GetUsageAsync(config);
+        var result = await _provider.GetUsageAsync(Config);
 
         // Assert
         var usage = result.Single();
@@ -71,8 +52,6 @@ public class KimiProviderTests
     public async Task GetUsageAsync_WithLimitDetails_ParsesDetailsCorrectly()
     {
          // Arrange
-        var config = new ProviderConfig { ProviderId = "kimi", ApiKey = "test-key" };
-
         var resetTime = DateTime.UtcNow.AddHours(1).ToString("o"); // ISO 8601
         
         var responseData = new
@@ -88,12 +67,14 @@ public class KimiProviderTests
             }
         };
 
-        _msgHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage { StatusCode = HttpStatusCode.OK, Content = new StringContent(JsonSerializer.Serialize(responseData)) });
+        SetupHttpResponse("https://api.kimi.com/coding/v1/usages", new HttpResponseMessage 
+        { 
+            StatusCode = HttpStatusCode.OK, 
+            Content = new StringContent(JsonSerializer.Serialize(responseData)) 
+        });
 
         // Act
-        var result = await _provider.GetUsageAsync(config);
+        var result = await _provider.GetUsageAsync(Config);
         
         // Assert
         var usage = result.Single();
@@ -101,15 +82,13 @@ public class KimiProviderTests
         Assert.Equal(2, usage.Details.Count); // Weekly limit from usage + Hourly limit from limits array
         var detail = usage.Details.Last(); // Hourly limit is from limits array
         Assert.Equal("Hourly Limit", detail.Name);
-        Assert.Contains("50.0%", detail.Used); // Hardcoded 50.0% to enforce InvariantCulture
+        Assert.Contains("50.0%", detail.Used);
     }
 
     [Fact]
     public async Task GetUsageAsync_WithHourlyAndWeeklyLimits_SetsCorrectWindowKinds()
     {
         // Arrange
-        var config = new ProviderConfig { ProviderId = "kimi", ApiKey = "test-key" };
-
         var hourlyResetTime = DateTime.UtcNow.AddMinutes(30).ToString("o");
         var weeklyResetTime = DateTime.UtcNow.AddDays(7).ToString("o");
         
@@ -131,12 +110,14 @@ public class KimiProviderTests
             }
         };
 
-        _msgHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage { StatusCode = HttpStatusCode.OK, Content = new StringContent(JsonSerializer.Serialize(responseData)) });
+        SetupHttpResponse("https://api.kimi.com/coding/v1/usages", new HttpResponseMessage 
+        { 
+            StatusCode = HttpStatusCode.OK, 
+            Content = new StringContent(JsonSerializer.Serialize(responseData)) 
+        });
 
         // Act
-        var result = await _provider.GetUsageAsync(config);
+        var result = await _provider.GetUsageAsync(Config);
         
         // Assert
         var usage = result.Single();
