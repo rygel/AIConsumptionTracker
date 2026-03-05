@@ -103,6 +103,11 @@ public class ScreenshotTests : PageTest
         }
     }
 
+    public override BrowserTypeLaunchOptions BrowserTypeLaunchOptions => new()
+    {
+        Headless = true,
+    };
+
     public ScreenshotTests()
     {
         // bin/Debug/net8.0/../../../docs
