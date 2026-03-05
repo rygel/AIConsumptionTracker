@@ -9,6 +9,8 @@ using System.Net.Sockets;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Infrastructure.Services;
 using AIUsageTracker.Infrastructure.Extensions;
+using AIUsageTracker.Infrastructure.Helpers;
+using AIUsageTracker.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
@@ -17,9 +19,11 @@ using Microsoft.Extensions.DependencyInjection;
 // Check for debug flag early
 bool isDebugMode = args.Contains("--debug");
 
+// Initialize path provider
+IAppPathProvider pathProvider = new DefaultAppPathProvider();
+
 // Set up file logging
-var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-var logDir = Path.Combine(appData, "AIUsageTracker", "logs");
+var logDir = pathProvider.GetLogDirectory();
 Directory.CreateDirectory(logDir);
 
 var logFile = Path.Combine(logDir, $"monitor_{DateTime.Now:yyyy-MM-dd}.log");
@@ -104,7 +108,7 @@ try
     }
 
     // Find available port with retry logic for bind races
-    int port = FindAvailablePortWithRetry(5000, isDebugMode, logger);
+    int port = FindAvailablePortWithRetry(preferredPort: 5000, debug: isDebugMode, logger: logger);
     if (port != 5000)
     {
         logger.LogInformation("Port 5000 was in use, using port {Port} instead", port);
@@ -144,6 +148,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 if (isDebugMode) logger.LogDebug("Registering services...");
 builder.Services.AddSingleton(loggerFactory);
+builder.Services.AddSingleton(pathProvider);
 builder.Services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
 builder.Services.AddSingleton<UsageDatabase>();
 builder.Services.AddSingleton<IUsageDatabase>(sp => sp.GetRequiredService<UsageDatabase>());
@@ -400,13 +405,13 @@ app.MapGet("/api/resets/{providerId}", async (string providerId, UsageDatabase d
     }
 
     // Update metadata only after successful bind/start.
-    Program.SaveMonitorInfo(port, isDebugMode, logger, startupStatus: "running");
+    Program.SaveMonitorInfo(port, isDebugMode, logger, pathProvider, startupStatus: "running");
     await app.WaitForShutdownAsync();
 }
 catch (Exception ex)
 {
     logger.LogError(ex, "Monitor startup failed");
-    Program.SaveMonitorInfo(0, isDebugMode, logger, startupStatus: $"failed: {ex.Message}");
+    Program.SaveMonitorInfo(0, isDebugMode, logger, pathProvider, startupStatus: $"failed: {ex.Message}");
     throw;
 }
 finally
@@ -491,7 +496,7 @@ public partial class Program
     public static extern bool AllocConsole();
 
     // Helper: Save monitor info for UI to discover
-    public static void SaveMonitorInfo(int port, bool debug, ILogger logger, string? startupStatus = null)
+    public static void SaveMonitorInfo(int port, bool debug, ILogger logger, IAppPathProvider pathProvider, string? startupStatus = null)
     {
         try
         {
@@ -514,7 +519,7 @@ public partial class Program
             }
 
             var json = JsonSerializer.Serialize(info, new JsonSerializerOptions { WriteIndented = true });
-            foreach (var infoPath in GetMonitorInfoCandidatePaths())
+            foreach (var infoPath in GetMonitorInfoCandidatePaths(pathProvider))
             {
                 try
                 {
@@ -539,11 +544,11 @@ public partial class Program
     }
 
     // Helper: Report error to agent info
-    public static void ReportError(string message, ILogger? logger = null)
+    public static void ReportError(string message, IAppPathProvider pathProvider, ILogger? logger = null)
     {
         try
         {
-            var jsonFile = GetExistingAgentInfoPath();
+            var jsonFile = GetExistingAgentInfoPath(pathProvider);
 
             if (!string.IsNullOrWhiteSpace(jsonFile) && File.Exists(jsonFile))
             {
@@ -564,39 +569,26 @@ public partial class Program
         }
     }
 
-    private static string GetPrimaryAgentDir()
+    private static string? GetExistingAgentInfoPath(IAppPathProvider pathProvider)
     {
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(appData, "AIUsageTracker");
-    }
-
-    private static string GetLegacyAgentDir()
-    {
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(appData, "AIConsumptionTracker");
-    }
-
-    private static string? GetExistingAgentInfoPath()
-    {
-        return GetMonitorInfoCandidatePaths()
+        return GetMonitorInfoCandidatePaths(pathProvider)
             .Where(File.Exists)
             .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
             .FirstOrDefault();
     }
 
-    private static IEnumerable<string> GetMonitorInfoCandidatePaths()
+    private static IEnumerable<string> GetMonitorInfoCandidatePaths(IAppPathProvider pathProvider)
     {
-        var primaryAgentDir = GetPrimaryAgentDir();
-        var legacyAgentDir = GetLegacyAgentDir();
+        var appDataRoot = pathProvider.GetAppDataRoot();
+        var userProfileRoot = pathProvider.GetUserProfileRoot();
 
         return new[]
         {
-            Path.Combine(primaryAgentDir, "monitor.json"),
-            Path.Combine(primaryAgentDir, "Monitor", "monitor.json"),
-            Path.Combine(primaryAgentDir, "Agent", "monitor.json"),
-            Path.Combine(legacyAgentDir, "monitor.json"),
-            Path.Combine(legacyAgentDir, "Monitor", "monitor.json"),
-            Path.Combine(legacyAgentDir, "Agent", "monitor.json")
+            Path.Combine(appDataRoot, "monitor.json"),
+            Path.Combine(appDataRoot, "Monitor", "monitor.json"),
+            Path.Combine(appDataRoot, "Agent", "monitor.json"),
+            Path.Combine(userProfileRoot, ".ai-consumption-tracker", "monitor.json"),
+            Path.Combine(userProfileRoot, ".opencode", "monitor.json")
         };
     }
 }
@@ -681,5 +673,3 @@ public class FileLogger : ILogger
         }
     }
 }
-
-

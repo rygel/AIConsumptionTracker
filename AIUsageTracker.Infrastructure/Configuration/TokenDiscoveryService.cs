@@ -1,4 +1,5 @@
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Infrastructure.Providers;
 using System.Collections;
 using System.Text.Json;
@@ -9,22 +10,22 @@ namespace AIUsageTracker.Infrastructure.Configuration;
 public class TokenDiscoveryService
 {
     private readonly ILogger<TokenDiscoveryService> _logger;
-    private readonly string? _userProfileOverride;
+    private readonly IAppPathProvider _pathProvider;
 
-    public TokenDiscoveryService(ILogger<TokenDiscoveryService> logger, string? userProfileOverride = null)
+    public TokenDiscoveryService(ILogger<TokenDiscoveryService> logger, IAppPathProvider pathProvider)
     {
         _logger = logger;
-        _userProfileOverride = userProfileOverride;
+        _pathProvider = pathProvider;
     }
 
-    private string GetUserProfilePath() => _userProfileOverride ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-    private string GetAppDataPath() => _userProfileOverride != null ? Path.Combine(_userProfileOverride, "AppData", "Roaming") : Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-    private string GetLocalAppDataPath() => _userProfileOverride != null ? Path.Combine(_userProfileOverride, "AppData", "Local") : Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    private string GetUserProfilePath() => _pathProvider.GetUserProfileRoot();
+    private string GetAppDataPath() => Path.Combine(GetUserProfilePath(), "AppData", "Roaming");
+    private string GetLocalAppDataPath() => Path.Combine(GetUserProfilePath(), "AppData", "Local");
 
     public async Task<List<ProviderConfig>> DiscoverTokensAsync()
     {
         var discoveredConfigs = new List<ProviderConfig>();
-        
+
         // 1. Start with well-known supported providers (ensure they show up in --all)
         AddWellKnownProviders(discoveredConfigs);
 
@@ -158,7 +159,7 @@ public class TokenDiscoveryService
             {
                 var json = await File.ReadAllTextAsync(claudeCredentialsPath);
                 using var doc = JsonDocument.Parse(json);
-                
+
                 if (doc.RootElement.TryGetProperty("claudeAiOauth", out var oauthElement))
                 {
                     if (oauthElement.TryGetProperty("accessToken", out var tokenElement))
@@ -193,28 +194,28 @@ public class TokenDiscoveryService
 
     private async Task DiscoverFromProvidersFileAsync(List<ProviderConfig> configs)
     {
-        var providersPath = Path.Combine(GetUserProfilePath(), ".local", "share", "opencode", "providers.json");
-        
+        var providersPath = _pathProvider.GetProviderConfigFilePath();
+
         _logger.LogDebug("[OpenCode Discovery] Checking for providers.json at: {Path}", providersPath);
-        
+
         if (File.Exists(providersPath))
         {
             _logger.LogInformation("[OpenCode Discovery] Found providers.json at: {Path}", providersPath);
-            
+
             try
             {
                 var json = await File.ReadAllTextAsync(providersPath);
                 _logger.LogDebug("[OpenCode Discovery] Read {Length} bytes from providers.json", json.Length);
-                
+
                 var known = JsonSerializer.Deserialize<Dictionary<string, string>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                
+
                 if (known != null)
                 {
                     _logger.LogInformation("[OpenCode Discovery] Parsed {Count} providers from providers.json", known.Count);
-                    
+
                     foreach (var id in known.Keys)
                     {
-                        _logger.LogDebug("[OpenCode Discovery] Found provider: {ProviderId}, Key present: {HasKey}", 
+                        _logger.LogDebug("[OpenCode Discovery] Found provider: {ProviderId}, Key present: {HasKey}",
                             id, !string.IsNullOrEmpty(known[id]));
                         AddIfNotExists(configs, id, known[id], "Discovered in providers.json", "Config: providers.json");
                     }
@@ -243,7 +244,7 @@ public class TokenDiscoveryService
             Path.Combine(home, ".codex", "auth.json")
         };
 
-        if (OperatingSystem.IsWindows() || _userProfileOverride != null)
+        if (OperatingSystem.IsWindows())
         {
             candidates.Add(Path.Combine(GetAppDataPath(), "codex", "auth.json"));
         }
@@ -257,10 +258,11 @@ public class TokenDiscoveryService
         var candidates = new List<string>
         {
             Path.Combine(home, ".local", "share", "opencode", "auth.json"),
-            Path.Combine(home, ".opencode", "auth.json")
+            Path.Combine(home, ".opencode", "auth.json"),
+            _pathProvider.GetAuthFilePath()
         };
 
-        if (OperatingSystem.IsWindows() || _userProfileOverride != null)
+        if (OperatingSystem.IsWindows())
         {
             candidates.Add(Path.Combine(GetAppDataPath(), "opencode", "auth.json"));
             candidates.Add(Path.Combine(GetLocalAppDataPath(), "opencode", "auth.json"));
@@ -379,7 +381,7 @@ public class TokenDiscoveryService
                         {
                             var json = await File.ReadAllTextAsync(stateFile);
                             using var doc = JsonDocument.Parse(json);
-                            
+
                             // Extract API configurations from Roo Code state
                              if (doc.RootElement.TryGetProperty("apiConfigs", out var configsProp))
                             {
@@ -397,7 +399,7 @@ public class TokenDiscoveryService
                     }
                 }
             }
-            
+
             // Also check for standalone Roo Code config directory (similar to Kilo Code)
             var rooConfigPath = Path.Combine(GetUserProfilePath(), ".roo");
             if (Directory.Exists(rooConfigPath))
@@ -409,7 +411,7 @@ public class TokenDiscoveryService
                     {
                         var json = await File.ReadAllTextAsync(secretsPath);
                         using var doc = JsonDocument.Parse(json);
-                        
+
                         // Parse similar structure to Kilo Code
                         if (doc.RootElement.TryGetProperty("roo", out var rooEntry))
                         {
@@ -432,13 +434,13 @@ public class TokenDiscoveryService
         }
         catch { /* Ignore all errors */ }
     }
-    
+
     private string? GetVSCodeGlobalStoragePath()
     {
         try
         {
             // Windows
-            if (OperatingSystem.IsWindows() || _userProfileOverride != null)
+            if (OperatingSystem.IsWindows())
             {
                 var appData = GetAppDataPath();
                 return Path.Combine(appData, "Code", "User", "globalStorage");
@@ -475,7 +477,7 @@ public class TokenDiscoveryService
                 foreach (var configPair in configsProp.EnumerateObject())
                 {
                     var config = configPair.Value;
-                    
+
                     // Logic for common providers in Roo Cline
                     TryAddRooKey(configs, config, "openAiApiKey", "openai");
                     TryAddRooKey(configs, config, "geminiApiKey", "gemini");
@@ -534,4 +536,3 @@ public class TokenDiscoveryService
         return false;
     }
 }
-
