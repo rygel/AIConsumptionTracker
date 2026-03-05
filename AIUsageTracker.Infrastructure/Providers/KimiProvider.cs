@@ -85,29 +85,29 @@ public class KimiProvider : ProviderBase
                 details.Add(new ProviderUsageDetail
                 {
                     Name = "Weekly Limit",
-                    Used = $"{weeklyRemainingPct.ToString("F1", CultureInfo.InvariantCulture)}%",
-                    Description = $"{remaining} remaining{(!string.IsNullOrEmpty(data.Usage.ResetTime) ? $" (Resets: {FormatResetTime(data.Usage.ResetTime)})" : "")}",
+                    Used = $"{weeklyRemainingPct.ToString("F1", CultureInfo.InvariantCulture)}% remaining",
+                    Description = $"{remaining} remaining{(!string.IsNullOrEmpty(data.Usage.ResetTime) ? $" (Resets: {FormatResetTime(data.Usage.ResetTime)})" : "")}",      
                     NextResetTime = weeklyResetDt,
                     DetailType = ProviderUsageDetailType.QuotaWindow,
                     WindowKind = WindowKind.Secondary
                 });
-            }
+                }
 
-            if (data.Limits != null)
-            {
+                if (data.Limits != null)
+                {
                 foreach (var limitItem in data.Limits)
                 {
                     if (limitItem.Detail == null || limitItem.Window == null) continue;
-                    
+
                     var win = limitItem.Window;
                     var det = limitItem.Detail;
-                    
+
                     if (det.Limit <= 0) continue;
 
                     string name = $"{FormatDuration(win.Duration, win.TimeUnit ?? "TIME_UNIT_MINUTE")} Limit";
                     var itemUsed = det.Limit - det.Remaining;
-                    var itemRemainingPercentage = UsageMath.CalculateRemainingPercent(itemUsed, det.Limit);
-                    
+                    var itemUsedPercentage = det.Limit > 0 ? (itemUsed / (double)det.Limit) * 100.0 : 0;
+
                     var resetDisplay = FormatResetTime(det.ResetTime ?? "");
                     DateTime? itemResetDt = null;
                     if (DateTime.TryParse(det.ResetTime, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
@@ -127,16 +127,24 @@ public class KimiProvider : ProviderBase
                      details.Add(new ProviderUsageDetail
                     {
                          Name = name,
-                         Used = $"{itemRemainingPercentage.ToString("F1", CultureInfo.InvariantCulture)}%",
-                         Description = $"{det.Remaining} remaining (Resets: {resetDisplay})",
+                         Used = $"{itemUsedPercentage.ToString("F1", CultureInfo.InvariantCulture)}% used",
+                         Description = $"{det.Remaining} / {det.Limit} remaining (Resets: {resetDisplay})",
                          NextResetTime = itemResetDt,
                          DetailType = ProviderUsageDetailType.QuotaWindow,
                          WindowKind = windowKind
                     });
-                }
-            }
-            
-            if (!string.IsNullOrEmpty(soonestResetStr)) description += soonestResetStr; // Used soonestResetStr
+                    }
+                    }
+
+                    // Also update the Weekly Limit to use "used" format for consistency
+                    var weeklyUsed = limit - remaining;
+                    var weeklyUsedPct = limit > 0 ? (weeklyUsed / (double)limit) * 100.0 : 0;
+
+                    var weeklyDetail = details.FirstOrDefault(d => d.Name == "Weekly Limit");
+                    if (weeklyDetail != null)
+                    {
+                    weeklyDetail.Used = $"{weeklyUsedPct.ToString("F1", CultureInfo.InvariantCulture)}% used";
+                    }            if (!string.IsNullOrEmpty(soonestResetStr)) description += soonestResetStr; // Used soonestResetStr
 
             return new[] { new ProviderUsage
             {

@@ -200,17 +200,51 @@
                             </span>
                         </div>
                         
+                        @{
+                            bool hasDual = TryGetDualWindowPercentages(usage, out var pUsed, out var sUsed, out var pName, out var sName);
+                        }
+
                         <div class="progress-container">
                             <div class="progress-bar-bg">
-                                <div class="progress-bar-fill @GetProgressClass(usedPercentage)" 
-                                     style="width: @displayPercentage%">
-                                </div>
+                                @if (hasDual)
+                                {
+                                    var pDisplay = Model.ShowUsedPercentage ? pUsed : (100.0 - pUsed);
+                                    var sDisplay = Model.ShowUsedPercentage ? sUsed : (100.0 - sUsed);
+                                    <div class="progress-bar-stack">
+                                        <div class="progress-bar-fill primary @GetProgressClass(pUsed)" 
+                                             style="width: @pDisplay.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%">
+                                        </div>
+                                        <div class="progress-bar-fill secondary @GetProgressClass(sUsed)" 
+                                             style="width: @sDisplay.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%">
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="progress-bar-fill @GetProgressClass(usedPercentage)" 
+                                         style="width: @displayPercentage.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%">
+                                    </div>
+                                }
                             </div>
-                            <div class="progress-text">
-                                <span>@usageText</span>
-                                <span>@usage.Description</span>
+                            <div class="progress-text @(hasDual ? "dual" : "")">
+                                @if (hasDual)
+                                {
+                                    <div class="progress-text-row">
+                                        <span class="progress-text-label">@pName</span>
+                                        <span class="progress-text-value">@(Model.ShowUsedPercentage ? pUsed.ToString("F0") : (100-pUsed).ToString("F0"))%</span>
+                                    </div>
+                                    <div class="progress-text-row">
+                                        <span class="progress-text-label">@sName</span>
+                                        <span class="progress-text-value">@(Model.ShowUsedPercentage ? sUsed.ToString("F0") : (100-sUsed).ToString("F0"))%</span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span>@usageText</span>
+                                    <span>@usage.Description</span>
+                                }
                             </div>
-                            @if (usage.NextResetTime.HasValue)
+                            @if (!hasDual && usage.NextResetTime.HasValue)
                             {
                                 <div class="reset-time">
                                     Resets: @usage.NextResetTime.Value.ToString("MMM d, HH:mm") (@GetRelativeTimeString(usage.NextResetTime.Value))
@@ -566,5 +600,56 @@
         var severity = snapshot.Severity.ToLowerInvariant();
 
         return $"{direction} ({severity}) {latestText}/day vs {baselineText}/day";
+    }
+
+    bool TryGetDualWindowPercentages(AIUsageTracker.Core.Models.ProviderUsage usage, out double primaryUsed, out double secondaryUsed, out string primaryName, out string secondaryName)
+    {
+        primaryUsed = 0;
+        secondaryUsed = 0;
+        primaryName = "";
+        secondaryName = "";
+
+        if (usage.Details == null || !usage.Details.Any()) return false;
+
+        var primaryDetail = usage.Details.FirstOrDefault(d => d.DetailType == AIUsageTracker.Core.Models.ProviderUsageDetailType.QuotaWindow && d.WindowKind == AIUsageTracker.Core.Models.WindowKind.Primary);
+        var secondaryDetail = usage.Details.FirstOrDefault(d => d.DetailType == AIUsageTracker.Core.Models.ProviderUsageDetailType.QuotaWindow && d.WindowKind == AIUsageTracker.Core.Models.WindowKind.Secondary);
+
+        if (primaryDetail == null || secondaryDetail == null) return false;
+
+        var p = ParseUsedPercentFromDetail(primaryDetail.Used);
+        var s = ParseUsedPercentFromDetail(secondaryDetail.Used);
+
+        if (p.HasValue && s.HasValue)
+        {
+            primaryUsed = p.Value;
+            secondaryUsed = s.Value;
+            primaryName = primaryDetail.Name;
+            secondaryName = secondaryDetail.Name;
+            return true;
+        }
+
+        return false;
+    }
+
+    double? ParseUsedPercentFromDetail(string? used)
+    {
+        if (string.IsNullOrWhiteSpace(used)) return null;
+
+        // "XX% used"
+        var usedMatch = System.Text.RegularExpressions.Regex.Match(used, @"(?<percent>\d+(?:\.\d+)?)\s*%\s*used", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (usedMatch.Success && double.TryParse(usedMatch.Groups["percent"].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p1))
+            return p1;
+
+        // "XX% remaining"
+        var remainingMatch = System.Text.RegularExpressions.Regex.Match(used, @"(?<percent>\d+(?:\.\d+)?)\s*%\s*remaining", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (remainingMatch.Success && double.TryParse(remainingMatch.Groups["percent"].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p2))
+            return Math.Clamp(100.0 - p2, 0, 100);
+
+        // Fallback "XX%"
+        var fallbackMatch = System.Text.RegularExpressions.Regex.Match(used, @"(?<percent>\d+(?:\.\d+)?)\s*%", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (fallbackMatch.Success && double.TryParse(fallbackMatch.Groups["percent"].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p3))
+            return p3;
+
+        return null;
     }
 }
