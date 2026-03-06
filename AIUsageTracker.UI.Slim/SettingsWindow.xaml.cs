@@ -33,7 +33,6 @@ public partial class SettingsWindow : Window
     private List<ProviderConfig> _configs = new();
     private List<ProviderUsage> _usages = new();
     private string? _gitHubAuthUsername;
-    private string? _openAiAuthUsername;
     private string? _codexAuthUsername;
     private AppPreferences _preferences = new();
     private AppPreferences _agentPreferences = new();
@@ -113,7 +112,6 @@ public partial class SettingsWindow : Window
             }
             
             _gitHubAuthUsername = await TryGetGitHubUsernameFromAuthAsync();
-            _openAiAuthUsername = await TryGetOpenAiUsernameFromAuthAsync();
             _codexAuthUsername = await TryGetCodexUsernameFromAuthAsync();
             _preferences = await _preferencesStore.LoadAsync();
             _agentPreferences = await _monitorService.GetPreferencesAsync();
@@ -192,70 +190,6 @@ public partial class SettingsWindow : Window
         catch
         {
             // ignore file parse issues
-        }
-
-        return null;
-    }
-
-    private static async Task<string?> TryGetOpenAiUsernameFromAuthAsync()
-    {
-        try
-        {
-            var candidates = new[]
-            {
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "opencode", "auth.json"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "auth.json"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode", "auth.json"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".opencode", "auth.json")
-            };
-
-            foreach (var path in candidates)
-            {
-                if (!File.Exists(path))
-                {
-                    continue;
-                }
-
-                var json = await File.ReadAllTextAsync(path);
-                using var doc = JsonDocument.Parse(json);
-                if (!doc.RootElement.TryGetProperty("openai", out var openai) || openai.ValueKind != JsonValueKind.Object)
-                {
-                    continue;
-                }
-
-                foreach (var claim in new[] { "email", "upn" })
-                {
-                    if (openai.TryGetProperty(claim, out var emailElement) && emailElement.ValueKind == JsonValueKind.String)
-                    {
-                        var emailValue = emailElement.GetString();
-                        if (IsEmailLike(emailValue))
-                        {
-                            return emailValue;
-                        }
-                    }
-                }
-
-                var explicitIdentity = FindIdentityInJson(openai);
-                if (!string.IsNullOrWhiteSpace(explicitIdentity))
-                {
-                    return explicitIdentity;
-                }
-
-                // Fallback: decode common claims from session access token.
-                if (openai.TryGetProperty("access", out var accessElement) && accessElement.ValueKind == JsonValueKind.String)
-                {
-                    var token = accessElement.GetString();
-                    var fromToken = TryGetUsernameFromJwt(token);
-                    if (!string.IsNullOrWhiteSpace(fromToken))
-                    {
-                        return fromToken;
-                    }
-                }
-            }
-        }
-        catch
-        {
-            // OpenAI/OpenCode auth may be unavailable.
         }
 
         return null;
@@ -575,7 +509,6 @@ public partial class SettingsWindow : Window
         _configs = new List<ProviderConfig>
         {
             CreateConfig("antigravity", "local-session", PlanType.Coding, "quota-based"),
-            CreateConfig("anthropic", "sk-ant-demo", PlanType.Usage, "pay-as-you-go", showInTray: true),
             CreateConfig("claude-code", "cc-demo-key", PlanType.Usage, "pay-as-you-go"),
             CreateConfig("deepseek", "sk-ds-demo", PlanType.Usage, "pay-as-you-go"),
             CreateConfig("gemini-cli", "gemini-local-auth", PlanType.Coding, "quota-based"),
@@ -584,7 +517,6 @@ public partial class SettingsWindow : Window
             CreateConfig("minimax", "mm-cn-demo", PlanType.Coding, "quota-based"),
             CreateConfig("minimax-io", "mm-intl-demo", PlanType.Usage, "pay-as-you-go"),
             CreateConfig("mistral", "mistral-demo-key", PlanType.Usage, "pay-as-you-go"),
-            CreateConfig("openai", "sk-openai-demo", PlanType.Usage, "pay-as-you-go", showInTray: true),
             CreateConfig("opencode", "oc-demo-key", PlanType.Usage, "pay-as-you-go"),
             CreateConfig("opencode-zen", "ocz-demo-key", PlanType.Usage, "pay-as-you-go"),
             CreateConfig("openrouter", "or-demo-key", PlanType.Usage, "pay-as-you-go"),
@@ -662,18 +594,6 @@ public partial class SettingsWindow : Window
                     }
                 },
                 NextResetTime = deterministicNow.AddHours(6)
-            },
-            new()
-            {
-                ProviderId = "anthropic",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("anthropic"),
-                IsAvailable = true,
-                IsQuotaBased = false,
-                PlanType = PlanType.Usage,
-                RequestsPercentage = 0,
-                RequestsUsed = 0,
-                RequestsAvailable = 0,
-                Description = "Connected"
             },
             new()
             {
@@ -769,17 +689,6 @@ public partial class SettingsWindow : Window
             },
             new()
             {
-                ProviderId = "openai",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("openai"),
-                IsAvailable = true,
-                IsQuotaBased = true,
-                PlanType = PlanType.Coding,
-                RequestsPercentage = 63.0,
-                Description = "63.0% Remaining",
-                NextResetTime = deterministicNow.AddHours(18)
-            },
-            new()
-            {
                 ProviderId = "opencode",
                 ProviderName = ProviderMetadataCatalog.GetDisplayName("opencode"),
                 IsAvailable = true,
@@ -852,16 +761,6 @@ public partial class SettingsWindow : Window
                 PlanType = "Coding",
                 Description = "72.5% Remaining",
                 FetchedAt = new DateTime(2026, 2, 1, 12, 0, 0)
-            },
-            new
-            {
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("openai"),
-                UsagePercentage = 31.1,
-                Used = 12.45,
-                Limit = 40.0,
-                PlanType = "Usage",
-                Description = "$12.45 / $40.00",
-                FetchedAt = new DateTime(2026, 2, 1, 12, 5, 0)
             }
         };
 
@@ -1203,12 +1102,6 @@ public partial class SettingsWindow : Window
         {
             isInactive = usage == null || !usage.IsAvailable;
         }
-        else if (config.ProviderId == "openai")
-        {
-            var hasApiKey = !string.IsNullOrWhiteSpace(config.ApiKey);
-            var hasSessionUsage = usage != null && usage.IsAvailable && usage.IsQuotaBased;
-            isInactive = !hasApiKey && !hasSessionUsage;
-        }
 
         if (isInactive)
         {
@@ -1360,23 +1253,17 @@ public partial class SettingsWindow : Window
             Grid.SetColumn(statusPanel, 0);
             keyPanel.Children.Add(statusPanel);
         }
-        else if ((config.ProviderId == "openai" &&
-                  (usage?.IsQuotaBased == true ||
-                   (!string.IsNullOrWhiteSpace(config.ApiKey) && !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase))))
-                 || config.ProviderId == "codex")
+        else if (config.ProviderId == "codex")
         {
             var statusPanel = new StackPanel { Orientation = Orientation.Vertical };
-            var isCodex = config.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase);
-            var providerSessionLabel = isCodex ? "OpenAI Codex" : "OpenAI";
+            var providerSessionLabel = "OpenAI Codex";
             var hasSessionToken = !string.IsNullOrWhiteSpace(config.ApiKey) &&
                                   !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
             var isAuthenticated = hasSessionToken || (usage != null && usage.IsAvailable);
             var accountName = usage?.AccountName;
             if (string.IsNullOrWhiteSpace(accountName) || accountName == "Unknown" || accountName == "User")
             {
-                accountName = isCodex
-                    ? (_codexAuthUsername ?? _openAiAuthUsername)
-                    : _openAiAuthUsername;
+                accountName = _codexAuthUsername;
             }
 
             string displayText;
@@ -1601,15 +1488,8 @@ public partial class SettingsWindow : Window
                 "antigravity" => "google",
                 "codex" => "openai",
                 "codex.spark" => "openai",
-                "claude-code" => "claude",
+                "claude-code" => "anthropic",
                 "zai" => "zai",
-                "zai-coding-plan" => "zai",
-                "minimax" => "minimax",
-                "minimax-io" => "minimax",
-                "minimax-global" => "minimax",
-                "kimi" => "kimi",
-                "xiaomi" => "xiaomi",
-                _ => providerId.ToLower()
             };
 
             var appDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -1645,10 +1525,8 @@ public partial class SettingsWindow : Window
         // Create a simple colored circle as fallback
         var (color, _) = providerId.ToLower() switch
         {
-            "openai" => (Brushes.DarkCyan, "AI"),
             "codex" => (Brushes.DarkCyan, "AI"),
             "codex.spark" => (Brushes.DarkCyan, "AI"),
-            "anthropic" => (Brushes.IndianRed, "An"),
             "github-copilot" => (Brushes.MediumPurple, "GH"),
             "gemini" or "google" => (Brushes.DodgerBlue, "G"),
             "deepseek" => (Brushes.DeepSkyBlue, "DS"),

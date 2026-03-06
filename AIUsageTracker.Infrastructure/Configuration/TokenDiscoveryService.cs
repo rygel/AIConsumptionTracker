@@ -55,10 +55,6 @@ public class TokenDiscoveryService
             {
                 AddOrUpdate(discoveredConfigs, "claude-code", value, "Discovered via Environment Variable", "Env: ANTHROPIC_API_KEY");
             }
-            else if (key == "OPENAI_API_KEY")
-            {
-                AddOrUpdate(discoveredConfigs, "openai", value, "Discovered via Environment Variable", "Env: OPENAI_API_KEY");
-            }
             else if (key == "CODEX_API_KEY")
             {
                 AddOrUpdate(discoveredConfigs, "codex", value, "Discovered via Environment Variable", "Env: CODEX_API_KEY");
@@ -388,7 +384,6 @@ public class TokenDiscoveryService
                                 foreach (var configPair in configsProp.EnumerateObject())
                                 {
                                     var config = configPair.Value;
-                                    TryAddRooKey(configs, config, "openAiApiKey", "openai");
                                     TryAddRooKey(configs, config, "geminiApiKey", "gemini");
                                     TryAddRooKey(configs, config, "openrouterApiKey", "openrouter");
                                     TryAddRooKey(configs, config, "mistralApiKey", "mistral");
@@ -420,7 +415,6 @@ public class TokenDiscoveryService
                                 foreach (var configPair in configsProp.EnumerateObject())
                                 {
                                     var config = configPair.Value;
-                                    TryAddRooKey(configs, config, "openAiApiKey", "openai");
                                     TryAddRooKey(configs, config, "geminiApiKey", "gemini");
                                     TryAddRooKey(configs, config, "openrouterApiKey", "openrouter");
                                     TryAddRooKey(configs, config, "mistralApiKey", "mistral");
@@ -479,7 +473,6 @@ public class TokenDiscoveryService
                     var config = configPair.Value;
 
                     // Logic for common providers in Roo Cline
-                    TryAddRooKey(configs, config, "openAiApiKey", "openai");
                     TryAddRooKey(configs, config, "geminiApiKey", "gemini");
                     TryAddRooKey(configs, config, "openrouterApiKey", "openrouter");
                     TryAddRooKey(configs, config, "mistralApiKey", "mistral");
@@ -496,7 +489,7 @@ public class TokenDiscoveryService
             var key = keyProp.GetString();
             if (!string.IsNullOrEmpty(key))
             {
-                AddIfNotExists(configs, providerId, key, "Discovered in Kilo Code (Roo Config)", "Kilo Code Roo Config");
+                AddOrUpdate(configs, providerId, key, "Discovered in Roo Code (Roo Config)", "Roo Code Config");
             }
         }
     }

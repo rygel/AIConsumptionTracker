@@ -40,7 +40,7 @@ public class TokenDiscoveryIntegrationTests : IntegrationTestBase
     public async Task DiscoverTokensAsync_FindsKiloCodeSecrets()
     {
         // Arrange
-        var rooConfig = "{\"apiConfigs\": {\"default\": {\"openAiApiKey\": \"roo-openai-key\"}}}";
+        var rooConfig = "{\"apiConfigs\": {\"default\": {\"geminiApiKey\": \"roo-gemini-key\"}}}";
         var content = $"{{\"kilo code.kilo-code\": {{\"roo_cline_config_api_config\": {System.Text.Json.JsonSerializer.Serialize(rooConfig)}}}}}";
         CreateFile(".kilocode/secrets.json", content);
 
@@ -48,9 +48,9 @@ public class TokenDiscoveryIntegrationTests : IntegrationTestBase
         var configs = await _service.DiscoverTokensAsync();
 
         // Assert
-        var config = configs.FirstOrDefault(c => c.ProviderId == "openai");
+        var config = configs.FirstOrDefault(c => c.ProviderId == "gemini");
         Assert.NotNull(config);
-        Assert.Equal("roo-openai-key", config.ApiKey);
+        Assert.Equal("roo-gemini-key", config.ApiKey);
     }
 
     [Fact]
