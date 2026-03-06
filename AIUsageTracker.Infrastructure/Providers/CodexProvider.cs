@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text;
 using System.Text.Json;
 using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Models;
@@ -92,7 +91,9 @@ public class CodexProvider : ProviderBase
             }
 
             var resolvedAccessToken = accessToken!;
-            var (email, jwtPlanType) = DecodeJwtClaims(resolvedAccessToken);
+            var payload = SessionIdentityHelper.TryDecodeJwtPayload(resolvedAccessToken);
+            var email = payload.HasValue ? SessionIdentityHelper.TryGetPreferredIdentity(payload.Value) : null;
+            var jwtPlanType = payload?.ReadString(AuthClaimKey, "chatgpt_plan_type");
 
             using var request = CreateUsageRequest(resolvedAccessToken, accountId);
             using var response = await _httpClient.SendAsync(request);
@@ -276,44 +277,20 @@ public class CodexProvider : ProviderBase
         string? authIdentity,
         string? accountId)
     {
-        foreach (var key in new[] { "email", "upn", "preferred_username" })
+        var directIdentity = SessionIdentityHelper.TryGetPreferredIdentity(root);
+        if (!string.IsNullOrWhiteSpace(directIdentity))
         {
-            if (root.TryGetProperty(key, out var claimElement) && claimElement.ValueKind == JsonValueKind.String)
-            {
-                var value = claimElement.GetString();
-                if (IsEmailLike(value))
-                {
-                    return value;
-                }
-            }
+            return directIdentity;
         }
 
-        var profileEmail = root.ReadString(ProfileClaimKey, "email");
-        if (IsEmailLike(profileEmail))
-        {
-            return profileEmail;
-        }
-
-        if (IsEmailLike(jwtEmail))
+        if (SessionIdentityHelper.IsEmailLike(jwtEmail))
         {
             return jwtEmail;
         }
 
-        if (IsEmailLike(authIdentity))
+        if (SessionIdentityHelper.IsEmailLike(authIdentity))
         {
             return authIdentity;
-        }
-
-        foreach (var key in new[] { "username", "login", "name" })
-        {
-            if (root.TryGetProperty(key, out var claimElement) && claimElement.ValueKind == JsonValueKind.String)
-            {
-                var value = claimElement.GetString();
-                if (!string.IsNullOrWhiteSpace(value))
-                {
-                    return value;
-                }
-            }
         }
 
         if (!string.IsNullOrWhiteSpace(authIdentity))
@@ -438,36 +415,22 @@ public class CodexProvider : ProviderBase
 
     private static string? ResolveIdentityFromAuthPayload(JsonElement source, string accessToken, string? idToken = null)
     {
-        foreach (var claim in new[] { "email", "upn", "preferred_username", "username", "login", "name" })
+        var directIdentity = SessionIdentityHelper.TryGetPreferredIdentity(source);
+        if (!string.IsNullOrWhiteSpace(directIdentity))
         {
-            var value = source.ReadString(claim);
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                continue;
-            }
-
-            if (IsEmailLike(value))
-            {
-                return value;
-            }
-        }
-
-        var nestedProfile = source.ReadString("profile", "email");
-        if (IsEmailLike(nestedProfile))
-        {
-            return nestedProfile;
+            return directIdentity;
         }
 
         if (!string.IsNullOrWhiteSpace(idToken))
         {
-            var (emailFromIdToken, _) = DecodeJwtClaims(idToken);
+            var emailFromIdToken = SessionIdentityHelper.TryGetIdentityFromJwt(idToken);
             if (!string.IsNullOrWhiteSpace(emailFromIdToken))
             {
                 return emailFromIdToken;
             }
         }
 
-        var (emailFromJwt, _) = DecodeJwtClaims(accessToken);
+        var emailFromJwt = SessionIdentityHelper.TryGetIdentityFromJwt(accessToken);
         if (!string.IsNullOrWhiteSpace(emailFromJwt))
         {
             return emailFromJwt;
@@ -619,79 +582,6 @@ public class CodexProvider : ProviderBase
                lower.Contains("sonnet");
     }
 
-    private static (string? Email, string? PlanType) DecodeJwtClaims(string token)
-    {
-        var parts = token.Split('.');
-        if (parts.Length < 2)
-        {
-            return (null, null);
-        }
-
-        try
-        {
-            var payloadBytes = DecodeBase64Url(parts[1]);
-            using var doc = JsonDocument.Parse(payloadBytes);
-            var root = doc.RootElement;
-
-            string? email = null;
-            string? planType = null;
-
-            foreach (var claim in new[] { "email", "upn", "preferred_username" })
-            {
-                if (root.TryGetProperty(claim, out var claimElement) && claimElement.ValueKind == JsonValueKind.String)
-                {
-                    var value = claimElement.GetString();
-                    if (IsEmailLike(value))
-                    {
-                        email = value;
-                        break;
-                    }
-                }
-            }
-
-            if (string.IsNullOrWhiteSpace(email) &&
-                root.TryGetProperty(ProfileClaimKey, out var profile) &&
-                profile.ValueKind == JsonValueKind.Object)
-            {
-                foreach (var claim in new[] { "email", "username", "name" })
-                {
-                    var value = profile.ReadString(claim);
-                    if (IsEmailLike(value))
-                    {
-                        email = value;
-                        break;
-                    }
-                }
-            }
-
-            if (root.TryGetProperty(AuthClaimKey, out var auth) && auth.ValueKind == JsonValueKind.Object)
-            {
-                if (auth.TryGetProperty("chatgpt_plan_type", out var planTypeElement) && planTypeElement.ValueKind == JsonValueKind.String)
-                {
-                    planType = planTypeElement.GetString();
-                }
-            }
-
-            return (email, planType);
-        }
-        catch
-        {
-            return (null, null);
-        }
-    }
-
-    private static byte[] DecodeBase64Url(string value)
-    {
-        var normalized = value.Replace('-', '+').Replace('_', '/');
-        var padding = normalized.Length % 4;
-        if (padding > 0)
-        {
-            normalized = normalized.PadRight(normalized.Length + (4 - padding), '=');
-        }
-
-        return Convert.FromBase64String(normalized);
-    }
-
     private static DateTime? ResolveNextResetTime(double? primaryResetSeconds, double? sparkResetSeconds)
     {
         var resetSeconds = primaryResetSeconds ?? sparkResetSeconds;
@@ -765,30 +655,6 @@ public class CodexProvider : ProviderBase
         }
 
         return new SparkWindow(null, null, null, null);
-    }
-
-    private static bool? ReadBool(JsonElement root, params string[] path)
-    {
-        var current = root;
-        foreach (var segment in path)
-        {
-            if (!current.TryGetProperty(segment, out current))
-            {
-                return null;
-            }
-        }
-
-        return current.ValueKind switch
-        {
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            _ => null
-        };
-    }
-
-    private static bool IsEmailLike(string? value)
-    {
-        return !string.IsNullOrWhiteSpace(value) && value.Contains('@');
     }
 
     private sealed class CodexAuth

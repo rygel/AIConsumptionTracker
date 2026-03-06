@@ -1,7 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Models;
@@ -413,40 +412,16 @@ public class OpenAIProvider : ProviderBase
 
     private static string? GetAccountIdentity(JsonElement root, string accessToken, string? accountId)
     {
-        foreach (var key in new[] { "email", "upn" })
+        var directIdentity = SessionIdentityHelper.TryGetPreferredIdentity(root);
+        if (!string.IsNullOrWhiteSpace(directIdentity))
         {
-            if (root.TryGetProperty(key, out var claimElement) && claimElement.ValueKind == JsonValueKind.String)
-            {
-                var value = claimElement.GetString();
-                if (IsEmailLike(value))
-                {
-                    return value;
-                }
-            }
+            return directIdentity;
         }
 
-        var profileEmail = root.ReadString("https://api.openai.com/profile", "email");
-        if (IsEmailLike(profileEmail))
+        var fromToken = SessionIdentityHelper.TryGetIdentityFromJwt(accessToken);
+        if (!string.IsNullOrWhiteSpace(fromToken))
         {
-            return profileEmail;
-        }
-
-        var claims = DecodeJwtClaims(accessToken);
-        if (!string.IsNullOrWhiteSpace(claims.Email))
-        {
-            return claims.Email;
-        }
-
-        foreach (var key in new[] { "preferred_username", "username", "login", "name" })
-        {
-            if (root.TryGetProperty(key, out var claimElement) && claimElement.ValueKind == JsonValueKind.String)
-            {
-                var value = claimElement.GetString();
-                if (!string.IsNullOrWhiteSpace(value))
-                {
-                    return value;
-                }
-            }
+            return fromToken;
         }
 
         if (!string.IsNullOrWhiteSpace(accountId))
@@ -456,90 +431,6 @@ public class OpenAIProvider : ProviderBase
 
         return null;
     }
-
-    private static (string? Email, string? PlanType) DecodeJwtClaims(string token)
-    {
-        try
-        {
-            var parts = token.Split('.');
-            if (parts.Length < 2)
-            {
-                return (null, null);
-            }
-
-            var payload = parts[1].Replace('-', '+').Replace('_', '/');
-            switch (payload.Length % 4)
-            {
-                case 2: payload += "=="; break;
-                case 3: payload += "="; break;
-            }
-
-            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-            using var doc = JsonDocument.Parse(json);
-
-            string? email = null;
-            foreach (var claim in new[] { "email", "upn" })
-            {
-                if (doc.RootElement.TryGetProperty(claim, out var claimElement) && claimElement.ValueKind == JsonValueKind.String)
-                {
-                    var value = claimElement.GetString();
-                    if (IsEmailLike(value))
-                    {
-                        email = value;
-                        break;
-                    }
-                }
-            }
-
-            if (string.IsNullOrWhiteSpace(email) &&
-                doc.RootElement.TryGetProperty("https://api.openai.com/profile", out var profile) &&
-                profile.ValueKind == JsonValueKind.Object)
-            {
-                foreach (var claim in new[] { "email", "username", "name" })
-                {
-                    var profileValue = profile.ReadString(claim);
-                    if (IsEmailLike(profileValue))
-                    {
-                        email = profileValue;
-                        break;
-                    }
-                }
-            }
-
-            if (string.IsNullOrWhiteSpace(email))
-            {
-                foreach (var claim in new[] { "preferred_username", "username", "login", "name", "sub" })
-                {
-                    if (doc.RootElement.TryGetProperty(claim, out var claimElement) && claimElement.ValueKind == JsonValueKind.String)
-                    {
-                        var value = claimElement.GetString();
-                        if (!string.IsNullOrWhiteSpace(value))
-                        {
-                            email = value;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            var planType = doc.RootElement.ReadString("https://api.openai.com/auth", "plan_type")
-                           ?? doc.RootElement.ReadString("plan_type");
-
-            return (email, planType);
-        }
-        catch (Exception)
-        {
-            // Intentionally suppressed: JWT parsing failures are non-critical.
-            // Returns (null, null) to indicate claims could not be extracted.
-            return (null, null);
-        }
-    }
-
-    private static bool IsEmailLike(string? value)
-    {
-        return !string.IsNullOrWhiteSpace(value) && value.Contains('@');
-    }
-
     private sealed class OpenCodeOpenAiAuth
     {
         public string? Access { get; set; }

@@ -1,6 +1,6 @@
 using System.IO;
-using System.Text;
 using System.Text.Json;
+using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
@@ -91,20 +91,7 @@ internal static class ProviderAuthIdentityDiscovery
                     continue;
                 }
 
-                foreach (var claim in new[] { "email", "upn" })
-                {
-                    if (root.Value.TryGetProperty(claim, out var emailElement) &&
-                        emailElement.ValueKind == JsonValueKind.String)
-                    {
-                        var emailValue = emailElement.GetString();
-                        if (IsEmailLike(emailValue))
-                        {
-                            return emailValue;
-                        }
-                    }
-                }
-
-                var explicitIdentity = FindIdentityInJson(root.Value);
+                var explicitIdentity = SessionIdentityHelper.TryGetPreferredIdentity(root.Value);
                 if (!string.IsNullOrWhiteSpace(explicitIdentity))
                 {
                     return explicitIdentity;
@@ -113,7 +100,7 @@ internal static class ProviderAuthIdentityDiscovery
                 if (root.Value.TryGetProperty("access", out var accessElement) &&
                     accessElement.ValueKind == JsonValueKind.String)
                 {
-                    var fromToken = TryGetUsernameFromJwt(accessElement.GetString());
+                    var fromToken = SessionIdentityHelper.TryGetIdentityFromJwt(accessElement.GetString());
                     if (!string.IsNullOrWhiteSpace(fromToken))
                     {
                         return fromToken;
@@ -146,7 +133,7 @@ internal static class ProviderAuthIdentityDiscovery
                 var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(json);
 
-                var directIdentity = FindIdentityInJson(doc.RootElement);
+                var directIdentity = SessionIdentityHelper.TryGetPreferredIdentity(doc.RootElement);
                 if (!string.IsNullOrWhiteSpace(directIdentity))
                 {
                     return directIdentity;
@@ -159,7 +146,7 @@ internal static class ProviderAuthIdentityDiscovery
                         if (tokens.TryGetProperty(claim, out var tokenElement) &&
                             tokenElement.ValueKind == JsonValueKind.String)
                         {
-                            var fromToken = TryGetUsernameFromJwt(tokenElement.GetString());
+                            var fromToken = SessionIdentityHelper.TryGetIdentityFromJwt(tokenElement.GetString());
                             if (!string.IsNullOrWhiteSpace(fromToken))
                             {
                                 return fromToken;
@@ -173,7 +160,7 @@ internal static class ProviderAuthIdentityDiscovery
                     compatibilityRoot.Value.TryGetProperty("access", out var accessToken) &&
                     accessToken.ValueKind == JsonValueKind.String)
                 {
-                    var fromCompatibilityToken = TryGetUsernameFromJwt(accessToken.GetString());
+                    var fromCompatibilityToken = SessionIdentityHelper.TryGetIdentityFromJwt(accessToken.GetString());
                     if (!string.IsNullOrWhiteSpace(fromCompatibilityToken))
                     {
                         return fromCompatibilityToken;
@@ -209,123 +196,4 @@ internal static class ProviderAuthIdentityDiscovery
         return null;
     }
 
-    private static string? TryGetUsernameFromJwt(string? token)
-    {
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            return null;
-        }
-
-        var parts = token.Split('.');
-        if (parts.Length < 2)
-        {
-            return null;
-        }
-
-        try
-        {
-            var payload = parts[1].Replace('-', '+').Replace('_', '/');
-            switch (payload.Length % 4)
-            {
-                case 2:
-                    payload += "==";
-                    break;
-                case 3:
-                    payload += "=";
-                    break;
-            }
-
-            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-            using var doc = JsonDocument.Parse(json);
-
-            foreach (var claim in new[] { "email", "upn", "preferred_username" })
-            {
-                if (doc.RootElement.TryGetProperty(claim, out var valueElement) && valueElement.ValueKind == JsonValueKind.String)
-                {
-                    var value = valueElement.GetString();
-                    if (IsEmailLike(value))
-                    {
-                        return value;
-                    }
-                }
-            }
-
-            foreach (var claim in new[] { "username", "login", "name" })
-            {
-                if (doc.RootElement.TryGetProperty(claim, out var valueElement) && valueElement.ValueKind == JsonValueKind.String)
-                {
-                    var value = valueElement.GetString();
-                    if (!string.IsNullOrWhiteSpace(value))
-                    {
-                        return value;
-                    }
-                }
-            }
-
-            var recursiveIdentity = FindIdentityInJson(doc.RootElement);
-            if (!string.IsNullOrWhiteSpace(recursiveIdentity))
-            {
-                return recursiveIdentity;
-            }
-        }
-        catch
-        {
-            return null;
-        }
-
-        return null;
-    }
-
-    private static string? FindIdentityInJson(JsonElement element)
-    {
-        switch (element.ValueKind)
-        {
-            case JsonValueKind.Object:
-                foreach (var property in element.EnumerateObject())
-                {
-                    if (property.Value.ValueKind == JsonValueKind.String)
-                    {
-                        var value = property.Value.GetString();
-                        if (!string.IsNullOrWhiteSpace(value))
-                        {
-                            var key = property.Name.ToLowerInvariant();
-                            if (key.Contains("email", StringComparison.Ordinal) ||
-                                key.Contains("username", StringComparison.Ordinal) ||
-                                key.Contains("login", StringComparison.Ordinal) ||
-                                key.Contains("user", StringComparison.Ordinal))
-                            {
-                                return value;
-                            }
-                        }
-                    }
-
-                    var nested = FindIdentityInJson(property.Value);
-                    if (!string.IsNullOrWhiteSpace(nested))
-                    {
-                        return nested;
-                    }
-                }
-
-                break;
-
-            case JsonValueKind.Array:
-                foreach (var item in element.EnumerateArray())
-                {
-                    var nested = FindIdentityInJson(item);
-                    if (!string.IsNullOrWhiteSpace(nested))
-                    {
-                        return nested;
-                    }
-                }
-
-                break;
-        }
-
-        return null;
-    }
-
-    private static bool IsEmailLike(string? value)
-    {
-        return !string.IsNullOrWhiteSpace(value) && value.Contains('@');
-    }
 }
