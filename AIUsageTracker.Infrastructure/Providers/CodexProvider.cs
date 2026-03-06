@@ -54,7 +54,7 @@ public class CodexProvider : ProviderBase
     public override string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<CodexProvider> _logger;
-    private readonly string _authFilePath;
+    private readonly string? _authFilePath;
 
     public CodexProvider(HttpClient httpClient, ILogger<CodexProvider> logger)
         : this(httpClient, logger, null)
@@ -65,9 +65,7 @@ public class CodexProvider : ProviderBase
     {
         _httpClient = httpClient;
         _logger = logger;
-        _authFilePath = string.IsNullOrWhiteSpace(authFilePath)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "auth.json")
-            : authFilePath;
+        _authFilePath = string.IsNullOrWhiteSpace(authFilePath) ? null : authFilePath;
     }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
