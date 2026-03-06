@@ -3,7 +3,6 @@ using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -458,43 +457,17 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var displayConfigs = _configs
-            .Select(config => (Config: config, IsDerived: false))
-            .ToList();
+        var displayItems = ProviderSettingsDisplayCatalog.CreateDisplayItems(_configs, _usages);
 
-        var configuredProviderIds = _configs
-            .Select(c => c.ProviderId)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var derivedConfigs = _usages
-            .Where(u =>
-                ProviderSettingsCatalog.IsDerivedProviderVisible(u.ProviderId) &&
-                !configuredProviderIds.Contains(u.ProviderId))
-            .Select(u => new ProviderConfig
-            {
-                ProviderId = u.ProviderId,
-                Type = u.IsQuotaBased ? "quota-based" : "pay-as-you-go",
-                PlanType = u.PlanType
-            })
-            .Select(config => (Config: config, IsDerived: true));
-
-        displayConfigs.AddRange(derivedConfigs);
-
-        var orderedDisplayConfigs = displayConfigs
-            .OrderBy(item => GetProviderDisplayName(item.Config.ProviderId), StringComparer.OrdinalIgnoreCase)
-            .ThenBy(item => item.Config.ProviderId, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        foreach (var (config, isDerived) in orderedDisplayConfigs)
+        foreach (var item in displayItems)
         {
-            var usage = _usages.FirstOrDefault(u => u.ProviderId.Equals(config.ProviderId, StringComparison.OrdinalIgnoreCase));
-            AddProviderCard(config, usage, isDerived);
+            var usage = _usages.FirstOrDefault(u => u.ProviderId.Equals(item.Config.ProviderId, StringComparison.OrdinalIgnoreCase));
+            AddProviderCard(item.Config, usage, item.IsDerived);
         }
     }
 
     private void AddProviderCard(ProviderConfig config, ProviderUsage? usage, bool isDerived = false)
     {
-        // Compact card with minimal padding
         var card = new Border
         {
             CornerRadius = new CornerRadius(4),
@@ -509,109 +482,8 @@ public partial class SettingsWindow : Window
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Inputs
 
-        // Header: Icon + Name
-        var headerPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-        
-        // Small icon (16x16)
-        var icon = CreateProviderIcon(config.ProviderId);
-        icon.Width = 16;
-        icon.Height = 16;
-        icon.Margin = new Thickness(0, 0, 8, 0);
-        icon.VerticalAlignment = VerticalAlignment.Center;
-        headerPanel.Children.Add(icon);
-
-        // Display name
-        var displayName = GetProviderDisplayName(config.ProviderId);
-
-        var title = new TextBlock
-        {
-            Text = displayName,
-            FontWeight = FontWeights.SemiBold,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            MinWidth = 120
-        };
-        title.SetResourceReference(TextBlock.ForegroundProperty, "PrimaryText");
-        headerPanel.Children.Add(title);
-
-        // Tray checkbox
-        var trayCheckBox = new CheckBox
-        {
-            Content = "Tray",
-            IsChecked = config.ShowInTray,
-            FontSize = 10,
-            VerticalAlignment = VerticalAlignment.Center,
-            Cursor = System.Windows.Input.Cursors.Hand,
-            Margin = new Thickness(12, 0, 0, 0),
-            IsEnabled = !isDerived
-        };
-        trayCheckBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
-        trayCheckBox.Checked += (s, e) =>
-        {
-            config.ShowInTray = true;
-            SettingsChanged = true;
-            RefreshTrayIcons();
-            ScheduleAutoSave();
-        };
-        trayCheckBox.Unchecked += (s, e) =>
-        {
-            config.ShowInTray = false;
-            SettingsChanged = true;
-            RefreshTrayIcons();
-            ScheduleAutoSave();
-        };
-        headerPanel.Children.Add(trayCheckBox);
-
-        // Notification checkbox
-        var notifyCheckBox = new CheckBox
-        {
-            Content = "Notify",
-            IsChecked = config.EnableNotifications,
-            FontSize = 10,
-            VerticalAlignment = VerticalAlignment.Center,
-            Cursor = System.Windows.Input.Cursors.Hand,
-            Margin = new Thickness(8, 0, 0, 0),
-            IsEnabled = !isDerived
-        };
-        notifyCheckBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
-        notifyCheckBox.Checked += (s, e) =>
-        {
-            config.EnableNotifications = true;
-            SettingsChanged = true;
-            ScheduleAutoSave();
-        };
-        notifyCheckBox.Unchecked += (s, e) =>
-        {
-            config.EnableNotifications = false;
-            SettingsChanged = true;
-            ScheduleAutoSave();
-        };
-        headerPanel.Children.Add(notifyCheckBox);
-
-        // Status badge if not configured
         var inputMode = ProviderSettingsCatalog.GetInputMode(config, usage, isDerived);
-        bool isInactive = ProviderSettingsCatalog.IsInactive(config, usage, isDerived, inputMode);
-
-        if (isInactive)
-        {
-            var status = new Border
-            {
-                Background = new SolidColorBrush(Color.FromRgb(205, 92, 92)), // IndianRed - pastel red
-                CornerRadius = new CornerRadius(3),
-                Margin = new Thickness(10, 0, 0, 0),
-                Padding = new Thickness(8, 3, 8, 3)
-            };
-
-            var badgeText = new TextBlock 
-            { 
-                Text = "Inactive", 
-                FontSize = 10,
-                Foreground = new SolidColorBrush(Color.FromRgb(240, 240, 240)), // Muted white
-                FontWeight = FontWeights.SemiBold
-            };
-            status.Child = badgeText;
-            headerPanel.Children.Add(status);
-        }
+        var headerPanel = BuildProviderHeader(config, usage, isDerived, inputMode);
 
         grid.Children.Add(headerPanel);
 
@@ -626,78 +498,11 @@ public partial class SettingsWindow : Window
         Grid.SetRow(keyPanel, 1);
         grid.Children.Add(keyPanel);
 
-        var subTrayDetails = usage?.Details?
-            .Where(d =>
-                !string.IsNullOrWhiteSpace(d.Name) &&
-                !d.Name.StartsWith("[", StringComparison.Ordinal) &&
-                IsSubTrayEligibleDetail(d))
-            .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
-            .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var subTrayDetails = ProviderSubTrayCatalog.GetEligibleDetails(usage);
 
         if (!isDerived && subTrayDetails is { Count: > 0 })
         {
-            config.EnabledSubTrays ??= new List<string>();
-
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-            var separator = new Border
-            {
-                Height = 1,
-                Margin = new Thickness(0, 8, 0, 8)
-            };
-            separator.SetResourceReference(Border.BackgroundProperty, "Separator");
-            Grid.SetRow(separator, 2);
-            grid.Children.Add(separator);
-
-            var subTrayPanel = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
-
-            var subTrayTitle = new TextBlock
-            {
-                Text = "Sub-tray icons",
-                FontSize = 10,
-                FontWeight = FontWeights.SemiBold,
-                Margin = new Thickness(0, 0, 0, 4)
-            };
-            subTrayTitle.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
-            subTrayPanel.Children.Add(subTrayTitle);
-
-            foreach (var detail in subTrayDetails)
-            {
-                var subTrayCheckbox = new CheckBox
-                {
-                    Content = detail.Name,
-                    IsChecked = config.EnabledSubTrays.Contains(detail.Name, StringComparer.OrdinalIgnoreCase),
-                    FontSize = 10,
-                    Margin = new Thickness(0, 1, 0, 1),
-                    Cursor = Cursors.Hand
-                };
-                subTrayCheckbox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
-                subTrayCheckbox.Checked += (s, e) =>
-                {
-                    if (!config.EnabledSubTrays.Contains(detail.Name, StringComparer.OrdinalIgnoreCase))
-                    {
-                        config.EnabledSubTrays.Add(detail.Name);
-                    }
-
-                    SettingsChanged = true;
-                    RefreshTrayIcons();
-                    ScheduleAutoSave();
-                };
-                subTrayCheckbox.Unchecked += (s, e) =>
-                {
-                    config.EnabledSubTrays.RemoveAll(name => name.Equals(detail.Name, StringComparison.OrdinalIgnoreCase));
-                    SettingsChanged = true;
-                    RefreshTrayIcons();
-                    ScheduleAutoSave();
-                };
-                subTrayPanel.Children.Add(subTrayCheckbox);
-            }
-
-            Grid.SetRow(subTrayPanel, 3);
-            grid.Children.Add(subTrayPanel);
+            AddSubTraySection(grid, config, subTrayDetails);
         }
 
         card.Child = grid;
@@ -708,187 +513,219 @@ public partial class SettingsWindow : Window
     {
         return inputMode switch
         {
-            ProviderInputMode.DerivedReadOnly => BuildDerivedProviderPanel(usage),
-            ProviderInputMode.AntigravityAutoDetected => BuildAntigravityStatusPanel(usage),
-            ProviderInputMode.GitHubCopilotAuthStatus => BuildGitHubCopilotStatusPanel(config, usage),
-            ProviderInputMode.OpenAiSessionStatus => BuildOpenAiSessionStatusPanel(config, usage),
+            ProviderInputMode.DerivedReadOnly
+                or ProviderInputMode.AntigravityAutoDetected
+                or ProviderInputMode.GitHubCopilotAuthStatus
+                or ProviderInputMode.OpenAiSessionStatus
+                => BuildStatusPanel(config, usage, inputMode),
             _ => BuildApiKeyEditor(config)
         };
     }
 
-    private StackPanel BuildDerivedProviderPanel(ProviderUsage? usage)
+    private StackPanel BuildStatusPanel(ProviderConfig config, ProviderUsage? usage, ProviderInputMode inputMode)
     {
-        var panel = new StackPanel { Orientation = Orientation.Vertical };
-        var statusText = new TextBlock
+        var presentation = ProviderStatusPresentationCatalog.Create(
+            config,
+            usage,
+            inputMode,
+            _isPrivacyMode,
+            new ProviderAuthIdentities(_gitHubAuthUsername, _openAiAuthUsername, _codexAuthUsername));
+
+        var panel = new StackPanel
         {
-            Text = usage?.IsAvailable == true ? "Derived from Codex usage (read-only)" : "Derived provider (waiting for usage data)",
-            VerticalAlignment = VerticalAlignment.Center,
-            FontSize = 11
+            Orientation = presentation.UseHorizontalLayout ? Orientation.Horizontal : Orientation.Vertical
         };
-        statusText.SetResourceReference(
-            TextBlock.ForegroundProperty,
-            usage?.IsAvailable == true ? "ProgressBarGreen" : "TertiaryText");
-        panel.Children.Add(statusText);
-
-        if (usage?.NextResetTime is DateTime derivedReset)
-        {
-            var resetText = CreateSecondaryStatusText($"Next reset: {derivedReset:g}");
-            panel.Children.Add(resetText);
-        }
-
-        return panel;
-    }
-
-    private StackPanel BuildAntigravityStatusPanel(ProviderUsage? usage)
-    {
-        var panel = new StackPanel { Orientation = Orientation.Vertical };
-        bool isConnected = usage != null && usage.IsAvailable;
-        string accountInfo = usage?.AccountName ?? "Unknown";
-        var displayAccount = _isPrivacyMode ? MaskAccountIdentifier(accountInfo) : accountInfo;
 
         var statusText = new TextBlock
         {
-            Text = isConnected ? $"Auto-Detected ({displayAccount})" : "Searching for local process...",
+            Text = presentation.PrimaryText,
             VerticalAlignment = VerticalAlignment.Center,
             FontSize = 11,
-            FontStyle = isConnected ? FontStyles.Normal : FontStyles.Italic
+            FontStyle = presentation.PrimaryItalic ? FontStyles.Italic : FontStyles.Normal
         };
-        statusText.SetResourceReference(
-            TextBlock.ForegroundProperty,
-            isConnected ? "ProgressBarGreen" : "TertiaryText");
+        statusText.SetResourceReference(TextBlock.ForegroundProperty, presentation.PrimaryResourceKey);
         panel.Children.Add(statusText);
 
-        var antigravitySubmodels = usage?.Details?
-            .Select(d => d.Name)
-            .Where(name => !string.IsNullOrWhiteSpace(name) && !name.StartsWith("[", StringComparison.Ordinal))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (antigravitySubmodels is { Count: > 0 })
+        foreach (var line in presentation.SecondaryLines)
         {
-            var modelsText = CreateSecondaryStatusText($"Models: {string.Join(", ", antigravitySubmodels)}");
-            modelsText.TextWrapping = TextWrapping.Wrap;
-            modelsText.Margin = new Thickness(0, 4, 0, 0);
-            panel.Children.Add(modelsText);
+            var secondaryText = CreateSecondaryStatusText(line.Text);
+            secondaryText.TextWrapping = line.Wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
+            if (line.ExtraTopMargin)
+            {
+                secondaryText.Margin = new Thickness(0, 4, 0, 0);
+            }
+
+            panel.Children.Add(secondaryText);
         }
 
         return panel;
     }
 
-    private StackPanel BuildGitHubCopilotStatusPanel(ProviderConfig config, ProviderUsage? usage)
+    private StackPanel BuildProviderHeader(ProviderConfig config, ProviderUsage? usage, bool isDerived, ProviderInputMode inputMode)
     {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal };
-        string? username = usage?.AccountName;
-        if (string.IsNullOrWhiteSpace(username) || username == "Unknown")
+        var headerPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+
+        var icon = CreateProviderIcon(config.ProviderId);
+        icon.Width = 16;
+        icon.Height = 16;
+        icon.Margin = new Thickness(0, 0, 8, 0);
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        headerPanel.Children.Add(icon);
+
+        var title = new TextBlock
         {
-            username = _gitHubAuthUsername;
+            Text = GetProviderDisplayName(config.ProviderId),
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            MinWidth = 120
+        };
+        title.SetResourceReference(TextBlock.ForegroundProperty, "PrimaryText");
+        headerPanel.Children.Add(title);
+
+        headerPanel.Children.Add(CreateProviderHeaderCheckBox(
+            content: "Tray",
+            isChecked: config.ShowInTray,
+            margin: new Thickness(12, 0, 0, 0),
+            isEnabled: !isDerived,
+            onCheckedChanged: isChecked =>
+            {
+                config.ShowInTray = isChecked;
+                MarkSettingsChanged(refreshTrayIcons: true);
+            }));
+
+        headerPanel.Children.Add(CreateProviderHeaderCheckBox(
+            content: "Notify",
+            isChecked: config.EnableNotifications,
+            margin: new Thickness(8, 0, 0, 0),
+            isEnabled: !isDerived,
+            onCheckedChanged: isChecked =>
+            {
+                config.EnableNotifications = isChecked;
+                MarkSettingsChanged();
+            }));
+
+        if (ProviderSettingsCatalog.IsInactive(config, usage, isDerived, inputMode))
+        {
+            headerPanel.Children.Add(CreateInactiveBadge());
         }
 
-        bool hasUsername = !string.IsNullOrEmpty(username) && username != "Unknown" && username != "User";
-        bool isAuthenticated = !string.IsNullOrEmpty(config.ApiKey) || !string.IsNullOrWhiteSpace(_gitHubAuthUsername);
-
-        string displayText = !isAuthenticated
-            ? "Not Authenticated"
-            : !hasUsername
-                ? "Authenticated"
-                : _isPrivacyMode && username != null
-                    ? $"Authenticated ({MaskAccountIdentifier(username)})"
-                    : $"Authenticated ({username})";
-
-        var statusText = new TextBlock
-        {
-            Text = displayText,
-            VerticalAlignment = VerticalAlignment.Center,
-            FontSize = 11
-        };
-        statusText.SetResourceReference(
-            TextBlock.ForegroundProperty,
-            isAuthenticated ? "ProgressBarGreen" : "TertiaryText");
-
-        panel.Children.Add(statusText);
-        return panel;
+        return headerPanel;
     }
 
-    private StackPanel BuildOpenAiSessionStatusPanel(ProviderConfig config, ProviderUsage? usage)
+    private CheckBox CreateProviderHeaderCheckBox(
+        string content,
+        bool isChecked,
+        Thickness margin,
+        bool isEnabled,
+        Action<bool> onCheckedChanged)
     {
-        var panel = new StackPanel { Orientation = Orientation.Vertical };
-        var isCodex = ProviderMetadataCatalog.GetCanonicalProviderId(config.ProviderId)
-            .Equals("codex", StringComparison.OrdinalIgnoreCase);
-        var providerSessionLabel = isCodex ? "OpenAI Codex" : "OpenAI";
-        var hasSessionToken = ProviderSettingsCatalog.IsSessionToken(config.ApiKey);
-        var isAuthenticated = hasSessionToken || (usage != null && usage.IsAvailable);
-        var accountName = usage?.AccountName;
-
-        if (string.IsNullOrWhiteSpace(accountName) || accountName == "Unknown" || accountName == "User")
+        var checkBox = new CheckBox
         {
-            accountName = isCodex
-                ? (_codexAuthUsername ?? _openAiAuthUsername)
-                : _openAiAuthUsername;
-        }
-
-        string displayText;
-        if (!isAuthenticated)
-        {
-            displayText = "Not Authenticated";
-        }
-        else if (!string.IsNullOrWhiteSpace(accountName))
-        {
-            displayText = _isPrivacyMode
-                ? $"Authenticated ({MaskAccountIdentifier(accountName)})"
-                : $"Authenticated ({accountName})";
-        }
-        else if (hasSessionToken && (usage == null || !usage.IsAvailable))
-        {
-            displayText = $"Authenticated via {providerSessionLabel} - refresh to load quota";
-        }
-        else
-        {
-            displayText = $"Authenticated via {providerSessionLabel}";
-        }
-
-        var statusText = new TextBlock
-        {
-            Text = displayText,
+            Content = content,
+            IsChecked = isChecked,
+            FontSize = 10,
             VerticalAlignment = VerticalAlignment.Center,
-            FontSize = 11
+            Cursor = Cursors.Hand,
+            Margin = margin,
+            IsEnabled = isEnabled
         };
-        statusText.SetResourceReference(
-            TextBlock.ForegroundProperty,
-            isAuthenticated ? "ProgressBarGreen" : "TertiaryText");
-        panel.Children.Add(statusText);
+        checkBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
+        checkBox.Checked += (_, _) => onCheckedChanged(true);
+        checkBox.Unchecked += (_, _) => onCheckedChanged(false);
+        return checkBox;
+    }
 
-        var resolvedReset = usage?.NextResetTime ?? InferResetTimeFromDetails(usage);
-        if (resolvedReset is DateTime nextReset)
+    private static Border CreateInactiveBadge()
+    {
+        var status = new Border
         {
-            panel.Children.Add(CreateSecondaryStatusText($"Next reset: {nextReset:g}"));
-        }
-        else if (isAuthenticated)
+            Background = new SolidColorBrush(Color.FromRgb(205, 92, 92)),
+            CornerRadius = new CornerRadius(3),
+            Margin = new Thickness(10, 0, 0, 0),
+            Padding = new Thickness(8, 3, 8, 3)
+        };
+
+        status.Child = new TextBlock
         {
-            panel.Children.Add(CreateSecondaryStatusText("Next reset: loading..."));
+            Text = "Inactive",
+            FontSize = 10,
+            Foreground = new SolidColorBrush(Color.FromRgb(240, 240, 240)),
+            FontWeight = FontWeights.SemiBold
+        };
+        return status;
+    }
+
+    private void AddSubTraySection(Grid grid, ProviderConfig config, IReadOnlyList<ProviderUsageDetail> subTrayDetails)
+    {
+        config.EnabledSubTrays ??= new List<string>();
+
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var separator = new Border
+        {
+            Height = 1,
+            Margin = new Thickness(0, 8, 0, 8)
+        };
+        separator.SetResourceReference(Border.BackgroundProperty, "Separator");
+        Grid.SetRow(separator, 2);
+        grid.Children.Add(separator);
+
+        var subTrayPanel = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
+
+        var subTrayTitle = new TextBlock
+        {
+            Text = "Sub-tray icons",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        subTrayTitle.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
+        subTrayPanel.Children.Add(subTrayTitle);
+
+        foreach (var detail in subTrayDetails)
+        {
+            subTrayPanel.Children.Add(CreateSubTrayCheckBox(config, detail.Name));
         }
 
-        return panel;
+        Grid.SetRow(subTrayPanel, 3);
+        grid.Children.Add(subTrayPanel);
+    }
+
+    private CheckBox CreateSubTrayCheckBox(ProviderConfig config, string detailName)
+    {
+        var checkBox = new CheckBox
+        {
+            Content = detailName,
+            IsChecked = config.EnabledSubTrays.Contains(detailName, StringComparer.OrdinalIgnoreCase),
+            FontSize = 10,
+            Margin = new Thickness(0, 1, 0, 1),
+            Cursor = Cursors.Hand
+        };
+        checkBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
+        checkBox.Checked += (_, _) =>
+        {
+            if (!config.EnabledSubTrays.Contains(detailName, StringComparer.OrdinalIgnoreCase))
+            {
+                config.EnabledSubTrays.Add(detailName);
+            }
+
+            MarkSettingsChanged(refreshTrayIcons: true);
+        };
+        checkBox.Unchecked += (_, _) =>
+        {
+            config.EnabledSubTrays.RemoveAll(name => name.Equals(detailName, StringComparison.OrdinalIgnoreCase));
+            MarkSettingsChanged(refreshTrayIcons: true);
+        };
+        return checkBox;
     }
 
     private TextBox BuildApiKeyEditor(ProviderConfig config)
     {
-        var displayKey = config.ApiKey;
-        if (_isPrivacyMode && !string.IsNullOrEmpty(displayKey))
-        {
-            if (displayKey.Length > 8)
-            {
-                displayKey = displayKey.Substring(0, 4) + "****" + displayKey.Substring(displayKey.Length - 4);
-            }
-            else
-            {
-                displayKey = "****";
-            }
-        }
-
         var keyBox = new TextBox
         {
-            Text = displayKey,
+            Text = ProviderApiKeyPresentationCatalog.GetDisplayApiKey(config.ApiKey, _isPrivacyMode),
             Tag = config,
             VerticalContentAlignment = VerticalAlignment.Center,
             FontSize = 11,
@@ -900,8 +737,7 @@ public partial class SettingsWindow : Window
             keyBox.TextChanged += (s, e) =>
             {
                 config.ApiKey = keyBox.Text;
-                SettingsChanged = true;
-                ScheduleAutoSave();
+                MarkSettingsChanged();
             };
         }
 
@@ -927,6 +763,24 @@ public partial class SettingsWindow : Window
         {
             app.UpdateProviderTrayIcons(_usages, _configs, _preferences);
         }
+    }
+
+    private void MarkSettingsChanged(bool refreshTrayIcons = false)
+    {
+        SettingsChanged = true;
+        if (refreshTrayIcons)
+        {
+            RefreshTrayIcons();
+        }
+
+        ScheduleAutoSave();
+    }
+
+    private void ApplyFontPreferenceChange(Action applyChange)
+    {
+        applyChange();
+        UpdateFontPreview();
+        ScheduleAutoSave();
     }
 
     private async Task<bool> SaveUiPreferencesAsync(bool showErrorDialog = false)
@@ -1008,54 +862,6 @@ public partial class SettingsWindow : Window
         var image = new DrawingImage(drawing);
         image.Freeze();
         return image;
-    }
-
-    private string MaskString(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-        {
-            return input;
-        }
-
-        if (input.Length <= 2)
-        {
-            return new string('*', input.Length);
-        }
-
-        return input[0] + new string('*', input.Length - 2) + input[^1];
-    }
-
-    private string MaskAccountIdentifier(string input)
-    {
-        if (string.IsNullOrWhiteSpace(input))
-        {
-            return input;
-        }
-
-        var atIndex = input.IndexOf('@');
-        if (atIndex > 0 && atIndex < input.Length - 1)
-        {
-            var localPart = input[..atIndex];
-            var domainPart = input[(atIndex + 1)..];
-            var maskedDomainChars = domainPart.ToCharArray();
-            for (var i = 0; i < maskedDomainChars.Length; i++)
-            {
-                if (maskedDomainChars[i] != '.')
-                {
-                    maskedDomainChars[i] = '*';
-                }
-            }
-
-            var maskedDomain = new string(maskedDomainChars);
-            if (localPart.Length <= 2)
-            {
-                return $"{new string('*', localPart.Length)}@{maskedDomain}";
-            }
-
-            return $"{localPart[0]}{new string('*', localPart.Length - 2)}{localPart[^1]}@{maskedDomain}";
-        }
-
-        return MaskString(input);
     }
 
     private void PopulateLayoutSettings()
@@ -1174,28 +980,25 @@ public partial class SettingsWindow : Window
 
     private void ResetFontBtn_Click(object sender, RoutedEventArgs e)
     {
-        // Reset to defaults
-        _preferences.FontFamily = "Segoe UI";
-        _preferences.FontSize = 12;
-        _preferences.FontBold = false;
-        _preferences.FontItalic = false;
-        
-        // Update UI
-        FontFamilyCombo.SelectedItem = _preferences.FontFamily;
-        FontSizeBox.Text = _preferences.FontSize.ToString();
-        FontBoldCheck.IsChecked = _preferences.FontBold;
-        FontItalicCheck.IsChecked = _preferences.FontItalic;
-        UpdateFontPreview();
-        ScheduleAutoSave();
+        ApplyFontPreferenceChange(() =>
+        {
+            _preferences.FontFamily = "Segoe UI";
+            _preferences.FontSize = 12;
+            _preferences.FontBold = false;
+            _preferences.FontItalic = false;
+
+            FontFamilyCombo.SelectedItem = _preferences.FontFamily;
+            FontSizeBox.Text = _preferences.FontSize.ToString();
+            FontBoldCheck.IsChecked = _preferences.FontBold;
+            FontItalicCheck.IsChecked = _preferences.FontItalic;
+        });
     }
 
     private void FontFamilyCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (FontFamilyCombo.SelectedItem is string font)
         {
-            _preferences.FontFamily = font;
-            UpdateFontPreview();
-            ScheduleAutoSave();
+            ApplyFontPreferenceChange(() => _preferences.FontFamily = font);
         }
     }
 
@@ -1203,24 +1006,18 @@ public partial class SettingsWindow : Window
     {
         if (int.TryParse(FontSizeBox.Text, out int size) && size > 0 && size <= 72)
         {
-            _preferences.FontSize = size;
-            UpdateFontPreview();
-            ScheduleAutoSave();
+            ApplyFontPreferenceChange(() => _preferences.FontSize = size);
         }
     }
 
     private void FontBoldCheck_CheckedChanged(object sender, RoutedEventArgs e)
     {
-        _preferences.FontBold = FontBoldCheck.IsChecked ?? false;
-        UpdateFontPreview();
-        ScheduleAutoSave();
+        ApplyFontPreferenceChange(() => _preferences.FontBold = FontBoldCheck.IsChecked ?? false);
     }
 
     private void FontItalicCheck_CheckedChanged(object sender, RoutedEventArgs e)
     {
-        _preferences.FontItalic = FontItalicCheck.IsChecked ?? false;
-        UpdateFontPreview();
-        ScheduleAutoSave();
+        ApplyFontPreferenceChange(() => _preferences.FontItalic = FontItalicCheck.IsChecked ?? false);
     }
 
     private async void PrivacyBtn_Click(object sender, RoutedEventArgs e)
@@ -1607,51 +1404,6 @@ public partial class SettingsWindow : Window
         {
             return content;
         }
-    }
-
-    private static DateTime? InferResetTimeFromDetails(ProviderUsage? usage)
-    {
-        if (usage?.Details == null)
-        {
-            return null;
-        }
-
-        foreach (var detail in usage.Details)
-        {
-            if (string.IsNullOrWhiteSpace(detail.Description))
-            {
-                continue;
-            }
-
-            var match = Regex.Match(detail.Description, @"Resets in\s+(\d+)s", RegexOptions.IgnoreCase);
-            if (match.Success && int.TryParse(match.Groups[1].Value, out var seconds) && seconds > 0)
-            {
-                return DateTime.Now.AddSeconds(seconds);
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsSubTrayEligibleDetail(ProviderUsageDetail detail)
-    {
-        if (string.IsNullOrWhiteSpace(detail.Name))
-        {
-            return false;
-        }
-
-        if (detail.DetailType != ProviderUsageDetailType.Model && detail.DetailType != ProviderUsageDetailType.Other)
-        {
-            return false;
-        }
-
-        var match = Regex.Match(detail.Used ?? string.Empty, @"(?<percent>\d+(\.\d+)?)\s*%", RegexOptions.IgnoreCase);
-        if (!match.Success)
-        {
-            return false;
-        }
-
-        return double.TryParse(match.Groups["percent"].Value, out _);
     }
 
     private static string GetProviderDisplayName(string providerId)
