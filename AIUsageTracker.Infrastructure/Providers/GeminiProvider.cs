@@ -18,7 +18,8 @@ public class GeminiProvider : ProviderBase
         defaultConfigType: "quota-based",
         autoIncludeWhenUnconfigured: true,
         includeInWellKnownProviders: true,
-        handledProviderIds: new[] { "gemini-cli", "gemini" });
+        handledProviderIds: new[] { "gemini-cli", "gemini" },
+        rooConfigPropertyNames: new[] { "geminiApiKey" });
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

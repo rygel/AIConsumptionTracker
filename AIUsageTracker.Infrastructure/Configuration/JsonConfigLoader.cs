@@ -63,8 +63,7 @@ public class JsonConfigLoader : IConfigLoader
                 {
                     foreach (var kvp in rawConfigs)
                     {
-                        var providerId = kvp.Key;
-                        if (providerId.Equals("kimi-for-coding", StringComparison.OrdinalIgnoreCase)) providerId = "kimi";
+                        var providerId = ProviderMetadataCatalog.GetCanonicalProviderId(kvp.Key);
                         if (providerId.Equals("app_settings", StringComparison.OrdinalIgnoreCase)) continue;
 
                         if (!mergedConfigs.TryGetValue(providerId, out var config))
@@ -212,12 +211,29 @@ public class JsonConfigLoader : IConfigLoader
             }
         }
 
-        // Keep Codex as a single top-level provider track; spark is represented as model detail.
-        exportAuth.Remove("codex.spark");
-        exportProviders.Remove("codex.spark");
+        foreach (var providerId in exportAuth.Keys.ToList())
+        {
+            if (!ProviderMetadataCatalog.ShouldPersistProviderId(providerId))
+            {
+                exportAuth.Remove(providerId);
+            }
+        }
+
+        foreach (var providerId in exportProviders.Keys.ToList())
+        {
+            if (!ProviderMetadataCatalog.ShouldPersistProviderId(providerId))
+            {
+                exportProviders.Remove(providerId);
+            }
+        }
 
         foreach (var config in configs)
         {
+            if (!ProviderMetadataCatalog.ShouldPersistProviderId(config.ProviderId))
+            {
+                continue;
+            }
+
             // 1. Update Auth (Key)
             if (exportAuth.TryGetValue(config.ProviderId, out var existingAuthObj) && existingAuthObj is JsonElement existingAuthEl)
             {

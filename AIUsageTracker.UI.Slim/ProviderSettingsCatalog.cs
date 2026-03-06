@@ -63,7 +63,7 @@ internal static class ProviderSettingsCatalog
 
     public static bool IsDerivedProviderVisible(string? providerId)
     {
-        return string.Equals(providerId, "codex.spark", StringComparison.OrdinalIgnoreCase);
+        return ProviderMetadataCatalog.IsVisibleDerivedProviderId(providerId ?? string.Empty);
     }
 
     public static bool IsSessionToken(string? apiKey)

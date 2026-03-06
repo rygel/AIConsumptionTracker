@@ -15,7 +15,9 @@ public class OpenRouterProvider : ProviderBase
         planType: PlanType.Usage,
         isQuotaBased: false,
         defaultConfigType: "pay-as-you-go",
-        includeInWellKnownProviders: true);
+        includeInWellKnownProviders: true,
+        discoveryEnvironmentVariables: new[] { "OPENROUTER_API_KEY" },
+        rooConfigPropertyNames: new[] { "openrouterApiKey" });
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

@@ -39,34 +39,7 @@ public class TokenDiscoveryService
 
             if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(value)) continue;
 
-            if (key == "MINIMAX_API_KEY")
-            {
-                AddOrUpdate(discoveredConfigs, "minimax", value, "Discovered via Environment Variable", "Env: MINIMAX_API_KEY");
-            }
-            else if (key == "XIAOMI_API_KEY" || key == "MIMO_API_KEY")
-            {
-                AddOrUpdate(discoveredConfigs, "xiaomi", value, "Discovered via Environment Variable", "Env: XIAOMI_API_KEY");
-            }
-            else if (key == "KIMI_API_KEY" || key == "MOONSHOT_API_KEY")
-            {
-                AddOrUpdate(discoveredConfigs, "kimi", value, "Discovered via Environment Variable", "Env: KIMI_API_KEY");
-            }
-            else if (key == "ANTHROPIC_API_KEY" || key == "CLAUDE_API_KEY")
-            {
-                AddOrUpdate(discoveredConfigs, "claude-code", value, "Discovered via Environment Variable", "Env: ANTHROPIC_API_KEY");
-            }
-            else if (key == "OPENAI_API_KEY")
-            {
-                AddOrUpdate(discoveredConfigs, "openai", value, "Discovered via Environment Variable", "Env: OPENAI_API_KEY");
-            }
-            else if (key == "CODEX_API_KEY")
-            {
-                AddOrUpdate(discoveredConfigs, "codex", value, "Discovered via Environment Variable", "Env: CODEX_API_KEY");
-            }
-            else if (key == "OPENROUTER_API_KEY")
-            {
-                AddOrUpdate(discoveredConfigs, "openrouter", value, "Discovered via Environment Variable", "Env: OPENROUTER_API_KEY");
-            }
+            TryAddEnvironmentVariable(discoveredConfigs, key, value);
         }
 
         // 3. Discover from Kilo Code
@@ -183,8 +156,7 @@ public class TokenDiscoveryService
     {
         var wellKnownIds = ProviderMetadataCatalog.Definitions
             .Where(definition => definition.IncludeInWellKnownProviders)
-            .SelectMany(definition => definition.HandledProviderIds)
-            .Distinct(StringComparer.OrdinalIgnoreCase);
+            .Select(definition => definition.ProviderId);
 
         foreach (var id in wellKnownIds)
         {
@@ -354,7 +326,10 @@ public class TokenDiscoveryService
                     }
                 }
             }
-            catch { /* Ignore parse errors */ }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to parse Kilo Code secrets from {Path}", kiloSecretsPath);
+            }
         }
     }
 
@@ -384,14 +359,14 @@ public class TokenDiscoveryService
                                 foreach (var configPair in configsProp.EnumerateObject())
                                 {
                                     var config = configPair.Value;
-                                    TryAddRooKey(configs, config, "openAiApiKey", "openai");
-                                    TryAddRooKey(configs, config, "geminiApiKey", "gemini");
-                                    TryAddRooKey(configs, config, "openrouterApiKey", "openrouter");
-                                    TryAddRooKey(configs, config, "mistralApiKey", "mistral");
+                                    TryAddRooKeys(configs, config);
                                 }
                             }
                         }
-                        catch { /* Ignore individual file errors */ }
+                        catch (Exception ex)
+                        {
+                            _logger.LogDebug(ex, "Failed to parse Roo Code state file {Path}", stateFile);
+                        }
                     }
                 }
             }
@@ -416,19 +391,22 @@ public class TokenDiscoveryService
                                 foreach (var configPair in configsProp.EnumerateObject())
                                 {
                                     var config = configPair.Value;
-                                    TryAddRooKey(configs, config, "openAiApiKey", "openai");
-                                    TryAddRooKey(configs, config, "geminiApiKey", "gemini");
-                                    TryAddRooKey(configs, config, "openrouterApiKey", "openrouter");
-                                    TryAddRooKey(configs, config, "mistralApiKey", "mistral");
+                                    TryAddRooKeys(configs, config);
                                 }
                             }
                         }
                     }
-                    catch { /* Ignore parse errors */ }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to parse Roo secrets from {Path}", secretsPath);
+                    }
                 }
             }
         }
-        catch { /* Ignore all errors */ }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Roo Code token discovery failed");
+        }
     }
 
     private string? GetVSCodeGlobalStoragePath()
@@ -475,16 +453,40 @@ public class TokenDiscoveryService
                     var config = configPair.Value;
 
                     // Logic for common providers in Roo Cline
-                    TryAddRooKey(configs, config, "openAiApiKey", "openai");
-                    TryAddRooKey(configs, config, "geminiApiKey", "gemini");
-                    TryAddRooKey(configs, config, "openrouterApiKey", "openrouter");
-                    TryAddRooKey(configs, config, "mistralApiKey", "mistral");
+                    TryAddRooKeys(configs, config);
                 }
             }
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Failed to parse Roo config during token discovery");
+        }
+    }
+
+    private void TryAddEnvironmentVariable(List<ProviderConfig> configs, string environmentVariableName, string value)
+    {
+        var definition = ProviderMetadataCatalog.FindByEnvironmentVariable(environmentVariableName);
+        if (definition == null)
+        {
+            return;
+        }
+
+        AddOrUpdate(
+            configs,
+            definition.ProviderId,
+            value,
+            "Discovered via Environment Variable",
+            $"Env: {environmentVariableName}");
+    }
+
+    private void TryAddRooKeys(List<ProviderConfig> configs, JsonElement config)
+    {
+        foreach (var definition in ProviderMetadataCatalog.Definitions.Where(d => d.RooConfigPropertyNames.Count > 0))
+        {
+            foreach (var propertyName in definition.RooConfigPropertyNames)
+            {
+                TryAddRooKey(configs, config, propertyName, definition.ProviderId);
+            }
         }
     }
 

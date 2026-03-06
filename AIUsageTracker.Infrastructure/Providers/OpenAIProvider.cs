@@ -19,7 +19,12 @@ public class OpenAIProvider : ProviderBase
         displayName: "OpenAI",
         planType: PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based");
+        defaultConfigType: "quota-based",
+        discoveryEnvironmentVariables: new[] { "OPENAI_API_KEY" },
+        rooConfigPropertyNames: new[] { "openAiApiKey" },
+        explicitApiKeyPrefixes: new[] { "sk-" },
+        sessionAuthCanonicalProviderId: "codex",
+        sessionAuthMigrationDescription: "Migrated from OpenAI session config");
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

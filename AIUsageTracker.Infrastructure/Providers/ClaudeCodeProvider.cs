@@ -17,7 +17,8 @@ public class ClaudeCodeProvider : ProviderBase
         planType: PlanType.Usage,
         isQuotaBased: false,
         defaultConfigType: "pay-as-you-go",
-        autoIncludeWhenUnconfigured: true);
+        autoIncludeWhenUnconfigured: true,
+        discoveryEnvironmentVariables: new[] { "ANTHROPIC_API_KEY", "CLAUDE_API_KEY" });
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

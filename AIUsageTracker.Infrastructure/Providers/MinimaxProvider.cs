@@ -22,7 +22,8 @@ public class MinimaxProvider : ProviderBase
         {
             ["minimax-io"] = "Minimax (International)",
             ["minimax-global"] = "Minimax (International)"
-        });
+        },
+        discoveryEnvironmentVariables: new[] { "MINIMAX_API_KEY" });
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

@@ -16,7 +16,9 @@ public class KimiProvider : ProviderBase
         planType: PlanType.Coding,
         isQuotaBased: true,
         defaultConfigType: "quota-based",
-        includeInWellKnownProviders: true);
+        includeInWellKnownProviders: true,
+        handledProviderIds: new[] { "kimi-for-coding" },
+        discoveryEnvironmentVariables: new[] { "KIMI_API_KEY", "MOONSHOT_API_KEY" });
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

@@ -72,6 +72,54 @@ public static class ProviderMetadataCatalog
         return string.Equals(providerId, "antigravity", StringComparison.OrdinalIgnoreCase);
     }
 
+    public static ProviderDefinition? FindByEnvironmentVariable(string environmentVariableName)
+    {
+        if (string.IsNullOrWhiteSpace(environmentVariableName))
+        {
+            return null;
+        }
+
+        return Definitions.FirstOrDefault(definition =>
+            definition.DiscoveryEnvironmentVariables.Contains(environmentVariableName, StringComparer.OrdinalIgnoreCase));
+    }
+
+    public static ProviderDefinition? FindByRooConfigProperty(string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(propertyName))
+        {
+            return null;
+        }
+
+        return Definitions.FirstOrDefault(definition =>
+            definition.RooConfigPropertyNames.Contains(propertyName, StringComparer.OrdinalIgnoreCase));
+    }
+
+    public static bool ShouldPersistProviderId(string providerId)
+    {
+        if (string.IsNullOrWhiteSpace(providerId))
+        {
+            return false;
+        }
+
+        if (!TryGet(providerId, out var definition))
+        {
+            return true;
+        }
+
+        return !definition.NonPersistedProviderIds.Contains(providerId, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public static bool IsVisibleDerivedProviderId(string providerId)
+    {
+        if (string.IsNullOrWhiteSpace(providerId))
+        {
+            return false;
+        }
+
+        return Definitions.Any(definition =>
+            definition.VisibleDerivedProviderIds.Contains(providerId, StringComparer.OrdinalIgnoreCase));
+    }
+
     public static bool TryCreateDefaultConfig(
         string providerId,
         out ProviderConfig config,
@@ -100,20 +148,19 @@ public static class ProviderMetadataCatalog
 
     public static void NormalizeCanonicalConfigurations(List<ProviderConfig> configs)
     {
-        NormalizeOpenAiCodexSessionOverlap(configs);
-        NormalizeCodexSparkConfiguration(configs);
+        NormalizeConfigOwnership(configs);
     }
 
     public static bool ShouldSuppressOpenAiSession(IReadOnlyCollection<ProviderConfig> configs)
     {
-        return HasConfiguredCanonicalConfig(configs, "codex") && configs.Any(IsOpenAiSessionConfig);
+        return configs.Any(config =>
+            IsSessionAuthConfig(config) &&
+            HasConfiguredCanonicalConfig(configs, GetCanonicalConfigOwnerId(config)));
     }
 
     public static bool IsOpenAiSessionConfig(ProviderConfig config)
     {
-        return string.Equals(config.ProviderId, "openai", StringComparison.OrdinalIgnoreCase) &&
-               !string.IsNullOrWhiteSpace(config.ApiKey) &&
-               !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
+        return IsSessionAuthConfig(config);
     }
 
     private static IReadOnlyList<ProviderDefinition> LoadDefinitions()
@@ -139,76 +186,37 @@ public static class ProviderMetadataCatalog
         return definitions;
     }
 
-    private static void NormalizeOpenAiCodexSessionOverlap(List<ProviderConfig> configs)
+    private static void NormalizeConfigOwnership(List<ProviderConfig> configs)
     {
-        var openAiConfig = configs.FirstOrDefault(config =>
-            string.Equals(config.ProviderId, "openai", StringComparison.OrdinalIgnoreCase));
-        if (openAiConfig == null || !IsOpenAiSessionConfig(openAiConfig))
-        {
-            return;
-        }
-
-        var codexConfig = GetOrCreateConfig(configs, "codex");
-        if (codexConfig == null)
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(codexConfig.ApiKey))
-        {
-            codexConfig.ApiKey = openAiConfig.ApiKey;
-            codexConfig.AuthSource = openAiConfig.AuthSource;
-            codexConfig.Description = "Migrated from OpenAI session config";
-        }
-
-        configs.RemoveAll(config => string.Equals(config.ProviderId, "openai", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static void NormalizeCodexSparkConfiguration(List<ProviderConfig> configs)
-    {
-        var sparkConfigs = configs
-            .Where(config => string.Equals(config.ProviderId, "codex.spark", StringComparison.OrdinalIgnoreCase))
+        var nonCanonicalConfigs = configs
+            .Where(config =>
+            {
+                var ownerProviderId = GetCanonicalConfigOwnerId(config);
+                return !string.Equals(ownerProviderId, config.ProviderId, StringComparison.OrdinalIgnoreCase);
+            })
             .ToList();
-        if (sparkConfigs.Count == 0)
+        if (nonCanonicalConfigs.Count == 0)
         {
             return;
         }
 
-        var codexConfig = GetOrCreateConfig(configs, "codex");
-        if (codexConfig == null)
+        foreach (var sourceConfig in nonCanonicalConfigs)
         {
-            return;
+            var ownerProviderId = GetCanonicalConfigOwnerId(sourceConfig);
+            var canonicalConfig = GetOrCreateConfig(configs, ownerProviderId);
+            if (canonicalConfig == null)
+            {
+                continue;
+            }
+
+            MergeConfigIntoCanonical(sourceConfig, canonicalConfig);
         }
 
-        foreach (var sparkConfig in sparkConfigs)
+        configs.RemoveAll(config =>
         {
-            if (string.IsNullOrWhiteSpace(codexConfig.ApiKey) && !string.IsNullOrWhiteSpace(sparkConfig.ApiKey))
-            {
-                codexConfig.ApiKey = sparkConfig.ApiKey;
-            }
-
-            if ((string.IsNullOrWhiteSpace(codexConfig.AuthSource) ||
-                 string.Equals(codexConfig.AuthSource, "Unknown", StringComparison.OrdinalIgnoreCase)) &&
-                !string.IsNullOrWhiteSpace(sparkConfig.AuthSource))
-            {
-                codexConfig.AuthSource = sparkConfig.AuthSource;
-            }
-
-            if (string.IsNullOrWhiteSpace(codexConfig.Description) && !string.IsNullOrWhiteSpace(sparkConfig.Description))
-            {
-                codexConfig.Description = sparkConfig.Description;
-            }
-
-            if (string.IsNullOrWhiteSpace(codexConfig.BaseUrl) && !string.IsNullOrWhiteSpace(sparkConfig.BaseUrl))
-            {
-                codexConfig.BaseUrl = sparkConfig.BaseUrl;
-            }
-
-            codexConfig.ShowInTray |= sparkConfig.ShowInTray;
-            codexConfig.EnableNotifications |= sparkConfig.EnableNotifications;
-        }
-
-        configs.RemoveAll(config => string.Equals(config.ProviderId, "codex.spark", StringComparison.OrdinalIgnoreCase));
+            var ownerProviderId = GetCanonicalConfigOwnerId(config);
+            return !string.Equals(ownerProviderId, config.ProviderId, StringComparison.OrdinalIgnoreCase);
+        });
     }
 
     private static ProviderConfig? GetOrCreateConfig(List<ProviderConfig> configs, string providerId)
@@ -234,6 +242,79 @@ public static class ProviderMetadataCatalog
         return configs.Any(config =>
             string.Equals(config.ProviderId, providerId, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(config.ApiKey));
+    }
+
+    private static string GetCanonicalConfigOwnerId(ProviderConfig config)
+    {
+        if (TryGet(config.ProviderId, out var definition) && IsSessionAuthConfig(config, definition))
+        {
+            return definition.SessionAuthCanonicalProviderId!;
+        }
+
+        return GetCanonicalProviderId(config.ProviderId);
+    }
+
+    private static bool IsSessionAuthConfig(ProviderConfig config)
+    {
+        return TryGet(config.ProviderId, out var definition) && IsSessionAuthConfig(config, definition);
+    }
+
+    private static bool IsSessionAuthConfig(ProviderConfig config, ProviderDefinition definition)
+    {
+        if (string.IsNullOrWhiteSpace(definition.SessionAuthCanonicalProviderId) ||
+            string.IsNullOrWhiteSpace(config.ApiKey))
+        {
+            return false;
+        }
+
+        if (definition.ExplicitApiKeyPrefixes.Count == 0)
+        {
+            return true;
+        }
+
+        return !definition.ExplicitApiKeyPrefixes.Any(prefix =>
+            config.ApiKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void MergeConfigIntoCanonical(ProviderConfig sourceConfig, ProviderConfig canonicalConfig)
+    {
+        if (string.IsNullOrWhiteSpace(canonicalConfig.ApiKey) && !string.IsNullOrWhiteSpace(sourceConfig.ApiKey))
+        {
+            canonicalConfig.ApiKey = sourceConfig.ApiKey;
+        }
+
+        if ((string.IsNullOrWhiteSpace(canonicalConfig.AuthSource) ||
+             string.Equals(canonicalConfig.AuthSource, "Unknown", StringComparison.OrdinalIgnoreCase)) &&
+            !string.IsNullOrWhiteSpace(sourceConfig.AuthSource))
+        {
+            canonicalConfig.AuthSource = sourceConfig.AuthSource;
+        }
+
+        var sourceDescription = GetPreferredMigrationDescription(sourceConfig);
+        if (string.IsNullOrWhiteSpace(canonicalConfig.Description) && !string.IsNullOrWhiteSpace(sourceDescription))
+        {
+            canonicalConfig.Description = sourceDescription;
+        }
+
+        if (string.IsNullOrWhiteSpace(canonicalConfig.BaseUrl) && !string.IsNullOrWhiteSpace(sourceConfig.BaseUrl))
+        {
+            canonicalConfig.BaseUrl = sourceConfig.BaseUrl;
+        }
+
+        canonicalConfig.ShowInTray |= sourceConfig.ShowInTray;
+        canonicalConfig.EnableNotifications |= sourceConfig.EnableNotifications;
+    }
+
+    private static string? GetPreferredMigrationDescription(ProviderConfig sourceConfig)
+    {
+        if (TryGet(sourceConfig.ProviderId, out var definition) &&
+            IsSessionAuthConfig(sourceConfig, definition) &&
+            !string.IsNullOrWhiteSpace(definition.SessionAuthMigrationDescription))
+        {
+            return definition.SessionAuthMigrationDescription;
+        }
+
+        return sourceConfig.Description;
     }
 
     private static ProviderDefinition ReadDefinition(Type providerType)

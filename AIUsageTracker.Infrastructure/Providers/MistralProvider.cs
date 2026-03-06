@@ -14,7 +14,8 @@ public class MistralProvider : ProviderBase
         displayName: "Mistral",
         planType: PlanType.Usage,
         isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go");
+        defaultConfigType: "pay-as-you-go",
+        rooConfigPropertyNames: new[] { "mistralApiKey" });
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

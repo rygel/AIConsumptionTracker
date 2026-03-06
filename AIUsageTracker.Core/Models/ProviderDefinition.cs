@@ -12,6 +12,13 @@ public sealed class ProviderDefinition
     public bool SupportsChildProviderIds { get; }
     public IReadOnlyCollection<string> HandledProviderIds { get; }
     public IReadOnlyDictionary<string, string> DisplayNameOverrides { get; }
+    public IReadOnlyCollection<string> DiscoveryEnvironmentVariables { get; }
+    public IReadOnlyCollection<string> RooConfigPropertyNames { get; }
+    public IReadOnlyCollection<string> NonPersistedProviderIds { get; }
+    public IReadOnlyCollection<string> VisibleDerivedProviderIds { get; }
+    public IReadOnlyCollection<string> ExplicitApiKeyPrefixes { get; }
+    public string? SessionAuthCanonicalProviderId { get; }
+    public string? SessionAuthMigrationDescription { get; }
 
     private readonly HashSet<string> _handledProviderIds;
 
@@ -25,7 +32,14 @@ public sealed class ProviderDefinition
         bool includeInWellKnownProviders = false,
         IEnumerable<string>? handledProviderIds = null,
         IReadOnlyDictionary<string, string>? displayNameOverrides = null,
-        bool supportsChildProviderIds = false)
+        bool supportsChildProviderIds = false,
+        IEnumerable<string>? discoveryEnvironmentVariables = null,
+        IEnumerable<string>? rooConfigPropertyNames = null,
+        IEnumerable<string>? nonPersistedProviderIds = null,
+        IEnumerable<string>? visibleDerivedProviderIds = null,
+        IEnumerable<string>? explicitApiKeyPrefixes = null,
+        string? sessionAuthCanonicalProviderId = null,
+        string? sessionAuthMigrationDescription = null)
     {
         if (string.IsNullOrWhiteSpace(providerId))
         {
@@ -45,6 +59,13 @@ public sealed class ProviderDefinition
         AutoIncludeWhenUnconfigured = autoIncludeWhenUnconfigured;
         IncludeInWellKnownProviders = includeInWellKnownProviders;
         SupportsChildProviderIds = supportsChildProviderIds;
+        DiscoveryEnvironmentVariables = NormalizeValues(discoveryEnvironmentVariables);
+        RooConfigPropertyNames = NormalizeValues(rooConfigPropertyNames);
+        NonPersistedProviderIds = NormalizeValues(nonPersistedProviderIds);
+        VisibleDerivedProviderIds = NormalizeValues(visibleDerivedProviderIds);
+        ExplicitApiKeyPrefixes = NormalizeValues(explicitApiKeyPrefixes);
+        SessionAuthCanonicalProviderId = sessionAuthCanonicalProviderId;
+        SessionAuthMigrationDescription = sessionAuthMigrationDescription;
 
         var normalizedHandledIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -106,5 +127,18 @@ public sealed class ProviderDefinition
         }
 
         return null;
+    }
+
+    private static IReadOnlyCollection<string> NormalizeValues(IEnumerable<string>? values)
+    {
+        if (values == null)
+        {
+            return Array.Empty<string>();
+        }
+
+        return values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 }

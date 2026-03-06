@@ -35,6 +35,7 @@ public class ProviderMetadataCatalogTests
     [Theory]
     [InlineData("codex.spark", "codex", "OpenAI (GPT-5.3-Codex-Spark)")]
     [InlineData("gemini", "gemini-cli", "Google Gemini")]
+    [InlineData("kimi-for-coding", "kimi", "Kimi")]
     [InlineData("minimax-io", "minimax", "Minimax (International)")]
     [InlineData("minimax-global", "minimax", "Minimax (International)")]
     [InlineData("zai", "zai-coding-plan", "Z.AI")]
@@ -96,6 +97,7 @@ public class ProviderMetadataCatalogTests
     [Theory]
     [InlineData("codex.spark", "codex")]
     [InlineData("antigravity.claude-opus", "antigravity")]
+    [InlineData("kimi-for-coding", "kimi")]
     [InlineData("minimax-io", "minimax")]
     [InlineData("unknown-provider", "unknown-provider")]
     public void GetCanonicalProviderId_UsesProviderDefinitions(string providerId, string expectedCanonicalId)
@@ -110,5 +112,49 @@ public class ProviderMetadataCatalogTests
     public void IsAggregateParentProviderId_DetectsOnlyAggregateParent(string providerId, bool expected)
     {
         Assert.Equal(expected, ProviderMetadataCatalog.IsAggregateParentProviderId(providerId));
+    }
+
+    [Theory]
+    [InlineData("OPENAI_API_KEY", "openai")]
+    [InlineData("CODEX_API_KEY", "codex")]
+    [InlineData("MOONSHOT_API_KEY", "kimi")]
+    [InlineData("CLAUDE_API_KEY", "claude-code")]
+    public void FindByEnvironmentVariable_UsesProviderDefinitions(string environmentVariableName, string expectedProviderId)
+    {
+        var definition = ProviderMetadataCatalog.FindByEnvironmentVariable(environmentVariableName);
+
+        Assert.NotNull(definition);
+        Assert.Equal(expectedProviderId, definition!.ProviderId);
+    }
+
+    [Theory]
+    [InlineData("openAiApiKey", "openai")]
+    [InlineData("geminiApiKey", "gemini-cli")]
+    [InlineData("openrouterApiKey", "openrouter")]
+    [InlineData("mistralApiKey", "mistral")]
+    public void FindByRooConfigProperty_UsesProviderDefinitions(string propertyName, string expectedProviderId)
+    {
+        var definition = ProviderMetadataCatalog.FindByRooConfigProperty(propertyName);
+
+        Assert.NotNull(definition);
+        Assert.Equal(expectedProviderId, definition!.ProviderId);
+    }
+
+    [Theory]
+    [InlineData("codex.spark", false)]
+    [InlineData("codex", true)]
+    [InlineData("openai", true)]
+    public void ShouldPersistProviderId_UsesProviderDefinitions(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.ShouldPersistProviderId(providerId));
+    }
+
+    [Theory]
+    [InlineData("codex.spark", true)]
+    [InlineData("codex", false)]
+    [InlineData("openai", false)]
+    public void IsVisibleDerivedProviderId_UsesProviderDefinitions(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.IsVisibleDerivedProviderId(providerId));
     }
 }
