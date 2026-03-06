@@ -302,18 +302,22 @@ public class TokenDiscoveryService
 
     private void AddOrUpdate(List<ProviderConfig> configs, string providerId, string key, string description, string source)
     {
-        if (!TryGetProviderDefaults(providerId, out var providerDefaults))
+        if (!ProviderMetadataCatalog.TryCreateDefaultConfig(
+                providerId,
+                out var defaultConfig,
+                apiKey: key,
+                authSource: source,
+                description: description))
         {
             _logger.LogWarning("Skipping token discovery for unsupported provider id '{ProviderId}'.", providerId);
             return;
         }
 
-        var (planType, type) = providerDefaults;
         var existing = configs.FirstOrDefault(c => c.ProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase));
         if (existing != null)
         {
-            existing.PlanType = planType;
-            existing.Type = type;
+            existing.PlanType = defaultConfig.PlanType;
+            existing.Type = defaultConfig.Type;
             if (!string.IsNullOrEmpty(key))
             {
                 existing.ApiKey = key;
@@ -323,15 +327,7 @@ public class TokenDiscoveryService
         }
         else
         {
-            configs.Add(new ProviderConfig
-            {
-                ProviderId = providerId,
-                ApiKey = key,
-                Type = type,
-                PlanType = planType,
-                Description = description,
-                AuthSource = source
-            });
+            configs.Add(defaultConfig);
         }
     }
 
@@ -503,7 +499,12 @@ public class TokenDiscoveryService
 
     private void AddIfNotExists(List<ProviderConfig> configs, string providerId, string key, string description, string source)
     {
-        if (!TryGetProviderDefaults(providerId, out var providerDefaults))
+        if (!ProviderMetadataCatalog.TryCreateDefaultConfig(
+                providerId,
+                out var defaultConfig,
+                apiKey: key,
+                authSource: source,
+                description: description))
         {
             _logger.LogDebug("Ignoring unsupported provider id '{ProviderId}' from discovery source '{Source}'.", providerId, source);
             return;
@@ -511,28 +512,7 @@ public class TokenDiscoveryService
 
         if (!configs.Any(c => c.ProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase)))
         {
-            var (planType, type) = providerDefaults;
-            configs.Add(new ProviderConfig
-            {
-                ProviderId = providerId,
-                ApiKey = key,
-                Type = type,
-                PlanType = planType,
-                Description = description,
-                AuthSource = source
-            });
+            configs.Add(defaultConfig);
         }
-    }
-
-    private static bool TryGetProviderDefaults(string providerId, out (PlanType PlanType, string Type) defaults)
-    {
-        if (ProviderMetadataCatalog.TryGet(providerId, out var definition))
-        {
-            defaults = (definition.PlanType, definition.DefaultConfigType);
-            return true;
-        }
-
-        defaults = default;
-        return false;
     }
 }

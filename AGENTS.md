@@ -67,6 +67,15 @@ dotnet test --filter "FullyQualifiedName~GetAllUsageAsync_LoadsConfigAndFetchesU
 dotnet test --filter "FullyQualifiedName~ProviderManagerTests"
 ```
 
+### Test Timeouts
+- Always run builds and tests with a sensible timeout to avoid hanging indefinitely on deadlocks, endless loops, or stalled restores.
+- Treat timeout expiry as a failure that must be reported and investigated, not as a command to rerun indefinitely.
+- Preferred limits:
+  - Targeted test runs: 60-120 seconds
+  - Project builds: 60-120 seconds
+  - Full test suites: 180-300 seconds
+- If a command times out, isolate the specific hanging test or build step before retrying.
+
 ### Running the Monitor
 ```bash
 # Run the Monitor service

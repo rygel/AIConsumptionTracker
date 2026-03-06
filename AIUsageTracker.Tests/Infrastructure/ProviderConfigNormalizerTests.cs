@@ -1,0 +1,63 @@
+using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Configuration;
+
+namespace AIUsageTracker.Tests.Infrastructure;
+
+public class ProviderConfigNormalizerTests
+{
+    [Fact]
+    public void NormalizeOpenAiCodexSessionOverlap_MigratesSessionTokenToCodex()
+    {
+        var configs = new List<ProviderConfig>
+        {
+            new()
+            {
+                ProviderId = "openai",
+                ApiKey = "session-token",
+                AuthSource = "OpenCode",
+                Description = "session"
+            }
+        };
+
+        ProviderConfigNormalizer.NormalizeOpenAiCodexSessionOverlap(configs);
+
+        var codex = Assert.Single(configs);
+        Assert.Equal("codex", codex.ProviderId);
+        Assert.Equal("session-token", codex.ApiKey);
+        Assert.Equal(PlanType.Coding, codex.PlanType);
+        Assert.Equal("quota-based", codex.Type);
+        Assert.Equal("OpenCode", codex.AuthSource);
+        Assert.Equal("Migrated from OpenAI session config", codex.Description);
+    }
+
+    [Fact]
+    public void NormalizeCodexSparkConfiguration_MergesSparkIntoCodex()
+    {
+        var configs = new List<ProviderConfig>
+        {
+            new()
+            {
+                ProviderId = "codex.spark",
+                ApiKey = "spark-token",
+                AuthSource = "Spark",
+                Description = "spark",
+                BaseUrl = "https://example.invalid",
+                ShowInTray = true,
+                EnableNotifications = true
+            }
+        };
+
+        ProviderConfigNormalizer.NormalizeCodexSparkConfiguration(configs);
+
+        var codex = Assert.Single(configs);
+        Assert.Equal("codex", codex.ProviderId);
+        Assert.Equal("spark-token", codex.ApiKey);
+        Assert.Equal("Spark", codex.AuthSource);
+        Assert.Equal("spark", codex.Description);
+        Assert.Equal("https://example.invalid", codex.BaseUrl);
+        Assert.True(codex.ShowInTray);
+        Assert.True(codex.EnableNotifications);
+        Assert.Equal(PlanType.Coding, codex.PlanType);
+        Assert.Equal("quota-based", codex.Type);
+    }
+}
