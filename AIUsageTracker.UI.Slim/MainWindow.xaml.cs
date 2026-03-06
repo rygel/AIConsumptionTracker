@@ -1752,7 +1752,16 @@ public partial class MainWindow : Window
         }
 
         // Use explicit WindowKind only
-        var hourlyDetail = windows.FirstOrDefault(d => d.WindowKind == WindowKind.Primary || d.WindowKind == WindowKind.Spark);
+        // Hourly/5-hour limit is Primary
+        // Weekly limit is Secondary
+        var hourlyDetail = windows.FirstOrDefault(d => d.WindowKind == WindowKind.Primary);
+        
+        // Fallback to Spark if Primary not found (Codex specific)
+        if (hourlyDetail == null)
+        {
+            hourlyDetail = windows.FirstOrDefault(d => d.WindowKind == WindowKind.Spark);
+        }
+
         var weeklyDetail = windows.FirstOrDefault(d => d.WindowKind == WindowKind.Secondary);
 
         if (hourlyDetail == null || weeklyDetail == null || hourlyDetail == weeklyDetail)
