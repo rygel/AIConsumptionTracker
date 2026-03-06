@@ -321,12 +321,12 @@ public sealed class SyntheticProvider : ProviderBase
     {
         nextResetTime = null;
 
-        if (string.IsNullOrWhiteSpace(resetRaw) || !DateTime.TryParse(resetRaw, out var parsed))
+        if (string.IsNullOrWhiteSpace(resetRaw) || !DateTime.TryParse(resetRaw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
         {
             return string.Empty;
         }
 
-        var localTime = parsed.ToLocalTime();
+        var localTime = parsed.ToUniversalTime().ToLocalTime();
         nextResetTime = localTime;
         return $" (Resets: {localTime:MMM dd HH:mm})";
     }

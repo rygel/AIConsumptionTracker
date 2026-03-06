@@ -49,7 +49,17 @@ public class KimiProvider : ProviderBase
             }
 
             var content = await response.Content.ReadAsStringAsync();
-            var data = JsonSerializer.Deserialize<KimiUsageResponse>(content);
+            KimiUsageResponse? data;
+            try
+            {
+                data = JsonSerializer.Deserialize<KimiUsageResponse>(content, JsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Kimi API response could not be deserialized. Unexpected format? Raw: {Raw}",
+                    content.Length > 500 ? content[..500] : content);
+                return new[] { CreateUnavailableUsage("Unexpected response format", authSource: config.AuthSource) };
+            }
             if (data == null || data.Usage == null)
             {
                 return new[] { CreateUnavailableUsage("Invalid response format", authSource: config.AuthSource) };
@@ -197,6 +207,12 @@ public class KimiProvider : ProviderBase
             return WindowKind.Secondary;
         }
 
+        // Daily limits in some coding plans
+        if (unit == "TIME_UNIT_DAY" && duration == 1)
+        {
+            return WindowKind.Primary;
+        }
+
         // 3h or 5h windows should be Primary
         if (unit == "TIME_UNIT_HOUR" && (duration == 3 || duration == 5))
         {
@@ -204,7 +220,7 @@ public class KimiProvider : ProviderBase
         }
 
         // Minutes-based windows (like 60m for 1h, 180m for 3h, 300m for 5h)
-        if (unit == "TIME_UNIT_MINUTE" && (duration == 60 || duration == 180 || duration == 300))
+        if (unit == "TIME_UNIT_MINUTE" && (duration >= 60 && duration <= 300))
         {
             return WindowKind.Primary;
         }
@@ -221,6 +237,11 @@ public class KimiProvider : ProviderBase
         public List<KimiLimitItem>? Limits { get; set; }
     }
 
+    // Kimi API intentionally returns numeric fields as JSON strings (e.g. {"limit":"100"}).
+    // [JsonNumberHandling] is applied explicitly here — this is a documented API contract,
+    // not a global silent fallback. If Kimi's format changes, JsonException will be thrown
+    // and logged by the caller.
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     private class KimiUsageData
     {
         [JsonPropertyName("limit")]
@@ -254,6 +275,7 @@ public class KimiProvider : ProviderBase
         public string? TimeUnit { get; set; }
     }
 
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     private class KimiLimitDetail
     {
          [JsonPropertyName("limit")]

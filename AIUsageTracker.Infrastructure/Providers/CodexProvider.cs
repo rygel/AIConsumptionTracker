@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Providers;
 using Microsoft.Extensions.Logging;
@@ -148,11 +149,11 @@ public class CodexProvider : ProviderBase
         string? rawJson = null,
         int httpStatus = 200)
     {
-        var planType = ReadString(root, "plan_type") ?? jwtPlanType ?? "unknown";
-        var primaryUsedPercent = ReadDouble(root, "rate_limit", "primary_window", "used_percent") ?? 0.0;
-        var primaryResetSeconds = ReadDouble(root, "rate_limit", "primary_window", "reset_after_seconds");
-        var secondaryUsedPercent = ReadDouble(root, "rate_limit", "secondary_window", "used_percent");
-        var secondaryResetSeconds = ReadDouble(root, "rate_limit", "secondary_window", "reset_after_seconds");
+        var planType = root.ReadString("plan_type") ?? jwtPlanType ?? "unknown";
+        var primaryUsedPercent = root.ReadDouble("rate_limit", "primary_window", "used_percent") ?? 0.0;
+        var primaryResetSeconds = root.ReadDouble("rate_limit", "primary_window", "reset_after_seconds");
+        var secondaryUsedPercent = root.ReadDouble("rate_limit", "secondary_window", "used_percent");
+        var secondaryResetSeconds = root.ReadDouble("rate_limit", "secondary_window", "reset_after_seconds");
         var sparkWindow = ExtractSparkWindow(root);
         var modelNames = ResolveModelNames(root, sparkWindow);
         var accountIdentity = ResolveAccountIdentity(root, jwtEmail, authIdentity, accountId);
@@ -263,7 +264,7 @@ public class CodexProvider : ProviderBase
             }
         }
 
-        var profileEmail = ReadString(root, ProfileClaimKey, "email");
+        var profileEmail = root.ReadString(ProfileClaimKey, "email");
         if (IsEmailLike(profileEmail))
         {
             return profileEmail;
@@ -337,37 +338,41 @@ public class CodexProvider : ProviderBase
                 if (root.TryGetProperty("tokens", out var tokensElement) &&
                     tokensElement.ValueKind == JsonValueKind.Object)
                 {
-                    var accessToken = ReadString(tokensElement, "access_token");
-                    if (!string.IsNullOrWhiteSpace(accessToken))
+                    var accessToken = tokensElement.ReadString("access_token");
+                    if (string.IsNullOrWhiteSpace(accessToken))
                     {
-                        var idToken = ReadString(tokensElement, "id_token");
-                        var accountId = ReadString(tokensElement, "account_id");
-                        var identity = ResolveIdentityFromAuthPayload(root, accessToken, idToken);
-                        return new CodexAuth
-                        {
-                            AccessToken = accessToken,
-                            AccountId = accountId,
-                            Identity = identity
-                        };
+                        continue;
                     }
+
+                    var idToken = tokensElement.ReadString("id_token");
+                    var accountId = tokensElement.ReadString("account_id");
+                    var identity = ResolveIdentityFromAuthPayload(root, accessToken, idToken);
+                    return new CodexAuth
+                    {
+                        AccessToken = accessToken,
+                        AccountId = accountId,
+                        Identity = identity
+                    };
                 }
 
                 if (root.TryGetProperty("openai", out var openAiElement) &&
                     openAiElement.ValueKind == JsonValueKind.Object)
                 {
-                    var accessToken = ReadString(openAiElement, "access");
-                    if (!string.IsNullOrWhiteSpace(accessToken))
+                    var accessToken = openAiElement.ReadString("access");
+                    if (string.IsNullOrWhiteSpace(accessToken))
                     {
-                        var idToken = ReadString(openAiElement, "id_token");
-                        var accountId = ReadString(openAiElement, "accountId") ?? ReadString(openAiElement, "account_id");
-                        var identity = ResolveIdentityFromAuthPayload(openAiElement, accessToken, idToken);
-                        return new CodexAuth
-                        {
-                            AccessToken = accessToken,
-                            AccountId = accountId,
-                            Identity = identity
-                        };
+                        continue;
                     }
+
+                    var idToken = openAiElement.ReadString("id_token");
+                    var accountId = openAiElement.ReadString("accountId") ?? openAiElement.ReadString("account_id");
+                    var identity = ResolveIdentityFromAuthPayload(openAiElement, accessToken, idToken);
+                    return new CodexAuth
+                    {
+                        AccessToken = accessToken,
+                        AccountId = accountId,
+                        Identity = identity
+                    };
                 }
             }
             catch (Exception ex)
@@ -413,7 +418,7 @@ public class CodexProvider : ProviderBase
     {
         foreach (var claim in new[] { "email", "upn", "preferred_username", "username", "login", "name" })
         {
-            var value = ReadString(source, claim);
+            var value = source.ReadString(claim);
             if (string.IsNullOrWhiteSpace(value))
             {
                 continue;
@@ -425,7 +430,7 @@ public class CodexProvider : ProviderBase
             }
         }
 
-        var nestedProfile = ReadString(source, "profile", "email");
+        var nestedProfile = source.ReadString("profile", "email");
         if (IsEmailLike(nestedProfile))
         {
             return nestedProfile;
@@ -508,8 +513,8 @@ public class CodexProvider : ProviderBase
             });
         }
 
-        var creditsBalance = ReadDouble(root, "credits", "balance");
-        var creditsUnlimited = ReadBool(root, "credits", "unlimited");
+        var creditsBalance = root.ReadDouble("credits", "balance");
+        var creditsUnlimited = root.ReadBool("credits", "unlimited");
         if (creditsBalance.HasValue || creditsUnlimited.HasValue)
         {
             var creditValue = creditsUnlimited == true
@@ -530,11 +535,11 @@ public class CodexProvider : ProviderBase
 
     private static (string PrimaryModelName, string? SparkModelName) ResolveModelNames(JsonElement root, SparkWindow sparkWindow)
     {
-        var primaryRaw = ReadString(root, "model_name")
-                         ?? ReadString(root, "model")
-                         ?? ReadString(root, "rate_limit", "primary_window", "model_name")
-                         ?? ReadString(root, "rate_limit", "primary_window", "model")
-                         ?? ReadString(root, "rate_limit", "primary_window", "limit_name");
+        var primaryRaw = root.ReadString("model_name")
+                         ?? root.ReadString("model")
+                         ?? root.ReadString("rate_limit", "primary_window", "model_name")
+                         ?? root.ReadString("rate_limit", "primary_window", "model")
+                         ?? root.ReadString("rate_limit", "primary_window", "limit_name");
         var primaryModelName = NormalizeModelName(primaryRaw, "OpenAI (Codex)") ?? "OpenAI (Codex)";
 
         string? sparkModelName = null;
@@ -628,7 +633,7 @@ public class CodexProvider : ProviderBase
             {
                 foreach (var claim in new[] { "email", "username", "name" })
                 {
-                    var value = ReadString(profile, claim);
+                    var value = profile.ReadString(claim);
                     if (IsEmailLike(value))
                     {
                         email = value;
@@ -705,18 +710,18 @@ public class CodexProvider : ProviderBase
             foreach (var item in additionalRateLimits.EnumerateArray())
             {
                 // Spark windows have a model_name or model field and rate_limit data
-                var modelName = ReadString(item, "model_name") ?? ReadString(item, "model");
-                
+                var modelName = item.ReadString("model_name") ?? item.ReadString("model");
+
                 if (!item.TryGetProperty("rate_limit", out var sparkRateLimit))
                 {
                     continue;
                 }
 
-                var usedPercent = ReadDouble(sparkRateLimit, "primary_window", "used_percent");
-                var resetAfterSeconds = ReadDouble(sparkRateLimit, "primary_window", "reset_after_seconds");
+                var usedPercent = sparkRateLimit.ReadDouble("primary_window", "used_percent");
+                var resetAfterSeconds = sparkRateLimit.ReadDouble("primary_window", "reset_after_seconds");
                 if (usedPercent.HasValue || resetAfterSeconds.HasValue)
                 {
-                    var limitName = ReadString(item, "limit_name");
+                    var limitName = item.ReadString("limit_name");
                     return new SparkWindow(limitName, modelName, usedPercent, resetAfterSeconds);
                 }
             }
@@ -727,56 +732,17 @@ public class CodexProvider : ProviderBase
         {
             foreach (var property in rateLimit.EnumerateObject())
             {
-                var usedPercent = ReadDouble(property.Value, "primary_window", "used_percent");
-                var resetAfterSeconds = ReadDouble(property.Value, "primary_window", "reset_after_seconds");
+                var usedPercent = property.Value.ReadDouble("primary_window", "used_percent");
+                var resetAfterSeconds = property.Value.ReadDouble("primary_window", "reset_after_seconds");
                 if (usedPercent.HasValue || resetAfterSeconds.HasValue)
                 {
-                    var modelName = ReadString(property.Value, "model_name") ?? ReadString(property.Value, "model");
+                    var modelName = property.Value.ReadString("model_name") ?? property.Value.ReadString("model");
                     return new SparkWindow(property.Name, modelName, usedPercent, resetAfterSeconds);
                 }
             }
         }
 
         return new SparkWindow(null, null, null, null);
-    }
-
-    private static string? ReadString(JsonElement root, params string[] path)
-    {
-        var current = root;
-        foreach (var segment in path)
-        {
-            if (!current.TryGetProperty(segment, out current))
-            {
-                return null;
-            }
-        }
-
-        return current.ValueKind == JsonValueKind.String ? current.GetString() : null;
-    }
-
-    private static double? ReadDouble(JsonElement root, params string[] path)
-    {
-        var current = root;
-        foreach (var segment in path)
-        {
-            if (!current.TryGetProperty(segment, out current))
-            {
-                return null;
-            }
-        }
-
-        if (current.ValueKind == JsonValueKind.Number && current.TryGetDouble(out var number))
-        {
-            return number;
-        }
-
-        if (current.ValueKind == JsonValueKind.String &&
-            double.TryParse(current.GetString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
-        {
-            return parsed;
-        }
-
-        return null;
     }
 
     private static bool? ReadBool(JsonElement root, params string[] path)
