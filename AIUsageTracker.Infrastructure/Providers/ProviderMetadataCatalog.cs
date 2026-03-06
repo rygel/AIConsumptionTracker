@@ -67,6 +67,11 @@ public static class ProviderMetadataCatalog
         return providerId ?? string.Empty;
     }
 
+    public static bool IsAggregateParentProviderId(string providerId)
+    {
+        return string.Equals(providerId, "antigravity", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static bool TryCreateDefaultConfig(
         string providerId,
         out ProviderConfig config,

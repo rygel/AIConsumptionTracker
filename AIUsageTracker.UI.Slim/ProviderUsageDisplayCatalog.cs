@@ -1,4 +1,5 @@
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
 
@@ -55,7 +56,7 @@ internal static class ProviderUsageDisplayCatalog
 
     private static bool IsAntigravityParent(ProviderUsage usage)
     {
-        return string.Equals(usage.ProviderId, "antigravity", StringComparison.OrdinalIgnoreCase);
+        return ProviderMetadataCatalog.IsAggregateParentProviderId(usage.ProviderId ?? string.Empty);
     }
 
     private static ProviderUsage CreateAntigravityModelUsage(ProviderUsageDetail detail, ProviderUsage parentUsage)

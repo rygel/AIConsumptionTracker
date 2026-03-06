@@ -1186,7 +1186,7 @@ public partial class MainWindow : Window
                 if (isCollapsed) continue;
 
                 // Special handling for Antigravity
-                if (string.Equals(usage.ProviderId, "antigravity", StringComparison.OrdinalIgnoreCase))
+                if (ProviderMetadataCatalog.IsAggregateParentProviderId(usage.ProviderId ?? string.Empty))
                 {
                     if (usage.Details?.Any() == true)
                     {
@@ -1670,7 +1670,10 @@ public partial class MainWindow : Window
         }
 
         // Create collapsible section for sub-providers
-        var useAntigravityCollapsePreference = usage.ProviderId.StartsWith("antigravity", StringComparison.OrdinalIgnoreCase);
+        var useAntigravityCollapsePreference = string.Equals(
+            ProviderMetadataCatalog.GetCanonicalProviderId(usage.ProviderId ?? string.Empty),
+            "antigravity",
+            StringComparison.OrdinalIgnoreCase);
         var (subHeader, subContainer) = CreateCollapsibleHeader(
             $"{usage.ProviderName} Details",
             Brushes.DeepSkyBlue,

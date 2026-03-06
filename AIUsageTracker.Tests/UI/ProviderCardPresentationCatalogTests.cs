@@ -63,7 +63,7 @@ public sealed class ProviderCardPresentationCatalogTests
     }
 
     [Fact]
-    public void Create_KeepsDescription_ForStatusOnlyProvider()
+    public void Create_KeepsDescription_ForStatusUsage()
     {
         var usage = new ProviderUsage
         {
@@ -71,6 +71,7 @@ public sealed class ProviderCardPresentationCatalogTests
             Description = "Connected",
             IsAvailable = true,
             IsQuotaBased = true,
+            UsageUnit = "Status",
             RequestsPercentage = 70
         };
 

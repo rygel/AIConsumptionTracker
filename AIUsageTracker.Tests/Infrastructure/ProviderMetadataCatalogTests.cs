@@ -102,4 +102,13 @@ public class ProviderMetadataCatalogTests
     {
         Assert.Equal(expectedCanonicalId, ProviderMetadataCatalog.GetCanonicalProviderId(providerId));
     }
+
+    [Theory]
+    [InlineData("antigravity", true)]
+    [InlineData("antigravity.some-model", false)]
+    [InlineData("codex", false)]
+    public void IsAggregateParentProviderId_DetectsOnlyAggregateParent(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.IsAggregateParentProviderId(providerId));
+    }
 }
