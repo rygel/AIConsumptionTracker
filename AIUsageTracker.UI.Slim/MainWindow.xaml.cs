@@ -770,180 +770,18 @@ public partial class MainWindow : Window
     {
         if (deterministic)
         {
-            _preferences = new AppPreferences
-            {
-                AlwaysOnTop = true,
-                InvertProgressBar = true,
-                InvertCalculations = false,
-                ColorThresholdYellow = 60,
-                ColorThresholdRed = 80,
-                FontFamily = "Segoe UI",
-                FontSize = 12,
-                FontBold = false,
-                FontItalic = false,
-                IsPrivacyMode = true
-            };
+            var fixture = MainWindowDeterministicFixture.Create();
+            _preferences = fixture.Preferences;
 
             App.Preferences = _preferences;
             _isPrivacyMode = true;
             App.SetPrivacyMode(true);
             _preferencesLoaded = true;
-            _lastMonitorUpdate = new DateTime(2026, 2, 1, 12, 0, 0, DateTimeKind.Local);
-            var deterministicNow = new DateTime(2026, 2, 1, 12, 0, 0, DateTimeKind.Local);
+            _lastMonitorUpdate = fixture.LastMonitorUpdate;
             ApplyPreferences();
-            Width = 460;
+            Width = fixture.WindowWidth;
             Height = MinHeight;
-
-            static string GetProviderName(string providerId)
-            {
-                return ProviderMetadataCatalog.GetDisplayName(providerId);
-            }
-
-            _usages = new List<ProviderUsage>
-            {
-                new()
-                {
-                    ProviderId = "antigravity",
-                    ProviderName = GetProviderName("antigravity"),
-                    IsQuotaBased = true,
-                    PlanType = PlanType.Coding,
-                    DisplayAsFraction = true,
-                    RequestsPercentage = 60.0,
-                    RequestsUsed = 40,
-                    RequestsAvailable = 100,
-                    Description = "60.0% Remaining",
-                    IsAvailable = true,
-                    AuthSource = "local app",
-                    Details = new List<ProviderUsageDetail>
-                    {
-                        new()
-                        {
-                            Name = "Claude Opus 4.6 (Thinking)",
-                            ModelName = "Claude Opus 4.6 (Thinking)",
-                            GroupName = "Recommended Group 1",
-                            Used = "60%",
-                            Description = "60% remaining",
-                            NextResetTime = deterministicNow.AddHours(10)
-                        },
-                        new()
-                        {
-                            Name = "Claude Sonnet 4.6 (Thinking)",
-                            ModelName = "Claude Sonnet 4.6 (Thinking)",
-                            GroupName = "Recommended Group 1",
-                            Used = "60%",
-                            Description = "60% remaining",
-                            NextResetTime = deterministicNow.AddHours(10)
-                        },
-                        new()
-                        {
-                            Name = "Gemini 3 Flash",
-                            ModelName = "Gemini 3 Flash",
-                            GroupName = "Recommended Group 1",
-                            Used = "100%",
-                            Description = "100% remaining",
-                            NextResetTime = deterministicNow.AddHours(6)
-                        },
-                        new()
-                        {
-                            Name = "Gemini 3.1 Pro (High)",
-                            ModelName = "Gemini 3.1 Pro (High)",
-                            GroupName = "Recommended Group 1",
-                            Used = "100%",
-                            Description = "100% remaining",
-                            NextResetTime = deterministicNow.AddHours(14)
-                        },
-                        new()
-                        {
-                            Name = "Gemini 3.1 Pro (Low)",
-                            ModelName = "Gemini 3.1 Pro (Low)",
-                            GroupName = "Recommended Group 1",
-                            Used = "100%",
-                            Description = "100% remaining",
-                            NextResetTime = deterministicNow.AddHours(14)
-                        },
-                        new()
-                        {
-                            Name = "GPT-OSS 120B (Medium)",
-                            ModelName = "GPT-OSS 120B (Medium)",
-                            GroupName = "Recommended Group 1",
-                            Used = "60%",
-                            Description = "60% remaining",
-                            NextResetTime = deterministicNow.AddHours(8)
-                        }
-                    }
-                },
-                new()
-                {
-                    ProviderId = "github-copilot",
-                    ProviderName = GetProviderName("github-copilot"),
-                    IsQuotaBased = true,
-                    PlanType = PlanType.Coding,
-                    DisplayAsFraction = true,
-                    RequestsPercentage = 72.5,
-                    RequestsUsed = 110,
-                    RequestsAvailable = 400,
-                    Description = "72.5% Remaining",
-                    IsAvailable = true,
-                    AuthSource = "oauth",
-                    NextResetTime = deterministicNow.AddHours(20)
-                },
-                new()
-                {
-                    ProviderId = "zai-coding-plan",
-                    ProviderName = GetProviderName("zai-coding-plan"),
-                    IsQuotaBased = true,
-                    PlanType = PlanType.Coding,
-                    DisplayAsFraction = true,
-                    RequestsPercentage = 82.0,
-                    RequestsUsed = 45,
-                    RequestsAvailable = 250,
-                    Description = "82.0% Remaining",
-                    IsAvailable = true,
-                    AuthSource = "api key",
-                    NextResetTime = deterministicNow.AddHours(12)
-                },
-                new()
-                {
-                    ProviderId = "claude-code",
-                    ProviderName = GetProviderName("claude-code"),
-                    IsQuotaBased = false,
-                    PlanType = PlanType.Usage,
-                    RequestsPercentage = 0,
-                    RequestsUsed = 0,
-                    RequestsAvailable = 0,
-                    Description = "Connected",
-                    IsAvailable = true,
-                    AuthSource = "local credentials"
-                },
-                new()
-                {
-                    ProviderId = "synthetic",
-                    ProviderName = GetProviderName("synthetic"),
-                    IsQuotaBased = true,
-                    PlanType = PlanType.Coding,
-                    DisplayAsFraction = true,
-                    RequestsPercentage = 91.0,
-                    RequestsUsed = 18,
-                    RequestsAvailable = 200,
-                    Description = "91.0% Remaining",
-                    IsAvailable = true,
-                    AuthSource = "api key",
-                    NextResetTime = deterministicNow.AddHours(4)
-                },
-                new()
-                {
-                    ProviderId = "mistral",
-                    ProviderName = GetProviderName("mistral"),
-                    IsQuotaBased = false,
-                    PlanType = PlanType.Usage,
-                    RequestsPercentage = 0,
-                    RequestsUsed = 0,
-                    RequestsAvailable = 0,
-                    Description = "Connected",
-                    IsAvailable = true,
-                    AuthSource = "api key"
-                }
-            };
+            _usages = fixture.Usages;
 
             RenderProviders();
             ShowStatus($"{_lastMonitorUpdate:HH:mm:ss}", StatusType.Success);

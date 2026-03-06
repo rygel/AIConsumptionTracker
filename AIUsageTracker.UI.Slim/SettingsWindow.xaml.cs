@@ -483,8 +483,8 @@ public partial class SettingsWindow : Window
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Inputs
 
-        var inputMode = ProviderSettingsCatalog.GetInputMode(config, usage, isDerived);
-        var headerPanel = BuildProviderHeader(config, usage, isDerived, inputMode);
+        var settingsBehavior = ProviderSettingsCatalog.Resolve(config, usage, isDerived);
+        var headerPanel = BuildProviderHeader(config, settingsBehavior, isDerived);
 
         grid.Children.Add(headerPanel);
 
@@ -492,7 +492,7 @@ public partial class SettingsWindow : Window
         var keyPanel = new Grid { Margin = new Thickness(0, 0, 0, 0) };
         keyPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var keyContent = BuildProviderInputContent(config, usage, inputMode);
+        var keyContent = BuildProviderInputContent(config, usage, settingsBehavior);
         Grid.SetColumn(keyContent, 0);
         keyPanel.Children.Add(keyContent);
 
@@ -510,25 +510,25 @@ public partial class SettingsWindow : Window
         ProvidersStack.Children.Add(card);
     }
 
-    private FrameworkElement BuildProviderInputContent(ProviderConfig config, ProviderUsage? usage, ProviderInputMode inputMode)
+    private FrameworkElement BuildProviderInputContent(ProviderConfig config, ProviderUsage? usage, ProviderSettingsBehavior settingsBehavior)
     {
-        return inputMode switch
+        return settingsBehavior.InputMode switch
         {
             ProviderInputMode.DerivedReadOnly
                 or ProviderInputMode.AntigravityAutoDetected
                 or ProviderInputMode.GitHubCopilotAuthStatus
                 or ProviderInputMode.OpenAiSessionStatus
-                => BuildStatusPanel(config, usage, inputMode),
+                => BuildStatusPanel(config, usage, settingsBehavior),
             _ => BuildApiKeyEditor(config)
         };
     }
 
-    private StackPanel BuildStatusPanel(ProviderConfig config, ProviderUsage? usage, ProviderInputMode inputMode)
+    private StackPanel BuildStatusPanel(ProviderConfig config, ProviderUsage? usage, ProviderSettingsBehavior settingsBehavior)
     {
         var presentation = ProviderStatusPresentationCatalog.Create(
             config,
             usage,
-            inputMode,
+            settingsBehavior.InputMode,
             _isPrivacyMode,
             new ProviderAuthIdentities(_gitHubAuthUsername, _openAiAuthUsername, _codexAuthUsername));
 
@@ -562,7 +562,7 @@ public partial class SettingsWindow : Window
         return panel;
     }
 
-    private StackPanel BuildProviderHeader(ProviderConfig config, ProviderUsage? usage, bool isDerived, ProviderInputMode inputMode)
+    private StackPanel BuildProviderHeader(ProviderConfig config, ProviderSettingsBehavior settingsBehavior, bool isDerived)
     {
         var headerPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
 
@@ -606,7 +606,7 @@ public partial class SettingsWindow : Window
                 MarkSettingsChanged();
             }));
 
-        if (ProviderSettingsCatalog.IsInactive(config, usage, isDerived, inputMode))
+        if (settingsBehavior.IsInactive)
         {
             headerPanel.Children.Add(CreateInactiveBadge());
         }

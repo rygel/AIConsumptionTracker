@@ -91,6 +91,23 @@ public sealed class ProviderStatusPresentationCatalogTests
     }
 
     [Fact]
+    public void Create_ReturnsOpenAiPresentation_FromOpenAiIdentity()
+    {
+        var config = new ProviderConfig { ProviderId = "openai", ApiKey = "sess-token" };
+
+        var presentation = ProviderStatusPresentationCatalog.Create(
+            config,
+            usage: null,
+            ProviderInputMode.OpenAiSessionStatus,
+            isPrivacyMode: false,
+            new ProviderAuthIdentities(null, "openai-user@example.com", "codex-user@example.com"));
+
+        Assert.Equal("Authenticated (openai-user@example.com)", presentation.PrimaryText);
+        Assert.Single(presentation.SecondaryLines);
+        Assert.Equal("Next reset: loading...", presentation.SecondaryLines[0].Text);
+    }
+
+    [Fact]
     public void MaskAccountIdentifier_MasksEmailAddress()
     {
         var masked = ProviderStatusPresentationCatalog.MaskAccountIdentifier("person@example.com");

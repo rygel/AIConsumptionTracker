@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text.RegularExpressions;
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
 
@@ -159,16 +158,15 @@ internal static class ProviderStatusPresentationCatalog
         bool isPrivacyMode,
         ProviderAuthIdentities authIdentities)
     {
-        var isCodex = ProviderMetadataCatalog.GetCanonicalProviderId(config.ProviderId)
-            .Equals("codex", StringComparison.OrdinalIgnoreCase);
-        var providerSessionLabel = isCodex ? "OpenAI Codex" : "OpenAI";
+        var settingsBehavior = ProviderSettingsCatalog.Resolve(config, usage, isDerived: false);
+        var providerSessionLabel = settingsBehavior.SessionProviderLabel ?? "OpenAI";
         var hasSessionToken = ProviderSettingsCatalog.IsSessionToken(config.ApiKey);
         var isAuthenticated = hasSessionToken || usage?.IsAvailable == true;
         var accountName = usage?.AccountName;
 
         if (string.IsNullOrWhiteSpace(accountName) || accountName is "Unknown" or "User")
         {
-            accountName = isCodex
+            accountName = settingsBehavior.PreferCodexIdentity
                 ? (authIdentities.CodexUsername ?? authIdentities.OpenAiUsername)
                 : authIdentities.OpenAiUsername;
         }

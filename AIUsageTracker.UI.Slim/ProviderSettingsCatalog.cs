@@ -12,38 +12,53 @@ internal enum ProviderInputMode
     OpenAiSessionStatus
 }
 
+internal sealed record ProviderSettingsBehavior(
+    ProviderInputMode InputMode,
+    bool IsInactive,
+    bool IsDerivedVisible,
+    string? SessionProviderLabel,
+    bool PreferCodexIdentity);
+
 internal static class ProviderSettingsCatalog
 {
-    public static ProviderInputMode GetInputMode(ProviderConfig config, ProviderUsage? usage, bool isDerived)
+    public static ProviderSettingsBehavior Resolve(ProviderConfig config, ProviderUsage? usage, bool isDerived)
     {
-        if (isDerived)
-        {
-            return ProviderInputMode.DerivedReadOnly;
-        }
+        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(config.ProviderId);
+        var hasSessionToken = IsSessionToken(config.ApiKey);
 
-        return ProviderMetadataCatalog.GetCanonicalProviderId(config.ProviderId) switch
-        {
-            "antigravity" => ProviderInputMode.AntigravityAutoDetected,
-            "github-copilot" => ProviderInputMode.GitHubCopilotAuthStatus,
-            "codex" => ProviderInputMode.OpenAiSessionStatus,
-            "openai" when usage?.IsQuotaBased == true || IsSessionToken(config.ApiKey) => ProviderInputMode.OpenAiSessionStatus,
-            _ => ProviderInputMode.StandardApiKey
-        };
-    }
+        var inputMode = isDerived
+            ? ProviderInputMode.DerivedReadOnly
+            : canonicalProviderId switch
+            {
+                "antigravity" => ProviderInputMode.AntigravityAutoDetected,
+                "github-copilot" => ProviderInputMode.GitHubCopilotAuthStatus,
+                "codex" => ProviderInputMode.OpenAiSessionStatus,
+                "openai" when usage?.IsQuotaBased == true || hasSessionToken => ProviderInputMode.OpenAiSessionStatus,
+                _ => ProviderInputMode.StandardApiKey
+            };
 
-    public static bool IsInactive(ProviderConfig config, ProviderUsage? usage, bool isDerived, ProviderInputMode inputMode)
-    {
-        if (isDerived)
-        {
-            return false;
-        }
+        var isInactive = isDerived
+            ? false
+            : inputMode switch
+            {
+                ProviderInputMode.AntigravityAutoDetected => usage == null || !usage.IsAvailable,
+                ProviderInputMode.OpenAiSessionStatus => string.IsNullOrWhiteSpace(config.ApiKey) && !(usage?.IsAvailable == true),
+                _ => string.IsNullOrWhiteSpace(config.ApiKey)
+            };
 
-        return inputMode switch
-        {
-            ProviderInputMode.AntigravityAutoDetected => usage == null || !usage.IsAvailable,
-            ProviderInputMode.OpenAiSessionStatus => string.IsNullOrWhiteSpace(config.ApiKey) && !(usage?.IsAvailable == true),
-            _ => string.IsNullOrWhiteSpace(config.ApiKey)
-        };
+        var sessionProviderLabel = inputMode == ProviderInputMode.OpenAiSessionStatus
+            ? string.Equals(canonicalProviderId, "codex", StringComparison.OrdinalIgnoreCase)
+                ? "OpenAI Codex"
+                : "OpenAI"
+            : null;
+
+        return new ProviderSettingsBehavior(
+            InputMode: inputMode,
+            IsInactive: isInactive,
+            IsDerivedVisible: IsDerivedProviderVisible(config.ProviderId),
+            SessionProviderLabel: sessionProviderLabel,
+            PreferCodexIdentity: inputMode == ProviderInputMode.OpenAiSessionStatus &&
+                                 string.Equals(canonicalProviderId, "codex", StringComparison.OrdinalIgnoreCase));
     }
 
     public static bool IsDerivedProviderVisible(string? providerId)
