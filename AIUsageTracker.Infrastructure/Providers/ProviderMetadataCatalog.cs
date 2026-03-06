@@ -120,6 +120,61 @@ public static class ProviderMetadataCatalog
             definition.VisibleDerivedProviderIds.Contains(providerId, StringComparer.OrdinalIgnoreCase));
     }
 
+    public static IReadOnlyList<string> GetStartupRefreshProviderIds()
+    {
+        return Definitions
+            .Where(definition => definition.RefreshOnStartupWithCachedData)
+            .Select(definition => definition.ProviderId)
+            .ToList();
+    }
+
+    public static ProviderSettingsMode GetSettingsMode(string providerId)
+    {
+        return TryGet(providerId, out var definition)
+            ? definition.SettingsMode
+            : ProviderSettingsMode.StandardApiKey;
+    }
+
+    public static bool UsesSessionAuthStatusWhenQuotaBasedOrSessionToken(string providerId)
+    {
+        return TryGet(providerId, out var definition) &&
+               definition.UseSessionAuthStatusWhenQuotaBasedOrSessionToken;
+    }
+
+    public static string? GetSessionStatusLabel(string providerId)
+    {
+        return TryGet(providerId, out var definition)
+            ? definition.SessionStatusLabel
+            : null;
+    }
+
+    public static ProviderSessionIdentitySource GetSessionIdentitySource(string providerId)
+    {
+        return TryGet(providerId, out var definition)
+            ? definition.SessionIdentitySource
+            : ProviderSessionIdentitySource.None;
+    }
+
+    public static bool ShouldSuppressUsageProviderId(IReadOnlyCollection<ProviderConfig> configs, string providerId)
+    {
+        if (!TryGet(providerId, out var definition) ||
+            string.IsNullOrWhiteSpace(definition.SessionAuthCanonicalProviderId) ||
+            string.Equals(definition.SessionAuthCanonicalProviderId, definition.ProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return HasConfiguredCanonicalConfig(configs, definition.SessionAuthCanonicalProviderId) &&
+               configs.Any(config =>
+                   string.Equals(config.ProviderId, providerId, StringComparison.OrdinalIgnoreCase) &&
+                   IsSessionAuthConfig(config, definition));
+    }
+
+    public static bool ShouldSuppressConfig(IReadOnlyCollection<ProviderConfig> configs, ProviderConfig config)
+    {
+        return ShouldSuppressUsageProviderId(configs, config.ProviderId);
+    }
+
     public static bool TryCreateDefaultConfig(
         string providerId,
         out ProviderConfig config,

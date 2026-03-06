@@ -19,6 +19,11 @@ public sealed class ProviderDefinition
     public IReadOnlyCollection<string> ExplicitApiKeyPrefixes { get; }
     public string? SessionAuthCanonicalProviderId { get; }
     public string? SessionAuthMigrationDescription { get; }
+    public ProviderSettingsMode SettingsMode { get; }
+    public bool UseSessionAuthStatusWhenQuotaBasedOrSessionToken { get; }
+    public string? SessionStatusLabel { get; }
+    public ProviderSessionIdentitySource SessionIdentitySource { get; }
+    public bool RefreshOnStartupWithCachedData { get; }
 
     private readonly HashSet<string> _handledProviderIds;
 
@@ -39,7 +44,12 @@ public sealed class ProviderDefinition
         IEnumerable<string>? visibleDerivedProviderIds = null,
         IEnumerable<string>? explicitApiKeyPrefixes = null,
         string? sessionAuthCanonicalProviderId = null,
-        string? sessionAuthMigrationDescription = null)
+        string? sessionAuthMigrationDescription = null,
+        ProviderSettingsMode settingsMode = ProviderSettingsMode.StandardApiKey,
+        bool useSessionAuthStatusWhenQuotaBasedOrSessionToken = false,
+        string? sessionStatusLabel = null,
+        ProviderSessionIdentitySource sessionIdentitySource = ProviderSessionIdentitySource.None,
+        bool refreshOnStartupWithCachedData = false)
     {
         if (string.IsNullOrWhiteSpace(providerId))
         {
@@ -66,6 +76,11 @@ public sealed class ProviderDefinition
         ExplicitApiKeyPrefixes = NormalizeValues(explicitApiKeyPrefixes);
         SessionAuthCanonicalProviderId = sessionAuthCanonicalProviderId;
         SessionAuthMigrationDescription = sessionAuthMigrationDescription;
+        SettingsMode = settingsMode;
+        UseSessionAuthStatusWhenQuotaBasedOrSessionToken = useSessionAuthStatusWhenQuotaBasedOrSessionToken;
+        SessionStatusLabel = sessionStatusLabel;
+        SessionIdentitySource = sessionIdentitySource;
+        RefreshOnStartupWithCachedData = refreshOnStartupWithCachedData;
 
         var normalizedHandledIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {

@@ -13,7 +13,8 @@ public class GitHubCopilotProvider : ProviderBase
         planType: PlanType.Coding,
         isQuotaBased: true,
         defaultConfigType: "quota-based",
-        includeInWellKnownProviders: true);
+        includeInWellKnownProviders: true,
+        settingsMode: ProviderSettingsMode.ExternalAuthStatus);
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

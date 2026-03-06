@@ -255,12 +255,9 @@ app.MapGet("/api/usage", async (UsageDatabase db, IConfigService configService, 
     var usage = await db.GetLatestHistoryAsync();
 
     var configs = await configService.GetConfigsAsync();
-    if (ProviderMetadataCatalog.ShouldSuppressOpenAiSession(configs))
-    {
-        usage = usage
-            .Where(u => !u.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-    }
+    usage = usage
+        .Where(u => !ProviderMetadataCatalog.ShouldSuppressUsageProviderId(configs, u.ProviderId))
+        .ToList();
 
     logger.LogDebug("GET /api/usage returning {Count} providers: {Providers}", 
         usage.Count, string.Join(", ", usage.Select(u => u.ProviderId)));

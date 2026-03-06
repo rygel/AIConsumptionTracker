@@ -28,7 +28,10 @@ public class CodexProvider : ProviderBase
         supportsChildProviderIds: true,
         discoveryEnvironmentVariables: new[] { "CODEX_API_KEY" },
         nonPersistedProviderIds: new[] { "codex.spark" },
-        visibleDerivedProviderIds: new[] { "codex.spark" });
+        visibleDerivedProviderIds: new[] { "codex.spark" },
+        settingsMode: ProviderSettingsMode.SessionAuthStatus,
+        sessionStatusLabel: "OpenAI Codex",
+        sessionIdentitySource: ProviderSessionIdentitySource.Codex);
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

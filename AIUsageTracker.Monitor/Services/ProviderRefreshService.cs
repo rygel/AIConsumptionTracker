@@ -112,7 +112,7 @@ public class ProviderRefreshService : BackgroundService
                     _logger.LogDebug("Startup: running targeted refresh for system providers...");
                     await TriggerRefreshAsync(
                         forceAll: true,
-                        includeProviderIds: new[] { "antigravity" });
+                        includeProviderIds: ProviderMetadataCatalog.GetStartupRefreshProviderIds());
                     _logger.LogDebug("Startup: targeted refresh complete.");
                 }
                 catch (Exception ex)
@@ -207,14 +207,14 @@ public class ProviderRefreshService : BackgroundService
                 IsAutoIncludedProviderConfig(c.ProviderId) ||
                 !string.IsNullOrEmpty(c.ApiKey)).ToList();
 
-            if (ProviderMetadataCatalog.ShouldSuppressOpenAiSession(activeConfigs))
+            if (activeConfigs.Any(config => ProviderMetadataCatalog.ShouldSuppressConfig(activeConfigs, config)))
             {
                 var beforeCount = activeConfigs.Count;
                 activeConfigs = activeConfigs
-                    .Where(c => !ProviderMetadataCatalog.IsOpenAiSessionConfig(c))
+                    .Where(c => !ProviderMetadataCatalog.ShouldSuppressConfig(activeConfigs, c))
                     .ToList();
                 _logger.LogInformation(
-                    "Suppressed duplicate OpenAI session provider while Codex is active (removed {Count}).",
+                    "Suppressed duplicate session-backed provider while canonical provider is active (removed {Count}).",
                     beforeCount - activeConfigs.Count);
             }
 

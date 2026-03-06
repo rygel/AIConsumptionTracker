@@ -33,11 +33,8 @@ public class CodeGuardrailTests
         NormalizePath("AIUsageTracker.Infrastructure/Configuration/JsonConfigLoader.cs"),
         NormalizePath("AIUsageTracker.Infrastructure/Configuration/TokenDiscoveryService.cs"),
         NormalizePath("AIUsageTracker.Infrastructure/Services/CodexAuthService.cs"),
-        NormalizePath("AIUsageTracker.Monitor/Program.cs"),
-        NormalizePath("AIUsageTracker.Monitor/Services/ProviderRefreshService.cs"),
         NormalizePath("AIUsageTracker.UI.Slim/MainWindowDeterministicFixture.cs"),
         NormalizePath("AIUsageTracker.UI.Slim/ProviderAuthIdentityDiscovery.cs"),
-        NormalizePath("AIUsageTracker.UI.Slim/ProviderSettingsCatalog.cs"),
         NormalizePath("AIUsageTracker.UI.Slim/ProviderVisualCatalog.cs"),
         NormalizePath("AIUsageTracker.UI.Slim/SettingsWindowDeterministicFixture.cs")
     };

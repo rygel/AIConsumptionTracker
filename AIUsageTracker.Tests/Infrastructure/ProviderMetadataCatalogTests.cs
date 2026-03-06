@@ -157,4 +157,27 @@ public class ProviderMetadataCatalogTests
     {
         Assert.Equal(expected, ProviderMetadataCatalog.IsVisibleDerivedProviderId(providerId));
     }
+
+    [Fact]
+    public void GetStartupRefreshProviderIds_UsesProviderDefinitions()
+    {
+        var providerIds = ProviderMetadataCatalog.GetStartupRefreshProviderIds();
+
+        Assert.Contains("antigravity", providerIds);
+        Assert.DoesNotContain("codex", providerIds);
+    }
+
+    [Fact]
+    public void ShouldSuppressUsageProviderId_ReturnsTrue_ForSessionBackedAliasWithCanonicalConfig()
+    {
+        var configs = new List<ProviderConfig>
+        {
+            new() { ProviderId = "codex", ApiKey = "codex-session" },
+            new() { ProviderId = "openai", ApiKey = "legacy-session-token" }
+        };
+
+        var result = ProviderMetadataCatalog.ShouldSuppressUsageProviderId(configs, "openai");
+
+        Assert.True(result);
+    }
 }

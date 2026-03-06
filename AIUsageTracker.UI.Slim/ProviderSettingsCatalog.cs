@@ -28,14 +28,7 @@ internal static class ProviderSettingsCatalog
 
         var inputMode = isDerived
             ? ProviderInputMode.DerivedReadOnly
-            : canonicalProviderId switch
-            {
-                "antigravity" => ProviderInputMode.AntigravityAutoDetected,
-                "github-copilot" => ProviderInputMode.GitHubCopilotAuthStatus,
-                "codex" => ProviderInputMode.OpenAiSessionStatus,
-                "openai" when usage?.IsQuotaBased == true || hasSessionToken => ProviderInputMode.OpenAiSessionStatus,
-                _ => ProviderInputMode.StandardApiKey
-            };
+            : ResolveInputMode(canonicalProviderId, usage, hasSessionToken);
 
         var isInactive = isDerived
             ? false
@@ -47,9 +40,7 @@ internal static class ProviderSettingsCatalog
             };
 
         var sessionProviderLabel = inputMode == ProviderInputMode.OpenAiSessionStatus
-            ? string.Equals(canonicalProviderId, "codex", StringComparison.OrdinalIgnoreCase)
-                ? "OpenAI Codex"
-                : "OpenAI"
+            ? ProviderMetadataCatalog.GetSessionStatusLabel(canonicalProviderId)
             : null;
 
         return new ProviderSettingsBehavior(
@@ -58,7 +49,7 @@ internal static class ProviderSettingsCatalog
             IsDerivedVisible: IsDerivedProviderVisible(config.ProviderId),
             SessionProviderLabel: sessionProviderLabel,
             PreferCodexIdentity: inputMode == ProviderInputMode.OpenAiSessionStatus &&
-                                 string.Equals(canonicalProviderId, "codex", StringComparison.OrdinalIgnoreCase));
+                                 ProviderMetadataCatalog.GetSessionIdentitySource(canonicalProviderId) == ProviderSessionIdentitySource.Codex);
     }
 
     public static bool IsDerivedProviderVisible(string? providerId)
@@ -70,5 +61,25 @@ internal static class ProviderSettingsCatalog
     {
         return !string.IsNullOrWhiteSpace(apiKey) &&
                !apiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ProviderInputMode ResolveInputMode(string canonicalProviderId, ProviderUsage? usage, bool hasSessionToken)
+    {
+        var settingsMode = ProviderMetadataCatalog.GetSettingsMode(canonicalProviderId);
+        if (settingsMode == ProviderSettingsMode.SessionAuthStatus &&
+            ProviderMetadataCatalog.UsesSessionAuthStatusWhenQuotaBasedOrSessionToken(canonicalProviderId) &&
+            usage?.IsQuotaBased != true &&
+            !hasSessionToken)
+        {
+            settingsMode = ProviderSettingsMode.StandardApiKey;
+        }
+
+        return settingsMode switch
+        {
+            ProviderSettingsMode.AutoDetectedStatus => ProviderInputMode.AntigravityAutoDetected,
+            ProviderSettingsMode.ExternalAuthStatus => ProviderInputMode.GitHubCopilotAuthStatus,
+            ProviderSettingsMode.SessionAuthStatus => ProviderInputMode.OpenAiSessionStatus,
+            _ => ProviderInputMode.StandardApiKey
+        };
     }
 }

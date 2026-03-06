@@ -26,7 +26,9 @@ public class AntigravityProvider : ProviderBase
         defaultConfigType: "quota-based",
         autoIncludeWhenUnconfigured: true,
         includeInWellKnownProviders: true,
-        supportsChildProviderIds: true);
+        supportsChildProviderIds: true,
+        settingsMode: ProviderSettingsMode.AutoDetectedStatus,
+        refreshOnStartupWithCachedData: true);
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

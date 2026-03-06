@@ -24,7 +24,11 @@ public class OpenAIProvider : ProviderBase
         rooConfigPropertyNames: new[] { "openAiApiKey" },
         explicitApiKeyPrefixes: new[] { "sk-" },
         sessionAuthCanonicalProviderId: "codex",
-        sessionAuthMigrationDescription: "Migrated from OpenAI session config");
+        sessionAuthMigrationDescription: "Migrated from OpenAI session config",
+        settingsMode: ProviderSettingsMode.SessionAuthStatus,
+        useSessionAuthStatusWhenQuotaBasedOrSessionToken: true,
+        sessionStatusLabel: "OpenAI",
+        sessionIdentitySource: ProviderSessionIdentitySource.OpenAi);
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;
