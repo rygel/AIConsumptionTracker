@@ -1365,7 +1365,7 @@ public partial class MainWindow : Window
         // Background Progress Bar
         var pGrid = new Grid();
 
-        if (TryGetDualWindowUsedPercentages(usage, out var hourlyUsed, out var weeklyUsed))
+        if (ProviderDualWindowPresentationCatalog.TryGetDualWindowUsedPercentages(usage, out var hourlyUsed, out var weeklyUsed))
         {
             pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -1565,56 +1565,6 @@ public partial class MainWindow : Window
     {
         ToolTipService.SetInitialShowDelay(target, 100);
         ToolTipService.SetShowDuration(target, 15000);
-    }
-
-    private static bool TryGetDualWindowUsedPercentages(ProviderUsage usage, out double hourlyUsed, out double weeklyUsed)
-    {
-        hourlyUsed = 0;
-        weeklyUsed = 0;
-
-        if (usage.Details?.Any() != true)
-        {
-            return false;
-        }
-
-        // Find all quota windows
-        var windows = usage.Details
-            .Where(d => d.DetailType == ProviderUsageDetailType.QuotaWindow)
-            .ToList();
-
-        if (windows.Count < 2)
-        {
-            return false;
-        }
-
-        // Use explicit WindowKind only
-        // Hourly/5-hour limit is Primary
-        // Weekly limit is Secondary
-        var hourlyDetail = windows.FirstOrDefault(d => d.WindowKind == WindowKind.Primary);
-        
-        // Fallback to Spark if Primary not found (Codex specific)
-        if (hourlyDetail == null)
-        {
-            hourlyDetail = windows.FirstOrDefault(d => d.WindowKind == WindowKind.Spark);
-        }
-        var weeklyDetail = windows.FirstOrDefault(d => d.WindowKind == WindowKind.Secondary);
-
-        if (hourlyDetail == null || weeklyDetail == null || hourlyDetail == weeklyDetail)
-        {
-            return false;
-        }
-
-        var parsedHourly = UsageMath.GetEffectiveUsedPercent(hourlyDetail, usage.IsQuotaBased);
-        var parsedWeekly = UsageMath.GetEffectiveUsedPercent(weeklyDetail, usage.IsQuotaBased);
-
-        if (!parsedHourly.HasValue || !parsedWeekly.HasValue)
-        {
-            return false;
-        }
-
-        hourlyUsed = parsedHourly.Value;
-        weeklyUsed = parsedWeekly.Value;
-        return true;
     }
 
     private Grid CreateProgressLayer(double usedPercent, bool showUsed, double opacity)
