@@ -3,38 +3,9 @@ using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
 
-internal sealed record ProviderVisualDefinition(
-    string IconAssetName,
-    Brush? BadgeColor = null,
-    string? BadgeInitial = null);
-
 internal static class ProviderVisualCatalog
 {
-    private static readonly IReadOnlyDictionary<string, ProviderVisualDefinition> VisualDefinitions =
-        new Dictionary<string, ProviderVisualDefinition>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["github-copilot"] = new("github", Brushes.MediumPurple, "GH"),
-            ["gemini-cli"] = new("google", Brushes.DodgerBlue, "G"),
-            ["gemini"] = new("google", Brushes.DodgerBlue, "G"),
-            ["antigravity"] = new("google", Brushes.DodgerBlue, "G"),
-            ["claude-code"] = new("anthropic", Brushes.Orange, "C"),
-            ["claude"] = new("anthropic", Brushes.Orange, "C"),
-            ["anthropic"] = new("anthropic", Brushes.IndianRed, "An"),
-            ["minimax"] = new("minimax", Brushes.DarkTurquoise, "MM"),
-            ["kimi"] = new("kimi", Brushes.MediumOrchid, "K"),
-            ["xiaomi"] = new("xiaomi", Brushes.Orange, "Xi"),
-            ["zai"] = new("zai", Brushes.LightSeaGreen, "Z"),
-            ["zai-coding-plan"] = new("zai", Brushes.LightSeaGreen, "Z"),
-            ["deepseek"] = new("deepseek", Brushes.DeepSkyBlue, "DS"),
-            ["openrouter"] = new("openai", Brushes.DarkSlateBlue, "OR"),
-            ["codex"] = new("openai", Brushes.DarkCyan, "AI"),
-            ["openai"] = new("openai", Brushes.DarkCyan, "AI"),
-            ["mistral"] = new("mistral", Brushes.OrangeRed, "Mi"),
-            ["github"] = new("github"),
-            ["google"] = new("google", Brushes.DodgerBlue, "G"),
-            ["cloudcode"] = new("cloudcode", Brushes.DeepSkyBlue, "CC"),
-            ["synthetic"] = new("synthetic", Brushes.Gold, "Sy")
-        };
+    private static readonly Dictionary<string, Brush> BadgeBrushCache = new(StringComparer.OrdinalIgnoreCase);
 
     public static string GetCanonicalProviderId(string providerId)
     {
@@ -44,7 +15,8 @@ internal static class ProviderVisualCatalog
     public static string GetIconAssetName(string providerId)
     {
         var canonicalProviderId = GetCanonicalProviderId(providerId);
-        return TryGetVisualDefinition(canonicalProviderId, out var definition)
+        return ProviderMetadataCatalog.TryGet(canonicalProviderId, out var definition) &&
+               !string.IsNullOrWhiteSpace(definition.IconAssetName)
             ? definition.IconAssetName
             : canonicalProviderId;
     }
@@ -52,15 +24,38 @@ internal static class ProviderVisualCatalog
     public static (Brush Color, string Initial) GetFallbackBadge(string providerId, Brush defaultBrush)
     {
         var canonicalProviderId = GetCanonicalProviderId(providerId);
-        return TryGetVisualDefinition(canonicalProviderId, out var definition) &&
-               definition.BadgeColor != null &&
-               !string.IsNullOrWhiteSpace(definition.BadgeInitial)
-            ? (definition.BadgeColor, definition.BadgeInitial)
+        return TryGetBadgeDefinition(canonicalProviderId, out var badgeColor, out var badgeInitial)
+            ? (badgeColor, badgeInitial)
             : (defaultBrush, canonicalProviderId[..Math.Min(2, canonicalProviderId.Length)].ToUpperInvariant());
     }
 
-    private static bool TryGetVisualDefinition(string providerId, out ProviderVisualDefinition definition)
+    private static bool TryGetBadgeDefinition(string providerId, out Brush color, out string initial)
     {
-        return VisualDefinitions.TryGetValue(providerId, out definition!);
+        color = null!;
+        initial = string.Empty;
+
+        if (!ProviderMetadataCatalog.TryGet(providerId, out var definition) ||
+            string.IsNullOrWhiteSpace(definition.FallbackBadgeColorHex) ||
+            string.IsNullOrWhiteSpace(definition.FallbackBadgeInitial))
+        {
+            return false;
+        }
+
+        color = GetOrCreateBrush(definition.FallbackBadgeColorHex);
+        initial = definition.FallbackBadgeInitial;
+        return true;
+    }
+
+    private static Brush GetOrCreateBrush(string colorHex)
+    {
+        if (BadgeBrushCache.TryGetValue(colorHex, out var brush))
+        {
+            return brush;
+        }
+
+        brush = (SolidColorBrush)new BrushConverter().ConvertFrom(colorHex)!;
+        brush.Freeze();
+        BadgeBrushCache[colorHex] = brush;
+        return brush;
     }
 }

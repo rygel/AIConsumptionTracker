@@ -17,7 +17,10 @@ public class OpenRouterProvider : ProviderBase
         defaultConfigType: "pay-as-you-go",
         includeInWellKnownProviders: true,
         discoveryEnvironmentVariables: new[] { "OPENROUTER_API_KEY" },
-        rooConfigPropertyNames: new[] { "openrouterApiKey" });
+        rooConfigPropertyNames: new[] { "openrouterApiKey" },
+        iconAssetName: "openai",
+        fallbackBadgeColorHex: "#483D8B",
+        fallbackBadgeInitial: "OR");
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

@@ -31,7 +31,20 @@ public class CodexProvider : ProviderBase
         visibleDerivedProviderIds: new[] { "codex.spark" },
         settingsMode: ProviderSettingsMode.SessionAuthStatus,
         sessionStatusLabel: "OpenAI Codex",
-        sessionIdentitySource: ProviderSessionIdentitySource.Codex);
+        sessionIdentitySource: ProviderSessionIdentitySource.Codex,
+        iconAssetName: "openai",
+        fallbackBadgeColorHex: "#008B8B",
+        fallbackBadgeInitial: "AI",
+        authIdentityCandidatePathTemplates: new[]
+        {
+            "%USERPROFILE%\\.codex\\auth.json",
+            "%APPDATA%\\codex\\auth.json",
+            "%USERPROFILE%\\.local\\share\\opencode\\auth.json",
+            "%APPDATA%\\opencode\\auth.json",
+            "%LOCALAPPDATA%\\opencode\\auth.json",
+            "%USERPROFILE%\\.opencode\\auth.json"
+        },
+        authIdentityJsonRootProperties: new[] { "openai" });
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

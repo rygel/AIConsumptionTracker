@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Infrastructure.Services;
@@ -52,18 +53,18 @@ public class CodexAuthService : ICodexAuthService
                     };
                 }
 
-                // OpenCode shape: { "openai": { "access": "...", "accountId": "..." } }
+                // Compatibility shape stored under provider-defined identity roots.
                 using var doc = JsonDocument.Parse(json);
-                if (doc.RootElement.TryGetProperty("openai", out var openai) &&
-                    openai.ValueKind == JsonValueKind.Object)
+                var compatibilityRoot = FindFirstCompatibilityRoot(doc.RootElement);
+                if (compatibilityRoot != null)
                 {
-                    var access = openai.TryGetProperty("access", out var accessProp) && accessProp.ValueKind == JsonValueKind.String
+                    var access = compatibilityRoot.Value.TryGetProperty("access", out var accessProp) && accessProp.ValueKind == JsonValueKind.String
                         ? accessProp.GetString()
                         : null;
 
                     if (!string.IsNullOrWhiteSpace(access))
                     {
-                        var accountId = openai.TryGetProperty("accountId", out var accountIdProp) && accountIdProp.ValueKind == JsonValueKind.String
+                        var accountId = compatibilityRoot.Value.TryGetProperty("accountId", out var accountIdProp) && accountIdProp.ValueKind == JsonValueKind.String
                             ? accountIdProp.GetString()
                             : null;
 
@@ -93,25 +94,27 @@ public class CodexAuthService : ICodexAuthService
         }
 
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        yield return Path.Combine(home, ".codex", "auth.json");
-        yield return Path.Combine(home, ".local", "share", "opencode", "auth.json");
-        yield return Path.Combine(home, ".opencode", "auth.json");
-
-        if (OperatingSystem.IsWindows())
+        foreach (var pathTemplate in CodexProvider.StaticDefinition.AuthIdentityCandidatePathTemplates)
         {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            if (!string.IsNullOrWhiteSpace(appData))
+            var path = Environment.ExpandEnvironmentVariables(pathTemplate.Replace("%USERPROFILE%", home, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(path))
             {
-                yield return Path.Combine(appData, "codex", "auth.json");
-                yield return Path.Combine(appData, "opencode", "auth.json");
-            }
-
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            if (!string.IsNullOrWhiteSpace(localAppData))
-            {
-                yield return Path.Combine(localAppData, "opencode", "auth.json");
+                yield return path;
             }
         }
+    }
+
+    private static JsonElement? FindFirstCompatibilityRoot(JsonElement root)
+    {
+        foreach (var propertyName in CodexProvider.StaticDefinition.AuthIdentityJsonRootProperties)
+        {
+            if (root.TryGetProperty(propertyName, out var element) && element.ValueKind == JsonValueKind.Object)
+            {
+                return element;
+            }
+        }
+
+        return null;
     }
 
     private sealed class CodexAuth

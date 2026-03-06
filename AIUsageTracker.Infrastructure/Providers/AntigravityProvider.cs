@@ -28,7 +28,10 @@ public class AntigravityProvider : ProviderBase
         includeInWellKnownProviders: true,
         supportsChildProviderIds: true,
         settingsMode: ProviderSettingsMode.AutoDetectedStatus,
-        refreshOnStartupWithCachedData: true);
+        refreshOnStartupWithCachedData: true,
+        iconAssetName: "google",
+        fallbackBadgeColorHex: "#1E90FF",
+        fallbackBadgeInitial: "G");
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

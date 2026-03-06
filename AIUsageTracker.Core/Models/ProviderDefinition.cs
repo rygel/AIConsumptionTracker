@@ -24,6 +24,11 @@ public sealed class ProviderDefinition
     public string? SessionStatusLabel { get; }
     public ProviderSessionIdentitySource SessionIdentitySource { get; }
     public bool RefreshOnStartupWithCachedData { get; }
+    public string? IconAssetName { get; }
+    public string? FallbackBadgeColorHex { get; }
+    public string? FallbackBadgeInitial { get; }
+    public IReadOnlyCollection<string> AuthIdentityCandidatePathTemplates { get; }
+    public IReadOnlyCollection<string> AuthIdentityJsonRootProperties { get; }
 
     private readonly HashSet<string> _handledProviderIds;
 
@@ -49,7 +54,12 @@ public sealed class ProviderDefinition
         bool useSessionAuthStatusWhenQuotaBasedOrSessionToken = false,
         string? sessionStatusLabel = null,
         ProviderSessionIdentitySource sessionIdentitySource = ProviderSessionIdentitySource.None,
-        bool refreshOnStartupWithCachedData = false)
+        bool refreshOnStartupWithCachedData = false,
+        string? iconAssetName = null,
+        string? fallbackBadgeColorHex = null,
+        string? fallbackBadgeInitial = null,
+        IEnumerable<string>? authIdentityCandidatePathTemplates = null,
+        IEnumerable<string>? authIdentityJsonRootProperties = null)
     {
         if (string.IsNullOrWhiteSpace(providerId))
         {
@@ -81,6 +91,11 @@ public sealed class ProviderDefinition
         SessionStatusLabel = sessionStatusLabel;
         SessionIdentitySource = sessionIdentitySource;
         RefreshOnStartupWithCachedData = refreshOnStartupWithCachedData;
+        IconAssetName = iconAssetName;
+        FallbackBadgeColorHex = fallbackBadgeColorHex;
+        FallbackBadgeInitial = fallbackBadgeInitial;
+        AuthIdentityCandidatePathTemplates = NormalizeValues(authIdentityCandidatePathTemplates);
+        AuthIdentityJsonRootProperties = NormalizeValues(authIdentityJsonRootProperties);
 
         var normalizedHandledIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {

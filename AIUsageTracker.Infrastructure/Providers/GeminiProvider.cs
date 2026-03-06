@@ -19,7 +19,10 @@ public class GeminiProvider : ProviderBase
         autoIncludeWhenUnconfigured: true,
         includeInWellKnownProviders: true,
         handledProviderIds: new[] { "gemini-cli", "gemini" },
-        rooConfigPropertyNames: new[] { "geminiApiKey" });
+        rooConfigPropertyNames: new[] { "geminiApiKey" },
+        iconAssetName: "google",
+        fallbackBadgeColorHex: "#1E90FF",
+        fallbackBadgeInitial: "G");
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

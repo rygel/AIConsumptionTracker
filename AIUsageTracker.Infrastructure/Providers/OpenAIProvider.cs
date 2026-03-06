@@ -28,7 +28,18 @@ public class OpenAIProvider : ProviderBase
         settingsMode: ProviderSettingsMode.SessionAuthStatus,
         useSessionAuthStatusWhenQuotaBasedOrSessionToken: true,
         sessionStatusLabel: "OpenAI",
-        sessionIdentitySource: ProviderSessionIdentitySource.OpenAi);
+        sessionIdentitySource: ProviderSessionIdentitySource.OpenAi,
+        iconAssetName: "openai",
+        fallbackBadgeColorHex: "#008B8B",
+        fallbackBadgeInitial: "AI",
+        authIdentityCandidatePathTemplates: new[]
+        {
+            "%USERPROFILE%\\.local\\share\\opencode\\auth.json",
+            "%APPDATA%\\opencode\\auth.json",
+            "%LOCALAPPDATA%\\opencode\\auth.json",
+            "%USERPROFILE%\\.opencode\\auth.json"
+        },
+        authIdentityJsonRootProperties: new[] { "openai" });
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

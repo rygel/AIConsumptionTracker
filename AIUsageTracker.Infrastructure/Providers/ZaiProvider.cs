@@ -19,7 +19,10 @@ public class ZaiProvider : ProviderBase
         displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["zai"] = "Z.AI"
-        });
+        },
+        iconAssetName: "zai",
+        fallbackBadgeColorHex: "#20B2AA",
+        fallbackBadgeInitial: "Z");
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

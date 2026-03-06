@@ -23,7 +23,10 @@ public class MinimaxProvider : ProviderBase
             ["minimax-io"] = "Minimax (International)",
             ["minimax-global"] = "Minimax (International)"
         },
-        discoveryEnvironmentVariables: new[] { "MINIMAX_API_KEY" });
+        discoveryEnvironmentVariables: new[] { "MINIMAX_API_KEY" },
+        iconAssetName: "minimax",
+        fallbackBadgeColorHex: "#00CED1",
+        fallbackBadgeInitial: "MM");
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

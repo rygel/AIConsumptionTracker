@@ -16,7 +16,10 @@ public class XiaomiProvider : ProviderBase
         isQuotaBased: true,
         defaultConfigType: "quota-based",
         includeInWellKnownProviders: true,
-        discoveryEnvironmentVariables: new[] { "XIAOMI_API_KEY", "MIMO_API_KEY" });
+        discoveryEnvironmentVariables: new[] { "XIAOMI_API_KEY", "MIMO_API_KEY" },
+        iconAssetName: "xiaomi",
+        fallbackBadgeColorHex: "#FFA500",
+        fallbackBadgeInitial: "Xi");
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;

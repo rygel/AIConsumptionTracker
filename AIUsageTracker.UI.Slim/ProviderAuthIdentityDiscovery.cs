@@ -1,6 +1,8 @@
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim;
@@ -9,17 +11,25 @@ internal static class ProviderAuthIdentityDiscovery
 {
     public static Task<string?> TryGetGitHubUsernameAsync(ILogger logger, IEnumerable<string>? candidatePaths = null)
     {
-        return TryReadGitHubHostsUsernameAsync(candidatePaths ?? GetGitHubHostsCandidates(), logger);
+        return TryReadGitHubHostsUsernameAsync(
+            candidatePaths ?? GetCandidatePaths(GitHubCopilotProvider.StaticDefinition),
+            logger);
     }
 
     public static Task<string?> TryGetOpenAiUsernameAsync(ILogger logger, IEnumerable<string>? candidatePaths = null)
     {
-        return TryReadOpenAiUsernameAsync(candidatePaths ?? GetOpenAiAuthCandidates(), logger);
+        return TryReadOpenAiUsernameAsync(
+            candidatePaths ?? GetCandidatePaths(OpenAIProvider.StaticDefinition),
+            OpenAIProvider.StaticDefinition,
+            logger);
     }
 
     public static Task<string?> TryGetCodexUsernameAsync(ILogger logger, IEnumerable<string>? candidatePaths = null)
     {
-        return TryReadCodexUsernameAsync(candidatePaths ?? GetCodexAuthCandidates(), logger);
+        return TryReadCodexUsernameAsync(
+            candidatePaths ?? GetCandidatePaths(CodexProvider.StaticDefinition),
+            CodexProvider.StaticDefinition,
+            logger);
     }
 
     private static async Task<string?> TryReadGitHubHostsUsernameAsync(IEnumerable<string> candidatePaths, ILogger logger)
@@ -59,7 +69,10 @@ internal static class ProviderAuthIdentityDiscovery
         return null;
     }
 
-    private static async Task<string?> TryReadOpenAiUsernameAsync(IEnumerable<string> candidatePaths, ILogger logger)
+    private static async Task<string?> TryReadOpenAiUsernameAsync(
+        IEnumerable<string> candidatePaths,
+        ProviderDefinition definition,
+        ILogger logger)
     {
         foreach (var path in candidatePaths)
         {
@@ -72,14 +85,16 @@ internal static class ProviderAuthIdentityDiscovery
             {
                 var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(json);
-                if (!doc.RootElement.TryGetProperty("openai", out var openai) || openai.ValueKind != JsonValueKind.Object)
+                var root = FindFirstRootObject(doc.RootElement, definition.AuthIdentityJsonRootProperties);
+                if (root == null)
                 {
                     continue;
                 }
 
                 foreach (var claim in new[] { "email", "upn" })
                 {
-                    if (openai.TryGetProperty(claim, out var emailElement) && emailElement.ValueKind == JsonValueKind.String)
+                    if (root.Value.TryGetProperty(claim, out var emailElement) &&
+                        emailElement.ValueKind == JsonValueKind.String)
                     {
                         var emailValue = emailElement.GetString();
                         if (IsEmailLike(emailValue))
@@ -89,13 +104,14 @@ internal static class ProviderAuthIdentityDiscovery
                     }
                 }
 
-                var explicitIdentity = FindIdentityInJson(openai);
+                var explicitIdentity = FindIdentityInJson(root.Value);
                 if (!string.IsNullOrWhiteSpace(explicitIdentity))
                 {
                     return explicitIdentity;
                 }
 
-                if (openai.TryGetProperty("access", out var accessElement) && accessElement.ValueKind == JsonValueKind.String)
+                if (root.Value.TryGetProperty("access", out var accessElement) &&
+                    accessElement.ValueKind == JsonValueKind.String)
                 {
                     var fromToken = TryGetUsernameFromJwt(accessElement.GetString());
                     if (!string.IsNullOrWhiteSpace(fromToken))
@@ -106,14 +122,17 @@ internal static class ProviderAuthIdentityDiscovery
             }
             catch (Exception ex)
             {
-                logger.LogDebug(ex, "Failed to read OpenAI auth file at {Path}", path);
+                logger.LogDebug(ex, "Failed to read {Provider} auth file at {Path}", definition.DisplayName, path);
             }
         }
 
         return null;
     }
 
-    private static async Task<string?> TryReadCodexUsernameAsync(IEnumerable<string> candidatePaths, ILogger logger)
+    private static async Task<string?> TryReadCodexUsernameAsync(
+        IEnumerable<string> candidatePaths,
+        ProviderDefinition definition,
+        ILogger logger)
     {
         foreach (var path in candidatePaths)
         {
@@ -137,7 +156,8 @@ internal static class ProviderAuthIdentityDiscovery
                 {
                     foreach (var claim in new[] { "id_token", "access_token" })
                     {
-                        if (tokens.TryGetProperty(claim, out var tokenElement) && tokenElement.ValueKind == JsonValueKind.String)
+                        if (tokens.TryGetProperty(claim, out var tokenElement) &&
+                            tokenElement.ValueKind == JsonValueKind.String)
                         {
                             var fromToken = TryGetUsernameFromJwt(tokenElement.GetString());
                             if (!string.IsNullOrWhiteSpace(fromToken))
@@ -148,51 +168,45 @@ internal static class ProviderAuthIdentityDiscovery
                     }
                 }
 
-                if (doc.RootElement.TryGetProperty("openai", out var openai) &&
-                    openai.ValueKind == JsonValueKind.Object &&
-                    openai.TryGetProperty("access", out var openAiAccessToken) &&
-                    openAiAccessToken.ValueKind == JsonValueKind.String)
+                var compatibilityRoot = FindFirstRootObject(doc.RootElement, definition.AuthIdentityJsonRootProperties);
+                if (compatibilityRoot != null &&
+                    compatibilityRoot.Value.TryGetProperty("access", out var accessToken) &&
+                    accessToken.ValueKind == JsonValueKind.String)
                 {
-                    var fromOpenAiToken = TryGetUsernameFromJwt(openAiAccessToken.GetString());
-                    if (!string.IsNullOrWhiteSpace(fromOpenAiToken))
+                    var fromCompatibilityToken = TryGetUsernameFromJwt(accessToken.GetString());
+                    if (!string.IsNullOrWhiteSpace(fromCompatibilityToken))
                     {
-                        return fromOpenAiToken;
+                        return fromCompatibilityToken;
                     }
                 }
             }
             catch (Exception ex)
             {
-                logger.LogDebug(ex, "Failed to read Codex auth file at {Path}", path);
+                logger.LogDebug(ex, "Failed to read {Provider} auth file at {Path}", definition.DisplayName, path);
             }
         }
 
         return null;
     }
 
-    private static IEnumerable<string> GetGitHubHostsCandidates()
+    private static IEnumerable<string> GetCandidatePaths(ProviderDefinition definition)
     {
-        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GitHub CLI", "hosts.yml");
-        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config", "gh", "hosts.yml");
+        return definition.AuthIdentityCandidatePathTemplates
+            .Select(Environment.ExpandEnvironmentVariables)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
-    private static IEnumerable<string> GetOpenAiAuthCandidates()
+    private static JsonElement? FindFirstRootObject(JsonElement root, IEnumerable<string> propertyNames)
     {
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        yield return Path.Combine(userProfile, ".local", "share", "opencode", "auth.json");
-        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "auth.json");
-        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode", "auth.json");
-        yield return Path.Combine(userProfile, ".opencode", "auth.json");
-    }
+        foreach (var propertyName in propertyNames)
+        {
+            if (root.TryGetProperty(propertyName, out var element) && element.ValueKind == JsonValueKind.Object)
+            {
+                return element;
+            }
+        }
 
-    private static IEnumerable<string> GetCodexAuthCandidates()
-    {
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        yield return Path.Combine(userProfile, ".codex", "auth.json");
-        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "codex", "auth.json");
-        yield return Path.Combine(userProfile, ".local", "share", "opencode", "auth.json");
-        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "auth.json");
-        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode", "auth.json");
-        yield return Path.Combine(userProfile, ".opencode", "auth.json");
+        return null;
     }
 
     private static string? TryGetUsernameFromJwt(string? token)

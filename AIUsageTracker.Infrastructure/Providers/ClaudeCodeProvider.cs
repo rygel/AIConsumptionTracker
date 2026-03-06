@@ -18,7 +18,10 @@ public class ClaudeCodeProvider : ProviderBase
         isQuotaBased: false,
         defaultConfigType: "pay-as-you-go",
         autoIncludeWhenUnconfigured: true,
-        discoveryEnvironmentVariables: new[] { "ANTHROPIC_API_KEY", "CLAUDE_API_KEY" });
+        discoveryEnvironmentVariables: new[] { "ANTHROPIC_API_KEY", "CLAUDE_API_KEY" },
+        iconAssetName: "anthropic",
+        fallbackBadgeColorHex: "#FFA500",
+        fallbackBadgeInitial: "C");
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;
