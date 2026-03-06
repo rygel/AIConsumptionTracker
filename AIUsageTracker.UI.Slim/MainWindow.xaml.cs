@@ -1103,7 +1103,7 @@ public partial class MainWindow : Window
         ProvidersList.Children.Clear();
         LogDiagnostic($"[DIAGNOSTIC] ProvidersList cleared, _usages count: {_usages?.Count ?? 0}");
 
-        if (!_usages.Any())
+        if (_usages == null || !_usages.Any())
         {
             LogDiagnostic("[DIAGNOSTIC] No usages, creating 'No provider data available' message");
             try
