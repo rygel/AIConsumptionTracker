@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text;
 using Microsoft.Extensions.Logging;
+using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Providers;
 using System.Net;
@@ -176,8 +177,8 @@ public class OpenAIProvider : ProviderBase
             return CreateUnavailableUsage(detail.GetString() ?? "Session usage request failed", (int)response.StatusCode);
         }
 
-        var planType = ReadString(doc.RootElement, "plan_type") ?? "chatgpt";
-        var used = ReadDouble(doc.RootElement, "rate_limit", "primary_window", "used_percent") ?? 0.0;
+        var planType = doc.RootElement.ReadString("plan_type") ?? "chatgpt";
+        var used = doc.RootElement.ReadDouble("rate_limit", "primary_window", "used_percent") ?? 0.0;
         var nextResetTime = ResolveResetTime(doc.RootElement);
         var remaining = Math.Clamp(100.0 - used, 0.0, 100.0);
 
@@ -233,7 +234,7 @@ public class OpenAIProvider : ProviderBase
                     continue;
                 }
 
-                var access = ReadString(openai, "access");
+                var access = openai.ReadString("access");
                 if (string.IsNullOrWhiteSpace(access))
                 {
                     continue;
@@ -242,7 +243,7 @@ public class OpenAIProvider : ProviderBase
                 return new OpenCodeOpenAiAuth
                 {
                     Access = access,
-                    AccountId = ReadString(openai, "accountId")
+                    AccountId = openai.ReadString("accountId")
                 };
             }
             catch (Exception)
@@ -258,8 +259,8 @@ public class OpenAIProvider : ProviderBase
     private static List<ProviderUsageDetail> BuildOpenAiSessionDetails(JsonElement root)
     {
         var details = new List<ProviderUsageDetail>();
-        var used = ReadDouble(root, "rate_limit", "primary_window", "used_percent");
-        var reset = ReadDouble(root, "rate_limit", "primary_window", "reset_after_seconds");
+        var used = root.ReadDouble("rate_limit", "primary_window", "used_percent");
+        var reset = root.ReadDouble("rate_limit", "primary_window", "reset_after_seconds");
         var primaryResetTime = ResolveWindowResetTime(root, "primary_window");
 
         if (used.HasValue)
@@ -275,8 +276,8 @@ public class OpenAIProvider : ProviderBase
             });
         }
 
-        var weeklyUsed = ReadDouble(root, "rate_limit", "secondary_window", "used_percent");
-        var weeklyReset = ReadDouble(root, "rate_limit", "secondary_window", "reset_after_seconds");
+        var weeklyUsed = root.ReadDouble("rate_limit", "secondary_window", "used_percent");
+        var weeklyReset = root.ReadDouble("rate_limit", "secondary_window", "reset_after_seconds");
         var weeklyResetTime = ResolveWindowResetTime(root, "secondary_window");
         if (weeklyUsed.HasValue)
         {
@@ -291,8 +292,8 @@ public class OpenAIProvider : ProviderBase
             });
         }
 
-        var credits = ReadDouble(root, "credits", "balance");
-        var unlimited = ReadBool(root, "credits", "unlimited");
+        var credits = root.ReadDouble("credits", "balance");
+        var unlimited = root.ReadBool("credits", "unlimited");
         if (credits.HasValue || unlimited.HasValue)
         {
             details.Add(new ProviderUsageDetail
@@ -320,16 +321,16 @@ public class OpenAIProvider : ProviderBase
 
     private static DateTime? ResolveWindowResetTime(JsonElement root, string windowName)
     {
-        var resetSeconds = ReadDouble(root, "rate_limit", windowName, "reset_after_seconds")
-                          ?? ReadDouble(root, "rate_limit", windowName, "reset_after");
+        var resetSeconds = root.ReadDouble("rate_limit", windowName, "reset_after_seconds")
+                          ?? root.ReadDouble("rate_limit", windowName, "reset_after");
 
         if (resetSeconds.HasValue && resetSeconds.Value > 0)
         {
             return DateTime.UtcNow.AddSeconds(resetSeconds.Value).ToLocalTime();
         }
 
-        var resetAtIso = ReadString(root, "rate_limit", windowName, "resets_at")
-                         ?? ReadString(root, "rate_limit", windowName, "reset_at");
+        var resetAtIso = root.ReadString("rate_limit", windowName, "resets_at")
+                         ?? root.ReadString("rate_limit", windowName, "reset_at");
 
         if (!string.IsNullOrWhiteSpace(resetAtIso) &&
             DateTime.TryParse(resetAtIso, out var parsedResetAt))
@@ -337,7 +338,7 @@ public class OpenAIProvider : ProviderBase
             return parsedResetAt.ToLocalTime();
         }
 
-        var resetAtEpoch = ReadDouble(root, "rate_limit", windowName, "reset_at_unix");
+        var resetAtEpoch = root.ReadDouble("rate_limit", windowName, "reset_at_unix");
         if (resetAtEpoch.HasValue && resetAtEpoch.Value > 0)
         {
             return DateTimeOffset.FromUnixTimeSeconds((long)resetAtEpoch.Value).LocalDateTime;
@@ -360,7 +361,7 @@ public class OpenAIProvider : ProviderBase
             }
         }
 
-        var profileEmail = ReadString(root, "https://api.openai.com/profile", "email");
+        var profileEmail = root.ReadString("https://api.openai.com/profile", "email");
         if (IsEmailLike(profileEmail))
         {
             return profileEmail;
@@ -432,7 +433,7 @@ public class OpenAIProvider : ProviderBase
             {
                 foreach (var claim in new[] { "email", "username", "name" })
                 {
-                    var profileValue = ReadString(profile, claim);
+                    var profileValue = profile.ReadString(claim);
                     if (IsEmailLike(profileValue))
                     {
                         email = profileValue;
@@ -457,8 +458,8 @@ public class OpenAIProvider : ProviderBase
                 }
             }
 
-            var planType = ReadString(doc.RootElement, "https://api.openai.com/auth", "plan_type")
-                           ?? ReadString(doc.RootElement, "plan_type");
+            var planType = doc.RootElement.ReadString("https://api.openai.com/auth", "plan_type")
+                           ?? doc.RootElement.ReadString("plan_type");
 
             return (email, planType);
         }
@@ -468,68 +469,6 @@ public class OpenAIProvider : ProviderBase
             // Returns (null, null) to indicate claims could not be extracted.
             return (null, null);
         }
-    }
-
-    private static string? ReadString(JsonElement root, params string[] path)
-    {
-        var current = root;
-        foreach (var segment in path)
-        {
-            if (!current.TryGetProperty(segment, out current))
-            {
-                return null;
-            }
-        }
-
-        return current.ValueKind == JsonValueKind.String ? current.GetString() : null;
-    }
-
-    private static double? ReadDouble(JsonElement root, params string[] path)
-    {
-        var current = root;
-        foreach (var segment in path)
-        {
-            if (!current.TryGetProperty(segment, out current))
-            {
-                return null;
-            }
-        }
-
-        if (current.ValueKind == JsonValueKind.Number && current.TryGetDouble(out var number))
-        {
-            return number;
-        }
-
-        if (current.ValueKind == JsonValueKind.String)
-        {
-            var raw = current.GetString();
-            if (!string.IsNullOrWhiteSpace(raw) &&
-                double.TryParse(raw, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
-            {
-                return parsed;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool? ReadBool(JsonElement root, params string[] path)
-    {
-        var current = root;
-        foreach (var segment in path)
-        {
-            if (!current.TryGetProperty(segment, out current))
-            {
-                return null;
-            }
-        }
-
-        return current.ValueKind switch
-        {
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            _ => null
-        };
     }
 
     private static bool IsEmailLike(string? value)

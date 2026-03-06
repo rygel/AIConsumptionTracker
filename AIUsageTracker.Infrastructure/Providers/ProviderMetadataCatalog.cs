@@ -7,15 +7,14 @@ public static class ProviderMetadataCatalog
     private static readonly IReadOnlyList<ProviderDefinition> DefinitionList = new List<ProviderDefinition>
     {
         AntigravityProvider.StaticDefinition,
-        AnthropicProvider.StaticDefinition,
         ClaudeCodeProvider.StaticDefinition,
         CodexProvider.StaticDefinition,
         DeepSeekProvider.StaticDefinition,
         GeminiProvider.StaticDefinition,
         GitHubCopilotProvider.StaticDefinition,
+        MistralProvider.StaticDefinition,
         KimiProvider.StaticDefinition,
         MinimaxProvider.StaticDefinition,
-        MistralProvider.StaticDefinition,
         OpenAIProvider.StaticDefinition,
         OpenCodeProvider.StaticDefinition,
         OpenCodeZenProvider.StaticDefinition,

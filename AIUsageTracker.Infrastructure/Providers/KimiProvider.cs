@@ -197,6 +197,12 @@ public class KimiProvider : ProviderBase
             return WindowKind.Secondary;
         }
 
+        // Daily limits in some coding plans
+        if (unit == "TIME_UNIT_DAY" && duration == 1)
+        {
+            return WindowKind.Primary;
+        }
+
         // 3h or 5h windows should be Primary
         if (unit == "TIME_UNIT_HOUR" && (duration == 3 || duration == 5))
         {
@@ -204,7 +210,7 @@ public class KimiProvider : ProviderBase
         }
 
         // Minutes-based windows (like 60m for 1h, 180m for 3h, 300m for 5h)
-        if (unit == "TIME_UNIT_MINUTE" && (duration == 60 || duration == 180 || duration == 300))
+        if (unit == "TIME_UNIT_MINUTE" && (duration >= 60 && duration <= 300))
         {
             return WindowKind.Primary;
         }
