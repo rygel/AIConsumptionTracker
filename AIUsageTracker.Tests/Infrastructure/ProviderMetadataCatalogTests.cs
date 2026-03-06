@@ -92,4 +92,14 @@ public class ProviderMetadataCatalogTests
     {
         Assert.Equal(expected, ProviderMetadataCatalog.IsAutoIncluded(providerId));
     }
+
+    [Theory]
+    [InlineData("codex.spark", "codex")]
+    [InlineData("antigravity.claude-opus", "antigravity")]
+    [InlineData("minimax-io", "minimax")]
+    [InlineData("unknown-provider", "unknown-provider")]
+    public void GetCanonicalProviderId_UsesProviderDefinitions(string providerId, string expectedCanonicalId)
+    {
+        Assert.Equal(expectedCanonicalId, ProviderMetadataCatalog.GetCanonicalProviderId(providerId));
+    }
 }

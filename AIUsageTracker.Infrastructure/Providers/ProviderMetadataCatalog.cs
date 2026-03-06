@@ -57,6 +57,16 @@ public static class ProviderMetadataCatalog
         return TryGet(providerId, out var definition) && definition.AutoIncludeWhenUnconfigured;
     }
 
+    public static string GetCanonicalProviderId(string providerId)
+    {
+        if (TryGet(providerId, out var definition))
+        {
+            return definition.ProviderId;
+        }
+
+        return providerId ?? string.Empty;
+    }
+
     public static bool TryCreateDefaultConfig(
         string providerId,
         out ProviderConfig config,

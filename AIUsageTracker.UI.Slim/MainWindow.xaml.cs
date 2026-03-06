@@ -2008,11 +2008,7 @@ public partial class MainWindow : Window
 
     private FrameworkElement CreateProviderIcon(string providerId)
     {
-        var normalizedProviderId = providerId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase)
-            ? "antigravity"
-            : providerId.StartsWith("codex.", StringComparison.OrdinalIgnoreCase)
-                ? "codex"
-            : providerId;
+        var normalizedProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
 
         // Check cache first
         if (_iconCache.TryGetValue(normalizedProviderId, out var cachedImage))
@@ -2033,10 +2029,10 @@ public partial class MainWindow : Window
             "gemini-cli" => "google",
             "antigravity" => "google",
             "claude-code" or "claude" => "anthropic", // Use anthropic icon for claude
-            "minimax" or "minimax-io" or "minimax-global" => "minimax",
+            "minimax" => "minimax",
             "kimi" => "kimi",
             "xiaomi" => "xiaomi",
-            "zai" => "zai",
+            "zai" or "zai-coding-plan" => "zai",
             "deepseek" => "deepseek",
             "openrouter" => "openai", // Fallback to openai
             "codex" => "openai",
@@ -2099,10 +2095,10 @@ public partial class MainWindow : Window
             "deepseek" => (Brushes.DeepSkyBlue, "DS"),
             "openrouter" => (Brushes.DarkSlateBlue, "OR"),
             "kimi" => (Brushes.MediumOrchid, "K"),
-            "minimax" or "minimax-io" or "minimax-global" => (Brushes.DarkTurquoise, "MM"),
+            "minimax" => (Brushes.DarkTurquoise, "MM"),
             "mistral" => (Brushes.OrangeRed, "Mi"),
             "xiaomi" => (Brushes.Orange, "Xi"),
-            "zai" => (Brushes.LightSeaGreen, "Z"),
+            "zai" or "zai-coding-plan" => (Brushes.LightSeaGreen, "Z"),
             "claude-code" or "claude" => (Brushes.Orange, "C"),
             "cloudcode" => (Brushes.DeepSkyBlue, "CC"),
             "synthetic" => (Brushes.Gold, "Sy"),

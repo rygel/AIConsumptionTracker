@@ -1594,22 +1594,19 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            string filename = providerId.ToLower() switch
+            var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+            string filename = canonicalProviderId.ToLower() switch
             {
                 "github-copilot" => "github",
                 "gemini-cli" => "google",
                 "antigravity" => "google",
                 "codex" => "openai",
-                "codex.spark" => "openai",
                 "claude-code" => "claude",
-                "zai" => "zai",
-                "zai-coding-plan" => "zai",
+                "zai" or "zai-coding-plan" => "zai",
                 "minimax" => "minimax",
-                "minimax-io" => "minimax",
-                "minimax-global" => "minimax",
                 "kimi" => "kimi",
                 "xiaomi" => "xiaomi",
-                _ => providerId.ToLower()
+                _ => canonicalProviderId.ToLower()
             };
 
             var appDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -1619,7 +1616,7 @@ public partial class SettingsWindow : Window
             if (System.IO.File.Exists(svgPath))
             {
                 // Return a simple colored circle as fallback (SVG loading requires SharpVectors)
-                return CreateFallbackIcon(providerId);
+                return CreateFallbackIcon(canonicalProviderId);
             }
 
             // Try ICO
@@ -1637,7 +1634,7 @@ public partial class SettingsWindow : Window
         }
         catch { }
 
-        return CreateFallbackIcon(providerId);
+        return CreateFallbackIcon(ProviderMetadataCatalog.GetCanonicalProviderId(providerId));
     }
 
     private ImageSource CreateFallbackIcon(string providerId)
