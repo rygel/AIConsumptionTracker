@@ -42,18 +42,25 @@ public class OpenAIProvider : ProviderBase
         authIdentityJsonRootProperties: new[] { "openai" },
         sessionAuthFileSchemas: new[]
         {
-            new ProviderAuthFileSchema("openai", "access", "accountId")
+            new ProviderAuthFileSchema("openai", "access", "accountId", "id_token")
         });
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenAIProvider> _logger;
+    private readonly string? _authFilePath;
 
     public OpenAIProvider(HttpClient httpClient, ILogger<OpenAIProvider> logger)
+        : this(httpClient, logger, null)
+    {
+    }
+
+    public OpenAIProvider(HttpClient httpClient, ILogger<OpenAIProvider> logger, string? authFilePath)
     {
         _httpClient = httpClient;
         _logger = logger;
+        _authFilePath = authFilePath;
     }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
@@ -232,17 +239,9 @@ public class OpenAIProvider : ProviderBase
         return token.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static async Task<OpenCodeOpenAiAuth?> LoadOpenCodeAuthAsync()
+    private async Task<OpenCodeOpenAiAuth?> LoadOpenCodeAuthAsync()
     {
-        var paths = new[]
-        {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "opencode", "auth.json"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "opencode", "auth.json"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "opencode", "auth.json"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".opencode", "auth.json")
-        };
-
-        foreach (var path in paths)
+        foreach (var path in GetAuthFileCandidates())
         {
             if (!File.Exists(path))
             {
@@ -253,28 +252,69 @@ public class OpenAIProvider : ProviderBase
             {
                 var json = await File.ReadAllTextAsync(path);
                 using var doc = JsonDocument.Parse(json);
-                if (!doc.RootElement.TryGetProperty("openai", out var openai) || openai.ValueKind != JsonValueKind.Object)
+                var auth = TryReadOpenCodeAuth(doc.RootElement);
+                if (auth != null)
                 {
-                    continue;
+                    return auth;
                 }
-
-                var access = openai.ReadString("access");
-                if (string.IsNullOrWhiteSpace(access))
-                {
-                    continue;
-                }
-
-                return new OpenCodeOpenAiAuth
-                {
-                    Access = access,
-                    AccountId = openai.ReadString("accountId")
-                };
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Intentionally suppressed: scanning multiple candidate auth file paths.
-                // Malformed or inaccessible files are skipped to try next candidate.
+                _logger.LogDebug(ex, "Failed to read OpenAI session auth file at {Path}", path);
             }
+        }
+
+        return null;
+    }
+
+    private IEnumerable<string> GetAuthFileCandidates()
+    {
+        if (!string.IsNullOrWhiteSpace(_authFilePath))
+        {
+            yield return _authFilePath;
+            yield break;
+        }
+
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+        foreach (var pathTemplate in StaticDefinition.AuthIdentityCandidatePathTemplates)
+        {
+            var path = pathTemplate
+                .Replace("%USERPROFILE%", userProfile, StringComparison.OrdinalIgnoreCase)
+                .Replace("%APPDATA%", appData, StringComparison.OrdinalIgnoreCase)
+                .Replace("%LOCALAPPDATA%", localAppData, StringComparison.OrdinalIgnoreCase);
+
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                yield return path;
+            }
+        }
+    }
+
+    private static OpenCodeOpenAiAuth? TryReadOpenCodeAuth(JsonElement root)
+    {
+        foreach (var schema in StaticDefinition.SessionAuthFileSchemas)
+        {
+            if (!root.TryGetProperty(schema.RootProperty, out var sessionRoot) || sessionRoot.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var accessToken = sessionRoot.ReadString(schema.AccessTokenProperty);
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                continue;
+            }
+
+            return new OpenCodeOpenAiAuth
+            {
+                Access = accessToken,
+                AccountId = !string.IsNullOrWhiteSpace(schema.AccountIdProperty)
+                    ? sessionRoot.ReadString(schema.AccountIdProperty)
+                    : null
+            };
         }
 
         return null;

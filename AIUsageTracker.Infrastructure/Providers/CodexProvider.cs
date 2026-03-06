@@ -47,8 +47,8 @@ public class CodexProvider : ProviderBase
         authIdentityJsonRootProperties: new[] { "openai" },
         sessionAuthFileSchemas: new[]
         {
-            new ProviderAuthFileSchema("tokens", "access_token", "account_id"),
-            new ProviderAuthFileSchema("openai", "access", "accountId")
+            new ProviderAuthFileSchema("tokens", "access_token", "account_id", "id_token"),
+            new ProviderAuthFileSchema("openai", "access", "accountId", "id_token")
         });
 
     public override ProviderDefinition Definition => StaticDefinition;
@@ -357,46 +357,10 @@ public class CodexProvider : ProviderBase
             {
                 var json = await File.ReadAllTextAsync(path);
                 using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
-
-                if (root.TryGetProperty("tokens", out var tokensElement) &&
-                    tokensElement.ValueKind == JsonValueKind.Object)
+                var auth = TryReadNativeAuth(doc.RootElement);
+                if (auth != null)
                 {
-                    var accessToken = tokensElement.ReadString("access_token");
-                    if (string.IsNullOrWhiteSpace(accessToken))
-                    {
-                        continue;
-                    }
-
-                    var idToken = tokensElement.ReadString("id_token");
-                    var accountId = tokensElement.ReadString("account_id");
-                    var identity = ResolveIdentityFromAuthPayload(root, accessToken, idToken);
-                    return new CodexAuth
-                    {
-                        AccessToken = accessToken,
-                        AccountId = accountId,
-                        Identity = identity
-                    };
-                }
-
-                if (root.TryGetProperty("openai", out var openAiElement) &&
-                    openAiElement.ValueKind == JsonValueKind.Object)
-                {
-                    var accessToken = openAiElement.ReadString("access");
-                    if (string.IsNullOrWhiteSpace(accessToken))
-                    {
-                        continue;
-                    }
-
-                    var idToken = openAiElement.ReadString("id_token");
-                    var accountId = openAiElement.ReadString("accountId") ?? openAiElement.ReadString("account_id");
-                    var identity = ResolveIdentityFromAuthPayload(openAiElement, accessToken, idToken);
-                    return new CodexAuth
-                    {
-                        AccessToken = accessToken,
-                        AccountId = accountId,
-                        Identity = identity
-                    };
+                    return auth;
                 }
             }
             catch (Exception ex)
@@ -416,26 +380,60 @@ public class CodexProvider : ProviderBase
             yield break;
         }
 
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        yield return Path.Combine(home, ".codex", "auth.json");
-        yield return Path.Combine(home, ".local", "share", "opencode", "auth.json");
-        yield return Path.Combine(home, ".opencode", "auth.json");
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
-        if (OperatingSystem.IsWindows())
+        foreach (var pathTemplate in StaticDefinition.AuthIdentityCandidatePathTemplates)
         {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            if (!string.IsNullOrWhiteSpace(appData))
-            {
-                yield return Path.Combine(appData, "codex", "auth.json");
-                yield return Path.Combine(appData, "opencode", "auth.json");
-            }
+            var path = pathTemplate
+                .Replace("%USERPROFILE%", userProfile, StringComparison.OrdinalIgnoreCase)
+                .Replace("%APPDATA%", appData, StringComparison.OrdinalIgnoreCase)
+                .Replace("%LOCALAPPDATA%", localAppData, StringComparison.OrdinalIgnoreCase);
 
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            if (!string.IsNullOrWhiteSpace(localAppData))
+            if (!string.IsNullOrWhiteSpace(path))
             {
-                yield return Path.Combine(localAppData, "opencode", "auth.json");
+                yield return path;
             }
         }
+    }
+
+    private static CodexAuth? TryReadNativeAuth(JsonElement root)
+    {
+        foreach (var schema in StaticDefinition.SessionAuthFileSchemas)
+        {
+            if (!root.TryGetProperty(schema.RootProperty, out var authRoot) || authRoot.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var accessToken = authRoot.ReadString(schema.AccessTokenProperty);
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                continue;
+            }
+
+            var identityToken = !string.IsNullOrWhiteSpace(schema.IdentityTokenProperty)
+                ? authRoot.ReadString(schema.IdentityTokenProperty)
+                : null;
+
+            var accountId = !string.IsNullOrWhiteSpace(schema.AccountIdProperty)
+                ? authRoot.ReadString(schema.AccountIdProperty)
+                : null;
+
+            var identitySource = string.Equals(schema.RootProperty, "tokens", StringComparison.OrdinalIgnoreCase)
+                ? root
+                : authRoot;
+
+            return new CodexAuth
+            {
+                AccessToken = accessToken,
+                AccountId = accountId,
+                Identity = ResolveIdentityFromAuthPayload(identitySource, accessToken, identityToken)
+            };
+        }
+
+        return null;
     }
 
     private static string? ResolveIdentityFromAuthPayload(JsonElement source, string accessToken, string? idToken = null)
