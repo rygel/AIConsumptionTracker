@@ -458,10 +458,11 @@ public partial class SettingsWindow : Window
         }
 
         var displayItems = ProviderSettingsDisplayCatalog.CreateDisplayItems(_configs, _usages);
+        var usageByProviderId = _usages.ToDictionary(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in displayItems)
         {
-            var usage = _usages.FirstOrDefault(u => u.ProviderId.Equals(item.Config.ProviderId, StringComparison.OrdinalIgnoreCase));
+            usageByProviderId.TryGetValue(item.Config.ProviderId, out var usage);
             AddProviderCard(item.Config, usage, item.IsDerived);
         }
     }
@@ -574,7 +575,7 @@ public partial class SettingsWindow : Window
 
         var title = new TextBlock
         {
-            Text = GetProviderDisplayName(config.ProviderId),
+            Text = ProviderMetadataCatalog.GetDisplayName(config.ProviderId),
             FontWeight = FontWeights.SemiBold,
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center,
@@ -1404,11 +1405,6 @@ public partial class SettingsWindow : Window
         {
             return content;
         }
-    }
-
-    private static string GetProviderDisplayName(string providerId)
-    {
-        return ProviderMetadataCatalog.GetDisplayName(providerId);
     }
 
     private async Task PersistAllSettingsAsync(bool showErrorDialog)
