@@ -197,7 +197,19 @@ public class KimiProvider : ProviderBase
             return WindowKind.Secondary;
         }
 
-        return WindowKind.Primary;
+        // 3h or 5h windows should be Primary
+        if (unit == "TIME_UNIT_HOUR" && (duration == 3 || duration == 5))
+        {
+            return WindowKind.Primary;
+        }
+
+        // Minutes-based windows (like 60m for 1h, 180m for 3h, 300m for 5h)
+        if (unit == "TIME_UNIT_MINUTE" && (duration == 60 || duration == 180 || duration == 300))
+        {
+            return WindowKind.Primary;
+        }
+
+        return WindowKind.None;
     }
 
     private class KimiUsageResponse
