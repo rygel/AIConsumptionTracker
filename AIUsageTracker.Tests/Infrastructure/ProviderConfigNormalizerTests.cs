@@ -60,4 +60,32 @@ public class ProviderConfigNormalizerTests
         Assert.Equal(PlanType.Coding, codex.PlanType);
         Assert.Equal("quota-based", codex.Type);
     }
+
+    [Fact]
+    public void ShouldSuppressOpenAiSession_ReturnsTrue_WhenCodexHasKeyAndOpenAiIsSessionOnly()
+    {
+        var configs = new List<ProviderConfig>
+        {
+            new() { ProviderId = "codex", ApiKey = "codex-session" },
+            new() { ProviderId = "openai", ApiKey = "legacy-session-token" }
+        };
+
+        var result = ProviderConfigNormalizer.ShouldSuppressOpenAiSession(configs);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void ShouldSuppressOpenAiSession_ReturnsFalse_WhenOpenAiHasExplicitApiKey()
+    {
+        var configs = new List<ProviderConfig>
+        {
+            new() { ProviderId = "codex", ApiKey = "codex-session" },
+            new() { ProviderId = "openai", ApiKey = "sk-openai-live" }
+        };
+
+        var result = ProviderConfigNormalizer.ShouldSuppressOpenAiSession(configs);
+
+        Assert.False(result);
+    }
 }

@@ -133,7 +133,7 @@ public class ClaudeCodeProvider : ProviderBase
                     IsAvailable = true,
                     Description = description,
                     Details = tooltipDetails,
-                    AccountName = warningMessage, // Using AccountName to carry warning state
+                    AccountName = warningMessage ?? string.Empty, // Using AccountName to carry warning state
                     RawJson = responseBody,
                     HttpStatus = (int)testResponse.StatusCode
                 };

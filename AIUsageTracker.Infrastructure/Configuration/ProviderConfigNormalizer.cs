@@ -5,6 +5,11 @@ namespace AIUsageTracker.Infrastructure.Configuration;
 
 public static class ProviderConfigNormalizer
 {
+    public static bool ShouldSuppressOpenAiSession(IReadOnlyCollection<ProviderConfig> configs)
+    {
+        return HasConfiguredCodex(configs) && configs.Any(IsOpenAiSessionConfig);
+    }
+
     public static void NormalizeOpenAiCodexSessionOverlap(List<ProviderConfig> configs)
     {
         var openAiConfig = configs.FirstOrDefault(c => c.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase));
@@ -93,5 +98,19 @@ public static class ProviderConfigNormalizer
         }
 
         configs.RemoveAll(c => c.ProviderId.Equals("codex.spark", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool HasConfiguredCodex(IEnumerable<ProviderConfig> configs)
+    {
+        return configs.Any(c =>
+            c.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(c.ApiKey));
+    }
+
+    public static bool IsOpenAiSessionConfig(ProviderConfig config)
+    {
+        return config.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase) &&
+               !string.IsNullOrWhiteSpace(config.ApiKey) &&
+               !config.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
     }
 }

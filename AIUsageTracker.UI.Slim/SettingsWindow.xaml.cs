@@ -589,18 +589,43 @@ public partial class SettingsWindow : Window
         };
 
         var deterministicNow = new DateTime(2026, 02, 01, 12, 00, 00, DateTimeKind.Local);
+        ProviderUsage CreateUsage(
+            string providerId,
+            double requestsPercentage = 0,
+            double requestsUsed = 0,
+            double requestsAvailable = 0,
+            string description = "Connected",
+            bool isAvailable = true,
+            DateTime? nextResetTime = null,
+            List<ProviderUsageDetail>? details = null)
+        {
+            var definition = ProviderMetadataCatalog.Find(providerId)
+                ?? throw new InvalidOperationException($"Unknown provider id '{providerId}' in deterministic screenshot data.");
+
+            return new ProviderUsage
+            {
+                ProviderId = providerId,
+                ProviderName = ProviderMetadataCatalog.GetDisplayName(providerId),
+                IsAvailable = isAvailable,
+                IsQuotaBased = definition.IsQuotaBased,
+                PlanType = definition.PlanType,
+                RequestsPercentage = requestsPercentage,
+                RequestsUsed = requestsUsed,
+                RequestsAvailable = requestsAvailable,
+                Description = description,
+                Details = details,
+                NextResetTime = nextResetTime
+            };
+        }
+
         _usages = new List<ProviderUsage>
         {
-            new()
-            {
-                ProviderId = "antigravity",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("antigravity"),
-                IsAvailable = true,
-                IsQuotaBased = true,
-                PlanType = PlanType.Coding,
-                RequestsPercentage = 60.0,
-                Description = "60.0% Remaining",
-                Details = new List<ProviderUsageDetail>
+            CreateUsage(
+                "antigravity",
+                requestsPercentage: 60.0,
+                description: "60.0% Remaining",
+                nextResetTime: deterministicNow.AddHours(6),
+                details: new List<ProviderUsageDetail>
                 {
                     new()
                     {
@@ -656,170 +681,21 @@ public partial class SettingsWindow : Window
                         Description = "60% remaining",
                         NextResetTime = deterministicNow.AddHours(8)
                     }
-                },
-                NextResetTime = deterministicNow.AddHours(6)
-            },
-            new()
-            {
-                ProviderId = "claude-code",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("claude-code"),
-                IsAvailable = true,
-                IsQuotaBased = false,
-                PlanType = PlanType.Usage,
-                RequestsPercentage = 0,
-                RequestsUsed = 0,
-                RequestsAvailable = 0,
-                Description = "Connected"
-            },
-            new()
-            {
-                ProviderId = "deepseek",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("deepseek"),
-                IsAvailable = true,
-                IsQuotaBased = false,
-                PlanType = PlanType.Usage,
-                RequestsPercentage = 0,
-                RequestsUsed = 0,
-                RequestsAvailable = 0,
-                Description = "Connected"
-            },
-            new()
-            {
-                ProviderId = "gemini-cli",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("gemini-cli"),
-                IsAvailable = true,
-                IsQuotaBased = true,
-                PlanType = PlanType.Coding,
-                RequestsPercentage = 84.0,
-                Description = "84.0% Remaining",
-                NextResetTime = deterministicNow.AddHours(12)
-            },
-            new()
-            {
-                ProviderId = "github-copilot",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("github-copilot"),
-                IsAvailable = true,
-                IsQuotaBased = true,
-                PlanType = PlanType.Coding,
-                RequestsPercentage = 72.5,
-                Description = "72.5% Remaining",
-                NextResetTime = deterministicNow.AddHours(20)
-            },
-            new()
-            {
-                ProviderId = "kimi",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("kimi"),
-                IsAvailable = true,
-                IsQuotaBased = true,
-                PlanType = PlanType.Coding,
-                RequestsPercentage = 66.0,
-                Description = "66.0% Remaining",
-                NextResetTime = deterministicNow.AddHours(9)
-            },
-            new()
-            {
-                ProviderId = "minimax",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("minimax"),
-                IsAvailable = true,
-                IsQuotaBased = true,
-                PlanType = PlanType.Coding,
-                RequestsPercentage = 61.0,
-                Description = "61.0% Remaining",
-                NextResetTime = deterministicNow.AddHours(11)
-            },
-            new()
-            {
-                ProviderId = "minimax-io",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("minimax-io"),
-                IsAvailable = true,
-                IsQuotaBased = false,
-                PlanType = PlanType.Usage,
-                RequestsPercentage = 0,
-                RequestsUsed = 0,
-                RequestsAvailable = 0,
-                Description = "Connected"
-            },
-            new()
-            {
-                ProviderId = "mistral",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("mistral"),
-                IsAvailable = true,
-                IsQuotaBased = false,
-                PlanType = PlanType.Usage,
-                RequestsPercentage = 0,
-                RequestsUsed = 0,
-                RequestsAvailable = 0,
-                Description = "Connected"
-            },
-            new()
-            {
-                ProviderId = "openai",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("openai"),
-                IsAvailable = true,
-                IsQuotaBased = true,
-                PlanType = PlanType.Coding,
-                RequestsPercentage = 63.0,
-                Description = "63.0% Remaining",
-                NextResetTime = deterministicNow.AddHours(18)
-            },
-            new()
-            {
-                ProviderId = "opencode",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("opencode"),
-                IsAvailable = true,
-                IsQuotaBased = false,
-                PlanType = PlanType.Usage,
-                RequestsPercentage = 0,
-                RequestsUsed = 0,
-                RequestsAvailable = 0,
-                Description = "Connected"
-            },
-            new()
-            {
-                ProviderId = "opencode-zen",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("opencode-zen"),
-                IsAvailable = true,
-                IsQuotaBased = false,
-                PlanType = PlanType.Usage,
-                RequestsPercentage = 0,
-                RequestsUsed = 0,
-                RequestsAvailable = 0,
-                Description = "Connected"
-            },
-            new()
-            {
-                ProviderId = "openrouter",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("openrouter"),
-                IsAvailable = true,
-                IsQuotaBased = false,
-                PlanType = PlanType.Usage,
-                RequestsPercentage = 0,
-                RequestsUsed = 0,
-                RequestsAvailable = 0,
-                Description = "Connected"
-            },
-            new()
-            {
-                ProviderId = "synthetic",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("synthetic"),
-                IsAvailable = true,
-                IsQuotaBased = true,
-                PlanType = PlanType.Coding,
-                RequestsPercentage = 79.0,
-                Description = "79.0% Remaining",
-                NextResetTime = deterministicNow.AddHours(4)
-            },
-            new()
-            {
-                ProviderId = "zai-coding-plan",
-                ProviderName = ProviderMetadataCatalog.GetDisplayName("zai-coding-plan"),
-                IsAvailable = true,
-                IsQuotaBased = true,
-                PlanType = PlanType.Coding,
-                RequestsPercentage = 88.0,
-                Description = "88.0% Remaining",
-                NextResetTime = deterministicNow.AddHours(15)
-            }
+                }),
+            CreateUsage("claude-code"),
+            CreateUsage("deepseek"),
+            CreateUsage("gemini-cli", requestsPercentage: 84.0, description: "84.0% Remaining", nextResetTime: deterministicNow.AddHours(12)),
+            CreateUsage("github-copilot", requestsPercentage: 72.5, description: "72.5% Remaining", nextResetTime: deterministicNow.AddHours(20)),
+            CreateUsage("kimi", requestsPercentage: 66.0, description: "66.0% Remaining", nextResetTime: deterministicNow.AddHours(9)),
+            CreateUsage("minimax", requestsPercentage: 61.0, description: "61.0% Remaining", nextResetTime: deterministicNow.AddHours(11)),
+            CreateUsage("minimax-io"),
+            CreateUsage("mistral"),
+            CreateUsage("openai", requestsPercentage: 63.0, description: "63.0% Remaining", nextResetTime: deterministicNow.AddHours(18)),
+            CreateUsage("opencode"),
+            CreateUsage("opencode-zen"),
+            CreateUsage("openrouter"),
+            CreateUsage("synthetic", requestsPercentage: 79.0, description: "79.0% Remaining", nextResetTime: deterministicNow.AddHours(4)),
+            CreateUsage("zai-coding-plan", requestsPercentage: 88.0, description: "88.0% Remaining", nextResetTime: deterministicNow.AddHours(15))
         };
 
         PopulateProviders();

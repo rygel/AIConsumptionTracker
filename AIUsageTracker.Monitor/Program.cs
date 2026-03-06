@@ -254,15 +254,7 @@ app.MapGet("/api/usage", async (UsageDatabase db, IConfigService configService, 
     var usage = await db.GetLatestHistoryAsync();
 
     var configs = await configService.GetConfigsAsync();
-    var hasCodexSession = configs.Any(c =>
-        c.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase) &&
-        !string.IsNullOrWhiteSpace(c.ApiKey));
-    var hasExplicitOpenAiApiKey = configs.Any(c =>
-        c.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase) &&
-        !string.IsNullOrWhiteSpace(c.ApiKey) &&
-        c.ApiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase));
-
-    if (hasCodexSession && !hasExplicitOpenAiApiKey)
+    if (ProviderConfigNormalizer.ShouldSuppressOpenAiSession(configs))
     {
         usage = usage
             .Where(u => !u.ProviderId.Equals("openai", StringComparison.OrdinalIgnoreCase))
