@@ -1145,7 +1145,7 @@ public partial class MainWindow : Window
             // Render Quota Providers first, then PAYG
             var orderedUsages = filteredUsages
                 .OrderByDescending(u => u.IsQuotaBased)
-                .ThenBy(u => GetFriendlyProviderName(u), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(u => ProviderMetadataCatalog.GetDisplayName(u.ProviderId ?? string.Empty, u.ProviderName), StringComparer.OrdinalIgnoreCase)
                 .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase);
 
             UIElement? currentHeader = null;
@@ -1162,10 +1162,11 @@ public partial class MainWindow : Window
                     var sectionColor = currentIsQuota.Value ? Brushes.DeepSkyBlue : Brushes.MediumSeaGreen;
                     var sectionKey = currentIsQuota.Value ? "PlansAndQuotas" : "PayAsYouGo";
                     
-                    var (header, container) = CreateCollapsibleGroupHeader(
+                    var (header, container) = CreateCollapsibleHeader(
                         sectionTitle,
                         sectionColor,
-                        sectionKey,
+                        isGroupHeader: true,
+                        groupKey: sectionKey,
                         () => currentIsQuota.Value ? _preferences.IsPlansAndQuotasCollapsed : _preferences.IsPayAsYouGoCollapsed,
                         v => {
                             if (currentIsQuota.Value) _preferences.IsPlansAndQuotasCollapsed = v;
@@ -1345,24 +1346,10 @@ public partial class MainWindow : Window
         return (header, container);
     }
 
-    private (UIElement Header, StackPanel Container) CreateCollapsibleGroupHeader(
-        string title, Brush accent, string groupKey,
-        Func<bool> getCollapsed, Action<bool> setCollapsed)
-    {
-        return CreateCollapsibleHeader(title, accent, isGroupHeader: true, groupKey, getCollapsed, setCollapsed);
-    }
-
-    private (UIElement Header, StackPanel Container) CreateCollapsibleSubHeader(
-        string title, Brush accent,
-        Func<bool> getCollapsed, Action<bool> setCollapsed)
-    {
-        return CreateCollapsibleHeader(title, accent, isGroupHeader: false, null, getCollapsed, setCollapsed);
-    }
-
     private void AddProviderCard(ProviderUsage usage, StackPanel container, bool isChild = false)
     {
         var providerId = usage.ProviderId ?? string.Empty;
-        var friendlyName = GetFriendlyProviderName(usage);
+        var friendlyName = ProviderMetadataCatalog.GetDisplayName(providerId, usage.ProviderName);
         var showUsed = ShowUsedToggle?.IsChecked ?? false;
         var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed);
 
@@ -1393,20 +1380,7 @@ public partial class MainWindow : Window
         else
         {
             var indicatorWidth = showUsed ? presentation.UsedPercent : presentation.RemainingPercent;
-
-            // Clamp to 0-100
-            indicatorWidth = Math.Max(0, Math.Min(100, indicatorWidth));
-
-            pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(indicatorWidth, GridUnitType.Star) });
-            pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.001, 100 - indicatorWidth), GridUnitType.Star) });
-
-            var fill = new Border
-            {
-                Background = GetProgressBarColor(presentation.UsedPercent),
-                Opacity = 0.45,
-                CornerRadius = new CornerRadius(0)
-            };
-            pGrid.Children.Add(fill);
+            pGrid = CreateSingleProgressLayer(presentation.UsedPercent, indicatorWidth, opacity: 0.45);
         }
 
         pGrid.Visibility = presentation.ShouldHaveProgress ? Visibility.Visible : Visibility.Collapsed;
@@ -1427,16 +1401,7 @@ public partial class MainWindow : Window
         // Provider icon or bullet for child items
         if (isChild)
         {
-            var icon = new Border
-            {
-                Width = 4, Height = 4,
-                Background = GetResourceBrush("SecondaryText", Brushes.Gray),
-                CornerRadius = new CornerRadius(2),
-                Margin = new Thickness(2, 0, 10, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            contentPanel.Children.Add(icon);
-            DockPanel.SetDock(icon, Dock.Left);
+            AddDockedElement(contentPanel, CreateBulletMarker(), Dock.Left);
         }
         else
         {
@@ -1446,8 +1411,7 @@ public partial class MainWindow : Window
             providerIcon.Width = 14;
             providerIcon.Height = 14;
             providerIcon.VerticalAlignment = VerticalAlignment.Center;
-            contentPanel.Children.Add(providerIcon);
-            DockPanel.SetDock(providerIcon, Dock.Left);
+            AddDockedElement(contentPanel, providerIcon, Dock.Left);
         }
 
         // Right Side: Usage/Status
@@ -1464,47 +1428,40 @@ public partial class MainWindow : Window
         if (usage.NextResetTime.HasValue)
         {
             var relative = GetRelativeTimeString(usage.NextResetTime.Value);
-            var resetBlock = new TextBlock
-            {
-                Text = $"(Resets: {relative})",
-                FontSize = 10,
-                Foreground = GetResourceBrush("StatusTextWarning", Brushes.Goldenrod),
-                FontWeight = FontWeights.SemiBold,
-                VerticalAlignment = VerticalAlignment.Center,
-
-                Margin = new Thickness(10, 0, 0, 0)
-            };
-            DockPanel.SetDock(resetBlock, Dock.Right);
-            contentPanel.Children.Add(resetBlock);
+            AddDockedElement(
+                contentPanel,
+                CreateDockedTextBlock(
+                    $"(Resets: {relative})",
+                    fontSize: 10,
+                    foreground: GetResourceBrush("StatusTextWarning", Brushes.Goldenrod),
+                    fontWeight: FontWeights.SemiBold,
+                    margin: new Thickness(10, 0, 0, 0)),
+                Dock.Right);
         }
 
         // Right Side: Usage/Status - must be added last to Dock.Right to appear left of reset time
-        var rightBlock = new TextBlock
-        {
-            Text = statusText,
-            FontSize = 10,
-            Foreground = statusBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(10, 0, 0, 0)
-        };
-        DockPanel.SetDock(rightBlock, Dock.Right);
-        contentPanel.Children.Add(rightBlock);
+        AddDockedElement(
+            contentPanel,
+            CreateDockedTextBlock(
+                statusText,
+                fontSize: 10,
+                foreground: statusBrush,
+                margin: new Thickness(10, 0, 0, 0)),
+            Dock.Right);
 
         // Name (gets remaining space)
         var accountPart = string.IsNullOrWhiteSpace(usage.AccountName)
             ? ""
             : $" [{(_isPrivacyMode ? ProviderStatusPresentationCatalog.MaskAccountIdentifier(usage.AccountName) : usage.AccountName)}]";
-        var nameBlock = new TextBlock
-        {
-            Text = $"{friendlyName}{accountPart}",
-            FontWeight = isChild ? FontWeights.Normal : FontWeights.SemiBold,
-            FontSize = 11,
-            Foreground = presentation.IsMissing ? GetResourceBrush("TertiaryText", Brushes.Gray) : GetResourceBrush("PrimaryText", Brushes.White),
-            VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis
-        };
-        contentPanel.Children.Add(nameBlock);
-        DockPanel.SetDock(nameBlock, Dock.Left);
+        AddDockedElement(
+            contentPanel,
+            CreateDockedTextBlock(
+                $"{friendlyName}{accountPart}",
+                fontSize: 11,
+                foreground: presentation.IsMissing ? GetResourceBrush("TertiaryText", Brushes.Gray) : GetResourceBrush("PrimaryText", Brushes.White),
+                fontWeight: isChild ? FontWeights.Normal : FontWeights.SemiBold,
+                textTrimming: TextTrimming.CharacterEllipsis),
+            Dock.Left);
 
         grid.Children.Add(contentPanel);
 
@@ -1512,17 +1469,10 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(toolTipContent))
         {
             grid.ToolTip = CreateTopmostAwareToolTip(grid, toolTipContent);
-            ToolTipService.SetInitialShowDelay(grid, 100);
-            ToolTipService.SetShowDuration(grid, 15000);
+            ConfigureCardToolTip(grid);
         }
 
         container.Children.Add(grid);
-    }
-
-    private static string GetFriendlyProviderName(ProviderUsage usage)
-    {
-        var providerId = usage.ProviderId ?? string.Empty;
-        return ProviderMetadataCatalog.GetDisplayName(providerId, usage.ProviderName);
     }
 
     private void AddAntigravityModels(ProviderUsage usage, StackPanel container)
@@ -1570,6 +1520,51 @@ public partial class MainWindow : Window
         toolTip.Closed += (s, e) => _isTooltipOpen = false;
 
         return toolTip;
+    }
+
+    private static void AddDockedElement(DockPanel panel, UIElement element, Dock dock)
+    {
+        panel.Children.Add(element);
+        DockPanel.SetDock(element, dock);
+    }
+
+    private TextBlock CreateDockedTextBlock(
+        string text,
+        double fontSize,
+        Brush foreground,
+        FontWeight? fontWeight = null,
+        Thickness? margin = null,
+        TextTrimming textTrimming = TextTrimming.None)
+    {
+        return new TextBlock
+        {
+            Text = text,
+            FontSize = fontSize,
+            Foreground = foreground,
+            FontWeight = fontWeight ?? FontWeights.Normal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = margin ?? new Thickness(0),
+            TextTrimming = textTrimming
+        };
+    }
+
+    private Border CreateBulletMarker()
+    {
+        return new Border
+        {
+            Width = 4,
+            Height = 4,
+            Background = GetResourceBrush("SecondaryText", Brushes.Gray),
+            CornerRadius = new CornerRadius(2),
+            Margin = new Thickness(2, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+    }
+
+    private static void ConfigureCardToolTip(FrameworkElement target)
+    {
+        ToolTipService.SetInitialShowDelay(target, 100);
+        ToolTipService.SetShowDuration(target, 15000);
     }
 
     private static bool TryGetDualWindowUsedPercentages(ProviderUsage usage, out double hourlyUsed, out double weeklyUsed)
@@ -1626,20 +1621,24 @@ public partial class MainWindow : Window
     {
         var remainingPercent = Math.Max(0, 100 - usedPercent);
         var indicatorWidth = showUsed ? usedPercent : remainingPercent;
-        indicatorWidth = Math.Clamp(indicatorWidth, 0, 100);
+        return CreateSingleProgressLayer(usedPercent, indicatorWidth, opacity);
+    }
+
+    private Grid CreateSingleProgressLayer(double usedPercent, double indicatorWidth, double opacity)
+    {
+        var clampedWidth = Math.Clamp(indicatorWidth, 0, 100);
 
         var layer = new Grid();
-        layer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(indicatorWidth, GridUnitType.Star) });
-        layer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.001, 100 - indicatorWidth), GridUnitType.Star) });
+        layer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(clampedWidth, GridUnitType.Star) });
+        layer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.001, 100 - clampedWidth), GridUnitType.Star) });
 
-        var fill = new Border
+        layer.Children.Add(new Border
         {
             Background = GetProgressBarColor(usedPercent),
             Opacity = opacity,
             CornerRadius = new CornerRadius(0)
-        };
+        });
 
-        layer.Children.Add(fill);
         return layer;
     }
 
@@ -1660,17 +1659,7 @@ public partial class MainWindow : Window
             GetRelativeTimeString);
 
         // Background Progress Bar (Miniature)
-        var pGrid = new Grid();
-        pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(presentation.IndicatorWidth, GridUnitType.Star) });
-        pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.001, 100 - presentation.IndicatorWidth), GridUnitType.Star) });
-
-        var fill = new Border
-        {
-            Background = GetProgressBarColor(presentation.UsedPercent), // Always color based on USED percentage
-            Opacity = 0.3, // Slightly more transparent for sub-items
-            CornerRadius = new CornerRadius(0)
-        };
-        pGrid.Children.Add(fill);
+        var pGrid = CreateSingleProgressLayer(presentation.UsedPercent, presentation.IndicatorWidth, opacity: 0.3);
         if (presentation.HasProgress)
         {
             grid.Children.Add(pGrid);
@@ -1679,56 +1668,41 @@ public partial class MainWindow : Window
         // Content Overlay
         var bulletPanel = new DockPanel { LastChildFill = false, Margin = new Thickness(6, 0, 6, 0) };
 
-        var bullet = new Border
-        {
-            Width = 4, Height = 4,
-            Background = GetResourceBrush("SecondaryText", Brushes.Gray),
-            CornerRadius = new CornerRadius(2),
-            Margin = new Thickness(2, 0, 10, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        bulletPanel.Children.Add(bullet);
-        DockPanel.SetDock(bullet, Dock.Left);
+        AddDockedElement(bulletPanel, CreateBulletMarker(), Dock.Left);
 
         // Reset time on the right (if available) - shown in yellow
         if (!string.IsNullOrEmpty(presentation.ResetText))
         {
-            var resetBlock = new TextBlock
-            {
-                Text = presentation.ResetText,
-                FontSize = 9,
-                Foreground = GetResourceBrush("StatusTextWarning", Brushes.Goldenrod),
-                FontWeight = FontWeights.SemiBold,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(6, 0, 0, 0)
-            };
-            bulletPanel.Children.Add(resetBlock);
-            DockPanel.SetDock(resetBlock, Dock.Right);
+            AddDockedElement(
+                bulletPanel,
+                CreateDockedTextBlock(
+                    presentation.ResetText,
+                    fontSize: 9,
+                    foreground: GetResourceBrush("StatusTextWarning", Brushes.Goldenrod),
+                    fontWeight: FontWeights.SemiBold,
+                    margin: new Thickness(6, 0, 0, 0)),
+                Dock.Right);
         }
 
         // Value on the right
-        var valueBlock = new TextBlock
-        {
-            Text = presentation.DisplayText,
-            FontSize = 10,
-            Foreground = GetResourceBrush("TertiaryText", Brushes.Gray),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(10, 0, 0, 0)
-        };
-        bulletPanel.Children.Add(valueBlock);
-        DockPanel.SetDock(valueBlock, Dock.Right);
+        AddDockedElement(
+            bulletPanel,
+            CreateDockedTextBlock(
+                presentation.DisplayText,
+                fontSize: 10,
+                foreground: GetResourceBrush("TertiaryText", Brushes.Gray),
+                margin: new Thickness(10, 0, 0, 0)),
+            Dock.Right);
 
         // Name on the left
-        var nameBlock = new TextBlock
-        {
-            Text = detail.Name,
-            FontSize = 10,
-            Foreground = GetResourceBrush("SecondaryText", Brushes.LightGray),
-            VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis
-        };
-        bulletPanel.Children.Add(nameBlock);
-        DockPanel.SetDock(nameBlock, Dock.Left);
+        AddDockedElement(
+            bulletPanel,
+            CreateDockedTextBlock(
+                detail.Name,
+                fontSize: 10,
+                foreground: GetResourceBrush("SecondaryText", Brushes.LightGray),
+                textTrimming: TextTrimming.CharacterEllipsis),
+            Dock.Left);
 
         grid.Children.Add(bulletPanel);
         container.Children.Add(grid);
@@ -1747,9 +1721,11 @@ public partial class MainWindow : Window
 
         // Create collapsible section for sub-providers
         var useAntigravityCollapsePreference = usage.ProviderId.StartsWith("antigravity", StringComparison.OrdinalIgnoreCase);
-        var (subHeader, subContainer) = CreateCollapsibleSubHeader(
+        var (subHeader, subContainer) = CreateCollapsibleHeader(
             $"{usage.ProviderName} Details",
             Brushes.DeepSkyBlue,
+            isGroupHeader: false,
+            groupKey: null,
             () => useAntigravityCollapsePreference && _preferences.IsAntigravityCollapsed,
             v =>
             {
