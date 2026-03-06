@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased] - Beta 19 preparation
+
+### Fixed
+- **Kimi Dual Bars**: Fixed `DetermineWindowKind` not emitting `WindowKind.Primary` for daily limits, preventing dual progress bars from rendering.
+- **Synthetic Reset Time**: Fixed `BuildResetLabel` double-converting UTC timestamps by adding `DateTimeStyles.RoundtripKind` during parse, resolving "resets in 0 minutes" display.
+- **ProviderMetadataCatalog**: Fixed stale inline `ProviderMetadata` stubs for GitHub Copilot, Mistral, and Kimi left over from the Beta 18 Anthropic cleanup; now references each provider's own `StaticDefinition`.
+
+### Removed
+- **Anthropic Provider**: Fully removed `AnthropicProvider.cs`, its catalog entry, and `AnthropicProviderTests.cs`.
+
+### Refactored
+- Extracted shared JSON navigation helpers (`ReadString`, `ReadDouble`, `ReadBool`) into `JsonElementExtensions` in `AIUsageTracker.Core.Helpers`, eliminating identical private methods duplicated in `OpenAIProvider` and `CodexProvider`.
+
 ## [2.2.28-beta.18] - 2026-03-06
 
 ### Added
