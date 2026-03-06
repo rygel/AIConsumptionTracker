@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Monitor.Services;
+using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Models;
 using System.Net;
 using System.Net.Sockets;
@@ -571,15 +572,7 @@ public partial class Program
     {
         var appDataRoot = pathProvider.GetAppDataRoot();
         var userProfileRoot = pathProvider.GetUserProfileRoot();
-
-        return new[]
-        {
-            Path.Combine(appDataRoot, "monitor.json"),
-            Path.Combine(appDataRoot, "Monitor", "monitor.json"),
-            Path.Combine(appDataRoot, "Agent", "monitor.json"),
-            Path.Combine(userProfileRoot, ".ai-consumption-tracker", "monitor.json"),
-            Path.Combine(userProfileRoot, ".opencode", "monitor.json")
-        };
+        return MonitorInfoPathCatalog.GetWriteCandidatePaths(appDataRoot, userProfileRoot);
     }
 }
 

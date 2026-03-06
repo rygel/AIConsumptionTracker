@@ -14,8 +14,44 @@ public class MonitorLauncher
     private const int StopWaitSeconds = 5;
     private static ILogger<MonitorLauncher>? _logger;
     private static readonly SemaphoreSlim StartupSemaphore = new(1, 1);
+    private static Func<IEnumerable<string>>? _monitorInfoCandidatePathsOverride;
+    private static Func<int, Task<bool>>? _healthCheckOverride;
+    private static Func<int, Task<bool>>? _processRunningOverride;
 
     public static void SetLogger(ILogger<MonitorLauncher> logger) => _logger = logger;
+
+    internal static IDisposable PushTestOverrides(
+        IEnumerable<string>? monitorInfoCandidatePaths = null,
+        Func<int, Task<bool>>? healthCheckAsync = null,
+        Func<int, Task<bool>>? processRunningAsync = null)
+    {
+        var previousCandidatePaths = _monitorInfoCandidatePathsOverride;
+        var previousHealthCheck = _healthCheckOverride;
+        var previousProcessCheck = _processRunningOverride;
+
+        if (monitorInfoCandidatePaths != null)
+        {
+            var paths = monitorInfoCandidatePaths.ToArray();
+            _monitorInfoCandidatePathsOverride = () => paths;
+        }
+
+        if (healthCheckAsync != null)
+        {
+            _healthCheckOverride = healthCheckAsync;
+        }
+
+        if (processRunningAsync != null)
+        {
+            _processRunningOverride = processRunningAsync;
+        }
+
+        return new TestOverrideScope(() =>
+        {
+            _monitorInfoCandidatePathsOverride = previousCandidatePaths;
+            _healthCheckOverride = previousHealthCheck;
+            _processRunningOverride = previousProcessCheck;
+        });
+    }
 
 
     private static async Task<MonitorInfo?> GetAgentInfoAsync()
@@ -90,6 +126,11 @@ public class MonitorLauncher
 
     private static async Task<bool> CheckHealthAsync(int port)
     {
+        if (_healthCheckOverride != null)
+        {
+            return await _healthCheckOverride(port).ConfigureAwait(false);
+        }
+
         try
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(500) };
@@ -104,6 +145,11 @@ public class MonitorLauncher
 
     private static Task<bool> CheckProcessRunningAsync(int processId)
     {
+        if (_processRunningOverride != null)
+        {
+            return _processRunningOverride(processId);
+        }
+
         if (processId <= 0) return Task.FromResult(false);
         try
         {
@@ -425,16 +471,36 @@ public class MonitorLauncher
 
     private static IEnumerable<string> GetMonitorInfoCandidatePaths()
     {
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return new[]
+        if (_monitorInfoCandidatePathsOverride != null)
         {
-            Path.Combine(appData, "AIUsageTracker", "monitor.json"),
-            Path.Combine(appData, "AIUsageTracker", "Monitor", "monitor.json"),
-            Path.Combine(appData, "AIUsageTracker", "Agent", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "Monitor", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "Agent", "monitor.json")
-        };
+            return _monitorInfoCandidatePathsOverride();
+        }
+
+        var appDataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var userProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return MonitorInfoPathCatalog.GetReadCandidatePaths(appDataRoot, userProfileRoot);
+    }
+
+    private sealed class TestOverrideScope : IDisposable
+    {
+        private readonly Action _reset;
+        private bool _disposed;
+
+        public TestOverrideScope(Action reset)
+        {
+            _reset = reset;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _reset();
+        }
     }
 }
 
