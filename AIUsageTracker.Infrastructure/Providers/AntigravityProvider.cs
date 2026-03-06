@@ -58,7 +58,10 @@ public class AntigravityProvider : ProviderBase
             }
         };
 
-        return new HttpClient(handler);
+        return new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(1.5)
+        };
     }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)

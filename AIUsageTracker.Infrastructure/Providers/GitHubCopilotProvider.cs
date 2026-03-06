@@ -210,20 +210,55 @@ public class GitHubCopilotProvider : ProviderBase
                 }
             }
 
-            if (root.TryGetProperty("quota_snapshots", out var snapshots) &&
-                snapshots.TryGetProperty("premium_interactions", out var premium) &&
-                premium.TryGetProperty("entitlement", out var entitlementProp) &&
-                premium.TryGetProperty("remaining", out var remainingProp) &&
-                entitlementProp.TryGetDouble(out var entitlement) &&
-                remainingProp.TryGetDouble(out var remaining) &&
-                entitlement > 0)
+            state.Details = new List<ProviderUsageDetail>();
+
+            if (root.TryGetProperty("quota_snapshots", out var snapshots))
             {
-                var normalizedRemaining = Math.Clamp(remaining, 0, entitlement);
-                var used = Math.Max(0, entitlement - normalizedRemaining);
-                state.CostLimit = entitlement;
-                state.CostUsed = used;
-                state.Percentage = UsageMath.CalculateRemainingPercent(used, entitlement);
-                state.HasCopilotQuotaData = true;
+                // 1. Primary Window (Hourly/Short-term)
+                if (snapshots.TryGetProperty("usage", out var usageSnapshot) &&
+                    usageSnapshot.TryGetProperty("entitlement", out var uEntProp) &&
+                    usageSnapshot.TryGetProperty("remaining", out var uRemProp) &&
+                    uEntProp.TryGetDouble(out var uEnt) &&
+                    uRemProp.TryGetDouble(out var uRem) &&
+                    uEnt > 0)
+                {
+                    var uUsed = Math.Max(0, uEnt - uRem);
+                    var uPct = ((uEnt - uRem) / uEnt) * 100.0;
+                    state.Details.Add(new ProviderUsageDetail
+                    {
+                        Name = "5-hour Window",
+                        Used = $"{uPct:F0}% used",
+                        Description = $"{uRem:F0} / {uEnt:F0} remaining",
+                        DetailType = ProviderUsageDetailType.QuotaWindow,
+                        WindowKind = WindowKind.Primary
+                    });
+                }
+
+                // 2. Secondary Window (Premium/Interaction-based)
+                if (snapshots.TryGetProperty("premium_interactions", out var premium) &&
+                    premium.TryGetProperty("entitlement", out var entitlementProp) &&
+                    premium.TryGetProperty("remaining", out var remainingProp) &&
+                    entitlementProp.TryGetDouble(out var entitlement) &&
+                    remainingProp.TryGetDouble(out var remaining) &&
+                    entitlement > 0)
+                {
+                    var normalizedRemaining = Math.Clamp(remaining, 0, entitlement);
+                    var used = Math.Max(0, entitlement - normalizedRemaining);
+                    state.CostLimit = entitlement;
+                    state.CostUsed = used;
+                    state.Percentage = UsageMath.CalculateRemainingPercent(used, entitlement);
+                    state.HasCopilotQuotaData = true;
+
+                    state.Details.Add(new ProviderUsageDetail
+                    {
+                        Name = "Weekly Quota",
+                        Used = $"{100.0 - state.Percentage:F0}% used",
+                        Description = $"{normalizedRemaining:F0} / {entitlement:F0} remaining",
+                        DetailType = ProviderUsageDetailType.QuotaWindow,
+                        WindowKind = WindowKind.Secondary,
+                        NextResetTime = state.ResetTime
+                    });
+                }
             }
         }
         catch
@@ -249,6 +284,7 @@ public class GitHubCopilotProvider : ProviderBase
             IsQuotaBased = true,
             AuthSource = string.IsNullOrEmpty(state.PlanName) ? "Unknown" : state.PlanName,
             NextResetTime = state.ResetTime,
+            Details = state.Details,
             RawJson = state.RawJson,
             HttpStatus = state.HttpStatus
         };
@@ -325,6 +361,7 @@ public class GitHubCopilotProvider : ProviderBase
         public double CostUsed { get; set; }
         public double CostLimit { get; set; }
         public bool HasCopilotQuotaData { get; set; }
+        public List<ProviderUsageDetail>? Details { get; set; }
         public string? RawJson { get; set; }
         public int HttpStatus { get; set; } = 200;
     }
