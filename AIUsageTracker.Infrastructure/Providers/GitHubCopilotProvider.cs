@@ -56,7 +56,7 @@ public class GitHubCopilotProvider : ProviderBase
         try
         {
             using var request = CreateBearerRequest("https://api.github.com/user", token);
-            using var response = await _httpClient.SendAsync(request);
+            using var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
             state.HttpStatus = (int)response.StatusCode;
 
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -125,7 +125,7 @@ public class GitHubCopilotProvider : ProviderBase
 
     private async Task PopulateProfileAndCopilotDataAsync(string token, HttpResponseMessage response, CopilotUsageState state)
     {
-        var json = await response.Content.ReadAsStringAsync();
+        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         state.RawJson = json;
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         if (doc.RootElement.TryGetProperty("login", out var loginElement))
@@ -142,10 +142,10 @@ public class GitHubCopilotProvider : ProviderBase
         try
         {
             using var internalRequest = CreateBearerRequest("https://api.github.com/copilot_internal/v2/token", token);
-            using var internalResponse = await _httpClient.SendAsync(internalRequest);
+            using var internalResponse = await _httpClient.SendAsync(internalRequest).ConfigureAwait(false);
             if (internalResponse.IsSuccessStatusCode)
             {
-                var internalJson = await internalResponse.Content.ReadAsStringAsync();
+                var internalJson = await internalResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
                 using var internalDoc = System.Text.Json.JsonDocument.Parse(internalJson);
                 var sku = string.Empty;
                 if (internalDoc.RootElement.TryGetProperty("sku", out var skuProp))

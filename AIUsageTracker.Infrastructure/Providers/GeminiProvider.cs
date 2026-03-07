@@ -284,10 +284,10 @@ public class GeminiProvider : ProviderBase
         });
         request.Content = content;
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var tokenResponse = await response.Content.ReadFromJsonAsync<GeminiTokenResponse>();
+        var tokenResponse = await response.Content.ReadFromJsonAsync<GeminiTokenResponse>().ConfigureAwait(false);
         return tokenResponse?.AccessToken ?? throw new Exception("Failed to retrieve access token");
     }
 
@@ -297,10 +297,10 @@ public class GeminiProvider : ProviderBase
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
         request.Content = JsonContent.Create(new { project = projectId });
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var data = await response.Content.ReadFromJsonAsync<GeminiQuotaResponse>();
+        var data = await response.Content.ReadFromJsonAsync<GeminiQuotaResponse>().ConfigureAwait(false);
         return data?.Buckets;
     }
 

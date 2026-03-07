@@ -442,11 +442,11 @@ public class AntigravityProvider : ProviderBase
 
             try
             {
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
 
                 httpStatus = (int)response.StatusCode;
-                responseString = await response.Content.ReadAsStringAsync();
+                responseString = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 _logger.LogDebug(
                     "[Antigravity] Raw response from {Scheme} port {Port}: {Response}",
                     scheme.ToUpperInvariant(),
