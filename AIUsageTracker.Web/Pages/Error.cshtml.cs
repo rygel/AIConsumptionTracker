@@ -6,7 +6,7 @@ namespace AIUsageTracker.Web.Pages;
 
 [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
 [IgnoreAntiforgeryToken]
-public class ErrorModel : PageModel
+public class ErrorPage : PageModel
 {
     public string? RequestId { get; set; }
 
