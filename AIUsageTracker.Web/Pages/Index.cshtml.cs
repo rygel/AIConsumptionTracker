@@ -8,12 +8,12 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace AIUsageTracker.Web.Pages;
 
 [OutputCache(PolicyName = "DashboardCache")]
-public class IndexModel : PageModel
+public class IndexPage : PageModel
 {
     private readonly WebDatabaseService _dbService;
     private readonly IUsageAnalyticsService _analyticsService;
 
-    public IndexModel(WebDatabaseService dbService, IUsageAnalyticsService analyticsService)
+    public IndexPage(WebDatabaseService dbService, IUsageAnalyticsService analyticsService)
     {
         _dbService = dbService;
         _analyticsService = analyticsService;
@@ -27,8 +27,8 @@ public class IndexModel : PageModel
         = new Dictionary<string, ProviderReliabilitySnapshot>(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyDictionary<string, UsageAnomalySnapshot> AnomaliesByProvider { get; private set; }
         = new Dictionary<string, UsageAnomalySnapshot>(StringComparer.OrdinalIgnoreCase);
-    public List<BudgetStatus> BudgetStatuses { get; private set; } = new();
-    public List<UsageComparison> UsageComparisons { get; private set; } = new();
+    public List<BudgetStatus> BudgetStatuses { get; private set; }
+    public List<UsageComparison> UsageComparisons { get; private set; }
     public bool IsDatabaseAvailable => _dbService.IsDatabaseAvailable();
     public bool ShowUsedPercentage { get; set; }
     public bool ShowInactiveProviders { get; set; }
@@ -133,9 +133,8 @@ public class IndexModel : PageModel
 
                 ForecastsByProvider = await forecastTask;
                 ReliabilityByProvider = await reliabilityTask;
-                var anomalies = anomalyTask != null ? await anomalyTask : null;
-                AnomaliesByProvider = anomalies
-                    ?? new Dictionary<string, UsageAnomalySnapshot>(StringComparer.OrdinalIgnoreCase);
+                var anomalies = anomalyTask != null ? (await anomalyTask).ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.OrdinalIgnoreCase) : null;
+                AnomaliesByProvider = anomalies ?? new Dictionary<string, UsageAnomalySnapshot>(StringComparer.OrdinalIgnoreCase);
 
                 // Load experimental features
                 if (EnableExperimentalBudgetPolicies)
