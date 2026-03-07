@@ -344,13 +344,13 @@ public class AntigravityProvider : ProviderBase
 
     private static string? ParseCsrfToken(string commandLine)
     {
-        var match = Regex.Match(commandLine, @"--csrf[_-]token(?:=|\s+)([a-zA-Z0-9-]+)", RegexOptions.IgnoreCase);
+        var match = Regex.Match(commandLine, @"--csrf[_-]token(?:=|\s+)([a-zA-Z0-9-]+)", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
         return match.Success ? match.Groups[1].Value : null;
     }
 
     private static int? ParseExtensionServerPort(string commandLine)
     {
-        var match = Regex.Match(commandLine, @"--extension_server_port(?:=|\s+)(\d+)", RegexOptions.IgnoreCase);
+        var match = Regex.Match(commandLine, @"--extension_server_port(?:=|\s+)(\d+)", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
         if (match.Success && int.TryParse(match.Groups[1].Value, out var port))
         {
             return port;
@@ -407,7 +407,7 @@ public class AntigravityProvider : ProviderBase
         var output = await outputTask;
 
         var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-        var regex = new Regex($@"\s+TCP\s+(?:127\.0\.0\.1|\[::1\]):(\d+)\s+.*LISTENING\s+{pid}");
+        var regex = new Regex($@"\s+TCP\s+(?:127\.0\.0\.1|\[::1\]):(\d+)\s+.*LISTENING\s+{pid}", RegexOptions.None, TimeSpan.FromSeconds(1));
         var ports = new List<int>();
 
         foreach (var line in lines)

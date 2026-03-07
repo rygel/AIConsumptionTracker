@@ -96,7 +96,7 @@ public class GeminiProvider : ProviderBase
                         {
                            var qid = qidElement;
                            name = qid.ValueKind != JsonValueKind.Null ? qid.ToString() : "Unknown";
-                           name = System.Text.RegularExpressions.Regex.Replace(name, "([a-z])([A-Z])", "$1 $2");
+                            name = System.Text.RegularExpressions.Regex.Replace(name, "([a-z])([A-Z])", "$1 $2", RegexOptions.None, TimeSpan.FromSeconds(1));
                            name = name.Replace("Requests Per Day", "(Day)").Replace("Requests Per Minute", "(Min)");
                         }
 
