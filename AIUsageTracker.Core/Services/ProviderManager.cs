@@ -188,7 +188,7 @@ public class ProviderManager : IDisposable
 
         if (provider != null)
         {
-            await _httpSemaphore.WaitAsync();
+            await _httpSemaphore.WaitAsync().ConfigureAwait(false);
             var stopwatch = Stopwatch.StartNew();
             try
             {
