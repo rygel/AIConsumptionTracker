@@ -9,6 +9,10 @@ public sealed class BurnRateForecast
     public DateTime? EstimatedExhaustionUtc { get; init; }
     public int SampleCount { get; init; }
     public string? Reason { get; init; }
+    public BurnRateForecastMethod Method { get; init; }
+    public ConfidenceLevel Confidence { get; init; }
+    public double? ConfidenceLowerBound { get; init; }
+    public double? ConfidenceUpperBound { get; init; }
 
     public static BurnRateForecast Unavailable(string reason)
     {
@@ -18,4 +22,19 @@ public sealed class BurnRateForecast
             Reason = reason
         };
     }
+}
+
+public enum BurnRateForecastMethod
+{
+    SimpleAverage,
+    LinearRegression,
+    MovingAverage,
+    ExponentialSmoothing
+}
+
+public enum ConfidenceLevel
+{
+    Low,
+    Medium,
+    High
 }
