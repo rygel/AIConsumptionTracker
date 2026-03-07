@@ -19,7 +19,6 @@ public class CodeGuardrailTests
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline,
         TimeSpan.FromMilliseconds(500));
 
-#pragma warning disable MA0023
     private static readonly (Regex Pattern, string Description)[] SyncOverAsyncPatterns =
     {
         (
@@ -41,6 +40,7 @@ public class CodeGuardrailTests
                 TimeSpan.FromMilliseconds(500)),
             ".Result")
     };
+
     private static readonly Regex StringLiteralRegex = new(
         "\"(?<literal>(?:\\\\.|[^\"\\\\])*)\"",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture,
