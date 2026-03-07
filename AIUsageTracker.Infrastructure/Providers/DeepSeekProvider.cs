@@ -88,7 +88,7 @@ public class DeepSeekProvider : ProviderBase
             {
                 foreach (var info in result.BalanceInfos)
                 {
-                    string currencySymbol = info.Currency == "CNY" ? "¥" : "$";
+                    string currencySymbol = string.Equals(info.Currency, "CNY", StringComparison.OrdinalIgnoreCase) ? "¥" : "$";
                     string detailName = $"Balance ({info.Currency})";
                     details.Add(new ProviderUsageDetail
                     {
@@ -100,7 +100,7 @@ public class DeepSeekProvider : ProviderBase
                     });
 
                     // If it's the first or a primary currency, use for main description
-                    if (mainDescription == "No balance found")
+                    if (string.Equals(mainDescription, "No balance found", StringComparison.Ordinal))
                     {
                         mainDescription = $"Balance: {currencySymbol}{info.TotalBalance.ToString("F2", CultureInfo.InvariantCulture)}";
                     }
