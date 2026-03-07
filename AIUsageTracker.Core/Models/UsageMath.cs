@@ -124,64 +124,96 @@ public static class UsageMath
             return null;
         }
 
-        var usedMatch = s_usedPattern.Match(value);
-        if (usedMatch.Success)
+        if (TryParseUsedPercent(value, out var usedPercent))
         {
             isUsed = true;
-            if (double.TryParse(
-                    usedMatch.Groups["percent"].Value,
-                    System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    out var usedPercent))
-            {
-                return ClampPercent(usedPercent);
-            }
+            return ClampPercent(usedPercent);
         }
 
-        var remainingMatch = s_remainingPattern.Match(value);
-        if (remainingMatch.Success)
+        if (TryParseRemainingPercent(value, out var remainingPercent))
         {
             isUsed = false;
-            if (double.TryParse(
-                    remainingMatch.Groups["percent"].Value,
-                    System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    out var remainingPercent))
-            {
-                return ClampPercent(remainingPercent);
-            }
+            return ClampPercent(remainingPercent);
         }
 
-        var match = s_percentPattern.Match(value);
-        if (match.Success)
+        if (TryParseGenericPercent(value, out var percent, out var genericIsUsed))
         {
-            if (value.Contains("used", StringComparison.OrdinalIgnoreCase))
-            {
-                isUsed = true;
-            }
-            else if (value.Contains("remaining", StringComparison.OrdinalIgnoreCase))
-            {
-                isUsed = false;
-            }
-
-            if (double.TryParse(
-                    match.Groups["percent"].Value,
-                    System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    out var percent))
-            {
-                return ClampPercent(percent);
-            }
+            isUsed = genericIsUsed;
+            return ClampPercent(percent);
         }
 
-        // Fallback for just numbers
-        var cleanValue = new string(value.Where(c => char.IsDigit(c) || c == '.').ToArray());
-        if (double.TryParse(cleanValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var result))
+        if (TryParseFallbackNumber(value, out var result))
         {
             return ClampPercent(result);
         }
 
         return null;
+    }
+
+    private static bool TryParseUsedPercent(string value, out double percent)
+    {
+        percent = 0;
+        var usedMatch = s_usedPattern.Match(value);
+        if (!usedMatch.Success)
+        {
+            return false;
+        }
+
+        return double.TryParse(
+            usedMatch.Groups["percent"].Value,
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out percent);
+    }
+
+    private static bool TryParseRemainingPercent(string value, out double percent)
+    {
+        percent = 0;
+        var remainingMatch = s_remainingPattern.Match(value);
+        if (!remainingMatch.Success)
+        {
+            return false;
+        }
+
+        return double.TryParse(
+            remainingMatch.Groups["percent"].Value,
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out percent);
+    }
+
+    private static bool TryParseGenericPercent(string value, out double percent, out bool? isUsed)
+    {
+        percent = 0;
+        isUsed = null;
+
+        var match = s_percentPattern.Match(value);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        if (value.Contains("used", StringComparison.OrdinalIgnoreCase))
+        {
+            isUsed = true;
+        }
+        else if (value.Contains("remaining", StringComparison.OrdinalIgnoreCase))
+        {
+            isUsed = false;
+        }
+
+        return double.TryParse(
+            match.Groups["percent"].Value,
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out percent);
+    }
+
+    private static bool TryParseFallbackNumber(string value, out double result)
+    {
+        result = 0;
+        var cleanValue = new string(value.Where(c => char.IsDigit(c) || c == '.').ToArray());
+        return double.TryParse(cleanValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out result);
     }
 
     /// <summary>
