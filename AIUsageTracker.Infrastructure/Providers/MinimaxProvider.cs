@@ -78,12 +78,12 @@ public class MinimaxProvider : ProviderBase
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.ApiKey);
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
         var httpStatus = (int)response.StatusCode;
         
         if (!response.IsSuccessStatusCode)
         {
-            var errorContent = await response.Content.ReadAsStringAsync();
+            var errorContent = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             return new[] { new ProviderUsage
             {
                 ProviderId = config.ProviderId,
@@ -97,7 +97,7 @@ public class MinimaxProvider : ProviderBase
             }};
         }
 
-        var responseString = await response.Content.ReadAsStringAsync();
+        var responseString = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         
         double used = 0;
         double total = 0;
