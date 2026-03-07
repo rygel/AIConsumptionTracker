@@ -53,13 +53,13 @@ public class OpenCodeProvider : ProviderBase
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", config.ApiKey);
 
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
             var httpStatus = (int)response.StatusCode;
-            
+
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("OpenCode API failed with status {StatusCode}", response.StatusCode);
-                var errorContent = await response.Content.ReadAsStringAsync();
+                var errorContent = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 return new[] { new ProviderUsage
                 {
                     ProviderId = ProviderId,
@@ -73,7 +73,7 @@ public class OpenCodeProvider : ProviderBase
                 }};
             }
 
-            var responseString = await response.Content.ReadAsStringAsync();
+            var responseString = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             var result = ParseJsonResponse(responseString, httpStatus);
             _logger.LogInformation("OpenCode usage retrieved successfully - Total Cost: ${TotalCost:F2}", result.RequestsUsed);
             
