@@ -367,13 +367,12 @@ public static class UsageMath
 
         return new BurnRateForecast
         {
-            IsAvailable = false,
+            IsAvailable = true,
             BurnRatePerDay = burnRatePerDay,
             RemainingUnits = remaining,
             DaysUntilExhausted = daysRemaining,
             EstimatedExhaustionUtc = last.FetchedAt.ToUniversalTime().AddDays(daysRemaining),
-            SampleCount = cycleSamples.Count,
-            TrendDirection = trend
+            SampleCount = cycleSamples.Count
         };
     }
 
