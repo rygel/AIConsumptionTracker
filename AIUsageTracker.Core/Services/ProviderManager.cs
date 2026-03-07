@@ -85,7 +85,7 @@ public class ProviderManager : IDisposable
                 return _lastUsages;
             }
 
-            _refreshTask = FetchAllUsageInternal(progressCallback, includeProviderIds, overrideConfigs);
+            _refreshTask = FetchAllUsageInternalAsync(progressCallback, includeProviderIds, overrideConfigs);
             var currentTask = _refreshTask;
             _refreshSemaphore.Release();
             semaphoreReleased = true;
@@ -101,7 +101,7 @@ public class ProviderManager : IDisposable
         }
     }
 
-    private async Task<List<ProviderUsage>> FetchAllUsageInternal(
+    private async Task<List<ProviderUsage>> FetchAllUsageInternalAsync(
         Action<ProviderUsage>? progressCallback = null,
         IReadOnlyCollection<string>? includeProviderIds = null,
         IReadOnlyCollection<ProviderConfig>? overrideConfigs = null)

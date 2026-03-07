@@ -83,10 +83,10 @@ public class GitHubAuthService : IGitHubAuthService
             if (root.TryGetProperty("error", out var error))
             {
                 var code = error.GetString();
-                if (code == "authorization_pending") return null; // Keep polling
-                if (code == "slow_down") return "SLOW_DOWN"; // Signal to slow down
-                if (code == "expired_token") throw new Exception("Token expired");
-                if (code == "access_denied") throw new Exception("Access denied");
+                if (string.Equals(code, "authorization_pending", StringComparison.Ordinal)) return null; // Keep polling
+                if (string.Equals(code, "slow_down", StringComparison.Ordinal)) return "SLOW_DOWN"; // Signal to slow down
+                if (string.Equals(code, "expired_token", StringComparison.Ordinal)) throw new Exception("Token expired");
+                if (string.Equals(code, "access_denied", StringComparison.Ordinal)) throw new Exception("Access denied");
             }
 
             if (root.TryGetProperty("access_token", out var tokenProp))
@@ -151,7 +151,7 @@ public class GitHubAuthService : IGitHubAuthService
 
     public void InitializeToken(string token)
     {
-        if (_currentToken != token)
+        if (!string.Equals(_currentToken, token, StringComparison.Ordinal))
         {
             _currentToken = token;
             _cachedUsername = null; // Reset cache if token changes

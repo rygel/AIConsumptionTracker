@@ -139,7 +139,11 @@ public static class UsageMath
             }
         }
 
-        var match = System.Text.RegularExpressions.Regex.Match(value, @"(?<percent>\d+(?:\.\d+)?)\s*%", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        var match = System.Text.RegularExpressions.Regex.Match(
+            value, 
+            @"(?<percent>\d+(?:\.\d+)?)\s*%", 
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+            System.TimeSpan.FromMilliseconds(100));
         if (match.Success)
         {
             if (value.Contains("used", StringComparison.OrdinalIgnoreCase))
@@ -480,72 +484,6 @@ public static class UsageMath
             >= 6 => "High",
             >= 4 => "Medium",
             _ => "Low"
-        };
-    }
-}
-
-public sealed class BurnRateForecast
-{
-    public bool IsAvailable { get; init; }
-    public double BurnRatePerDay { get; init; }
-    public double RemainingUnits { get; init; }
-    public double DaysUntilExhausted { get; init; }
-    public DateTime? EstimatedExhaustionUtc { get; init; }
-    public int SampleCount { get; init; }
-    public string? Reason { get; init; }
-
-    public static BurnRateForecast Unavailable(string reason)
-    {
-        return new BurnRateForecast
-        {
-            IsAvailable = false,
-            Reason = reason
-        };
-    }
-}
-
-public sealed class ProviderReliabilitySnapshot
-{
-    public bool IsAvailable { get; init; }
-    public int SampleCount { get; init; }
-    public int SuccessCount { get; init; }
-    public int FailureCount { get; init; }
-    public double FailureRatePercent { get; init; }
-    public double AverageLatencyMs { get; init; }
-    public double LastLatencyMs { get; init; }
-    public DateTime? LastSuccessfulSyncUtc { get; init; }
-    public DateTime? LastSeenUtc { get; init; }
-    public string? Reason { get; init; }
-
-    public static ProviderReliabilitySnapshot Unavailable(string reason)
-    {
-        return new ProviderReliabilitySnapshot
-        {
-            IsAvailable = false,
-            Reason = reason
-        };
-    }
-}
-
-public sealed class UsageAnomalySnapshot
-{
-    public bool IsAvailable { get; init; }
-    public bool HasAnomaly { get; init; }
-    public string Direction { get; init; } = string.Empty;
-    public string Severity { get; init; } = string.Empty;
-    public double BaselineRatePerDay { get; init; }
-    public double LatestRatePerDay { get; init; }
-    public double DeviationSigma { get; init; }
-    public int SampleCount { get; init; }
-    public DateTime? LastDetectedUtc { get; init; }
-    public string? Reason { get; init; }
-
-    public static UsageAnomalySnapshot Unavailable(string reason)
-    {
-        return new UsageAnomalySnapshot
-        {
-            IsAvailable = false,
-            Reason = reason
         };
     }
 }

@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Interfaces;
@@ -64,7 +65,7 @@ public class MonitorService : IMonitorService
 
     public static void LogDiagnostic(string message)
     {
-        var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+        var timestamp = DateTime.Now.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture);
         lock (_diagnosticsLog)
         {
             _diagnosticsLog.Add($"[{timestamp}] {message}");
@@ -659,33 +660,4 @@ public class MonitorService : IMonitorService
         public bool Success { get; set; }
         public string Message { get; set; } = string.Empty;
     }
-}
-
-public sealed class AgentTestNotificationResult
-{
-    public bool Success { get; init; }
-    public string Message { get; init; } = string.Empty;
-}
-
-public sealed class AgentTelemetrySnapshot
-{
-    public long UsageRequestCount { get; init; }
-    public long UsageErrorCount { get; init; }
-    public double UsageAverageLatencyMs { get; init; }
-    public long UsageLastLatencyMs { get; init; }
-    public double UsageErrorRatePercent { get; init; }
-    public long RefreshRequestCount { get; init; }
-    public long RefreshErrorCount { get; init; }
-    public double RefreshAverageLatencyMs { get; init; }
-    public long RefreshLastLatencyMs { get; init; }
-    public double RefreshErrorRatePercent { get; init; }
-}
-
-public sealed class AgentContractHandshakeResult
-{
-    public bool IsReachable { get; init; }
-    public bool IsCompatible { get; init; }
-    public string? AgentContractVersion { get; init; }
-    public string? AgentVersion { get; init; }
-    public string Message { get; init; } = string.Empty;
 }

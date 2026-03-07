@@ -38,7 +38,7 @@ public class OpenCodeZenProvider : ProviderBase
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         // Check if CLI exists first
-        var pathExists = _cliPath == "opencode"
+        var pathExists = string.Equals(_cliPath, "opencode", StringComparison.OrdinalIgnoreCase)
             ? await IsInPath("opencode")
             : File.Exists(_cliPath);
 
