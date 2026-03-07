@@ -74,7 +74,7 @@ public class TokenDiscoveryService
                     continue;
                 }
 
-                var json = await File.ReadAllTextAsync(path);
+                var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(json);
                 var token = TryReadCodexAccessToken(doc.RootElement);
 
@@ -104,7 +104,7 @@ public class TokenDiscoveryService
                     continue;
                 }
 
-                var json = await File.ReadAllTextAsync(path);
+                var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(json);
                 var token = TryReadOpenAiSessionAccessToken(doc.RootElement);
                 if (string.IsNullOrWhiteSpace(token))
@@ -139,7 +139,7 @@ public class TokenDiscoveryService
                     continue;
                 }
 
-                var json = await File.ReadAllTextAsync(path);
+                var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(json);
                 var token = TryReadAccessToken(doc.RootElement, ClaudeCodeProvider.StaticDefinition);
                 if (string.IsNullOrWhiteSpace(token))
@@ -186,7 +186,7 @@ public class TokenDiscoveryService
 
             try
             {
-                var json = await File.ReadAllTextAsync(providersPath);
+                var json = await File.ReadAllTextAsync(providersPath).ConfigureAwait(false);
                 _logger.LogDebug("[OpenCode Discovery] Read {Length} bytes from providers.json", json.Length);
 
                 var known = JsonSerializer.Deserialize<Dictionary<string, string>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
@@ -314,7 +314,7 @@ public class TokenDiscoveryService
         {
             try
             {
-                var json = await File.ReadAllTextAsync(kiloSecretsPath);
+                var json = await File.ReadAllTextAsync(kiloSecretsPath).ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(json);
                 if (doc.RootElement.TryGetProperty("kilo code.kilo-code", out var kiloEntry))
                 {
@@ -353,7 +353,7 @@ public class TokenDiscoveryService
                     {
                         try
                         {
-                            var json = await File.ReadAllTextAsync(stateFile);
+                            var json = await File.ReadAllTextAsync(stateFile).ConfigureAwait(false);
                             using var doc = JsonDocument.Parse(json);
 
                             // Extract API configurations from Roo Code state
