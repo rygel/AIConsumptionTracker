@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Providers;
@@ -95,9 +97,8 @@ public class GeminiProvider : ProviderBase
                         if (bucket.ExtensionData != null && bucket.ExtensionData.TryGetValue("quotaId", out var qidElement))
                         {
                            var qid = qidElement;
-                           name = qid.ValueKind != JsonValueKind.Null ? qid.ToString() : "Unknown";
-                            name = System.Text.RegularExpressions.Regex.Replace(name, "([a-z])([A-Z])", "$1 $2", RegexOptions.None, TimeSpan.FromSeconds(1));
-                           name = name.Replace("Requests Per Day", "(Day)").Replace("Requests Per Minute", "(Min)");
+                            name = System.Text.RegularExpressions.Regex.Replace(name, "([a-z])([A-Z])", "$1 $2", RegexOptions.IgnoreCase);
+                            name = name.Replace("Requests Per Day", "(Day)").Replace("Requests Per Minute", "(Min)");
                         }
 
                         var bucketRemainingPercentage = UsageMath.ClampPercent(bucket.RemainingFraction * 100.0);
