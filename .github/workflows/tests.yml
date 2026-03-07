@@ -96,14 +96,14 @@ jobs:
       - name: Run Core tests
         timeout-minutes: 5
         shell: pwsh
-        run: >
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1
-          -AssemblyPath .\_ci_test_binaries\AIUsageTracker.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Tests.dll
-          -SuiteName core-tests
-          -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt
-          -MaxRetries 0
-          -AttemptTimeoutMinutes 5
-          -HangTimeoutSeconds 300
+        run: |
+          $baseTestsPath = Join-Path $PWD "_ci_test_binaries\AIUsageTracker.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Tests.dll"
+          $fallbackTestsPath = Join-Path $PWD "_ci_test_binaries\AIUsageTracker.Tests\bin\Debug\net8.0\AIUsageTracker.Tests.dll"
+          $assemblyPath = if (Test-Path $baseTestsPath) { $baseTestsPath } else { $fallbackTestsPath }
+          if (-not (Test-Path $assemblyPath)) {
+            throw "Test assembly not found. Checked: $baseTestsPath and $fallbackTestsPath"
+          }
+          powershell -NoProfile -ExecutionPolicy Bypass -File ".\_ci_test_binaries\scripts\run-vstest-with-retry.ps1" -AssemblyPath $assemblyPath -SuiteName core-tests -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt -MaxRetries 0 -AttemptTimeoutMinutes 5 -HangTimeoutSeconds 300
 
       - name: Upload results
         if: failure()
@@ -131,15 +131,14 @@ jobs:
       - name: Run Monitor startup/config tests
         timeout-minutes: 3
         shell: pwsh
-        run: >
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1
-          -AssemblyPath .\_ci_test_binaries\AIUsageTracker.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Tests.dll
-          -SuiteName monitor-startup-config
-          -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt
-          -AdditionalTestCaseFilter "FullyQualifiedName~MonitorStartupPathTests|FullyQualifiedName~MonitorProgramTests|FullyQualifiedName~MonitorClientTests|FullyQualifiedName~MonitorServiceTests|FullyQualifiedName~StartupAntiHammerTests"
-          -MaxRetries 0
-          -AttemptTimeoutMinutes 3
-          -HangTimeoutSeconds 180
+        run: |
+          $baseTestsPath = Join-Path $PWD "_ci_test_binaries\AIUsageTracker.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Tests.dll"
+          $fallbackTestsPath = Join-Path $PWD "_ci_test_binaries\AIUsageTracker.Tests\bin\Debug\net8.0\AIUsageTracker.Tests.dll"
+          $assemblyPath = if (Test-Path $baseTestsPath) { $baseTestsPath } else { $fallbackTestsPath }
+          if (-not (Test-Path $assemblyPath)) {
+            throw "Test assembly not found. Checked: $baseTestsPath and $fallbackTestsPath"
+          }
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1 -AssemblyPath $assemblyPath -SuiteName monitor-startup-config -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt -AdditionalTestCaseFilter "FullyQualifiedName~MonitorStartupPathTests|FullyQualifiedName~MonitorProgramTests|FullyQualifiedName~MonitorClientTests|FullyQualifiedName~MonitorServiceTests|FullyQualifiedName~StartupAntiHammerTests" -MaxRetries 0 -AttemptTimeoutMinutes 3 -HangTimeoutSeconds 180
 
       - name: Upload results
         if: failure()
@@ -167,14 +166,14 @@ jobs:
       - name: Run Monitor tests
         timeout-minutes: 3
         shell: pwsh
-        run: >
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1
-          -AssemblyPath .\_ci_test_binaries\AIUsageTracker.Monitor.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Monitor.Tests.dll
-          -SuiteName monitor-tests
-          -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt
-          -MaxRetries 0
-          -AttemptTimeoutMinutes 3
-          -HangTimeoutSeconds 180
+        run: |
+          $baseTestsPath = Join-Path $PWD "_ci_test_binaries\AIUsageTracker.Monitor.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Monitor.Tests.dll"
+          $fallbackTestsPath = Join-Path $PWD "_ci_test_binaries\AIUsageTracker.Monitor.Tests\bin\Debug\net8.0\AIUsageTracker.Monitor.Tests.dll"
+          $assemblyPath = if (Test-Path $baseTestsPath) { $baseTestsPath } else { $fallbackTestsPath }
+          if (-not (Test-Path $assemblyPath)) {
+            throw "Test assembly not found. Checked: $baseTestsPath and $fallbackTestsPath"
+          }
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\_ci_test_binaries\scripts\run-vstest-with-retry.ps1 -AssemblyPath $assemblyPath -SuiteName monitor-tests -QuarantineFile .\_ci_test_binaries\.github\test-quarantine.txt -MaxRetries 0 -AttemptTimeoutMinutes 3 -HangTimeoutSeconds 180
 
       - name: Upload results
         if: failure()
