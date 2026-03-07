@@ -48,3 +48,6 @@ dot_style_diagnostics.separate_multiple_def_lines = false
 
 [AIUsageTracker.Tests/**/*.cs]
 dot_diagnostic.MA0074.severity = none
+
+# Suppress method length warnings - 60 line limit is arbitrary
+dot_diagnostic.MA0051.severity = none
