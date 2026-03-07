@@ -134,28 +134,28 @@ public class OpenCodeZenProvider : ProviderBase
             .Replace("90m", "");
 
         // Parse Total Cost
-        var costMatch = Regex.Match(cleaned, @"Total Cost\s+\$([0-9.]+)", RegexOptions.None, TimeSpan.FromSeconds(1));
+        var costMatch = Regex.Match(cleaned, @"Total Cost\s+\$(?<cost>[0-9.]+)", RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
         if (costMatch.Success && costMatch.Groups.Count > 1)
         {
-            double.TryParse(costMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out totalCost);
+            double.TryParse(costMatch.Groups["cost"].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out totalCost);
         }
 
         // Parse Sessions
-        var sessionsMatch = Regex.Match(cleaned, @"Sessions\s+([0-9,]+)", RegexOptions.None, TimeSpan.FromSeconds(1));
+        var sessionsMatch = Regex.Match(cleaned, @"Sessions\s+(?<sessions>[0-9,]+)", RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
         if (sessionsMatch.Success && sessionsMatch.Groups.Count > 1)
         {
-            int.TryParse(sessionsMatch.Groups[1].Value.Replace(",", ""), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out sessions);
+            int.TryParse(sessionsMatch.Groups["sessions"].Value.Replace(",", ""), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out sessions);
         }
 
         // Parse Messages
-        var messagesMatch = Regex.Match(cleaned, @"Messages\s+([0-9,]+)", RegexOptions.None, TimeSpan.FromSeconds(1));
+        var messagesMatch = Regex.Match(cleaned, @"Messages\s+(?<messages>[0-9,]+)", RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
         if (messagesMatch.Success && messagesMatch.Groups.Count > 1)
         {
-            int.TryParse(messagesMatch.Groups[1].Value.Replace(",", ""), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out messages);
+            int.TryParse(messagesMatch.Groups["messages"].Value.Replace(",", ""), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out messages);
         }
 
         // Parse Avg Cost/Day
-        var avgCostMatch = Regex.Match(cleaned, @"Avg Cost/Day\s+\$([0-9.]+)", RegexOptions.None, TimeSpan.FromSeconds(1));
+        var avgCostMatch = Regex.Match(cleaned, @"Avg Cost/Day\s+\$(?<avgCost>[0-9.]+)", RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
         if (avgCostMatch.Success && avgCostMatch.Groups.Count > 1)
         {
             double.TryParse(avgCostMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgCostPerDay);
