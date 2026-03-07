@@ -8,12 +8,12 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace AIUsageTracker.Web.Pages;
 
 [OutputCache(PolicyName = "ReliabilityCache")]
-public class ReliabilityPage : PageModel
+public class ReliabilityModel : PageModel
 {
     private readonly WebDatabaseService _dbService;
     private readonly IUsageAnalyticsService _analyticsService;
 
-    public ReliabilityPage(WebDatabaseService dbService, IUsageAnalyticsService analyticsService)
+    public ReliabilityModel(WebDatabaseService dbService, IUsageAnalyticsService analyticsService)
     {
         _dbService = dbService;
         _analyticsService = analyticsService;

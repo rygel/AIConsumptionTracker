@@ -5,11 +5,11 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace AIUsageTracker.Web.Pages;
 
-public class ProviderPage : PageModel
+public class ProviderModel : PageModel
 {
     private readonly WebDatabaseService _dbService;
 
-    public ProviderPage(WebDatabaseService dbService)
+    public ProviderModel(WebDatabaseService dbService)
     {
         _dbService = dbService;
     }

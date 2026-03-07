@@ -8,12 +8,12 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace AIUsageTracker.Web.Pages;
 
 [OutputCache(PolicyName = "DashboardCache")]
-public class IndexPage : PageModel
+public class IndexModel : PageModel
 {
     private readonly WebDatabaseService _dbService;
     private readonly IUsageAnalyticsService _analyticsService;
 
-    public IndexPage(WebDatabaseService dbService, IUsageAnalyticsService analyticsService)
+    public IndexModel(WebDatabaseService dbService, IUsageAnalyticsService analyticsService)
     {
         _dbService = dbService;
         _analyticsService = analyticsService;

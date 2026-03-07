@@ -4,11 +4,11 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace AIUsageTracker.Web.Pages;
 
-public class HistoryPage : PageModel
+public class HistoryModel : PageModel
 {
     private readonly WebDatabaseService _dbService;
 
-    public HistoryPage(WebDatabaseService dbService)
+    public HistoryModel(WebDatabaseService dbService)
     {
         _dbService = dbService;
     }

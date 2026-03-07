@@ -8,14 +8,14 @@ using Microsoft.Extensions.Caching.Memory;
 namespace AIUsageTracker.Web.Pages;
 
 [OutputCache(PolicyName = "ChartsCache")]
-public class ChartsPage : PageModel
+public class ChartsModel : PageModel
 {
     private const string ProviderColorsCacheKey = "charts-provider-colors-v1";
     private readonly AIUsageTracker.Core.Interfaces.IConfigLoader _configLoader;
     private readonly WebDatabaseService _dbService;
     private readonly IMemoryCache _memoryCache;
 
-    public ChartsPage(
+    public ChartsModel(
         WebDatabaseService dbService,
         AIUsageTracker.Core.Interfaces.IConfigLoader configLoader,
         IMemoryCache memoryCache)

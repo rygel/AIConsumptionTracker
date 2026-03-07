@@ -5,13 +5,13 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace AIUsageTracker.Web.Pages;
 
-public class DataViewPage : PageModel
+public class DataViewModel : PageModel
 {
     private readonly WebDatabaseService _dbService;
     private readonly IDataExportService _exportService;
     private const int PageSize = 100;
 
-    public DataViewPage(WebDatabaseService dbService, IDataExportService exportService)
+    public DataViewModel(WebDatabaseService dbService, IDataExportService exportService)
     {
         _dbService = dbService;
         _exportService = exportService;
