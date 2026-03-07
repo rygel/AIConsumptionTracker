@@ -137,11 +137,11 @@ public partial class App : Application
 
 public class NoOpUsageAnalyticsService : IUsageAnalyticsService
 {
-    public Task<Dictionary<string, BurnRateForecast>> GetBurnRateForecastsAsync(IEnumerable<string> providerIds, int lookbackHours = 24, int maxSamplesPerProvider = 100) => Task.FromResult(new Dictionary<string, BurnRateForecast>());
-    public Task<Dictionary<string, ProviderReliabilitySnapshot>> GetProviderReliabilityAsync(IEnumerable<string> providerIds, int lookbackHours = 24, int maxSamplesPerProvider = 100) => Task.FromResult(new Dictionary<string, ProviderReliabilitySnapshot>());
-    public Task<Dictionary<string, UsageAnomalySnapshot>> GetUsageAnomaliesAsync(IEnumerable<string> providerIds, int lookbackHours = 24, int maxSamplesPerProvider = 100) => Task.FromResult(new Dictionary<string, UsageAnomalySnapshot>());
-    public Task<List<UsageComparison>> GetUsageComparisonsAsync(List<string> providerIds) => Task.FromResult(new List<UsageComparison>());
-    public Task<List<BudgetStatus>> GetBudgetStatusesAsync(List<string> providerIds) => Task.FromResult(new List<BudgetStatus>());
+    public Task<IReadOnlyDictionary<string, BurnRateForecast>> GetBurnRateForecastsAsync(IEnumerable<string> providerIds, int lookbackHours = 24, int maxSamplesPerProvider = 100) => Task.FromResult<IReadOnlyDictionary<string, BurnRateForecast>>(new Dictionary<string, BurnRateForecast>());
+    public Task<IReadOnlyDictionary<string, ProviderReliabilitySnapshot>> GetProviderReliabilityAsync(IEnumerable<string> providerIds, int lookbackHours = 24, int maxSamplesPerProvider = 100) => Task.FromResult<IReadOnlyDictionary<string, ProviderReliabilitySnapshot>>(new Dictionary<string, ProviderReliabilitySnapshot>());
+    public Task<IReadOnlyDictionary<string, UsageAnomalySnapshot>> GetUsageAnomaliesAsync(IEnumerable<string> providerIds, int lookbackHours = 24, int maxSamplesPerProvider = 100) => Task.FromResult<IReadOnlyDictionary<string, UsageAnomalySnapshot>>(new Dictionary<string, UsageAnomalySnapshot>());
+    public Task<IReadOnlyList<UsageComparison>> GetUsageComparisonsAsync(IEnumerable<string> providerIds) => Task.FromResult<IReadOnlyList<UsageComparison>>(new List<UsageComparison>());
+    public Task<IReadOnlyList<BudgetStatus>> GetBudgetStatusesAsync(IEnumerable<string> providerIds) => Task.FromResult<IReadOnlyList<BudgetStatus>>(new List<BudgetStatus>());
 }
 
 public class NoOpDataExportService : IDataExportService
