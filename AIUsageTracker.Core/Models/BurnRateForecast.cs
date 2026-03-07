@@ -14,6 +14,7 @@ public sealed class BurnRateForecast
     public double? ConfidenceLowerBound { get; init; }
     public double? ConfidenceUpperBound { get; init; }
     public TrendDirection TrendDirection { get; init; }
+    public TrendDirection Trend { get; init; }
 
     public static BurnRateForecast Unavailable(string reason)
     {
