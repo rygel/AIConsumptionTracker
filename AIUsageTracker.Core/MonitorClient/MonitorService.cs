@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Interfaces;
@@ -64,7 +65,7 @@ public class MonitorService : IMonitorService
 
     public static void LogDiagnostic(string message)
     {
-        var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+        var timestamp = DateTime.Now.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture);
         lock (_diagnosticsLog)
         {
             _diagnosticsLog.Add($"[{timestamp}] {message}");

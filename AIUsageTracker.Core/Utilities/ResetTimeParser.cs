@@ -200,7 +200,7 @@ public static class ResetTimeParser
         }
 
         format ??= "MMM dd HH:mm";
-        return $"(Resets: ({resetTime.Value.ToString(format)}))";
+        return $"(Resets: ({resetTime.Value.ToString(format, CultureInfo.InvariantCulture)}))";
     }
 
     /// <summary>
