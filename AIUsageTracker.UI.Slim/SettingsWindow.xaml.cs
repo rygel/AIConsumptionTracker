@@ -988,7 +988,7 @@ public partial class SettingsWindow : Window
             _preferences.FontItalic = false;
 
             FontFamilyCombo.SelectedItem = _preferences.FontFamily;
-            FontSizeBox.Text = _preferences.FontSize.ToString();
+            FontSizeBox.Text = _preferences.FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
             FontBoldCheck.IsChecked = _preferences.FontBold;
             FontItalicCheck.IsChecked = _preferences.FontItalic;
         });
@@ -1465,7 +1465,7 @@ public partial class SettingsWindow : Window
             _preferences.IsPrivacyMode = _isPrivacyMode;
 
             _agentPreferences.EnableNotifications = EnableWindowsNotificationsCheck.IsChecked ?? false;
-            if (double.TryParse(NotificationThresholdBox.Text, out var notifyThreshold))
+            if (double.TryParse(NotificationThresholdBox.Text, System.Globalization.CultureInfo.InvariantCulture, out var notifyThreshold))
             {
                 _agentPreferences.NotificationThreshold = Math.Clamp(notifyThreshold, 0, 100);
             }
