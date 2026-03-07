@@ -22,8 +22,6 @@ public class OpenAIProvider : ProviderBase
         discoveryEnvironmentVariables: new[] { "OPENAI_API_KEY" },
         rooConfigPropertyNames: new[] { "openAiApiKey" },
         explicitApiKeyPrefixes: new[] { "sk-" },
-        sessionAuthCanonicalProviderId: "codex",
-        sessionAuthMigrationDescription: "Migrated from OpenAI session config",
         settingsMode: ProviderSettingsMode.SessionAuthStatus,
         useSessionAuthStatusWhenQuotaBasedOrSessionToken: true,
         sessionStatusLabel: "OpenAI",

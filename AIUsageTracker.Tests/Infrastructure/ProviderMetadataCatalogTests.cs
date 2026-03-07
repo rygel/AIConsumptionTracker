@@ -180,52 +180,12 @@ public class ProviderMetadataCatalogTests
     }
 
     [Fact]
-    public void ShouldSuppressUsageProviderId_ReturnsTrue_ForSessionBackedAliasWithCanonicalConfig()
+    public void UsageFilter_DoesNotSuppressOpenAi_WhenCodexIsPresent()
     {
         var configs = new List<ProviderConfig>
         {
             new() { ProviderId = "codex", ApiKey = "codex-session" },
-            new() { ProviderId = "openai", ApiKey = "legacy-session-token" }
-        };
-
-        var result = ProviderMetadataCatalog.ShouldSuppressUsageProviderId(configs, "openai");
-
-        Assert.True(result);
-    }
-
-    [Fact]
-    public void ShouldSuppressUsageProviderId_ReturnsTrue_ForStaleSessionBackedAliasHistory_WhenCanonicalConfigExists()
-    {
-        var configs = new List<ProviderConfig>
-        {
-            new() { ProviderId = "codex", ApiKey = "codex-session" }
-        };
-
-        var result = ProviderMetadataCatalog.ShouldSuppressUsageProviderId(configs, "openai");
-
-        Assert.True(result);
-    }
-
-    [Fact]
-    public void ShouldSuppressUsageProviderId_ReturnsFalse_ForExplicitAliasApiKeyConfig()
-    {
-        var configs = new List<ProviderConfig>
-        {
-            new() { ProviderId = "codex", ApiKey = "codex-session" },
-            new() { ProviderId = "openai", ApiKey = "sk-live-openai" }
-        };
-
-        var result = ProviderMetadataCatalog.ShouldSuppressUsageProviderId(configs, "openai");
-
-        Assert.False(result);
-    }
-
-    [Fact]
-    public void UsageFilter_RemovesStaleSessionAliasUsage_WhenCanonicalProviderIsConfigured()
-    {
-        var configs = new List<ProviderConfig>
-        {
-            new() { ProviderId = "codex", ApiKey = "codex-session" }
+            new() { ProviderId = "openai", ApiKey = "openai-session-token" }
         };
         var usages = new List<ProviderUsage>
         {
@@ -237,7 +197,8 @@ public class ProviderMetadataCatalogTests
             .Where(usage => !ProviderMetadataCatalog.ShouldSuppressUsageProviderId(configs, usage.ProviderId))
             .ToList();
 
-        Assert.Single(visible);
-        Assert.Equal("codex", visible[0].ProviderId);
+        Assert.Equal(2, visible.Count);
+        Assert.Contains(visible, usage => usage.ProviderId == "codex");
+        Assert.Contains(visible, usage => usage.ProviderId == "openai");
     }
 }

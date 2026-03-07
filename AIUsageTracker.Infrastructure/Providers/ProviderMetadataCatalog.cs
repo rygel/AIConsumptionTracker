@@ -217,18 +217,6 @@ public static class ProviderMetadataCatalog
         NormalizeConfigOwnership(configs);
     }
 
-    public static bool ShouldSuppressOpenAiSession(IReadOnlyCollection<ProviderConfig> configs)
-    {
-        return configs.Any(config =>
-            IsSessionAuthConfig(config) &&
-            HasConfiguredCanonicalConfig(configs, GetCanonicalConfigOwnerId(config)));
-    }
-
-    public static bool IsOpenAiSessionConfig(ProviderConfig config)
-    {
-        return IsSessionAuthConfig(config);
-    }
-
     private static IReadOnlyList<ProviderDefinition> LoadDefinitions()
     {
         var definitions = typeof(ProviderMetadataCatalog).Assembly

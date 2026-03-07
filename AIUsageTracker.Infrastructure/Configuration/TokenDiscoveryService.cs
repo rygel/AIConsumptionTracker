@@ -112,10 +112,9 @@ public class TokenDiscoveryService
                     continue;
                 }
 
-                // Session-based OpenAI access should be represented by the canonical session provider.
                 AddOrUpdate(
                     configs,
-                    OpenAIProvider.StaticDefinition.SessionAuthCanonicalProviderId ?? CodexProvider.StaticDefinition.ProviderId,
+                    OpenAIProvider.StaticDefinition.ProviderId,
                     token,
                     "Discovered in OpenCode auth",
                     $"Config: {path}");

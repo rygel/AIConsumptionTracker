@@ -65,7 +65,7 @@ public class TokenDiscoveryIntegrationTests : IntegrationTestBase
         var configs = await _service.DiscoverTokensAsync();
 
         // Assert
-        var config = configs.FirstOrDefault(c => c.ProviderId == "codex");
+        var config = configs.FirstOrDefault(c => c.ProviderId == "openai");
         Assert.NotNull(config);
         Assert.Equal("opencode-session-token", config.ApiKey);
     }
