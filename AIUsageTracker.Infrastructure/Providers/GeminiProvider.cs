@@ -249,7 +249,7 @@ public class GeminiProvider : ProviderBase
                         {
                             var payload = Encoding.UTF8.GetString(Convert.FromBase64String(parts[1].Replace('-', '+').Replace('_', '/').PadRight(parts[1].Length + (4 - parts[1].Length % 4) % 4, '=')));
                             using var payloadDoc = JsonDocument.Parse(payload);
-                            if (payloadDoc.RootElement.TryGetProperty("aud", out var aud) && aud.GetString() == GeminiPluginClientId)
+                            if (payloadDoc.RootElement.TryGetProperty("aud", out var aud) && string.Equals(aud.GetString(), GeminiPluginClientId, StringComparison.Ordinal))
                             {
                                 clientId = GeminiPluginClientId;
                             }
@@ -264,7 +264,7 @@ public class GeminiProvider : ProviderBase
         {
             return await DoRefreshToken(refreshToken, clientId);
         }
-        catch when (clientId == GeminiCliClientId)
+        catch when (string.Equals(clientId, GeminiCliClientId, StringComparison.Ordinal))
         {
             // If default client fails, retry with plugin client
             return await DoRefreshToken(refreshToken, GeminiPluginClientId);

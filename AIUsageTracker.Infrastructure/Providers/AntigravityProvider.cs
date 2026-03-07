@@ -204,9 +204,9 @@ public class AntigravityProvider : ProviderBase
 
                     // Check for duplicates based on AccountName (Email) for the MAIN item
                     // Assuming the first item is the summary
-                    var mainItem = usageItems.FirstOrDefault(u => u.ProviderId == ProviderId);
+                    var mainItem = usageItems.FirstOrDefault(u => string.Equals(u.ProviderId, ProviderId, StringComparison.Ordinal));
                     
-                    if (mainItem != null && results.Any(r => r.ProviderId == ProviderId && r.AccountName == mainItem.AccountName))
+                    if (mainItem != null && results.Any(r => string.Equals(r.ProviderId, ProviderId, StringComparison.Ordinal) && string.Equals(r.AccountName, mainItem.AccountName, StringComparison.Ordinal)))
                     {
                         continue;
                     }
