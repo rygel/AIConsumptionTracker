@@ -13,14 +13,14 @@ public class GitHubUpdateChecker : IUpdateCheckerService
     private readonly UpdateChannel _channel;
     
     // Architecture-specific appcast URLs
-    private static readonly Dictionary<string, string> STABLE_APPCAST_URLS = new()
+    private static readonly Dictionary<string, string> STABLE_APPCAST_URLS = new(StringComparer.OrdinalIgnoreCase)
     {
         ["x64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_x64.xml",
         ["x86"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_x86.xml",
         ["arm64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_arm64.xml"
     };
     
-    private static readonly Dictionary<string, string> BETA_APPCAST_URLS = new()
+    private static readonly Dictionary<string, string> BETA_APPCAST_URLS = new(StringComparer.OrdinalIgnoreCase)
     {
         ["x64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_beta_x64.xml",
         ["x86"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_beta_x86.xml",
