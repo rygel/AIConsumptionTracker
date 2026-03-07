@@ -344,13 +344,13 @@ public class AntigravityProvider : ProviderBase
 
     private static string? ParseCsrfToken(string commandLine)
     {
-        var match = Regex.Match(commandLine, @"--csrf[_-]token(?:=|\s+)([a-zA-Z0-9-]+)", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
-        return match.Success ? match.Groups[1].Value : null;
+        var match = Regex.Match(commandLine, @"--csrf[_-]token(?:=|\s+)(?<token>[a-zA-Z0-9-]+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
+        return match.Success ? match.Groups["token"].Value : null;
     }
 
     private static int? ParseExtensionServerPort(string commandLine)
     {
-        var match = Regex.Match(commandLine, @"--extension_server_port(?:=|\s+)(\d+)", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+        var match = Regex.Match(commandLine, @"--extension_server_port(?:=|\s+)(?<port>\d+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
         if (match.Success && int.TryParse(match.Groups[1].Value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var port))
         {
             return port;

@@ -286,19 +286,19 @@ public class ClaudeCodeProvider : ProviderBase
         double currentUsage = 0;
         double budgetLimit = 0;
 
-        var usageMatch = Regex.Match(output, @"Current Usage[:\s]+\$?([0-9.]+)", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+        var usageMatch = Regex.Match(output, @"Current Usage[:\s]+\$?(?<usage>[0-9.]+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
         if (usageMatch.Success)
         {
-            double.TryParse(usageMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out currentUsage);
+            double.TryParse(usageMatch.Groups["usage"].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out currentUsage);
         }
 
-        var budgetMatch = Regex.Match(output, @"Budget Limit[:\s]+\$?([0-9.]+)", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+        var budgetMatch = Regex.Match(output, @"Budget Limit[:\s]+\$?(?<budget>[0-9.]+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
         if (budgetMatch.Success)
         {
-            double.TryParse(budgetMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out budgetLimit);
+            double.TryParse(budgetMatch.Groups["budget"].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out budgetLimit);
         }
 
-        var remainingMatch = Regex.Match(output, @"Remaining[:\s]+\$?([0-9.]+)", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+        var remainingMatch = Regex.Match(output, @"Remaining[:\s]+\$?(?<remaining>[0-9.]+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
         if (remainingMatch.Success && budgetLimit == 0)
         {
             double remaining;

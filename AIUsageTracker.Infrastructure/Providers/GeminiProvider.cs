@@ -97,9 +97,9 @@ public class GeminiProvider : ProviderBase
                         if (bucket.ExtensionData != null && bucket.ExtensionData.TryGetValue("quotaId", out var qidElement))
                         {
                            var qid = qidElement;
-                            name = System.Text.RegularExpressions.Regex.Replace(name, "([a-z])([A-Z])", "$1 $2", RegexOptions.IgnoreCase);
-                            name = name.Replace("Requests Per Day", "(Day)").Replace("Requests Per Minute", "(Min)");
-                        }
+                           name = System.Text.RegularExpressions.Regex.Replace(name, "(?<lower>[a-z])(?<upper>[A-Z])", "${lower} ${upper}", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture);
+                           name = name.Replace("Requests Per Day", "(Day)").Replace("Requests Per Minute", "(Min)");
+                       }
 
                         var bucketRemainingPercentage = UsageMath.ClampPercent(bucket.RemainingFraction * 100.0);
                         string? resetTime = bucket.ResetTime;
