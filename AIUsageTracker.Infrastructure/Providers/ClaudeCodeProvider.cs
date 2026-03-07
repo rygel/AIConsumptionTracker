@@ -76,7 +76,7 @@ public class ClaudeCodeProvider : ProviderBase
         }
 
         // Fall back to CLI if API fails
-        return await GetUsageFromCliAsync(config);
+        return await GetUsageFromCliAsync(config).ConfigureAwait(false);
     }
 
     private async Task<ProviderUsage?> GetUsageFromApiAsync(string apiKey)
@@ -90,8 +90,8 @@ public class ClaudeCodeProvider : ProviderBase
             testRequest.Headers.Add("anthropic-version", "2023-06-01");
             testRequest.Content = new StringContent("{\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}", System.Text.Encoding.UTF8, "application/json");
 
-            using var testResponse = await _httpClient.SendAsync(testRequest);
-            var responseBody = await testResponse.Content.ReadAsStringAsync();
+            using var testResponse = await _httpClient.SendAsync(testRequest).ConfigureAwait(false);
+            var responseBody = await testResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
             
             // Extract rate limit information from headers
             var rateLimitHeaders = ExtractRateLimitInfo(testResponse.Headers);
