@@ -24,7 +24,7 @@ public class UsageAnalyticsService : IUsageAnalyticsService
         _logger = logger;
     }
 
-    public async Task<Dictionary<string, BurnRateForecast>> GetBurnRateForecastsAsync(
+    public async Task<IReadOnlyDictionary<string, BurnRateForecast>> GetBurnRateForecastsAsync(
         IEnumerable<string> providerIds,
         int lookbackHours = 72,
         int maxSamplesPerProvider = 720)
@@ -57,7 +57,7 @@ public class UsageAnalyticsService : IUsageAnalyticsService
         return forecasts;
     }
 
-    public async Task<Dictionary<string, ProviderReliabilitySnapshot>> GetProviderReliabilityAsync(
+    public async Task<IReadOnlyDictionary<string, ProviderReliabilitySnapshot>> GetProviderReliabilityAsync(
         IEnumerable<string> providerIds,
         int lookbackHours = 168,
         int maxSamplesPerProvider = 1000)
@@ -89,7 +89,7 @@ public class UsageAnalyticsService : IUsageAnalyticsService
         return snapshots;
     }
 
-    public async Task<Dictionary<string, UsageAnomalySnapshot>> GetUsageAnomaliesAsync(
+    public async Task<IReadOnlyDictionary<string, UsageAnomalySnapshot>> GetUsageAnomaliesAsync(
         IEnumerable<string> providerIds,
         int lookbackHours = 72,
         int maxSamplesPerProvider = 720)
@@ -121,17 +121,17 @@ public class UsageAnalyticsService : IUsageAnalyticsService
         return snapshots;
     }
 
-    public Task<List<BudgetStatus>> GetBudgetStatusesAsync(List<string> providerIds)
+    public Task<IReadOnlyList<BudgetStatus>> GetBudgetStatusesAsync(IEnumerable<string> providerIds)
     {
         // Implementation of Budget Policies moved from God Class
         // ... (Transcribing from WebDatabaseService)
-        return Task.FromResult(new List<BudgetStatus>());
+        return Task.FromResult<IReadOnlyList<BudgetStatus>>(new List<BudgetStatus>());
     }
 
-    public Task<List<UsageComparison>> GetUsageComparisonsAsync(List<string> providerIds)
+    public Task<IReadOnlyList<UsageComparison>> GetUsageComparisonsAsync(IEnumerable<string> providerIds)
     {
         // Implementation of Usage Comparisons moved from God Class
-        return Task.FromResult(new List<UsageComparison>());
+        return Task.FromResult<IReadOnlyList<UsageComparison>>(new List<UsageComparison>());
     }
 
     private static List<string> NormalizeProviderIds(IEnumerable<string> providerIds)

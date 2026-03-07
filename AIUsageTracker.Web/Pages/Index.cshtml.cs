@@ -120,7 +120,7 @@ public class IndexModel : PageModel
                 var providerIds = LatestUsage.Select(x => x.ProviderId).ToList();
                 var forecastTask = _analyticsService.GetBurnRateForecastsAsync(providerIds);
                 var reliabilityTask = _analyticsService.GetProviderReliabilityAsync(providerIds);
-                Task<Dictionary<string, UsageAnomalySnapshot>>? anomalyTask = null;
+                Task<IReadOnlyDictionary<string, UsageAnomalySnapshot>>? anomalyTask = null;
                 if (EnableExperimentalAnomalyDetection)
                 {
                     anomalyTask = _analyticsService.GetUsageAnomaliesAsync(providerIds);
@@ -140,12 +140,12 @@ public class IndexModel : PageModel
                 // Load experimental features
                 if (EnableExperimentalBudgetPolicies)
                 {
-                    BudgetStatuses = await _analyticsService.GetBudgetStatusesAsync(providerIds);
+                    BudgetStatuses = (await _analyticsService.GetBudgetStatusesAsync(providerIds)).ToList();
                 }
 
                 if (EnableExperimentalComparison)
                 {
-                    UsageComparisons = await _analyticsService.GetUsageComparisonsAsync(providerIds);
+                    UsageComparisons = (await _analyticsService.GetUsageComparisonsAsync(providerIds)).ToList();
                 }
             }
         }
