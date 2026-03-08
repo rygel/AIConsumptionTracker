@@ -28,6 +28,7 @@ public partial class SettingsWindow : Window
 
     private readonly IMonitorService _monitorService;
     private readonly ILogger<SettingsWindow> _logger;
+    private readonly IAppPathProvider _pathProvider;
     private readonly UiPreferencesStore _preferencesStore;
     private List<ProviderConfig> _configs = new();
     private List<ProviderUsage> _usages = new();
@@ -45,7 +46,7 @@ public partial class SettingsWindow : Window
 
     public bool SettingsChanged { get; private set; }
 
-    public SettingsWindow(IMonitorService monitorService, ILogger<SettingsWindow> logger, UiPreferencesStore preferencesStore)
+    public SettingsWindow(IMonitorService monitorService, ILogger<SettingsWindow> logger, UiPreferencesStore preferencesStore, IAppPathProvider pathProvider)
     {
         _autoSaveTimer = new DispatcherTimer
         {
@@ -56,6 +57,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         _monitorService = monitorService;
         _logger = logger;
+        _pathProvider = pathProvider;
         _preferencesStore = preferencesStore;
         App.PrivacyChanged += OnPrivacyChanged;
         Closed += SettingsWindow_Closed;
@@ -66,7 +68,8 @@ public partial class SettingsWindow : Window
     public SettingsWindow() : this(
         App.Host.Services.GetRequiredService<IMonitorService>(),
         App.Host.Services.GetRequiredService<ILogger<SettingsWindow>>(),
-        App.Host.Services.GetRequiredService<UiPreferencesStore>())
+        App.Host.Services.GetRequiredService<UiPreferencesStore>(),
+        App.Host.Services.GetRequiredService<IAppPathProvider>())
     {
     }
 
@@ -1208,10 +1211,7 @@ public partial class SettingsWindow : Window
 
             if (dialog.ShowDialog() == true)
             {
-                var dbPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "AIUsageTracker",
-                    "usage.db");
+                var dbPath = _pathProvider.GetDatabasePath();
 
                 if (File.Exists(dbPath))
                 {

@@ -1,6 +1,7 @@
 using System.IO.Compression;
 
 using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Core.Paths;
 using AIUsageTracker.Infrastructure.Helpers;
 using AIUsageTracker.Infrastructure.Services;
 using AIUsageTracker.Web.Services;
@@ -10,7 +11,7 @@ using Microsoft.Extensions.FileProviders;
 using Serilog;
 
 var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-var logDir = Path.Combine(appData, "AIUsageTracker", "logs");
+var logDir = AppPathCatalog.GetCanonicalLogDirectory(appData);
 Directory.CreateDirectory(logDir);
 
 Log.Logger = new LoggerConfiguration()
