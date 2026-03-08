@@ -13,22 +13,22 @@ public class ProviderUsageDetail
 
     public bool IsPrimaryQuotaDetail()
     {
-        return DetailType == ProviderUsageDetailType.QuotaWindow && WindowKind == WindowKind.Primary;
+        return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.WindowKind == WindowKind.Primary;
     }
     public bool IsSecondaryQuotaDetail()
     {
-        return DetailType == ProviderUsageDetailType.QuotaWindow && WindowKind == WindowKind.Secondary;
+        return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.WindowKind == WindowKind.Secondary;
     }
     public bool IsWindowQuotaDetail()
     {
-        return DetailType == ProviderUsageDetailType.QuotaWindow;
+        return this.DetailType == ProviderUsageDetailType.QuotaWindow;
     }
     public bool IsCreditDetail()
     {
-        return DetailType == ProviderUsageDetailType.Credit;
+        return this.DetailType == ProviderUsageDetailType.Credit;
     }
     public bool IsDisplayableSubProviderDetail()
     {
-        return DetailType == ProviderUsageDetailType.Model || DetailType == ProviderUsageDetailType.Other;
+        return this.DetailType == ProviderUsageDetailType.Model || this.DetailType == ProviderUsageDetailType.Other;
     }
 }

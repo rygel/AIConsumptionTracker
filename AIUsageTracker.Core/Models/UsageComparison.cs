@@ -12,8 +12,9 @@ public class UsageComparison
     public double PreviousPeriodUsage { get; set; }
     public double ChangeAbsolute { get; set; }
     public double ChangePercent { get; set; }
-    public bool IsIncrease => ChangeAbsolute > 0;
-    public string ChangeDirection => ChangeAbsolute switch
+    public bool IsIncrease => this.ChangeAbsolute > 0;
+
+    public string ChangeDirection => this.ChangeAbsolute switch
     {
         > 0 => "↑",
         < 0 => "↓",

@@ -19,9 +19,9 @@ public class ProviderException : Exception
         Exception? innerException = null)
         : base(message, innerException)
     {
-        ProviderId = providerId ?? throw new ArgumentNullException(nameof(providerId));
-        ErrorType = errorType;
-        HttpStatusCode = httpStatusCode;
+        this.ProviderId = providerId ?? throw new ArgumentNullException(nameof(providerId));
+        this.ErrorType = errorType;
+        this.HttpStatusCode = httpStatusCode;
     }
 }
 

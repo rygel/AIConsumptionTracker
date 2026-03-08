@@ -14,6 +14,6 @@ public class ProviderResponseException : ProviderException
         System.Exception? innerException = null)
         : base(providerId, message, ProviderErrorType.InvalidResponseError, innerException: innerException)
     {
-        ResponseBody = responseBody;
+        this.ResponseBody = responseBody;
     }
 }
