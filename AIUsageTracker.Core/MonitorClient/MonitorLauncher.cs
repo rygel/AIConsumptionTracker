@@ -54,7 +54,7 @@ public class MonitorLauncher
     }
 
 
-    private static async Task<MonitorInfo?> GetAgentInfoAsync()
+    private static async Task<(MonitorInfo? Info, string? Path)> ReadAgentInfoAsync()
     {
         string? path = null;
 
@@ -79,39 +79,38 @@ public class MonitorLauncher
 
                 if (info != null)
                 {
-                    return info;
+                    return (info, path);
                 }
 
-                MonitorService.LogDiagnostic($"Monitor metadata at '{path}' was empty or invalid; invalidating metadata.");
-                InvalidateMonitorInfoPath(path);
+                await QuarantineMonitorInfoAsync(path, $"Monitor metadata at '{path}' was empty or invalid; invalidating metadata.").ConfigureAwait(false);
             }
             
-            return null;
+            return (null, path);
         }
         catch (JsonException ex)
         {
             MonitorService.LogDiagnostic($"Failed to parse monitor metadata: {ex.Message}");
             if (path != null)
             {
-                InvalidateMonitorInfoPath(path);
+                await QuarantineMonitorInfoAsync(path).ConfigureAwait(false);
             }
 
-            return null;
+            return (null, path);
         }
         catch (IOException ex)
         {
             MonitorService.LogDiagnostic($"Failed to read monitor metadata: {ex.Message}");
-            return null;
+            return (null, path);
         }
         catch (UnauthorizedAccessException ex)
         {
             MonitorService.LogDiagnostic($"Access denied reading monitor metadata: {ex.Message}");
-            return null;
+            return (null, path);
         }
         catch
         {
             MonitorService.LogDiagnostic("Failed to load monitor metadata for an unknown reason.");
-            return null;
+            return (null, path);
         }
     }
 
@@ -207,7 +206,7 @@ public class MonitorLauncher
 
     public static async Task<MonitorInfo?> GetAndValidateMonitorInfoAsync()
     {
-        var info = await GetAgentInfoAsync().ConfigureAwait(false);
+        var (info, path) = await ReadAgentInfoAsync().ConfigureAwait(false);
         if (info == null)
         {
             return null;
@@ -226,7 +225,11 @@ public class MonitorLauncher
 
         MonitorService.LogDiagnostic($"Monitor metadata stale: health={healthOk}, processRunning={processRunning}, invalidating metadata");
 
-        await InvalidateMonitorInfoAsync().ConfigureAwait(false);
+        if (path != null)
+        {
+            await QuarantineMonitorInfoAsync(path).ConfigureAwait(false);
+        }
+
         return null;
     }
 
@@ -244,6 +247,17 @@ public class MonitorLauncher
             MonitorService.LogDiagnostic($"Failed to invalidate monitor metadata: {ex.Message}");
         }
 
+        return Task.CompletedTask;
+    }
+
+    private static Task QuarantineMonitorInfoAsync(string infoPath, string? diagnosticMessage = null)
+    {
+        if (!string.IsNullOrEmpty(diagnosticMessage))
+        {
+            MonitorService.LogDiagnostic(diagnosticMessage);
+        }
+
+        InvalidateMonitorInfoPath(infoPath);
         return Task.CompletedTask;
     }
 
@@ -424,7 +438,7 @@ public class MonitorLauncher
 
     private static async Task<int> GetStopTargetPortAsync()
     {
-        var info = await GetAgentInfoAsync().ConfigureAwait(false);
+        var (info, _) = await ReadAgentInfoAsync().ConfigureAwait(false);
         if (info?.Port > 0)
         {
             return info.Port;
@@ -435,7 +449,7 @@ public class MonitorLauncher
 
     private static async Task<bool> TryStopKnownMonitorProcessAsync()
     {
-        var info = await GetAgentInfoAsync().ConfigureAwait(false);
+        var (info, _) = await ReadAgentInfoAsync().ConfigureAwait(false);
         if (info?.ProcessId > 0)
         {
             return await TryStopProcessAsync(info.ProcessId).ConfigureAwait(false);
