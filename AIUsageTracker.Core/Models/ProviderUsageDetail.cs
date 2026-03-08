@@ -15,22 +15,18 @@ public class ProviderUsageDetail
     {
         return DetailType == ProviderUsageDetailType.QuotaWindow && WindowKind == WindowKind.Primary;
     }
-
     public bool IsSecondaryQuotaDetail()
     {
         return DetailType == ProviderUsageDetailType.QuotaWindow && WindowKind == WindowKind.Secondary;
     }
-
     public bool IsWindowQuotaDetail()
     {
         return DetailType == ProviderUsageDetailType.QuotaWindow;
     }
-
     public bool IsCreditDetail()
     {
         return DetailType == ProviderUsageDetailType.Credit;
     }
-
     public bool IsDisplayableSubProviderDetail()
     {
         return DetailType == ProviderUsageDetailType.Model || DetailType == ProviderUsageDetailType.Other;
