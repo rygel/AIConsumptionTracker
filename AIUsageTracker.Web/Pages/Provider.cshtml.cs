@@ -37,7 +37,7 @@ public class ProviderModel : PageModel
         }
 
         ProviderHistory = await _dbService.GetProviderHistoryAsync(Id, 100);
-        
+
         if (ProviderHistory?.Any() != true)
         {
             return Page();

@@ -1,9 +1,9 @@
-using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Core.Models;
 using AIUsageTracker.Web.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace AIUsageTracker.Web.Pages;
 
@@ -29,7 +29,7 @@ public class ReliabilityModel : PageModel
         if (IsDatabaseAvailable)
         {
             LatestUsage = await _dbService.GetLatestUsageAsync(includeInactive: true);
-            
+
             if (LatestUsage.Count > 0)
             {
                 var providerIds = LatestUsage.Select(x => x.ProviderId).ToList();
@@ -42,32 +42,55 @@ public class ReliabilityModel : PageModel
     public string GetReliabilityClass(ProviderReliabilitySnapshot snapshot)
     {
         if (!snapshot.IsAvailable || snapshot.FailureRatePercent < 1)
+        {
             return "healthy";
+        }
+
         if (snapshot.FailureRatePercent < 10)
+        {
             return "warning";
+        }
+
         if (snapshot.FailureRatePercent < 30)
+        {
             return "critical";
+        }
+
         return "unknown";
     }
 
     public string GetReliabilityLabel(ProviderReliabilitySnapshot snapshot)
     {
         if (!snapshot.IsAvailable)
+        {
             return "Unknown";
+        }
+
         if (snapshot.FailureRatePercent < 1)
+        {
             return "Healthy";
+        }
+
         if (snapshot.FailureRatePercent < 10)
+        {
             return "Degraded";
+        }
+
         if (snapshot.FailureRatePercent < 30)
+        {
             return "Unhealthy";
+        }
+
         return "Critical";
     }
 
     public string GetLatencyText(ProviderReliabilitySnapshot snapshot)
     {
         if (!snapshot.IsAvailable || snapshot.SampleCount == 0)
+        {
             return "n/a";
-        
+        }
+
         return snapshot.AverageLatencyMs switch
         {
             < 100 => $"{snapshot.AverageLatencyMs:F0}ms",
@@ -80,10 +103,12 @@ public class ReliabilityModel : PageModel
     public string GetLastSyncText(ProviderReliabilitySnapshot snapshot)
     {
         if (!snapshot.IsAvailable || snapshot.LastSuccessfulSyncUtc == null)
+        {
             return "Never";
-        
+        }
+
         var elapsed = DateTime.UtcNow - snapshot.LastSuccessfulSyncUtc.Value;
-        
+
         return elapsed.TotalMinutes switch
         {
             < 1 => "Just now",

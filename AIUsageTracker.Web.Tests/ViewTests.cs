@@ -7,13 +7,7 @@ namespace AIUsageTracker.Web.Tests;
 [TestClass]
 public class ViewTests : WebTestBase
 {
-    private static bool HasClass(string html, string className)
-    {
-        return Regex.IsMatch(
-            html,
-            $"class\\s*=\\\"[^\\\"]*\\b{Regex.Escape(className)}\\b[^\\\"]*\\\"",
-            RegexOptions.IgnoreCase);
-    }
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
 
     [TestMethod]
     [DataRow("/")]
@@ -191,7 +185,11 @@ public class ViewTests : WebTestBase
         using var response = await client.GetAsync("/");
         var html = await ReadBodyAsync(response);
 
-        var navMatches = Regex.Matches(html, @"href\s*=\s*""([^""]+)""", RegexOptions.IgnoreCase);
+        var navMatches = Regex.Matches(
+            html,
+            @"href\s*=\s*""(?<href>[^""]+)""",
+            RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture,
+            RegexTimeout);
         Assert.IsTrue(navMatches.Count > 0, "Navigation should have links");
 
         bool hasProvidersLink = false;
@@ -200,13 +198,21 @@ public class ViewTests : WebTestBase
 
         foreach (var match in navMatches.Cast<Match>())
         {
-            var href = match.Groups[1].Value;
+            var href = match.Groups["href"].Value;
             if (href.Contains("/providers", StringComparison.OrdinalIgnoreCase))
+            {
                 hasProvidersLink = true;
+            }
+
             if (href.Contains("/charts", StringComparison.OrdinalIgnoreCase))
+            {
                 hasChartsLink = true;
+            }
+
             if (href.Contains("/history", StringComparison.OrdinalIgnoreCase))
+            {
                 hasHistoryLink = true;
+            }
         }
 
         Assert.IsTrue(hasProvidersLink || hasChartsLink || hasHistoryLink,
@@ -220,5 +226,14 @@ public class ViewTests : WebTestBase
         using var response = await client.GetAsync("/");
         var html = await ReadBodyAsync(response);
         Assert.IsTrue(HasClass(html, "theme-toggle"), "Theme selector should expose the theme-toggle compatibility class");
+    }
+
+    private static bool HasClass(string html, string className)
+    {
+        return Regex.IsMatch(
+            html,
+            $"class\\s*=\\\"[^\\\"]*\\b{Regex.Escape(className)}\\b[^\\\"]*\\\"",
+            RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture,
+            RegexTimeout);
     }
 }

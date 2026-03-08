@@ -5,12 +5,14 @@ namespace AIUsageTracker.Web.Tests;
 
 public abstract class WebTestBase
 {
-    protected static KestrelWebApplicationFactory<Program> Factory { get; private set; } = null!;
+    protected static KestrelWebApplicationFactory<Program>? Factory { get; private set; }
     protected static string ServerUrl { get; private set; } = string.Empty;
 
     [ClassInitialize(InheritanceBehavior.BeforeEachDerivedClass)]
-    public static void InitializeFactory(TestContext _)
+    public static void InitializeFactory(TestContext testContext)
     {
+        _ = testContext;
+
         if (Factory == null)
         {
             Factory = new KestrelWebApplicationFactory<Program>();
@@ -30,13 +32,13 @@ public abstract class WebTestBase
     {
         return new HttpClient
         {
-            BaseAddress = new Uri(ServerUrl)
+            BaseAddress = new Uri(ServerUrl),
         };
     }
 
     protected static async Task<string> ReadBodyAsync(HttpResponseMessage response)
     {
-        return await response.Content.ReadAsStringAsync();
+        return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
     }
 
     protected static bool ResponseSetCookieContains(

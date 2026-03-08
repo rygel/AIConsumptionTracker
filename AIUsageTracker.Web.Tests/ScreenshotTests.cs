@@ -55,9 +55,9 @@ public class ScreenshotTests : WebTestBase
 
         public async ValueTask DisposeAsync()
         {
-            await Page.CloseAsync();
-            await _context.CloseAsync();
-            await _browser.CloseAsync();
+            await Page.CloseAsync().ConfigureAwait(false);
+            await _context.CloseAsync().ConfigureAwait(false);
+            await _browser.CloseAsync().ConfigureAwait(false);
             _playwright.Dispose();
         }
     }
@@ -179,10 +179,10 @@ public class ScreenshotTests : WebTestBase
     {
         try
         {
-            var playwright = await Playwright.CreateAsync();
-            var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
-            var context = await browser.NewContextAsync();
-            var page = await context.NewPageAsync();
+            var playwright = await Playwright.CreateAsync().ConfigureAwait(false);
+            var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true }).ConfigureAwait(false);
+            var context = await browser.NewContextAsync().ConfigureAwait(false);
+            var page = await context.NewPageAsync().ConfigureAwait(false);
 
             return new PlaywrightSession(playwright, browser, context, page);
         }
@@ -254,7 +254,9 @@ public class ScreenshotTests : WebTestBase
         Assert.AreEqual("flex", appContainerDisplay, "Layout CSS is not applied (expected flex app container).");
         Assert.AreEqual("200px", sidebarWidth, "Sidebar width does not match expected styled layout.");
         Assert.IsNotNull(footerText, "Footer text should be present.");
-        StringAssert.Contains(footerText, "v", "Footer should include Web UI version string.");
+        Assert.IsTrue(
+            footerText.Contains("v", StringComparison.Ordinal),
+            "Footer should include Web UI version string.");
     }
 
     [TestMethod]
@@ -279,9 +281,15 @@ public class ScreenshotTests : WebTestBase
             }
             """);
 
-        StringAssert.Contains(cssText, ".reliability-grid", "Reliability grid CSS hook missing.");
-        StringAssert.Contains(cssText, ".reliability-card", "Reliability card CSS hook missing.");
-        StringAssert.Contains(cssText, ".reliability-badge", "Reliability badge CSS hook missing.");
+        Assert.IsTrue(
+            cssText.Contains(".reliability-grid", StringComparison.Ordinal),
+            "Reliability grid CSS hook missing.");
+        Assert.IsTrue(
+            cssText.Contains(".reliability-card", StringComparison.Ordinal),
+            "Reliability card CSS hook missing.");
+        Assert.IsTrue(
+            cssText.Contains(".reliability-badge", StringComparison.Ordinal),
+            "Reliability badge CSS hook missing.");
 
         var providerCardCount = await page.EvaluateAsync<int>("""
             () => document.querySelectorAll('.provider-card').length
@@ -443,7 +451,7 @@ public class ScreenshotTests : WebTestBase
         foreach (var path in screenshotPaths)
         {
             using var sha = SHA256.Create();
-            var bytes = await File.ReadAllBytesAsync(path);
+            var bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(false);
             var hash = Convert.ToHexString(sha.ComputeHash(bytes));
             distinctHashes.Add(hash);
         }
