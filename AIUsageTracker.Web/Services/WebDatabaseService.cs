@@ -108,7 +108,7 @@ public class WebDatabaseService : IWebDatabaseRepository
         }
 
         var results = await connection.QueryAsync<dynamic>(sql).ConfigureAwait(false);
-        var list = results.Select(this.MapToProviderUsage).ToList();
+        var list = results.Select(WebProviderUsageMapper.Map).ToList();
 
         this._logger.LogInformation(
             "WebDB GetLatestUsageAsync count={Count} includeInactive={IncludeInactive} elapsedMs={ElapsedMs}",
@@ -136,7 +136,7 @@ public class WebDatabaseService : IWebDatabaseRepository
             LIMIT {limit}";
 
         var results = await connection.QueryAsync<dynamic>(sql).ConfigureAwait(false);
-        return results.Select(this.MapToProviderUsage).ToList();
+        return results.Select(WebProviderUsageMapper.Map).ToList();
     }
 
     public async Task<IReadOnlyList<ProviderUsage>> GetProviderHistoryAsync(string providerId, int limit = 100)
@@ -158,7 +158,7 @@ public class WebDatabaseService : IWebDatabaseRepository
             LIMIT {limit}";
 
         var results = await connection.QueryAsync<dynamic>(sql, new { ProviderId = providerId }).ConfigureAwait(false);
-        return results.Select(this.MapToProviderUsage).ToList();
+        return results.Select(WebProviderUsageMapper.Map).ToList();
     }
 
     public async Task<UsageSummary> GetUsageSummaryAsync()
@@ -230,7 +230,7 @@ public class WebDatabaseService : IWebDatabaseRepository
             MaxSamples = maxSamples,
         }).ConfigureAwait(false);
 
-        return rows.Select(this.MapToProviderUsage).ToList();
+        return rows.Select(WebProviderUsageMapper.Map).ToList();
     }
 
     public async Task<IReadOnlyList<ProviderUsage>> GetAllHistoryForExportAsync(int limit = 0)
@@ -250,7 +250,7 @@ public class WebDatabaseService : IWebDatabaseRepository
         }
 
         var rows = await connection.QueryAsync<dynamic>(sql).ConfigureAwait(false);
-        return rows.Select(this.MapToProviderUsage).ToList();
+        return rows.Select(WebProviderUsageMapper.Map).ToList();
     }
 
     public async Task<IReadOnlyList<ChartDataPoint>> GetChartDataAsync(int hours = 24)
@@ -411,59 +411,13 @@ public class WebDatabaseService : IWebDatabaseRepository
             using var connection = this.CreateReadConnection();
             await connection.OpenAsync().ConfigureAwait(false);
 
-            var offset = (page - 1) * pageSize;
-            var orderClause = string.IsNullOrEmpty(orderBy) ? string.Empty : $"ORDER BY {orderBy}";
-
-            var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM {tableName}").ConfigureAwait(false);
-
-            var sql = $"SELECT * FROM {tableName} {orderClause} LIMIT {pageSize} OFFSET {offset}";
-            var rows = new List<Dictionary<string, object?>>();
-
-            using var cmd = connection.CreateCommand();
-            cmd.CommandText = sql;
-            using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
-
-            while (await reader.ReadAsync().ConfigureAwait(false))
-            {
-                var row = new Dictionary<string, object?>(StringComparer.Ordinal);
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
-                    var value = await reader.IsDBNullAsync(i).ConfigureAwait(false) ? null : reader.GetValue(i);
-                    row[reader.GetName(i)] = value;
-                }
-
-                rows.Add(row);
-            }
-
-            return (rows, totalCount);
+            return await WebDatabaseRawTableReader.ReadTableAsync(connection, tableName, page, pageSize, orderBy)
+                .ConfigureAwait(false);
         }
         finally
         {
             this._semaphore.Release();
         }
-    }
-
-    private ProviderUsage MapToProviderUsage(dynamic row)
-    {
-        var usage = new ProviderUsage
-        {
-            ProviderId = row.provider_id ?? row.ProviderId,
-            ProviderName = row.ProviderName,
-            IsAvailable = row.is_available == 1 || (row.IsAvailable != null && row.IsAvailable == 1),
-            Description = row.status_message ?? string.Empty,
-            RequestsUsed = (double)(row.requests_used ?? row.RequestsUsed ?? 0.0),
-            RequestsAvailable = (double)(row.requests_available ?? row.RequestsAvailable ?? 0.0),
-            RequestsPercentage = (double)(row.requests_percentage ?? row.RequestsPercentage ?? 0.0),
-            ResponseLatencyMs = (double)(row.response_latency_ms ?? row.ResponseLatencyMs ?? 0.0),
-            FetchedAt = DateTime.Parse(row.fetched_at ?? row.FetchedAt),
-        };
-
-        if (row.next_reset_time != null)
-        {
-            usage.NextResetTime = DateTime.Parse(row.next_reset_time);
-        }
-
-        return usage;
     }
 
     private SqliteConnection CreateReadConnection()
