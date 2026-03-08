@@ -211,11 +211,12 @@ public class ScreenshotTests : WebTestBase
     [TestMethod]
     public async Task Dashboard_StylesheetAssetsLoadAndStylesApply()
     {
+        const string testName = "Dashboard_StylesheetAssetsLoadAndStylesApply";
         await using var browserSession = await ScreenshotTests.TryCreateBrowserSessionAsync(
-            nameof(Dashboard_StylesheetAssetsLoadAndStylesApply));
+            testName);
         if (browserSession is null)
         {
-            ScreenshotTests.SkipBrowserTest(nameof(Dashboard_StylesheetAssetsLoadAndStylesApply));
+            ScreenshotTests.SkipBrowserTest(testName);
             return;
         }
 
@@ -263,11 +264,12 @@ public class ScreenshotTests : WebTestBase
     [TestMethod]
     public async Task Dashboard_ReliabilityPanelStylesAndMarkupArePresent()
     {
+        const string testName = "Dashboard_ReliabilityPanelStylesAndMarkupArePresent";
         await using var browserSession = await ScreenshotTests.TryCreateBrowserSessionAsync(
-            nameof(Dashboard_ReliabilityPanelStylesAndMarkupArePresent));
+            testName);
         if (browserSession is null)
         {
-            ScreenshotTests.SkipBrowserTest(nameof(Dashboard_ReliabilityPanelStylesAndMarkupArePresent));
+            ScreenshotTests.SkipBrowserTest(testName);
             return;
         }
 
@@ -318,10 +320,11 @@ public class ScreenshotTests : WebTestBase
     [TestMethod]
     public async Task CaptureWebScreenshots()
     {
-        await using var browserSession = await ScreenshotTests.TryCreateBrowserSessionAsync(nameof(CaptureWebScreenshots));
+        const string testName = "CaptureWebScreenshots";
+        await using var browserSession = await ScreenshotTests.TryCreateBrowserSessionAsync(testName);
         if (browserSession is null)
         {
-            ScreenshotTests.SkipBrowserTest(nameof(CaptureWebScreenshots));
+            ScreenshotTests.SkipBrowserTest(testName);
             return;
         }
 
@@ -357,10 +360,11 @@ public class ScreenshotTests : WebTestBase
     [TestMethod]
     public async Task ThemeSelector_AppliesAllThemes()
     {
-        await using var browserSession = await ScreenshotTests.TryCreateBrowserSessionAsync(nameof(ThemeSelector_AppliesAllThemes));
+        const string testName = "ThemeSelector_AppliesAllThemes";
+        await using var browserSession = await ScreenshotTests.TryCreateBrowserSessionAsync(testName);
         if (browserSession is null)
         {
-            ScreenshotTests.SkipBrowserTest(nameof(ThemeSelector_AppliesAllThemes));
+            ScreenshotTests.SkipBrowserTest(testName);
             return;
         }
 
@@ -406,11 +410,12 @@ public class ScreenshotTests : WebTestBase
     [TestMethod]
     public async Task RepresentativeThemes_RenderDistinctVisualSnapshots()
     {
+        const string testName = "RepresentativeThemes_RenderDistinctVisualSnapshots";
         await using var browserSession = await ScreenshotTests.TryCreateBrowserSessionAsync(
-            nameof(RepresentativeThemes_RenderDistinctVisualSnapshots));
+            testName);
         if (browserSession is null)
         {
-            ScreenshotTests.SkipBrowserTest(nameof(RepresentativeThemes_RenderDistinctVisualSnapshots));
+            ScreenshotTests.SkipBrowserTest(testName);
             return;
         }
 
@@ -471,11 +476,12 @@ public class ScreenshotTests : WebTestBase
     [TestMethod]
     public async Task RepresentativeThemes_ExposeExpectedCssTokens()
     {
+        const string testName = "RepresentativeThemes_ExposeExpectedCssTokens";
         await using var browserSession = await ScreenshotTests.TryCreateBrowserSessionAsync(
-            nameof(RepresentativeThemes_ExposeExpectedCssTokens));
+            testName);
         if (browserSession is null)
         {
-            ScreenshotTests.SkipBrowserTest(nameof(RepresentativeThemes_ExposeExpectedCssTokens));
+            ScreenshotTests.SkipBrowserTest(testName);
             return;
         }
 
