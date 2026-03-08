@@ -302,19 +302,9 @@ public class MonitorLauncher
             var monitorExeName = OperatingSystem.IsWindows()
                 ? "AIUsageTracker.Monitor.exe"
                 : "AIUsageTracker.Monitor";
-            // Try to find Agent executable
-            var possiblePaths = new[]
-            {
-                // Development paths
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIUsageTracker.Monitor", "bin", "Debug", "net8.0", monitorExeName),
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIUsageTracker.Monitor", "bin", "Release", "net8.0", monitorExeName),
-                // Installed paths
-                Path.Combine(AppContext.BaseDirectory, monitorExeName),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "AIUsageTracker", monitorExeName),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIUsageTracker", monitorExeName),
-            };
+            var possiblePaths = MonitorExecutableCatalog.GetExecutableCandidates(AppContext.BaseDirectory, monitorExeName);
 
-            MonitorService.LogDiagnostic($"Locating Monitor executable (checked {possiblePaths.Length} common locations)...");
+            MonitorService.LogDiagnostic($"Locating Monitor executable (checked {possiblePaths.Count} common locations)...");
             var agentPath = possiblePaths.FirstOrDefault(File.Exists);
 
             if (agentPath == null)
