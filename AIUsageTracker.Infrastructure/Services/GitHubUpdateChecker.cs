@@ -118,51 +118,76 @@ public class GitHubUpdateChecker : IUpdateCheckerService
                 return false;
             }
 
-            // Create temp directory for download
-            var tempDir = Path.Combine(Path.GetTempPath(), "AIUsageTracker_Updates");
-            Directory.CreateDirectory(tempDir);
-            var downloadPath = Path.Combine(tempDir, $"AIUsageTracker_Setup_{updateInfo.Version}.exe");
-
-            // Download the file
-            _logger.LogInformation("Downloading from {Url} to {Path}", updateInfo.DownloadUrl, downloadPath);
-            using (var response = await _httpClient.GetAsync(updateInfo.DownloadUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead))
+            var downloadPath = GetInstallerDownloadPath(updateInfo.Version);
+            var downloadSucceeded = await DownloadInstallerAsync(updateInfo.DownloadUrl, downloadPath, progress).ConfigureAwait(false);
+            if (!downloadSucceeded)
             {
-                response.EnsureSuccessStatusCode();
-                var totalBytes = response.Content.Headers.ContentLength ?? -1L;
-                var downloadedBytes = 0L;
-                var buffer = new byte[8192];
-                await using var stream = await response.Content.ReadAsStreamAsync();
-                await using var fileStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-                int read;
-                while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                {
-                    await fileStream.WriteAsync(buffer, 0, read);
-                    downloadedBytes += read;
-                    if (totalBytes > 0 && progress != null)
-                    {
-                        var percentage = (double)downloadedBytes / totalBytes * 100;
-                        progress.Report(percentage);
-                    }
-                }
-            }
-
-            _logger.LogInformation("Download completed successfully to {Path}", downloadPath);
-
-            // Verify file exists
-            if (!File.Exists(downloadPath))
-            {
-                _logger.LogError("Downloaded file not found at {Path}", downloadPath);
                 return false;
             }
 
-            // Run the installer
             return StartInstaller(downloadPath);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during download and install");
             return false;
+        }
+    }
+
+    private static string GetInstallerDownloadPath(string version)
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "AIUsageTracker_Updates");
+        Directory.CreateDirectory(tempDir);
+        return Path.Combine(tempDir, $"AIUsageTracker_Setup_{version}.exe");
+    }
+
+    private async Task<bool> DownloadInstallerAsync(string downloadUrl, string downloadPath, IProgress<double>? progress)
+    {
+        var partialDownloadPath = $"{downloadPath}.partial";
+        _logger.LogInformation("Downloading from {Url} to {Path}", downloadUrl, downloadPath);
+        DeleteIfExists(downloadPath);
+        DeleteIfExists(partialDownloadPath);
+
+        using var response = await _httpClient.GetAsync(downloadUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        var totalBytes = response.Content.Headers.ContentLength ?? -1L;
+        var downloadedBytes = 0L;
+        var buffer = new byte[8192];
+
+        await using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+        await using var fileStream = new FileStream(partialDownloadPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+        int read;
+        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false)) > 0)
+        {
+            await fileStream.WriteAsync(buffer, 0, read).ConfigureAwait(false);
+            downloadedBytes += read;
+            if (totalBytes > 0 && progress != null)
+            {
+                var percentage = (double)downloadedBytes / totalBytes * 100;
+                progress.Report(percentage);
+            }
+        }
+
+        await fileStream.FlushAsync().ConfigureAwait(false);
+        File.Move(partialDownloadPath, downloadPath, overwrite: true);
+        _logger.LogInformation("Download completed successfully to {Path}", downloadPath);
+
+        if (File.Exists(downloadPath))
+        {
+            return true;
+        }
+
+        _logger.LogError("Downloaded file not found at {Path}", downloadPath);
+        return false;
+    }
+
+    private static void DeleteIfExists(string path)
+    {
+        if (File.Exists(path))
+        {
+            File.Delete(path);
         }
     }
 
