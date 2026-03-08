@@ -26,8 +26,15 @@ dot_diagnostic.VSTHRD002.severity = warning
 dot_diagnostic.VSTHRD103.severity = warning
 dot_diagnostic.VSTHRD105.severity = warning
 dot_diagnostic.VSTHRD110.severity = warning
+<<<<<<< HEAD
+dot_diagnostic.VSTHRD111.severity = error
+dot_diagnostic.VSTHRD109.severity = error
+dot_diagnostic.CA2016.severity = error
+dot_diagnostic.CA2254.severity = error
+=======
 dot_diagnostic.VSTHRD109.severity = error
 dot_diagnostic.VSTHRD111.severity = error
+>>>>>>> origin/develop
 dot_diagnostic.VSTHRD200.severity = error
 dot_diagnostic.CA2016.severity = error
 dot_diagnostic.CA2254.severity = error
@@ -40,7 +47,7 @@ dot_diagnostic.MA0023.severity = suggestion
 dot_diagnostic.MA0039.severity = warning
 dot_diagnostic.MA0009.severity = warning
 dot_diagnostic.MA0048.severity = warning
-dot_diagnostic.MA0051.severity = none
+dot_diagnostic.MA0051.severity = suggestion
 dot_diagnostic.SA*.severity = none
 dot_diagnostic.SA1000.severity = warning
 dot_diagnostic.SA1003.severity = warning
