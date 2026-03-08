@@ -19,11 +19,17 @@ public class DataViewModel : PageModel
     }
 
     public string? TableName { get; set; }
+
     public List<Dictionary<string, object?>>? Rows { get; set; }
+
     public List<string> Columns { get; set; } = new();
+
     public int TotalCount { get; set; }
+
     public int PageNumber { get; set; } = 1;
+
     public int TotalPages { get; set; }
+
     public bool IsDatabaseAvailable => this._dbService.IsDatabaseAvailable();
 
     public async Task<IActionResult> OnGetAsync(string? tableName, int page = 1)
@@ -60,11 +66,11 @@ public class DataViewModel : PageModel
 
         var (rows, totalCount) = actualTable switch
         {
-            "providers" => await this._dbService.GetProvidersRawAsync(page, PageSize),
-            "provider_history" => await this._dbService.GetProviderHistoryRawAsync(page, PageSize),
-            "raw_snapshots" => await this._dbService.GetRawSnapshotsRawAsync(page, PageSize),
-            "reset_events" => await this._dbService.GetResetEventsRawAsync(page, PageSize),
-            _ => (new List<Dictionary<string, object?>>(), 0),
+            "providers" => await this._dbService.GetProvidersRawAsync(page, PageSize).ConfigureAwait(false),
+            "provider_history" => await this._dbService.GetProviderHistoryRawAsync(page, PageSize).ConfigureAwait(false),
+            "raw_snapshots" => await this._dbService.GetRawSnapshotsRawAsync(page, PageSize).ConfigureAwait(false),
+            "reset_events" => await this._dbService.GetResetEventsRawAsync(page, PageSize).ConfigureAwait(false),
+            _ => ([], 0),
         };
 
         this.Rows = rows;
@@ -81,7 +87,7 @@ public class DataViewModel : PageModel
 
     public async Task<IActionResult> OnGetExportCsvAsync()
     {
-        var csv = await this._exportService.ExportHistoryToCsvAsync();
+        var csv = await this._exportService.ExportHistoryToCsvAsync().ConfigureAwait(false);
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "history.csv");
     }
 }

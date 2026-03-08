@@ -13,12 +13,13 @@ namespace AIUsageTracker.Web.Services;
 
 public class WebDatabaseService : IWebDatabaseRepository
 {
+    private static int _chartIndexesEnsured;
+
     private readonly string _dbPath;
     private readonly string _readConnectionString;
     private readonly IMemoryCache _cache;
     private readonly ILogger<WebDatabaseService> _logger;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
-    private static int _chartIndexesEnsured;
 
     public WebDatabaseService(IMemoryCache cache, ILogger<WebDatabaseService> logger, IAppPathProvider pathProvider)
         : this(cache, logger, pathProvider, databasePathOverride: null)
@@ -85,6 +86,7 @@ public class WebDatabaseService : IWebDatabaseRepository
         {
             p.ProviderName = ProviderMetadataCatalog.GetDisplayName(p.ProviderId, p.ProviderName);
         }
+
         this._logger.LogInformation(
             "WebDB GetProvidersAsync count={Count} elapsedMs={ElapsedMs}",
             results.Count,
@@ -306,6 +308,7 @@ public class WebDatabaseService : IWebDatabaseRepository
         {
             point.ProviderName = ProviderMetadataCatalog.GetDisplayName(point.ProviderId, point.ProviderName);
         }
+
         this._logger.LogInformation(
             "WebDB GetChartDataAsync hours={Hours} bucketMinutes={BucketMinutes} rows={Count} elapsedMs={ElapsedMs}",
             hours,
@@ -401,6 +404,8 @@ public class WebDatabaseService : IWebDatabaseRepository
         return await this.GetTableRawAsync("reset_events", page, pageSize, "timestamp DESC").ConfigureAwait(false);
     }
 
+    public string GetDatabasePath() => this._dbPath;
+
     private async Task<(List<Dictionary<string, object?>> Rows, int TotalCount)> GetTableRawAsync(string tableName, int page, int pageSize, string? orderBy = null)
     {
         if (!this.IsDatabaseAvailable())
@@ -445,8 +450,6 @@ public class WebDatabaseService : IWebDatabaseRepository
             this._semaphore.Release();
         }
     }
-
-    public string GetDatabasePath() => this._dbPath;
 
     private ProviderUsage MapToProviderUsage(dynamic row)
     {
