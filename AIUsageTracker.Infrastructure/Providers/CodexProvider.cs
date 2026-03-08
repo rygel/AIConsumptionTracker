@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Paths;
 using AIUsageTracker.Core.Providers;
 using Microsoft.Extensions.Logging;
 
@@ -356,15 +357,10 @@ public class CodexProvider : ProviderBase
         }
 
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
         foreach (var pathTemplate in StaticDefinition.AuthIdentityCandidatePathTemplates)
         {
-            var path = pathTemplate
-                .Replace("%USERPROFILE%", userProfile, StringComparison.OrdinalIgnoreCase)
-                .Replace("%APPDATA%", appData, StringComparison.OrdinalIgnoreCase)
-                .Replace("%LOCALAPPDATA%", localAppData, StringComparison.OrdinalIgnoreCase);
+            var path = AuthPathTemplateResolver.Resolve(pathTemplate, userProfile);
 
             if (!string.IsNullOrWhiteSpace(path))
             {

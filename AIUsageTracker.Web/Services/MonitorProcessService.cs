@@ -97,12 +97,6 @@ public class MonitorProcessService
 
     private string? ResolveExistingAgentInfoPath()
     {
-        var appDataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var userProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return MonitorInfoPathCatalog.GetReadCandidatePaths(appDataRoot, userProfileRoot)
-            .ToList()
-            .Where(File.Exists)
-            .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
-            .FirstOrDefault();
+        return MonitorInfoPathCatalog.ResolveExistingReadPath();
     }
 }

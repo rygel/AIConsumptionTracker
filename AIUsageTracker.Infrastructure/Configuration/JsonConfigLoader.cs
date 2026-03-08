@@ -368,13 +368,6 @@ public class JsonConfigLoader : IConfigLoader
 
     private string ResolvePathTemplate(string pathTemplate)
     {
-        var userProfileRoot = _pathProvider.GetUserProfileRoot();
-        var appDataRoot = Path.Combine(userProfileRoot, "AppData", "Roaming");
-        var localAppDataRoot = Path.Combine(userProfileRoot, "AppData", "Local");
-
-        return pathTemplate
-            .Replace("%USERPROFILE%", userProfileRoot, StringComparison.OrdinalIgnoreCase)
-            .Replace("%APPDATA%", appDataRoot, StringComparison.OrdinalIgnoreCase)
-            .Replace("%LOCALAPPDATA%", localAppDataRoot, StringComparison.OrdinalIgnoreCase);
+        return AuthPathTemplateResolver.Resolve(pathTemplate, _pathProvider.GetUserProfileRoot());
     }
 }

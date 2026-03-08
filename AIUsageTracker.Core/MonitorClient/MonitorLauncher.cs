@@ -597,9 +597,7 @@ public class MonitorLauncher
             return _monitorInfoCandidatePathsOverride();
         }
 
-        var appDataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var userProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return MonitorInfoPathCatalog.GetReadCandidatePaths(appDataRoot, userProfileRoot);
+        return MonitorInfoPathCatalog.GetReadCandidatePathsFromEnvironment();
     }
 
     private sealed class TestOverrideScope : IDisposable

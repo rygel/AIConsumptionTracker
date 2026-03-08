@@ -34,6 +34,21 @@ public static class MonitorInfoPathCatalog
             StringComparison.OrdinalIgnoreCase);
     }
 
+    public static IReadOnlyList<string> GetReadCandidatePathsFromEnvironment()
+    {
+        var appDataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var userProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return GetReadCandidatePaths(appDataRoot, userProfileRoot);
+    }
+
+    public static string? ResolveExistingReadPath()
+    {
+        return GetReadCandidatePathsFromEnvironment()
+            .Where(File.Exists)
+            .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
+            .FirstOrDefault();
+    }
+
     private static string GetCanonicalPath(string appDataRoot)
     {
         return Path.Combine(appDataRoot, "AIUsageTracker", "monitor.json");

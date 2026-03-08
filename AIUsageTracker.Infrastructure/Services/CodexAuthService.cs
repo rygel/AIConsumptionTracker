@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Core.Paths;
 using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
 
@@ -68,7 +69,7 @@ public class CodexAuthService : ICodexAuthService
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         foreach (var pathTemplate in CodexProvider.StaticDefinition.AuthIdentityCandidatePathTemplates)
         {
-            var path = Environment.ExpandEnvironmentVariables(pathTemplate.Replace("%USERPROFILE%", home, StringComparison.OrdinalIgnoreCase));
+            var path = AuthPathTemplateResolver.Resolve(pathTemplate, home);
             if (!string.IsNullOrWhiteSpace(path))
             {
                 yield return path;
