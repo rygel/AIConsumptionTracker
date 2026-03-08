@@ -10,6 +10,15 @@ namespace AIUsageTracker.Web.Tests;
 [TestClass]
 public class ScreenshotTests : WebTestBase
 {
+    private const int ThemeSwitchDelayMs = 300;
+    private const int MinThemeScreenshotBytes = 25_000;
+
+    private readonly string _projectRoot;
+    private readonly string[] _expectedThemes;
+    private readonly Dictionary<string, (string BgPrimary, string AccentPrimary)> _representativeThemeTokens;
+    private readonly string _outputDir;
+    private readonly string _themeOutputDir;
+
     private sealed class ThemeCatalog
     {
         [JsonPropertyName("themes")]
@@ -62,21 +71,6 @@ public class ScreenshotTests : WebTestBase
         }
     }
 
-    private readonly string _projectRoot;
-    private readonly string[] _expectedThemes;
-    private readonly Dictionary<string, (string BgPrimary, string AccentPrimary)> _representativeThemeTokens;
-    private readonly string _outputDir;
-    private readonly string _themeOutputDir;
-
-    private const int ThemeSwitchDelayMs = 300;
-    private const int MinThemeScreenshotBytes = 25_000;
-
-    [ClassInitialize(InheritanceBehavior.BeforeEachDerivedClass)]
-    public static void EnsureFactoryInitialized(TestContext context)
-    {
-        InitializeFactory(context);
-    }
-
     public ScreenshotTests()
     {
         var binPath = AppContext.BaseDirectory;
@@ -107,6 +101,12 @@ public class ScreenshotTests : WebTestBase
         {
             Directory.CreateDirectory(this._themeOutputDir);
         }
+    }
+
+    [ClassInitialize(InheritanceBehavior.BeforeEachDerivedClass)]
+    public static void EnsureFactoryInitialized(TestContext context)
+    {
+        InitializeFactory(context);
     }
 
     private static ThemeCatalog LoadThemeCatalog(string projectRoot)
@@ -211,7 +211,8 @@ public class ScreenshotTests : WebTestBase
     [TestMethod]
     public async Task Dashboard_StylesheetAssetsLoadAndStylesApply()
     {
-        await using var browserSession = await TryCreateBrowserSessionAsync(nameof(Dashboard_StylesheetAssetsLoadAndStylesApply));
+        await using var browserSession = await TryCreateBrowserSessionAsync(
+            nameof(Dashboard_StylesheetAssetsLoadAndStylesApply));
         if (browserSession is null)
         {
             SkipBrowserTest(nameof(Dashboard_StylesheetAssetsLoadAndStylesApply));
@@ -262,7 +263,8 @@ public class ScreenshotTests : WebTestBase
     [TestMethod]
     public async Task Dashboard_ReliabilityPanelStylesAndMarkupArePresent()
     {
-        await using var browserSession = await TryCreateBrowserSessionAsync(nameof(Dashboard_ReliabilityPanelStylesAndMarkupArePresent));
+        await using var browserSession = await TryCreateBrowserSessionAsync(
+            nameof(Dashboard_ReliabilityPanelStylesAndMarkupArePresent));
         if (browserSession is null)
         {
             SkipBrowserTest(nameof(Dashboard_ReliabilityPanelStylesAndMarkupArePresent));
@@ -375,7 +377,8 @@ public class ScreenshotTests : WebTestBase
 
         foreach (var theme in this._expectedThemes)
         {
-            await page.EvaluateAsync("""
+            await page.EvaluateAsync(
+                """
                 (theme) => {
                     const select = document.getElementById('theme-select');
                     if (!select) {
@@ -403,7 +406,8 @@ public class ScreenshotTests : WebTestBase
     [TestMethod]
     public async Task RepresentativeThemes_RenderDistinctVisualSnapshots()
     {
-        await using var browserSession = await TryCreateBrowserSessionAsync(nameof(RepresentativeThemes_RenderDistinctVisualSnapshots));
+        await using var browserSession = await TryCreateBrowserSessionAsync(
+            nameof(RepresentativeThemes_RenderDistinctVisualSnapshots));
         if (browserSession is null)
         {
             SkipBrowserTest(nameof(RepresentativeThemes_RenderDistinctVisualSnapshots));
@@ -420,7 +424,8 @@ public class ScreenshotTests : WebTestBase
 
         foreach (var theme in representativeThemes)
         {
-            await page.EvaluateAsync("""
+            await page.EvaluateAsync(
+                """
                 (theme) => {
                     const select = document.getElementById('theme-select');
                     if (!select) {
@@ -464,7 +469,8 @@ public class ScreenshotTests : WebTestBase
     [TestMethod]
     public async Task RepresentativeThemes_ExposeExpectedCssTokens()
     {
-        await using var browserSession = await TryCreateBrowserSessionAsync(nameof(RepresentativeThemes_ExposeExpectedCssTokens));
+        await using var browserSession = await TryCreateBrowserSessionAsync(
+            nameof(RepresentativeThemes_ExposeExpectedCssTokens));
         if (browserSession is null)
         {
             SkipBrowserTest(nameof(RepresentativeThemes_ExposeExpectedCssTokens));
@@ -478,7 +484,8 @@ public class ScreenshotTests : WebTestBase
 
         foreach (var (theme, expectedTokens) in this._representativeThemeTokens)
         {
-            await page.EvaluateAsync("""
+            await page.EvaluateAsync(
+                """
                 (theme) => {
                     const select = document.getElementById('theme-select');
                     if (!select) {
