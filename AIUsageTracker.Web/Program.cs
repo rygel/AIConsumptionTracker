@@ -110,15 +110,7 @@ try
               "font-src 'self'; " +
               "connect-src 'self';";
 
-        if (isDevelopment)
-        {
-            context.Response.Headers.Append("Content-Security-Policy", contentSecurityPolicy);
-        }
-        else
-        {
-            context.Response.Headers.Append("Content-Security-Policy", contentSecurityPolicy);
-        }
-
+        context.Response.Headers.Append("Content-Security-Policy", contentSecurityPolicy);
         await next().ConfigureAwait(false);
     });
 

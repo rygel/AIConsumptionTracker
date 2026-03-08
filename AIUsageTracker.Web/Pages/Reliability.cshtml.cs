@@ -15,26 +15,26 @@ public class ReliabilityModel : PageModel
 
     public ReliabilityModel(WebDatabaseService dbService, IUsageAnalyticsService analyticsService)
     {
-        _dbService = dbService;
-        _analyticsService = analyticsService;
+        this._dbService = dbService;
+        this._analyticsService = analyticsService;
     }
 
     public List<ProviderUsage>? LatestUsage { get; set; }
     public IReadOnlyDictionary<string, ProviderReliabilitySnapshot> ReliabilityByProvider { get; private set; }
         = new Dictionary<string, ProviderReliabilitySnapshot>(StringComparer.OrdinalIgnoreCase);
-    public bool IsDatabaseAvailable => _dbService.IsDatabaseAvailable();
+    public bool IsDatabaseAvailable => this._dbService.IsDatabaseAvailable();
 
     public async Task OnGetAsync()
     {
-        if (IsDatabaseAvailable)
+        if (this.IsDatabaseAvailable)
         {
-            LatestUsage = await _dbService.GetLatestUsageAsync(includeInactive: true);
+            this.LatestUsage = await this._dbService.GetLatestUsageAsync(includeInactive: true).ConfigureAwait(false);
 
-            if (LatestUsage.Count > 0)
+            if (this.LatestUsage.Count > 0)
             {
-                var providerIds = LatestUsage.Select(x => x.ProviderId).ToList();
-                var reliability = await _analyticsService.GetProviderReliabilityAsync(providerIds);
-                ReliabilityByProvider = reliability;
+                var providerIds = this.LatestUsage.Select(x => x.ProviderId).ToList();
+                var reliability = await this._analyticsService.GetProviderReliabilityAsync(providerIds).ConfigureAwait(false);
+                this.ReliabilityByProvider = reliability;
             }
         }
     }
@@ -96,7 +96,7 @@ public class ReliabilityModel : PageModel
             < 100 => $"{snapshot.AverageLatencyMs:F0}ms",
             < 500 => $"{snapshot.AverageLatencyMs:F0}ms",
             < 1000 => $"{snapshot.AverageLatencyMs / 1000:F1}s",
-            _ => $"{snapshot.AverageLatencyMs / 1000:F1}s"
+            _ => $"{snapshot.AverageLatencyMs / 1000:F1}s",
         };
     }
 
@@ -114,7 +114,7 @@ public class ReliabilityModel : PageModel
             < 1 => "Just now",
             < 60 => $"{(int)elapsed.TotalMinutes}m ago",
             < 1440 => $"{(int)elapsed.TotalHours}h ago",
-            _ => $"{(int)elapsed.TotalDays}d ago"
+            _ => $"{(int)elapsed.TotalDays}d ago",
         };
     }
 }
