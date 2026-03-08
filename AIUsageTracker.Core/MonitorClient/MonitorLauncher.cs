@@ -393,43 +393,74 @@ public class MonitorLauncher
     {
         try
         {
-            var info = await GetAgentInfoAsync().ConfigureAwait(false);
-            var targetPort = info?.Port > 0 ? info.Port : await GetAgentPortAsync().ConfigureAwait(false);
-            if (info?.ProcessId > 0)
+            var targetPort = await GetStopTargetPortAsync().ConfigureAwait(false);
+            if (await TryStopKnownMonitorProcessAsync().ConfigureAwait(false))
             {
-                if (await TryStopProcessAsync(info.ProcessId).ConfigureAwait(false))
-                {
-                    return true;
-                }
-            }
-
-            // Fallback: try to find and kill by process name
-            var processes = Process.GetProcessesByName("AIUsageTracker.Monitor")
-                .ToArray();
-            var stoppedAny = false;
-            foreach (var process in processes)
-            {
-                using (process)
-                {
-                    if (await TryStopProcessAsync(process).ConfigureAwait(false))
-                    {
-                        stoppedAny = true;
-                    }
-                }
-            }
-
-            if (stoppedAny)
-            {
+                await InvalidateMonitorInfoAsync().ConfigureAwait(false);
                 return true;
             }
 
-            return !await CheckHealthAsync(targetPort).ConfigureAwait(false);
+            if (await TryStopNamedProcessesAsync().ConfigureAwait(false))
+            {
+                await InvalidateMonitorInfoAsync().ConfigureAwait(false);
+                return true;
+            }
+
+            var isStillHealthy = await CheckHealthAsync(targetPort).ConfigureAwait(false);
+            if (!isStillHealthy)
+            {
+                await InvalidateMonitorInfoAsync().ConfigureAwait(false);
+                return true;
+            }
+
+            return false;
         }
         catch (Exception ex)
         {
             _logger?.LogWarning(ex, "Failed to stop Agent");
             return false;
         }
+    }
+
+    private static async Task<int> GetStopTargetPortAsync()
+    {
+        var info = await GetAgentInfoAsync().ConfigureAwait(false);
+        if (info?.Port > 0)
+        {
+            return info.Port;
+        }
+
+        return await GetAgentPortAsync().ConfigureAwait(false);
+    }
+
+    private static async Task<bool> TryStopKnownMonitorProcessAsync()
+    {
+        var info = await GetAgentInfoAsync().ConfigureAwait(false);
+        if (info?.ProcessId > 0)
+        {
+            return await TryStopProcessAsync(info.ProcessId).ConfigureAwait(false);
+        }
+
+        return false;
+    }
+
+    private static async Task<bool> TryStopNamedProcessesAsync()
+    {
+        var processes = Process.GetProcessesByName("AIUsageTracker.Monitor")
+            .ToArray();
+        var stoppedAny = false;
+        foreach (var process in processes)
+        {
+            using (process)
+            {
+                if (await TryStopProcessAsync(process).ConfigureAwait(false))
+                {
+                    stoppedAny = true;
+                }
+            }
+        }
+
+        return stoppedAny;
     }
 
     private static async Task<bool> TryStopProcessAsync(int processId)
