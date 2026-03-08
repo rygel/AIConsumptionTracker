@@ -19,7 +19,7 @@ public class IndexModel : PageModel
         this._analyticsService = analyticsService;
     }
 
-    public List<ProviderUsage>? LatestUsage { get; set; }
+    public IReadOnlyList<ProviderUsage>? LatestUsage { get; set; }
 
     public UsageSummary? Summary { get; set; }
 
@@ -32,9 +32,9 @@ public class IndexModel : PageModel
     public IReadOnlyDictionary<string, UsageAnomalySnapshot> AnomaliesByProvider { get; private set; }
         = new Dictionary<string, UsageAnomalySnapshot>(StringComparer.OrdinalIgnoreCase);
 
-    public List<BudgetStatus> BudgetStatuses { get; private set; } = [];
+    public IReadOnlyList<BudgetStatus> BudgetStatuses { get; private set; } = [];
 
-    public List<UsageComparison> UsageComparisons { get; private set; } = [];
+    public IReadOnlyList<UsageComparison> UsageComparisons { get; private set; } = [];
 
     public bool IsDatabaseAvailable => this._dbService.IsDatabaseAvailable();
 

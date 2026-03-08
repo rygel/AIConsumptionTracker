@@ -20,9 +20,9 @@ public class DataViewModel : PageModel
 
     public string? TableName { get; set; }
 
-    public List<Dictionary<string, object?>>? Rows { get; set; }
+    public IReadOnlyList<IReadOnlyDictionary<string, object?>>? Rows { get; set; }
 
-    public List<string> Columns { get; set; } = new();
+    public IReadOnlyList<string> Columns { get; set; } = [];
 
     public int TotalCount { get; set; }
 
