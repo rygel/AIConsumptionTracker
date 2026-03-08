@@ -57,9 +57,9 @@ public class OpenAIProvider : ProviderBase
 
     public OpenAIProvider(HttpClient httpClient, ILogger<OpenAIProvider> logger, string? authFilePath)
     {
-        _httpClient = httpClient;
-        _logger = logger;
-        _authFilePath = authFilePath;
+        this._httpClient = httpClient;
+        this._logger = logger;
+        this._authFilePath = authFilePath;
     }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
