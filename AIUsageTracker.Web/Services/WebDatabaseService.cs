@@ -54,9 +54,9 @@ public class WebDatabaseService : IWebDatabaseRepository
 
     public async Task<List<ProviderInfo>> GetProvidersAsync()
     {
-        if (!IsDatabaseAvailable())
+        if (!this.IsDatabaseAvailable())
         {
-            return new List<ProviderInfo>();
+            return [];
         }
 
         var sw = Stopwatch.StartNew();
@@ -92,9 +92,9 @@ public class WebDatabaseService : IWebDatabaseRepository
 
     public async Task<List<ProviderUsage>> GetLatestUsageAsync(bool includeInactive = false)
     {
-        if (!IsDatabaseAvailable())
+        if (!this.IsDatabaseAvailable())
         {
-            return new List<ProviderUsage>();
+            return [];
         }
 
         var sw = Stopwatch.StartNew();
@@ -113,7 +113,7 @@ public class WebDatabaseService : IWebDatabaseRepository
         }
 
         var results = await connection.QueryAsync<dynamic>(sql).ConfigureAwait(false);
-        var list = results.Select(MapToProviderUsage).ToList();
+        var list = results.Select(this.MapToProviderUsage).ToList();
 
         this._logger.LogInformation("WebDB GetLatestUsageAsync count={Count} includeInactive={IncludeInactive} elapsedMs={ElapsedMs}",
             list.Count, includeInactive, sw.ElapsedMilliseconds);
@@ -122,9 +122,9 @@ public class WebDatabaseService : IWebDatabaseRepository
 
     public async Task<List<ProviderUsage>> GetHistoryAsync(int limit = 100)
     {
-        if (!IsDatabaseAvailable())
+        if (!this.IsDatabaseAvailable())
         {
-            return new List<ProviderUsage>();
+            return [];
         }
 
         using var connection = this.CreateReadConnection();
@@ -138,14 +138,14 @@ public class WebDatabaseService : IWebDatabaseRepository
             LIMIT {limit}";
 
         var results = await connection.QueryAsync<dynamic>(sql).ConfigureAwait(false);
-        return results.Select(MapToProviderUsage).ToList();
+        return results.Select(this.MapToProviderUsage).ToList();
     }
 
     public async Task<List<ProviderUsage>> GetProviderHistoryAsync(string providerId, int limit = 100)
     {
-        if (!IsDatabaseAvailable())
+        if (!this.IsDatabaseAvailable())
         {
-            return new List<ProviderUsage>();
+            return [];
         }
 
         using var connection = this.CreateReadConnection();
@@ -160,7 +160,7 @@ public class WebDatabaseService : IWebDatabaseRepository
             LIMIT {limit}";
 
         var results = await connection.QueryAsync<dynamic>(sql, new { ProviderId = providerId }).ConfigureAwait(false);
-        return results.Select(MapToProviderUsage).ToList();
+        return results.Select(this.MapToProviderUsage).ToList();
     }
 
     public async Task<UsageSummary> GetUsageSummaryAsync()
@@ -171,7 +171,7 @@ public class WebDatabaseService : IWebDatabaseRepository
             return cached;
         }
 
-        if (!IsDatabaseAvailable())
+        if (!this.IsDatabaseAvailable())
         {
             return new UsageSummary();
         }
@@ -230,7 +230,7 @@ public class WebDatabaseService : IWebDatabaseRepository
             MaxSamples = maxSamples,
         }).ConfigureAwait(false);
 
-        return rows.Select(MapToProviderUsage).ToList();
+        return rows.Select(this.MapToProviderUsage).ToList();
     }
 
     public async Task<List<ProviderUsage>> GetAllHistoryForExportAsync(int limit = 0)
@@ -250,7 +250,7 @@ public class WebDatabaseService : IWebDatabaseRepository
         }
 
         var rows = await connection.QueryAsync<dynamic>(sql).ConfigureAwait(false);
-        return rows.Select(MapToProviderUsage).ToList();
+        return rows.Select(this.MapToProviderUsage).ToList();
     }
 
     private ProviderUsage MapToProviderUsage(dynamic row)
@@ -265,7 +265,7 @@ public class WebDatabaseService : IWebDatabaseRepository
             RequestsAvailable = (double)(row.requests_available ?? row.RequestsAvailable ?? 0.0),
             RequestsPercentage = (double)(row.requests_percentage ?? row.RequestsPercentage ?? 0.0),
             ResponseLatencyMs = (double)(row.response_latency_ms ?? row.ResponseLatencyMs ?? 0.0),
-            FetchedAt = DateTime.Parse(row.fetched_at ?? row.FetchedAt)
+            FetchedAt = DateTime.Parse(row.fetched_at ?? row.FetchedAt),
         };
 
         if (row.next_reset_time != null)
@@ -278,9 +278,9 @@ public class WebDatabaseService : IWebDatabaseRepository
 
     public async Task<List<ChartDataPoint>> GetChartDataAsync(int hours = 24)
     {
-        if (!IsDatabaseAvailable())
+        if (!this.IsDatabaseAvailable())
         {
-            return new List<ChartDataPoint>();
+            return [];
         }
 
         var sw = Stopwatch.StartNew();
@@ -329,9 +329,9 @@ public class WebDatabaseService : IWebDatabaseRepository
 
     public async Task<List<ResetEvent>> GetRecentResetEventsAsync(int hours = 24)
     {
-        if (!IsDatabaseAvailable())
+        if (!this.IsDatabaseAvailable())
         {
-            return new List<ResetEvent>();
+            return [];
         }
 
         var sw = Stopwatch.StartNew();
@@ -363,9 +363,9 @@ public class WebDatabaseService : IWebDatabaseRepository
 
     public async Task<List<ResetEvent>> GetResetEventsAsync(string providerId, int limit = 50)
     {
-        if (!IsDatabaseAvailable())
+        if (!this.IsDatabaseAvailable())
         {
-            return new List<ResetEvent>();
+            return [];
         }
 
         using var connection = this.CreateReadConnection();
@@ -415,9 +415,9 @@ public class WebDatabaseService : IWebDatabaseRepository
 
     private async Task<(List<Dictionary<string, object?>> rows, int totalCount)> GetTableRawAsync(string tableName, int page, int pageSize, string? orderBy = null)
     {
-        if (!IsDatabaseAvailable())
+        if (!this.IsDatabaseAvailable())
         {
-            return (new List<Dictionary<string, object?>>(), 0);
+            return ([], 0);
         }
 
         await this._semaphore.WaitAsync().ConfigureAwait(false);
