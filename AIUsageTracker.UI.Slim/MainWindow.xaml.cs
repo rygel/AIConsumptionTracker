@@ -65,6 +65,7 @@ public partial class MainWindow : Window
     private DispatcherTimer? _pollingTimer;
     private DateTime _lastTrayConfigRefresh = DateTime.MinValue;
     private string? _monitorContractWarningMessage;
+    private bool _isUpdateCheckInProgress;
     private readonly DispatcherTimer _updateCheckTimer;
     private readonly DispatcherTimer _alwaysOnTopTimer;
     private HwndSource? _windowSource;
@@ -2447,8 +2448,15 @@ public partial class MainWindow : Window
 
     private async Task CheckForUpdatesAsync()
     {
+        if (_isUpdateCheckInProgress)
+        {
+            _logger.LogDebug("Skipping overlapping update check request.");
+            return;
+        }
+
         try
         {
+            _isUpdateCheckInProgress = true;
             _latestUpdate = await _updateChecker.CheckForUpdatesAsync();
 
             if (_latestUpdate != null)
@@ -2467,6 +2475,10 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Update check failed");
+        }
+        finally
+        {
+            _isUpdateCheckInProgress = false;
         }
     }
 
