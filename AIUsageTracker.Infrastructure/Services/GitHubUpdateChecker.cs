@@ -17,14 +17,14 @@ public class GitHubUpdateChecker : IUpdateCheckerService
     {
         ["x64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_x64.xml",
         ["x86"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_x86.xml",
-        ["arm64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_arm64.xml"
+        ["arm64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_arm64.xml",
     };
-    
+
     private static readonly Dictionary<string, string> BETA_APPCAST_URLS = new(StringComparer.OrdinalIgnoreCase)
     {
         ["x64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_beta_x64.xml",
         ["x86"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_beta_x86.xml",
-        ["arm64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_beta_arm64.xml"
+        ["arm64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_beta_arm64.xml",
     };
 
     private string GetAppcastUrlForCurrentArchitecture()
@@ -37,7 +37,7 @@ public class GitHubUpdateChecker : IUpdateCheckerService
             ["x64"] = "x64",
             ["x86"] = "x86",
             ["arm64"] = "arm64",
-            ["arm"] = "arm64"
+            ["arm"] = "arm64",
         };
         
         var targetArch = archMapping.GetValueOrDefault(currentArch, "x64");
@@ -102,7 +102,7 @@ public class GitHubUpdateChecker : IUpdateCheckerService
                             ReleaseUrl = latest.ReleaseNotesLink ?? $"https://github.com/rygel/AIConsumptionTracker/releases/tag/v{latestVersion}",
                             DownloadUrl = latest.DownloadLink ?? string.Empty,
                             ReleaseNotes = releaseNotes,
-                            PublishedAt = latest.PublicationDate
+                            PublishedAt = latest.PublicationDate,
                         };
                     }
                 }

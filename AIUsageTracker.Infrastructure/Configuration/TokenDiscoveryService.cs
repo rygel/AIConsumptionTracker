@@ -19,7 +19,9 @@ public class TokenDiscoveryService
     }
 
     private string GetUserProfilePath() => this._pathProvider.GetUserProfileRoot();
+
     private string GetAppDataPath() => Path.Combine(this.GetUserProfilePath(), "AppData", "Roaming");
+
     private string GetLocalAppDataPath() => Path.Combine(this.GetUserProfilePath(), "AppData", "Local");
 
     public async Task<IReadOnlyList<ProviderConfig>> DiscoverTokensAsync()
