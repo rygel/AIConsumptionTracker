@@ -192,6 +192,51 @@ public sealed class MonitorStartupPathTests : IDisposable
         Assert.False(result);
     }
 
+    [Fact]
+    public async Task StopAgentAsync_InvalidatesMetadata_WhenKnownProcessStops()
+    {
+        var infoPath = await CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = 5888,
+            ProcessId = 5555,
+        });
+
+        using var _ = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: port => Task.FromResult(port == 5888),
+            processRunningAsync: processId => Task.FromResult(processId == 5555),
+            stopProcessAsync: processId => Task.FromResult(processId == 5555));
+
+        var result = await MonitorLauncher.StopAgentAsync();
+
+        Assert.True(result);
+        Assert.False(File.Exists(infoPath));
+        Assert.Single(Directory.GetFiles(_tempDirectory, "monitor.json.stale.*", SearchOption.TopDirectoryOnly));
+    }
+
+    [Fact]
+    public async Task StopAgentAsync_ReturnsFalse_WhenStopFailsAndHealthRemainsUp()
+    {
+        var infoPath = await CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = 5999,
+            ProcessId = 6666,
+        });
+
+        using var _ = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: port => Task.FromResult(port == 5999),
+            processRunningAsync: processId => Task.FromResult(processId == 6666),
+            stopProcessAsync: _ => Task.FromResult(false),
+            stopNamedProcessesAsync: () => Task.FromResult(false));
+
+        var result = await MonitorLauncher.StopAgentAsync();
+
+        Assert.False(result);
+        Assert.True(File.Exists(infoPath));
+        Assert.Empty(Directory.GetFiles(_tempDirectory, "monitor.json.stale.*", SearchOption.TopDirectoryOnly));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDirectory))

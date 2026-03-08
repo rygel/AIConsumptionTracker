@@ -17,17 +17,23 @@ public class MonitorLauncher
     private static Func<IEnumerable<string>>? _monitorInfoCandidatePathsOverride;
     private static Func<int, Task<bool>>? _healthCheckOverride;
     private static Func<int, Task<bool>>? _processRunningOverride;
+    private static Func<int, Task<bool>>? _stopProcessOverride;
+    private static Func<Task<bool>>? _stopNamedProcessesOverride;
 
     public static void SetLogger(ILogger<MonitorLauncher> logger) => _logger = logger;
 
     internal static IDisposable PushTestOverrides(
         IEnumerable<string>? monitorInfoCandidatePaths = null,
         Func<int, Task<bool>>? healthCheckAsync = null,
-        Func<int, Task<bool>>? processRunningAsync = null)
+        Func<int, Task<bool>>? processRunningAsync = null,
+        Func<int, Task<bool>>? stopProcessAsync = null,
+        Func<Task<bool>>? stopNamedProcessesAsync = null)
     {
         var previousCandidatePaths = _monitorInfoCandidatePathsOverride;
         var previousHealthCheck = _healthCheckOverride;
         var previousProcessCheck = _processRunningOverride;
+        var previousStopProcess = _stopProcessOverride;
+        var previousStopNamedProcesses = _stopNamedProcessesOverride;
 
         if (monitorInfoCandidatePaths != null)
         {
@@ -45,11 +51,23 @@ public class MonitorLauncher
             _processRunningOverride = processRunningAsync;
         }
 
+        if (stopProcessAsync != null)
+        {
+            _stopProcessOverride = stopProcessAsync;
+        }
+
+        if (stopNamedProcessesAsync != null)
+        {
+            _stopNamedProcessesOverride = stopNamedProcessesAsync;
+        }
+
         return new TestOverrideScope(() =>
         {
             _monitorInfoCandidatePathsOverride = previousCandidatePaths;
             _healthCheckOverride = previousHealthCheck;
             _processRunningOverride = previousProcessCheck;
+            _stopProcessOverride = previousStopProcess;
+            _stopNamedProcessesOverride = previousStopNamedProcesses;
         });
     }
 
@@ -114,9 +132,32 @@ public class MonitorLauncher
         }
     }
 
+    private static async Task<(MonitorInfo? Info, string? Path)> ReadValidatedAgentInfoAsync()
+    {
+        var (info, path) = await ReadAgentInfoAsync().ConfigureAwait(false);
+        if (info != null)
+        {
+            var healthOk = await CheckHealthAsync(info.Port).ConfigureAwait(false);
+            var processRunning = await CheckProcessRunningAsync(info.ProcessId).ConfigureAwait(false);
+
+            if (healthOk && processRunning)
+            {
+                return (info, path);
+            }
+
+            MonitorService.LogDiagnostic($"Monitor metadata stale: health={healthOk}, processRunning={processRunning}, invalidating metadata");
+            if (path != null)
+            {
+                await QuarantineMonitorInfoAsync(path).ConfigureAwait(false);
+            }
+        }
+
+        return (null, path);
+    }
+
     private static async Task<(MonitorInfo? Info, int Port, bool IsRunning)> ResolveMonitorStateAsync()
     {
-        var info = await GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+        var (info, _) = await ReadValidatedAgentInfoAsync().ConfigureAwait(false);
         if (info != null)
         {
             return (info, info.Port, true);
@@ -206,31 +247,8 @@ public class MonitorLauncher
 
     public static async Task<MonitorInfo?> GetAndValidateMonitorInfoAsync()
     {
-        var (info, path) = await ReadAgentInfoAsync().ConfigureAwait(false);
-        if (info == null)
-        {
-            return null;
-        }
-
-        var port = info.Port;
-        var processId = info.ProcessId;
-
-        var healthOk = await CheckHealthAsync(port).ConfigureAwait(false);
-        var processRunning = await CheckProcessRunningAsync(processId).ConfigureAwait(false);
-
-        if (healthOk && processRunning)
-        {
-            return info;
-        }
-
-        MonitorService.LogDiagnostic($"Monitor metadata stale: health={healthOk}, processRunning={processRunning}, invalidating metadata");
-
-        if (path != null)
-        {
-            await QuarantineMonitorInfoAsync(path).ConfigureAwait(false);
-        }
-
-        return null;
+        var (info, _) = await ReadValidatedAgentInfoAsync().ConfigureAwait(false);
+        return info;
     }
 
     public static Task InvalidateMonitorInfoAsync()
@@ -407,8 +425,9 @@ public class MonitorLauncher
     {
         try
         {
-            var targetPort = await GetStopTargetPortAsync().ConfigureAwait(false);
-            if (await TryStopKnownMonitorProcessAsync().ConfigureAwait(false))
+            var (info, _) = await ReadValidatedAgentInfoAsync().ConfigureAwait(false);
+            var targetPort = info?.Port > 0 ? info.Port : DefaultPort;
+            if (await TryStopKnownMonitorProcessAsync(info).ConfigureAwait(false))
             {
                 await InvalidateMonitorInfoAsync().ConfigureAwait(false);
                 return true;
@@ -436,20 +455,8 @@ public class MonitorLauncher
         }
     }
 
-    private static async Task<int> GetStopTargetPortAsync()
+    private static async Task<bool> TryStopKnownMonitorProcessAsync(MonitorInfo? info)
     {
-        var (info, _) = await ReadAgentInfoAsync().ConfigureAwait(false);
-        if (info?.Port > 0)
-        {
-            return info.Port;
-        }
-
-        return await GetAgentPortAsync().ConfigureAwait(false);
-    }
-
-    private static async Task<bool> TryStopKnownMonitorProcessAsync()
-    {
-        var (info, _) = await ReadAgentInfoAsync().ConfigureAwait(false);
         if (info?.ProcessId > 0)
         {
             return await TryStopProcessAsync(info.ProcessId).ConfigureAwait(false);
@@ -460,6 +467,11 @@ public class MonitorLauncher
 
     private static async Task<bool> TryStopNamedProcessesAsync()
     {
+        if (_stopNamedProcessesOverride != null)
+        {
+            return await _stopNamedProcessesOverride().ConfigureAwait(false);
+        }
+
         var processes = Process.GetProcessesByName("AIUsageTracker.Monitor")
             .ToArray();
         var stoppedAny = false;
@@ -479,6 +491,11 @@ public class MonitorLauncher
 
     private static async Task<bool> TryStopProcessAsync(int processId)
     {
+        if (_stopProcessOverride != null)
+        {
+            return await _stopProcessOverride(processId).ConfigureAwait(false);
+        }
+
         try
         {
             using var process = Process.GetProcessById(processId);
