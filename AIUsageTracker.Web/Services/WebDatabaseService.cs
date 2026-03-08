@@ -206,7 +206,7 @@ public class WebDatabaseService : IWebDatabaseRepository
         return result;
     }
 
-    public async Task<List<ProviderUsage>> GetHistorySamplesAsync(IEnumerable<string> providerIds, int lookbackHours, int maxSamples)
+    public async Task<IReadOnlyList<ProviderUsage>> GetHistorySamplesAsync(IEnumerable<string> providerIds, int lookbackHours, int maxSamples)
     {
         using var connection = this.CreateReadConnection();
         await connection.OpenAsync().ConfigureAwait(false);
@@ -242,7 +242,7 @@ public class WebDatabaseService : IWebDatabaseRepository
         return rows.Select(this.MapToProviderUsage).ToList();
     }
 
-    public async Task<List<ProviderUsage>> GetAllHistoryForExportAsync(int limit = 0)
+    public async Task<IReadOnlyList<ProviderUsage>> GetAllHistoryForExportAsync(int limit = 0)
     {
         using var connection = this.CreateReadConnection();
         await connection.OpenAsync().ConfigureAwait(false);

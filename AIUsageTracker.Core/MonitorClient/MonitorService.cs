@@ -177,7 +177,7 @@ public class MonitorService : IMonitorService
     }
 
     // Provider usage endpoints
-    public async Task<List<ProviderUsage>> GetUsageAsync()
+    public async Task<IReadOnlyList<ProviderUsage>> GetUsageAsync()
     {
         var stopwatch = Stopwatch.StartNew();
         try
@@ -249,7 +249,7 @@ public class MonitorService : IMonitorService
         }
     }
 
-    public async Task<List<ProviderUsage>> GetHistoryAsync(int limit = 100)
+    public async Task<IReadOnlyList<ProviderUsage>> GetHistoryAsync(int limit = 100)
     {
         try
         {
@@ -264,7 +264,7 @@ public class MonitorService : IMonitorService
         }
     }
 
-    public async Task<List<ProviderUsage>> GetHistoryByProviderAsync(string providerId, int limit = 100)
+    public async Task<IReadOnlyList<ProviderUsage>> GetHistoryByProviderAsync(string providerId, int limit = 100)
     {
         try
         {
@@ -298,7 +298,7 @@ public class MonitorService : IMonitorService
     }
 
     // Config endpoints
-    public async Task<List<ProviderConfig>> GetConfigsAsync()
+    public async Task<IReadOnlyList<ProviderConfig>> GetConfigsAsync()
     {
         try
         {
@@ -421,7 +421,7 @@ public class MonitorService : IMonitorService
     }
 
     // Scan for keys endpoint
-    public async Task<(int count, List<ProviderConfig> configs)> ScanForKeysAsync()
+    public async Task<(int count, IReadOnlyList<ProviderConfig> configs)> ScanForKeysAsync()
     {
         try
         {
@@ -584,7 +584,7 @@ public class MonitorService : IMonitorService
         public int Discovered { get; set; }
         
         [JsonPropertyName("configs")]
-        public List<ProviderConfig>? Configs { get; set; }
+        public IReadOnlyList<ProviderConfig>? Configs { get; set; }
     }
 
     // Diagnostics & Export
