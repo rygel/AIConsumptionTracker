@@ -20,21 +20,35 @@ public class IndexModel : PageModel
     }
 
     public List<ProviderUsage>? LatestUsage { get; set; }
+
     public UsageSummary? Summary { get; set; }
+
     public IReadOnlyDictionary<string, BurnRateForecast> ForecastsByProvider { get; private set; }
         = new Dictionary<string, BurnRateForecast>(StringComparer.OrdinalIgnoreCase);
+
     public IReadOnlyDictionary<string, ProviderReliabilitySnapshot> ReliabilityByProvider { get; private set; }
         = new Dictionary<string, ProviderReliabilitySnapshot>(StringComparer.OrdinalIgnoreCase);
+
     public IReadOnlyDictionary<string, UsageAnomalySnapshot> AnomaliesByProvider { get; private set; }
         = new Dictionary<string, UsageAnomalySnapshot>(StringComparer.OrdinalIgnoreCase);
+
     public List<BudgetStatus> BudgetStatuses { get; private set; } = [];
+
     public List<UsageComparison> UsageComparisons { get; private set; } = [];
+
     public bool IsDatabaseAvailable => this._dbService.IsDatabaseAvailable();
+
     public bool ShowUsedPercentage { get; set; }
+
     public bool ShowInactiveProviders { get; set; }
+
     public bool EnableExperimentalAnomalyDetection { get; set; }
-    public bool EnableExperimentalBudgetPolicies { get; set; } = true; // Always on
-    public bool EnableExperimentalComparison { get; set; } = true; // Always on
+
+    // Always on.
+    public bool EnableExperimentalBudgetPolicies { get; set; } = true;
+
+    // Always on.
+    public bool EnableExperimentalComparison { get; set; } = true;
 
     public async Task OnGetAsync([FromQuery] bool? showUsed)
     {
@@ -42,7 +56,8 @@ public class IndexModel : PageModel
         if (showUsed.HasValue)
         {
             this.ShowUsedPercentage = showUsed.Value;
-            // Save preference to cookie
+
+            // Save preference to cookie.
             this.Response.Cookies.Append("showUsedPercentage", this.ShowUsedPercentage.ToString(), new CookieOptions
             {
                 Expires = DateTimeOffset.UtcNow.AddYears(1),
@@ -56,7 +71,7 @@ public class IndexModel : PageModel
         }
         else
         {
-            this.ShowUsedPercentage = false; // Default to showing remaining percentage
+            this.ShowUsedPercentage = false; // Default to showing remaining percentage.
         }
 
         if (this.Request.Query.TryGetValue("showInactive", out var showInactiveQuery) &&
@@ -77,7 +92,7 @@ public class IndexModel : PageModel
         }
         else
         {
-            this.ShowInactiveProviders = false; // Default to hiding inactive providers
+            this.ShowInactiveProviders = false; // Default to hiding inactive providers.
         }
 
         if (this.Request.Query.TryGetValue("expAnomaly", out var expAnomalyQuery) &&
