@@ -119,6 +119,32 @@ public sealed class JsonConfigLoaderPersistenceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task LoadPreferencesAsync_DoesNotUseLegacyAuthSettings_WhenCanonicalPreferencesFileIsMissing()
+    {
+        var authPath = CreateFile("config/auth.json", "{\"app_settings\":{\"Theme\":1}}");
+        var providersPath = CreateFile("config/providers.json", "{}");
+        var preferencesPath = Path.Combine(TestRootPath, "config", "preferences.json");
+
+        var mockPathProvider = new Mock<IAppPathProvider>();
+        mockPathProvider.Setup(p => p.GetAuthFilePath()).Returns(authPath);
+        mockPathProvider.Setup(p => p.GetProviderConfigFilePath()).Returns(providersPath);
+        mockPathProvider.Setup(p => p.GetPreferencesFilePath()).Returns(preferencesPath);
+        mockPathProvider.Setup(p => p.GetUserProfileRoot()).Returns(TestRootPath);
+        mockPathProvider.Setup(p => p.GetAppDataRoot()).Returns(TestRootPath);
+        mockPathProvider.Setup(p => p.GetDatabasePath()).Returns(Path.Combine(TestRootPath, "usage.db"));
+        mockPathProvider.Setup(p => p.GetLogDirectory()).Returns(Path.Combine(TestRootPath, "logs"));
+
+        var loader = new JsonConfigLoader(
+            logger: NullLogger<JsonConfigLoader>.Instance,
+            tokenDiscoveryLogger: NullLogger<TokenDiscoveryService>.Instance,
+            pathProvider: mockPathProvider.Object);
+
+        var preferences = await loader.LoadPreferencesAsync();
+
+        Assert.Equal(new AppPreferences().Theme, preferences.Theme);
+    }
+
+    [Fact]
     public async Task LoadConfigAsync_ReadsLegacyProvidersFile_WhenCanonicalProvidersFileIsMissing()
     {
         var authPath = CreateFile("config/auth.json", "{}");

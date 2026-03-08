@@ -1,5 +1,6 @@
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Core.Paths;
 using AIUsageTracker.Infrastructure.Providers;
 using System.Collections;
 using System.Text.Json;
@@ -19,10 +20,6 @@ public class TokenDiscoveryService
     }
 
     private string GetUserProfilePath() => this._pathProvider.GetUserProfileRoot();
-
-    private string GetAppDataPath() => Path.Combine(this.GetUserProfilePath(), "AppData", "Roaming");
-
-    private string GetLocalAppDataPath() => Path.Combine(this.GetUserProfilePath(), "AppData", "Local");
 
     public async Task<IReadOnlyList<ProviderConfig>> DiscoverTokensAsync()
     {
@@ -289,10 +286,7 @@ public class TokenDiscoveryService
 
     private string ResolvePathTemplate(string pathTemplate)
     {
-        return pathTemplate
-            .Replace("%USERPROFILE%", GetUserProfilePath(), StringComparison.OrdinalIgnoreCase)
-            .Replace("%APPDATA%", GetAppDataPath(), StringComparison.OrdinalIgnoreCase)
-            .Replace("%LOCALAPPDATA%", GetLocalAppDataPath(), StringComparison.OrdinalIgnoreCase);
+        return AuthPathTemplateResolver.Resolve(pathTemplate, this.GetUserProfilePath());
     }
 
     private void AddOrUpdate(List<ProviderConfig> configs, string providerId, string key, string description, string source)
@@ -439,7 +433,7 @@ public class TokenDiscoveryService
             // Windows
             if (OperatingSystem.IsWindows())
             {
-                var appData = this.GetAppDataPath();
+                var appData = Path.Combine(this.GetUserProfilePath(), "AppData", "Roaming");
                 return Path.Combine(appData, "Code", "User", "globalStorage");
             }
             // macOS

@@ -2,6 +2,9 @@ namespace AIUsageTracker.Core.MonitorClient;
 
 public static class MonitorInfoPathCatalog
 {
+    private const string CanonicalProductFolder = "AIUsageTracker";
+    private const string DeprecatedProductFolder = "AIConsumptionTracker";
+
     // Legacy monitor.json locations are read-only migration fallbacks.
     // New writes must stay on the canonical AIUsageTracker path.
     public static IReadOnlyList<string> GetWriteCandidatePaths(string appDataRoot, string userProfileRoot)
@@ -17,12 +20,7 @@ public static class MonitorInfoPathCatalog
         return new[]
         {
             GetCanonicalPath(appDataRoot),
-            GetLegacyTrackerPath(appDataRoot, "AIUsageTracker"),
-            GetLegacyTrackerPath(appDataRoot, "AIUsageTracker", "Monitor"),
-            GetLegacyTrackerPath(appDataRoot, "AIUsageTracker", "Agent"),
-            GetLegacyTrackerPath(appDataRoot, "AIConsumptionTracker"),
-            GetLegacyTrackerPath(appDataRoot, "AIConsumptionTracker", "Monitor"),
-            GetLegacyTrackerPath(appDataRoot, "AIConsumptionTracker", "Agent"),
+            GetDeprecatedPath(appDataRoot),
         };
     }
 
@@ -51,13 +49,11 @@ public static class MonitorInfoPathCatalog
 
     private static string GetCanonicalPath(string appDataRoot)
     {
-        return Path.Combine(appDataRoot, "AIUsageTracker", "monitor.json");
+        return Path.Combine(appDataRoot, CanonicalProductFolder, "monitor.json");
     }
 
-    private static string GetLegacyTrackerPath(string appDataRoot, string productFolder, string? subfolder = null)
+    private static string GetDeprecatedPath(string appDataRoot)
     {
-        return subfolder == null
-            ? Path.Combine(appDataRoot, productFolder, "monitor.json")
-            : Path.Combine(appDataRoot, productFolder, subfolder, "monitor.json");
+        return Path.Combine(appDataRoot, DeprecatedProductFolder, "monitor.json");
     }
 }

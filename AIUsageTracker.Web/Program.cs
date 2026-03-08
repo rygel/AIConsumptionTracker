@@ -40,7 +40,7 @@ try
         .SetApplicationName("AIUsageTracker.Web")
         .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyDirectory));
 
-    if (!builder.Environment.IsDevelopment())
+    if (!builder.Environment.IsDevelopment() && OperatingSystem.IsWindows())
     {
         dataProtectionBuilder.ProtectKeysWithDpapi();
     }

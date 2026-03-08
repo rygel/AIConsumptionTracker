@@ -34,12 +34,12 @@ public class JsonConfigLoader : IConfigLoader
     public async Task<IReadOnlyList<ProviderConfig>> LoadConfigAsync()
     {
         var authPaths = new[] { GetTrackerConfigPath() }
-            .Concat(GetCompatibilityAuthPaths())
+            .Concat(GetLegacyTrackerAuthPaths())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var providerPaths = new[] { GetProvidersConfigPath() }
-            .Concat(GetCompatibilityProvidersPaths())
+            .Concat(GetLegacyTrackerProvidersPaths())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -281,7 +281,6 @@ public class JsonConfigLoader : IConfigLoader
 
     public async Task<AppPreferences> LoadPreferencesAsync()
     {
-        // preferences.json is the canonical store. auth.json app_settings is read-only legacy fallback.
         var path = this.GetPreferencesPath();
         if (File.Exists(path))
         {
@@ -293,24 +292,6 @@ public class JsonConfigLoader : IConfigLoader
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "Failed to load preferences from {Path}; falling back to legacy auth settings", path);
-            }
-        }
-
-        var authPath = GetTrackerConfigPath();
-        if (File.Exists(authPath))
-        {
-            try
-            {
-                var json = await File.ReadAllTextAsync(authPath).ConfigureAwait(false);
-                var root = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                if (root != null && root.TryGetValue("app_settings", out var settingsElement))
-                {
-                    return JsonSerializer.Deserialize<AppPreferences>(settingsElement.GetRawText()) ?? new AppPreferences();
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Failed to load app settings from {Path}; falling back to defaults", authPath);
             }
         }
 
@@ -332,16 +313,8 @@ public class JsonConfigLoader : IConfigLoader
 
         if (File.Exists(path))
         {
-            _logger.LogDebug("Preferences were written to canonical path {Path}; auth.json app_settings is deprecated.", preferencesPath);
+            _logger.LogDebug("Preferences were written to canonical path {Path}; auth.json remains provider config only.", preferencesPath);
         }
-    }
-
-    private IEnumerable<string> GetCompatibilityAuthPaths()
-    {
-        return OpenAIProvider.StaticDefinition.AuthIdentityCandidatePathTemplates
-            .Select(ResolvePathTemplate)
-            .Concat(GetLegacyTrackerAuthPaths())
-            .Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
     private IEnumerable<string> GetLegacyTrackerAuthPaths()
@@ -352,22 +325,5 @@ public class JsonConfigLoader : IConfigLoader
     private IEnumerable<string> GetLegacyTrackerProvidersPaths()
     {
         return DeprecatedPathCatalog.GetProviderConfigPaths(this._pathProvider.GetUserProfileRoot());
-    }
-
-    private IEnumerable<string> GetCompatibilityProvidersPaths()
-    {
-        return GetCompatibilityAuthPaths()
-            .Select(path =>
-            {
-                var directory = Path.GetDirectoryName(path) ?? string.Empty;
-                return Path.Combine(directory, "providers.json");
-            })
-            .Concat(GetLegacyTrackerProvidersPaths())
-            .Select(ResolvePathTemplate);
-    }
-
-    private string ResolvePathTemplate(string pathTemplate)
-    {
-        return AuthPathTemplateResolver.Resolve(pathTemplate, _pathProvider.GetUserProfileRoot());
     }
 }

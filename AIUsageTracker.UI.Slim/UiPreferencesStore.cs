@@ -143,7 +143,6 @@ public class UiPreferencesStore
     {
         var userProfileRoot = _pathProvider.GetUserProfileRoot();
 
-        return DeprecatedPathCatalog.GetAuthFilePaths(userProfileRoot)
-            .Concat(DeprecatedPathCatalog.GetPreferencesFilePaths(userProfileRoot));
+        return DeprecatedPathCatalog.GetPreferencesFilePaths(userProfileRoot);
     }
 }

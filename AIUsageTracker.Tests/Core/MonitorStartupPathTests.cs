@@ -81,10 +81,22 @@ public sealed class MonitorStartupPathTests : IDisposable
     {
         var appDataRoot = Path.Combine(_tempDirectory, "appdata");
         var canonicalPath = Path.Combine(appDataRoot, "AIUsageTracker", "monitor.json");
-        var legacyPath = Path.Combine(appDataRoot, "AIConsumptionTracker", "Agent", "monitor.json");
+        var legacyPath = Path.Combine(appDataRoot, "AIConsumptionTracker", "monitor.json");
 
         Assert.False(MonitorInfoPathCatalog.IsDeprecatedReadPath(appDataRoot, canonicalPath));
         Assert.True(MonitorInfoPathCatalog.IsDeprecatedReadPath(appDataRoot, legacyPath));
+    }
+
+    [Fact]
+    public void GetReadCandidatePaths_KeepsOnlyCanonicalAndSingleDeprecatedFallback()
+    {
+        var appDataRoot = Path.Combine(_tempDirectory, "appdata");
+        var candidates = MonitorInfoPathCatalog.GetReadCandidatePaths(appDataRoot, _tempDirectory);
+
+        Assert.Collection(
+            candidates,
+            path => Assert.Equal(Path.Combine(appDataRoot, "AIUsageTracker", "monitor.json"), path),
+            path => Assert.Equal(Path.Combine(appDataRoot, "AIConsumptionTracker", "monitor.json"), path));
     }
 
     [Fact]
