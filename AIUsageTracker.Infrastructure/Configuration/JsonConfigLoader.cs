@@ -47,12 +47,12 @@ public class JsonConfigLoader : IConfigLoader
     {
         var mergedConfigs = new Dictionary<string, ProviderConfig>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var path in this.GetAuthConfigPaths())
+        foreach (var path in ConfigPathCatalog.GetAuthConfigPaths(this._pathProvider))
         {
             await this.MergeConfigFileAsync(mergedConfigs, path, isAuthFile: true).ConfigureAwait(false);
         }
 
-        foreach (var path in this.GetProviderConfigPaths())
+        foreach (var path in ConfigPathCatalog.GetProviderConfigPaths(this._pathProvider))
         {
             await this.MergeConfigFileAsync(mergedConfigs, path, isAuthFile: false).ConfigureAwait(false);
         }
@@ -62,31 +62,19 @@ public class JsonConfigLoader : IConfigLoader
 
     private async Task MergeConfigFileAsync(Dictionary<string, ProviderConfig> mergedConfigs, string path, bool isAuthFile)
     {
-        if (!File.Exists(path))
+        var rawConfigs = await JsonConfigFileStore.ReadJsonElementMapAsync(
+            path,
+            this._logger,
+            "Failed to process config file {Path}").ConfigureAwait(false);
+
+        if (rawConfigs == null)
         {
             return;
         }
 
-        try
+        foreach (var entry in rawConfigs)
         {
-            var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
-            var rawConfigs = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
-                json,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-            if (rawConfigs == null)
-            {
-                return;
-            }
-
-            foreach (var entry in rawConfigs)
-            {
-                this.MergeConfigEntry(mergedConfigs, entry, path, isAuthFile);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug("Failed to process config file {Path}: {Message}", path, ex.Message);
+            this.MergeConfigEntry(mergedConfigs, entry, path, isAuthFile);
         }
     }
 
@@ -102,17 +90,23 @@ public class JsonConfigLoader : IConfigLoader
             return;
         }
 
+        var config = this.GetOrCreateMergedConfig(mergedConfigs, providerId);
+        this.ApplyFileConfig(config, entry.Value, providerId, path, isAuthFile);
+        this.AppendConfigSource(config, path);
+    }
+
+    private ProviderConfig GetOrCreateMergedConfig(Dictionary<string, ProviderConfig> mergedConfigs, string providerId)
+    {
         if (!mergedConfigs.TryGetValue(providerId, out var config))
         {
             config = new ProviderConfig { ProviderId = providerId };
             mergedConfigs[providerId] = config;
         }
 
-        this.ApplyElementToConfig(config, entry.Value, providerId, path, isAuthFile);
-        this.AppendConfigSource(config, path);
+        return config;
     }
 
-    private void ApplyElementToConfig(
+    private void ApplyFileConfig(
         ProviderConfig config,
         JsonElement element,
         string providerId,
@@ -208,45 +202,34 @@ public class JsonConfigLoader : IConfigLoader
 
         foreach (var discoveredConfig in discovered)
         {
-            var existing = configs.FirstOrDefault(config =>
-                config.ProviderId.Equals(discoveredConfig.ProviderId, StringComparison.OrdinalIgnoreCase));
-
-            if (existing == null)
-            {
-                configs.Add(discoveredConfig);
-                continue;
-            }
-
-            if (string.IsNullOrEmpty(existing.ApiKey) && !string.IsNullOrEmpty(discoveredConfig.ApiKey))
-            {
-                existing.ApiKey = discoveredConfig.ApiKey;
-                existing.Description = discoveredConfig.Description;
-                existing.AuthSource = discoveredConfig.AuthSource;
-                if (string.IsNullOrEmpty(existing.BaseUrl))
-                {
-                    existing.BaseUrl = discoveredConfig.BaseUrl;
-                }
-            }
-
-            existing.PlanType = discoveredConfig.PlanType;
-            existing.Type = discoveredConfig.Type;
+            this.MergeDiscoveredConfig(configs, discoveredConfig);
         }
     }
 
-    private IReadOnlyList<string> GetAuthConfigPaths()
+    private void MergeDiscoveredConfig(List<ProviderConfig> configs, ProviderConfig discoveredConfig)
     {
-        return new[] { this.GetTrackerConfigPath() }
-            .Concat(this.GetLegacyTrackerAuthPaths())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
+        var existing = configs.FirstOrDefault(config =>
+            config.ProviderId.Equals(discoveredConfig.ProviderId, StringComparison.OrdinalIgnoreCase));
 
-    private IReadOnlyList<string> GetProviderConfigPaths()
-    {
-        return new[] { this.GetProvidersConfigPath() }
-            .Concat(this.GetLegacyTrackerProvidersPaths())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        if (existing == null)
+        {
+            configs.Add(discoveredConfig);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(existing.ApiKey) && !string.IsNullOrEmpty(discoveredConfig.ApiKey))
+        {
+            existing.ApiKey = discoveredConfig.ApiKey;
+            existing.Description = discoveredConfig.Description;
+            existing.AuthSource = discoveredConfig.AuthSource;
+            if (string.IsNullOrEmpty(existing.BaseUrl))
+            {
+                existing.BaseUrl = discoveredConfig.BaseUrl;
+            }
+        }
+
+        existing.PlanType = discoveredConfig.PlanType;
+        existing.Type = discoveredConfig.Type;
     }
 
     public async Task SaveConfigAsync(IEnumerable<ProviderConfig> configs)
@@ -264,12 +247,12 @@ public class JsonConfigLoader : IConfigLoader
             providersPath,
             "provider config").ConfigureAwait(false);
 
-        this.RemoveNonPersistedProviders(exportAuth);
-        this.RemoveNonPersistedProviders(exportProviders);
+        JsonProviderConfigExportBuilder.RemoveNonPersistedProviders(exportAuth);
+        JsonProviderConfigExportBuilder.RemoveNonPersistedProviders(exportProviders);
 
         foreach (var config in configs)
         {
-            this.MergeProviderConfig(exportAuth, exportProviders, config);
+            JsonProviderConfigExportBuilder.MergeProviderConfig(exportAuth, exportProviders, config);
         }
 
         await this.WriteExportPayloadAsync(authPath, exportAuth).ConfigureAwait(false);
@@ -287,111 +270,28 @@ public class JsonConfigLoader : IConfigLoader
 
     private async Task<Dictionary<string, object>> LoadExportPayloadAsync(string path, string payloadDescription)
     {
-        if (!File.Exists(path))
-        {
-            return new Dictionary<string, object>(StringComparer.Ordinal);
-        }
-
-        try
-        {
-            var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
-            return JsonSerializer.Deserialize<Dictionary<string, object>>(json)
-                   ?? new Dictionary<string, object>(StringComparer.Ordinal);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(
-                ex,
-                "Failed to load existing {PayloadDescription} from {Path}; continuing with a clean export payload",
-                payloadDescription,
-                path);
-            return new Dictionary<string, object>(StringComparer.Ordinal);
-        }
-    }
-
-    private void RemoveNonPersistedProviders(Dictionary<string, object> payload)
-    {
-        foreach (var providerId in payload.Keys.ToList())
-        {
-            if (!ProviderMetadataCatalog.ShouldPersistProviderId(providerId))
-            {
-                payload.Remove(providerId);
-            }
-        }
-    }
-
-    private void MergeProviderConfig(
-        Dictionary<string, object> exportAuth,
-        Dictionary<string, object> exportProviders,
-        ProviderConfig config)
-    {
-        if (!ProviderMetadataCatalog.ShouldPersistProviderId(config.ProviderId))
-        {
-            return;
-        }
-
-        var authDict = this.GetMutablePayloadEntry(exportAuth, config.ProviderId);
-        authDict["key"] = config.ApiKey;
-        exportAuth[config.ProviderId] = authDict;
-
-        var providerDict = this.GetMutablePayloadEntry(exportProviders, config.ProviderId);
-        providerDict["type"] = config.Type;
-        providerDict["show_in_tray"] = config.ShowInTray;
-        providerDict["enable_notifications"] = config.EnableNotifications;
-        providerDict["enabled_sub_trays"] = config.EnabledSubTrays;
-
-        if (!string.IsNullOrEmpty(config.BaseUrl))
-        {
-            providerDict["base_url"] = config.BaseUrl;
-        }
-
-        exportProviders[config.ProviderId] = providerDict;
-    }
-
-    private Dictionary<string, object?> GetMutablePayloadEntry(Dictionary<string, object> payload, string providerId)
-    {
-        if (!payload.TryGetValue(providerId, out var existingValue))
-        {
-            return new Dictionary<string, object?>(StringComparer.Ordinal);
-        }
-
-        if (existingValue is JsonElement existingElement)
-        {
-            return JsonSerializer.Deserialize<Dictionary<string, object?>>(existingElement.GetRawText())
-                   ?? new Dictionary<string, object?>(StringComparer.Ordinal);
-        }
-
-        if (existingValue is Dictionary<string, object?> existingDictionary)
-        {
-            return existingDictionary;
-        }
-
-        return new Dictionary<string, object?>(StringComparer.Ordinal);
+        return await JsonConfigFileStore.ReadAsync<Dictionary<string, object>>(
+                   path,
+                   this._logger,
+                   $"Failed to load existing {payloadDescription} from {{Path}}; continuing with a clean export payload")
+               .ConfigureAwait(false)
+               ?? new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
     private async Task WriteExportPayloadAsync(string path, Dictionary<string, object> payload)
     {
-        var options = new JsonSerializerOptions { WriteIndented = true };
-        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(payload, options)).ConfigureAwait(false);
+        await JsonConfigFileStore.WriteIndentedAsync(path, payload).ConfigureAwait(false);
     }
 
     public async Task<AppPreferences> LoadPreferencesAsync()
     {
         var path = this.GetPreferencesPath();
-        if (File.Exists(path))
-        {
-            try
-            {
-                var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
-                return JsonSerializer.Deserialize<AppPreferences>(json) ?? new AppPreferences();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Failed to load preferences from {Path}; falling back to legacy auth settings", path);
-            }
-        }
-
-        return new AppPreferences();
+        return await JsonConfigFileStore.ReadAsync<AppPreferences>(
+                   path,
+                   this._logger,
+                   "Failed to load preferences from {Path}; falling back to legacy auth settings")
+               .ConfigureAwait(false)
+               ?? new AppPreferences();
     }
 
     public async Task SavePreferencesAsync(AppPreferences preferences)
@@ -404,22 +304,11 @@ public class JsonConfigLoader : IConfigLoader
             Directory.CreateDirectory(directory);
         }
 
-        var output = JsonSerializer.Serialize(preferences, new JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync(preferencesPath, output).ConfigureAwait(false);
+        await JsonConfigFileStore.WriteIndentedAsync(preferencesPath, preferences).ConfigureAwait(false);
 
         if (File.Exists(path))
         {
             _logger.LogDebug("Preferences were written to canonical path {Path}; auth.json remains provider config only.", preferencesPath);
         }
-    }
-
-    private IEnumerable<string> GetLegacyTrackerAuthPaths()
-    {
-        return DeprecatedPathCatalog.GetAuthFilePaths(this._pathProvider.GetUserProfileRoot());
-    }
-
-    private IEnumerable<string> GetLegacyTrackerProvidersPaths()
-    {
-        return DeprecatedPathCatalog.GetProviderConfigPaths(this._pathProvider.GetUserProfileRoot());
     }
 }
