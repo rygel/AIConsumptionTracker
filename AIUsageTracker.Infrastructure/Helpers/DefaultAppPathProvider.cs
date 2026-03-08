@@ -1,42 +1,45 @@
-using AIUsageTracker.Core.Interfaces;
 using System.IO;
+using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Core.Paths;
 
 namespace AIUsageTracker.Infrastructure.Helpers;
 
 public class DefaultAppPathProvider : IAppPathProvider
 {
-    private const string AppName = "AIUsageTracker";
-
     public string GetAppDataRoot()
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(localAppData, AppName);
+        return AppPathCatalog.GetCanonicalAppDataRoot(localAppData);
     }
 
     public string GetDatabasePath()
     {
-        return Path.Combine(this.GetAppDataRoot(), "usage.db");
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return AppPathCatalog.GetCanonicalDatabasePath(localAppData);
     }
 
     public string GetLogDirectory()
     {
-        return Path.Combine(this.GetAppDataRoot(), "logs");
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return AppPathCatalog.GetCanonicalLogDirectory(localAppData);
     }
 
     public string GetAuthFilePath()
     {
         var home = this.GetUserProfileRoot();
-        return Path.Combine(home, ".opencode", "auth.json");
+        return AppPathCatalog.GetCanonicalAuthFilePath(home);
     }
 
     public string GetPreferencesFilePath()
     {
-        return Path.Combine(this.GetAppDataRoot(), "preferences.json");
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return AppPathCatalog.GetCanonicalPreferencesPath(localAppData);
     }
 
     public string GetProviderConfigFilePath()
     {
-        return Path.Combine(this.GetAppDataRoot(), "providers.json");
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return AppPathCatalog.GetCanonicalProviderConfigPath(localAppData);
     }
 
     public string GetUserProfileRoot()

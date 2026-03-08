@@ -18,7 +18,7 @@ public static class DeprecatedPathCatalog
     {
         return new[]
         {
-            Path.Combine(GetLocalAppDataRoot(userProfileRoot), "AIConsumptionTracker", "providers.json"),
+            Path.Combine(GetLegacyLocalAppDataRoot(userProfileRoot), "AIConsumptionTracker", "providers.json"),
         };
     }
 
@@ -27,11 +27,11 @@ public static class DeprecatedPathCatalog
     {
         return new[]
         {
-            Path.Combine(GetLocalAppDataRoot(userProfileRoot), "AIConsumptionTracker", "preferences.json"),
+            Path.Combine(GetLegacyLocalAppDataRoot(userProfileRoot), "AIConsumptionTracker", "preferences.json"),
         };
     }
 
-    private static string GetLocalAppDataRoot(string userProfileRoot)
+    private static string GetLegacyLocalAppDataRoot(string userProfileRoot)
     {
         return Path.Combine(userProfileRoot, "AppData", "Local");
     }
