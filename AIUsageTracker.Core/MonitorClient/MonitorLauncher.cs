@@ -310,8 +310,7 @@ public class MonitorLauncher
             if (agentPath == null)
             {
                 MonitorService.LogDiagnostic("Monitor executable not found. Searching for project directory for 'dotnet run'...");
-                // Try dotnet run in the Agent project directory
-                var agentProjectDir = FindAgentProjectDirectory();
+                var agentProjectDir = MonitorExecutableCatalog.FindProjectDirectory(AppContext.BaseDirectory);
                 if (agentProjectDir != null)
                 {
                     MonitorService.LogDiagnostic($"Found Monitor project at: {agentProjectDir}. Launching via 'dotnet run'...");
@@ -522,50 +521,6 @@ public class MonitorLauncher
 
         MonitorService.LogDiagnostic("Timed out waiting for Monitor.");
         return false;
-    }
-
-    private static string? FindAgentProjectDirectory()
-    {
-        var currentDir = AppContext.BaseDirectory;
-        for (int i = 0; i < 5; i++)
-        {
-            var agentDir = Path.Combine(currentDir, "AIUsageTracker.Monitor");
-            if (Directory.Exists(agentDir) && File.Exists(Path.Combine(agentDir, "AIUsageTracker.Monitor.csproj")))
-            {
-                return agentDir;
-            }
-
-            var parent = Directory.GetParent(currentDir);
-            if (parent == null)
-            {
-                break;
-            }
-
-            currentDir = parent.FullName;
-        }
-
-        // Try common locations
-        var possibleRoots = new[]
-        {
-            Environment.CurrentDirectory,
-            AppContext.BaseDirectory,
-        };
-
-        foreach (var root in possibleRoots)
-        {
-            if (!Directory.Exists(root))
-            {
-                continue;
-            }
-
-            var agentDir = Path.Combine(root, "AIUsageTracker.Monitor");
-            if (Directory.Exists(agentDir) && File.Exists(Path.Combine(agentDir, "AIUsageTracker.Monitor.csproj")))
-            {
-                return agentDir;
-            }
-        }
-
-        return null;
     }
 
     private static string? GetExistingAgentInfoPath()
