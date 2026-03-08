@@ -36,11 +36,6 @@ public class OpenCodeZenProvider : ProviderBase
         this._cliPath = cliPath;
     }
 
-    public OpenCodeZenProvider(ILogger<OpenCodeZenProvider> logger, string cliPath) : this(logger)
-    {
-        _cliPath = cliPath;
-    }
-
     private static readonly Regex[] CleanupPatterns = new[]
     {
         new Regex("\u001b\\[[0-9;]*m", RegexOptions.Compiled),
