@@ -640,7 +640,10 @@ public partial class MainWindow : Window
         if (_preferences == null) return;
         
         var channel = _preferences.UpdateChannel;
-        _updateChecker = new GitHubUpdateChecker(NullLogger<GitHubUpdateChecker>.Instance, channel);
+        _updateChecker = new GitHubUpdateChecker(
+            NullLogger<GitHubUpdateChecker>.Instance,
+            App.Host.Services.GetRequiredService<HttpClient>(),
+            channel);
     }
 
     private async Task SaveUiPreferencesAsync()

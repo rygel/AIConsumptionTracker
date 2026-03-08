@@ -11,6 +11,7 @@ namespace AIUsageTracker.Infrastructure.Services;
 public class GitHubUpdateChecker : IUpdateCheckerService
 {
     private readonly ILogger<GitHubUpdateChecker> _logger;
+    private readonly HttpClient _httpClient;
     private readonly UpdateChannel _channel;
     
     private string GetAppcastUrlForCurrentArchitecture()
@@ -38,10 +39,16 @@ public class GitHubUpdateChecker : IUpdateCheckerService
         return url;
     }
 
-    public GitHubUpdateChecker(ILogger<GitHubUpdateChecker> logger, UpdateChannel channel = UpdateChannel.Stable)
+    public GitHubUpdateChecker(ILogger<GitHubUpdateChecker> logger, HttpClient httpClient, UpdateChannel channel = UpdateChannel.Stable)
     {
         _logger = logger;
+        _httpClient = httpClient;
         _channel = channel;
+
+        if (!_httpClient.DefaultRequestHeaders.UserAgent.Any())
+        {
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "AIUsageTracker");
+        }
     }
 
     public async Task<AIUsageTracker.Core.Interfaces.UpdateInfo?> CheckForUpdatesAsync()
@@ -118,26 +125,24 @@ public class GitHubUpdateChecker : IUpdateCheckerService
 
             // Download the file
             _logger.LogInformation("Downloading from {Url} to {Path}", updateInfo.DownloadUrl, downloadPath);
-            using (var client = new System.Net.Http.HttpClient())
+            using (var response = await _httpClient.GetAsync(updateInfo.DownloadUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead))
             {
-                var response = await client.GetAsync(updateInfo.DownloadUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
                 var totalBytes = response.Content.Headers.ContentLength ?? -1L;
                 var downloadedBytes = 0L;
                 var buffer = new byte[8192];
-                using (var stream = await response.Content.ReadAsStreamAsync())
-                using (var fileStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                await using var stream = await response.Content.ReadAsStreamAsync();
+                await using var fileStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+                int read;
+                while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                 {
-                    int read;
-                    while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    await fileStream.WriteAsync(buffer, 0, read);
+                    downloadedBytes += read;
+                    if (totalBytes > 0 && progress != null)
                     {
-                        await fileStream.WriteAsync(buffer, 0, read);
-                        downloadedBytes += read;
-                        if (totalBytes > 0 && progress != null)
-                        {
-                            var percentage = (double)downloadedBytes / totalBytes * 100;
-                            progress.Report(percentage);
-                        }
+                        var percentage = (double)downloadedBytes / totalBytes * 100;
+                        progress.Report(percentage);
                     }
                 }
             }
@@ -186,13 +191,10 @@ public class GitHubUpdateChecker : IUpdateCheckerService
     {
         try
         {
-            using var client = new System.Net.Http.HttpClient();
-            client.DefaultRequestHeaders.Add("User-Agent", "AIUsageTracker");
-            
             var url = ReleaseUrlCatalog.GetGitHubReleaseApiUrl(version);
             _logger.LogDebug("Fetching release notes from: {Url}", url);
             
-            var response = await client.GetAsync(url);
+            using var response = await _httpClient.GetAsync(url);
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Failed to fetch release notes: {StatusCode}", response.StatusCode);
