@@ -19,6 +19,14 @@ internal static class ProviderSettingsDisplayCatalog
             .Select(config => config.ProviderId)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        var defaultItems = ProviderMetadataCatalog.Definitions
+            .Select(definition => definition.ProviderId)
+            .Where(providerId => !configuredProviderIds.Contains(providerId))
+            .Select(CreateDefaultDisplayConfig)
+            .Select(config => new ProviderSettingsDisplayItem(config, IsDerived: false));
+
+        displayItems.AddRange(defaultItems);
+
         var derivedItems = usages
             .Where(usage =>
                 ProviderSettingsCatalog.IsDerivedProviderVisible(usage.ProviderId) &&
@@ -31,6 +39,19 @@ internal static class ProviderSettingsDisplayCatalog
             .OrderBy(item => ProviderMetadataCatalog.GetDisplayName(item.Config.ProviderId), StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.Config.ProviderId, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static ProviderConfig CreateDefaultDisplayConfig(string providerId)
+    {
+        if (ProviderMetadataCatalog.TryCreateDefaultConfig(providerId, out var config))
+        {
+            return config;
+        }
+
+        return new ProviderConfig
+        {
+            ProviderId = providerId
+        };
     }
 
     private static ProviderConfig CreateDerivedConfig(ProviderUsage usage)

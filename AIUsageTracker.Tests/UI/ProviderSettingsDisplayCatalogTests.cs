@@ -20,7 +20,7 @@ public sealed class ProviderSettingsDisplayCatalogTests
 
         var items = ProviderSettingsDisplayCatalog.CreateDisplayItems(configs, usages);
 
-        var derived = Assert.Single(items, item => item.IsDerived);
+        var derived = Assert.Single(items.Where(item => item.IsDerived));
         Assert.Equal("codex.spark", derived.Config.ProviderId);
         Assert.Equal("quota-based", derived.Config.Type);
         Assert.Equal(PlanType.Coding, derived.Config.PlanType);
@@ -41,8 +41,8 @@ public sealed class ProviderSettingsDisplayCatalogTests
 
         var items = ProviderSettingsDisplayCatalog.CreateDisplayItems(configs, usages);
 
-        Assert.Single(items);
-        Assert.False(items[0].IsDerived);
+        Assert.Single(items.Where(item => item.Config.ProviderId == "codex.spark"));
+        Assert.False(items.Single(item => item.Config.ProviderId == "codex.spark").IsDerived);
     }
 
     [Fact]
@@ -59,6 +59,17 @@ public sealed class ProviderSettingsDisplayCatalogTests
 
         Assert.Equal(
             new[] { "openai", "opencode", "xiaomi" },
-            items.Select(item => item.Config.ProviderId).ToArray());
+            items.Where(item => new[] { "openai", "opencode", "xiaomi" }.Contains(item.Config.ProviderId))
+                .Select(item => item.Config.ProviderId)
+                .ToArray());
+    }
+
+    [Fact]
+    public void CreateDisplayItems_IncludesSupportedProviders_WhenNoConfigsExist()
+    {
+        var items = ProviderSettingsDisplayCatalog.CreateDisplayItems(Array.Empty<ProviderConfig>(), Array.Empty<ProviderUsage>());
+
+        Assert.Contains(items, item => item.Config.ProviderId == "openai" && !item.IsDerived);
+        Assert.Contains(items, item => item.Config.ProviderId == "opencode" && !item.IsDerived);
     }
 }
