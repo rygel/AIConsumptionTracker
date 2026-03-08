@@ -352,6 +352,16 @@ jobs:
           $quarantinePath = Join-Path $ciBinaries ".github\test-quarantine.txt"
           powershell -NoProfile -ExecutionPolicy Bypass -File $scriptPath -AssemblyPath $assemblyPath -SuiteName web-tests -QuarantineFile $quarantinePath -MaxRetries 0 -AttemptTimeoutMinutes 8 -HangTimeoutSeconds 480
 
+      - name: Capture Web UI screenshots
+        timeout-minutes: 4
+        shell: pwsh
+        run: |
+          $ciBinaries = Join-Path $PWD "_ci_test_binaries"
+          $scriptPath = Join-Path $ciBinaries "scripts\run-vstest-with-retry.ps1"
+          $assemblyPath = Join-Path $ciBinaries "AIUsageTracker.Web.Tests\bin\Debug\net8.0\AIUsageTracker.Web.Tests.dll"
+          $quarantinePath = Join-Path $ciBinaries ".github\test-quarantine.txt"
+          powershell -NoProfile -ExecutionPolicy Bypass -File $scriptPath -AssemblyPath $assemblyPath -SuiteName web-screenshots -QuarantineFile $quarantinePath -AdditionalTestCaseFilter "FullyQualifiedName~CaptureWebScreenshots" -MaxRetries 0 -AttemptTimeoutMinutes 4 -HangTimeoutSeconds 240
+
       - name: Stop Web Application
         if: always()
         shell: pwsh
