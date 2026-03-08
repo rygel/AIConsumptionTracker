@@ -1,17 +1,15 @@
-using System.Diagnostics;
+using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Models;
 
 namespace AIUsageTracker.Web.Services;
 
 public class MonitorProcessService
 {
-    private readonly string _appDataPath;
     private readonly ILogger<MonitorProcessService> _logger;
 
     public MonitorProcessService(ILogger<MonitorProcessService> logger)
     {
         this._logger = logger;
-        this._appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
     }
 
     public async Task<(bool IsRunning, int Port)> GetAgentStatusAsync()
@@ -22,27 +20,25 @@ public class MonitorProcessService
 
     public async Task<(bool IsRunning, int Port, string Message, string? Error)> GetAgentStatusDetailedAsync()
     {
-        var info = await this.GetAgentInfoAsync().ConfigureAwait(false);
-        if (info == null)
+        var info = await MonitorLauncher.GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+        if (info != null)
         {
-            return (false, 5000, "Monitor info file not found. Start Monitor to initialize it.", "agent-info-missing");
+            return (true, info.Port, $"Healthy on port {info.Port}.", null);
         }
 
-        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
-        try
+        var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync().ConfigureAwait(false);
+        if (isRunning)
         {
-            var response = await client.GetAsync($"http://localhost:{info.Port}/api/health").ConfigureAwait(false);
-            if (response.IsSuccessStatusCode)
-            {
-                return (true, info.Port, $"Healthy on port {info.Port}.", null);
-            }
+            return (true, port, $"Healthy on port {port}.", null);
+        }
 
-            return (false, info.Port, $"Health check failed ({(int)response.StatusCode} {response.ReasonPhrase}).", "health-check-failed");
-        }
-        catch (Exception ex)
+        var infoPath = this.ResolveExistingAgentInfoPath();
+        if (infoPath == null)
         {
-            return (false, info.Port, $"Monitor not reachable on port {info.Port}: {SimplifyExceptionMessage(ex)}", "monitor-unreachable");
+            return (false, port, "Monitor info file not found. Start Monitor to initialize it.", "agent-info-missing");
         }
+
+        return (false, port, $"Monitor not reachable on port {port}.", "monitor-unreachable");
     }
 
     public async Task<bool> StartAgentAsync()
@@ -59,50 +55,20 @@ public class MonitorProcessService
             return (true, $"Monitor already running on port {status.Port}.");
         }
 
-        var info = await this.GetAgentInfoAsync().ConfigureAwait(false);
-        int port = info?.Port ?? 5000;
-
-        var agentPath = this.FindAgentExecutable();
-        if (agentPath == null)
+        var started = await MonitorLauncher.EnsureAgentRunningAsync().ConfigureAwait(false);
+        if (!started)
         {
-            this._logger.LogError("Could not find agent executable");
-            return (false, "Monitor executable not found. Build/publish Monitor first.");
+            this._logger.LogWarning("Monitor failed to reach a healthy state after startup request.");
+            return (false, "Failed to start monitor or monitor did not become healthy.");
         }
 
-        try
+        var updated = await this.GetAgentStatusDetailedAsync().ConfigureAwait(false);
+        if (updated.IsRunning)
         {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = agentPath,
-                Arguments = $"--urls \"http://localhost:{port}\"",
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
-                WorkingDirectory = Path.GetDirectoryName(agentPath),
-            };
-
-            var process = Process.Start(startInfo);
-            if (process == null)
-            {
-                return (false, "Failed to start monitor process.");
-            }
-
-            this._logger.LogInformation("Started agent from {Path}", agentPath);
-
-            await Task.Delay(800).ConfigureAwait(false);
-            var updated = await this.GetAgentStatusDetailedAsync().ConfigureAwait(false);
-            if (updated.IsRunning)
-            {
-                return (true, $"Monitor started on port {updated.Port}.");
-            }
-
-            return (false, $"Start requested, but monitor did not become healthy. {updated.Message}");
+            return (true, $"Monitor started on port {updated.Port}.");
         }
-        catch (Exception ex)
-        {
-            this._logger.LogError(ex, "Failed to start agent");
-            return (false, $"Failed to start monitor: {SimplifyExceptionMessage(ex)}");
-        }
+
+        return (false, $"Start requested, but monitor status is still unavailable. {updated.Message}");
     }
 
     public async Task<bool> StopAgentAsync()
@@ -113,45 +79,33 @@ public class MonitorProcessService
 
     public async Task<(bool Success, string Message)> StopAgentDetailedAsync()
     {
-        var info = await this.GetAgentInfoAsync().ConfigureAwait(false);
-        if (info == null)
+        var status = await this.GetAgentStatusDetailedAsync().ConfigureAwait(false);
+        if (!status.IsRunning && status.Error == "agent-info-missing")
         {
-            this._logger.LogWarning("Cannot stop agent: agent.info not found");
             return (true, "Monitor already stopped (info file missing).");
         }
 
-        try
+        var stopped = await MonitorLauncher.StopAgentAsync().ConfigureAwait(false);
+        if (stopped)
         {
-            var process = Process.GetProcessById(info.ProcessId);
-            process.Kill();
-            this._logger.LogInformation("Killed agent process {Pid}", info.ProcessId);
-            return (true, $"Monitor stopped (PID {info.ProcessId}).");
+            return (true, $"Monitor stopped on port {status.Port}.");
         }
-        catch (ArgumentException)
-        {
-            this._logger.LogInformation("Agent process {Pid} not currently running", info.ProcessId);
-            return (true, $"Monitor process {info.ProcessId} already exited.");
-        }
-        catch (Exception ex)
-        {
-            this._logger.LogError(ex, "Failed to stop agent process {Pid}", info.ProcessId);
-            return (false, $"Failed to stop monitor (PID {info.ProcessId}): {SimplifyExceptionMessage(ex)}");
-        }
+
+        this._logger.LogWarning("Monitor stop request failed.");
+        return (false, "Failed to stop monitor.");
     }
 
-    private static string ResolveAgentInfoPath(string appData)
+    private string? ResolveExistingAgentInfoPath()
     {
-        var candidates = GetMonitorInfoCandidatePaths(appData).ToList();
-        var existing = candidates
+        return GetMonitorInfoCandidatePaths().ToList()
             .Where(File.Exists)
             .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
             .FirstOrDefault();
-
-        return existing ?? candidates[0];
     }
 
-    private static IEnumerable<string> GetMonitorInfoCandidatePaths(string appData)
+    private static IEnumerable<string> GetMonitorInfoCandidatePaths()
     {
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         return new[]
         {
             Path.Combine(appData, "AIUsageTracker", "monitor.json"),
@@ -163,60 +117,4 @@ public class MonitorProcessService
         };
     }
 
-    private static string SimplifyExceptionMessage(Exception ex)
-    {
-        if (ex is HttpRequestException)
-        {
-            return "HTTP request failed";
-        }
-
-        if (ex is TaskCanceledException)
-        {
-            return "timeout";
-        }
-
-        return ex.Message;
-    }
-
-    private string? FindAgentExecutable()
-    {
-        var baseDir = AppContext.BaseDirectory;
-
-        var paths = new[]
-        {
-            Path.Combine(baseDir, "..", "..", "..", "..", "AIUsageTracker.Monitor", "bin", "Debug", "net8.0", "AIUsageTracker.Monitor.exe"),
-            Path.Combine(baseDir, "..", "..", "..", "..", "AIUsageTracker.Monitor", "bin", "Release", "net8.0", "AIUsageTracker.Monitor.exe"),
-            Path.Combine(baseDir, "AIUsageTracker.Monitor.exe"),
-
-            // Legacy compatibility
-            Path.Combine(baseDir, "..", "..", "..", "..", "AIConsumptionTracker.Agent", "bin", "Debug", "net8.0", "AIConsumptionTracker.Agent.exe"),
-            Path.Combine(baseDir, "..", "..", "..", "..", "AIConsumptionTracker.Agent", "bin", "Release", "net8.0", "AIConsumptionTracker.Agent.exe"),
-            Path.Combine(baseDir, "AIConsumptionTracker.Agent.exe"),
-        };
-
-        return paths.FirstOrDefault(File.Exists);
-    }
-
-    private async Task<MonitorInfo?> GetAgentInfoAsync()
-    {
-        try
-        {
-            var infoFilePath = ResolveAgentInfoPath(this._appDataPath);
-            if (File.Exists(infoFilePath))
-            {
-                var json = await File.ReadAllTextAsync(infoFilePath).ConfigureAwait(false);
-                var options = new System.Text.Json.JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                };
-                return System.Text.Json.JsonSerializer.Deserialize<MonitorInfo>(json, options);
-            }
-        }
-        catch (Exception ex)
-        {
-            this._logger.LogWarning(ex, "Failed to read agent.info");
-        }
-
-        return null;
-    }
 }
