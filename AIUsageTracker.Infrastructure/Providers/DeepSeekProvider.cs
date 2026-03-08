@@ -28,8 +28,8 @@ public class DeepSeekProvider : ProviderBase
 
     public DeepSeekProvider(HttpClient httpClient, ILogger<DeepSeekProvider> logger)
     {
-        _httpClient = httpClient;
-        _logger = logger;
+        this._httpClient = httpClient;
+        this._logger = logger;
     }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)

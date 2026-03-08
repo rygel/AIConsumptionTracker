@@ -19,13 +19,13 @@ public class CodexAuthService : ICodexAuthService
 
     public string? GetAccessToken()
     {
-        var auth = LoadAuth();
+        var auth = this.LoadAuth();
         return auth?.AccessToken;
     }
 
     public string? GetAccountId()
     {
-        var auth = LoadAuth();
+        var auth = this.LoadAuth();
         return auth?.AccountId;
     }
 

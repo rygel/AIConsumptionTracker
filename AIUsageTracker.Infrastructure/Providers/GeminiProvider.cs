@@ -50,10 +50,10 @@ public class GeminiProvider : ProviderBase
     // Constructor for testing
     internal GeminiProvider(HttpClient httpClient, ILogger<GeminiProvider> logger, string? accountsPathOverride, string? oauthCredsPathOverride)
     {
-        _httpClient = httpClient;
-        _logger = logger;
-        _accountsPathOverride = accountsPathOverride;
-        _oauthCredsPathOverride = oauthCredsPathOverride;
+        this._httpClient = httpClient;
+        this._logger = logger;
+        this._accountsPathOverride = accountsPathOverride;
+        this._oauthCredsPathOverride = oauthCredsPathOverride;
     }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)

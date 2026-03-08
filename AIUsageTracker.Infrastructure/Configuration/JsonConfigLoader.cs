@@ -15,18 +15,18 @@ public class JsonConfigLoader : IConfigLoader
     private readonly IAppPathProvider _pathProvider;
 
     public JsonConfigLoader(
-        ILogger<JsonConfigLoader>? logger = null, 
+        ILogger<JsonConfigLoader>? logger = null,
         ILogger<TokenDiscoveryService>? tokenDiscoveryLogger = null,
         IAppPathProvider? pathProvider = null)
     {
-        _logger = logger ?? NullLogger<JsonConfigLoader>.Instance;
-        _tokenDiscoveryLogger = tokenDiscoveryLogger ?? NullLogger<TokenDiscoveryService>.Instance;
-        _pathProvider = pathProvider ?? new DefaultAppPathProvider();
+        this._logger = logger ?? NullLogger<JsonConfigLoader>.Instance;
+        this._tokenDiscoveryLogger = tokenDiscoveryLogger ?? NullLogger<TokenDiscoveryService>.Instance;
+        this._pathProvider = pathProvider ?? new DefaultAppPathProvider();
     }
 
-    private string GetTrackerConfigPath() => _pathProvider.GetAuthFilePath();
+    private string GetTrackerConfigPath() => this._pathProvider.GetAuthFilePath();
 
-    private string GetProvidersConfigPath() => _pathProvider.GetProviderConfigFilePath();
+    private string GetProvidersConfigPath() => this._pathProvider.GetProviderConfigFilePath();
 
     public async Task<IReadOnlyList<ProviderConfig>> LoadConfigAsync()
     {

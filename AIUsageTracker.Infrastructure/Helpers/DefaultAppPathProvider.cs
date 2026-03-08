@@ -19,32 +19,32 @@ public class DefaultAppPathProvider : IAppPathProvider
 
     public string GetDatabasePath()
     {
-        return Path.Combine(GetAppDataRoot(), "usage.db");
+        return Path.Combine(this.GetAppDataRoot(), "usage.db");
     }
 
     public string GetLogDirectory()
     {
-        return Path.Combine(GetAppDataRoot(), "logs");
+        return Path.Combine(this.GetAppDataRoot(), "logs");
     }
 
     public string GetAuthFilePath()
     {
         // Auth is typically in UserProfile for CLI tools
-        var home = GetUserProfileRoot();
+        var home = this.GetUserProfileRoot();
         var primary = Path.Combine(home, ".opencode", "auth.json");
         var legacy = Path.Combine(home, ".ai-consumption-tracker", "auth.json");
-        
+
         return File.Exists(primary) ? primary : (File.Exists(legacy) ? legacy : primary);
     }
 
     public string GetPreferencesFilePath()
     {
-        return Path.Combine(GetAppDataRoot(), "preferences.json");
+        return Path.Combine(this.GetAppDataRoot(), "preferences.json");
     }
 
     public string GetProviderConfigFilePath()
     {
-        return Path.Combine(GetAppDataRoot(), "providers.json");
+        return Path.Combine(this.GetAppDataRoot(), "providers.json");
     }
 
     public string GetUserProfileRoot()
