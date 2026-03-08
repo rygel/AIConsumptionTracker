@@ -371,6 +371,18 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
 
+      - name: Upload Web UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-ui-screenshots
+          path: |
+            docs/screenshot_web_dashboard.png
+            docs/screenshot_web_providers.png
+            docs/screenshot_web_charts.png
+          if-no-files-found: ignore
+          retention-days: 3
+
   # Job 6: Cross-platform tests (Linux + Windows for Core/Infrastructure only)
   core-tests-cross-platform:
     name: Core Tests (${{ matrix.os }})
