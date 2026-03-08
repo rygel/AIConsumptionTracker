@@ -17,12 +17,20 @@ public class ProviderModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string Id { get; set; } = string.Empty;
 
+    [BindProperty(SupportsGet = true, Name = "providerId")]
+    public string? ProviderIdQuery { get; set; }
+
     public string? ProviderName { get; set; }
     public List<ProviderUsage>? ProviderHistory { get; set; }
     public List<ResetEvent>? ResetEvents { get; set; }
 
     public async Task<IActionResult> OnGetAsync()
     {
+        if (string.IsNullOrWhiteSpace(Id) && !string.IsNullOrWhiteSpace(ProviderIdQuery))
+        {
+            Id = ProviderIdQuery;
+        }
+
         if (string.IsNullOrEmpty(Id))
         {
             return RedirectToPage("/Providers");
