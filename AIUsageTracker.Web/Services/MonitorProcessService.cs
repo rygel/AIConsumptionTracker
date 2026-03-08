@@ -14,13 +14,13 @@ public class MonitorProcessService
         this._appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
     }
 
-    public async Task<(bool isRunning, int port)> GetAgentStatusAsync()
+    public async Task<(bool IsRunning, int Port)> GetAgentStatusAsync()
     {
         var detailed = await this.GetAgentStatusDetailedAsync().ConfigureAwait(false);
-        return (detailed.isRunning, detailed.port);
+        return (detailed.IsRunning, detailed.Port);
     }
 
-    public async Task<(bool isRunning, int port, string message, string? error)> GetAgentStatusDetailedAsync()
+    public async Task<(bool IsRunning, int Port, string Message, string? Error)> GetAgentStatusDetailedAsync()
     {
         var info = await this.GetAgentInfoAsync().ConfigureAwait(false);
         if (info == null)
@@ -48,15 +48,15 @@ public class MonitorProcessService
     public async Task<bool> StartAgentAsync()
     {
         var detailed = await this.StartAgentDetailedAsync().ConfigureAwait(false);
-        return detailed.success;
+        return detailed.Success;
     }
 
-    public async Task<(bool success, string message)> StartAgentDetailedAsync()
+    public async Task<(bool Success, string Message)> StartAgentDetailedAsync()
     {
         var status = await this.GetAgentStatusDetailedAsync().ConfigureAwait(false);
-        if (status.isRunning)
+        if (status.IsRunning)
         {
-            return (true, $"Monitor already running on port {status.port}.");
+            return (true, $"Monitor already running on port {status.Port}.");
         }
 
         var info = await this.GetAgentInfoAsync().ConfigureAwait(false);
@@ -91,12 +91,12 @@ public class MonitorProcessService
 
             await Task.Delay(800).ConfigureAwait(false);
             var updated = await this.GetAgentStatusDetailedAsync().ConfigureAwait(false);
-            if (updated.isRunning)
+            if (updated.IsRunning)
             {
-                return (true, $"Monitor started on port {updated.port}.");
+                return (true, $"Monitor started on port {updated.Port}.");
             }
 
-            return (false, $"Start requested, but monitor did not become healthy. {updated.message}");
+            return (false, $"Start requested, but monitor did not become healthy. {updated.Message}");
         }
         catch (Exception ex)
         {
@@ -108,10 +108,10 @@ public class MonitorProcessService
     public async Task<bool> StopAgentAsync()
     {
         var detailed = await this.StopAgentDetailedAsync().ConfigureAwait(false);
-        return detailed.success;
+        return detailed.Success;
     }
 
-    public async Task<(bool success, string message)> StopAgentDetailedAsync()
+    public async Task<(bool Success, string Message)> StopAgentDetailedAsync()
     {
         var info = await this.GetAgentInfoAsync().ConfigureAwait(false);
         if (info == null)
@@ -137,6 +137,30 @@ public class MonitorProcessService
             this._logger.LogError(ex, "Failed to stop agent process {Pid}", info.ProcessId);
             return (false, $"Failed to stop monitor (PID {info.ProcessId}): {SimplifyExceptionMessage(ex)}");
         }
+    }
+
+    private static string ResolveAgentInfoPath(string appData)
+    {
+        var candidates = GetMonitorInfoCandidatePaths(appData).ToList();
+        var existing = candidates
+            .Where(File.Exists)
+            .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
+            .FirstOrDefault();
+
+        return existing ?? candidates[0];
+    }
+
+    private static IEnumerable<string> GetMonitorInfoCandidatePaths(string appData)
+    {
+        return new[]
+        {
+            Path.Combine(appData, "AIUsageTracker", "monitor.json"),
+            Path.Combine(appData, "AIUsageTracker", "Monitor", "monitor.json"),
+            Path.Combine(appData, "AIUsageTracker", "Agent", "monitor.json"),
+            Path.Combine(appData, "AIConsumptionTracker", "monitor.json"),
+            Path.Combine(appData, "AIConsumptionTracker", "Monitor", "monitor.json"),
+            Path.Combine(appData, "AIConsumptionTracker", "Agent", "monitor.json"),
+        };
     }
 
     private static string SimplifyExceptionMessage(Exception ex)
@@ -194,30 +218,5 @@ public class MonitorProcessService
 
         return null;
     }
-
-    private static string ResolveAgentInfoPath(string appData)
-    {
-        var candidates = GetMonitorInfoCandidatePaths(appData).ToList();
-        var existing = candidates
-            .Where(File.Exists)
-            .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
-            .FirstOrDefault();
-
-        return existing ?? candidates[0];
-    }
-
-    private static IEnumerable<string> GetMonitorInfoCandidatePaths(string appData)
-    {
-        return new[]
-        {
-            Path.Combine(appData, "AIUsageTracker", "monitor.json"),
-            Path.Combine(appData, "AIUsageTracker", "Monitor", "monitor.json"),
-            Path.Combine(appData, "AIUsageTracker", "Agent", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "Monitor", "monitor.json"),
-            Path.Combine(appData, "AIConsumptionTracker", "Agent", "monitor.json"),
-        };
-    }
 }
-
 
