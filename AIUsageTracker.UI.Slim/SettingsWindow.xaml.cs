@@ -445,18 +445,6 @@ public partial class SettingsWindow : Window
     {
         ProvidersStack.Children.Clear();
 
-        if (_configs.Count == 0)
-        {
-            ProvidersStack.Children.Add(new TextBlock
-            {
-                Text = "No providers configured. Click 'Scan for Keys' to discover API keys.",
-                Foreground = FindResource("TertiaryText") as SolidColorBrush,
-                TextWrapping = TextWrapping.Wrap,
-                FontSize = 11
-            });
-            return;
-        }
-
         var displayItems = ProviderSettingsDisplayCatalog.CreateDisplayItems(_configs, _usages);
         var usageByProviderId = _usages.ToDictionary(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase);
 
@@ -591,7 +579,8 @@ public partial class SettingsWindow : Window
             isEnabled: !isDerived,
             onCheckedChanged: isChecked =>
             {
-                config.ShowInTray = isChecked;
+                var trackedConfig = GetOrCreateTrackedConfig(config);
+                trackedConfig.ShowInTray = isChecked;
                 MarkSettingsChanged(refreshTrayIcons: true);
             }));
 
@@ -602,7 +591,8 @@ public partial class SettingsWindow : Window
             isEnabled: !isDerived,
             onCheckedChanged: isChecked =>
             {
-                config.EnableNotifications = isChecked;
+                var trackedConfig = GetOrCreateTrackedConfig(config);
+                trackedConfig.EnableNotifications = isChecked;
                 MarkSettingsChanged();
             }));
 
@@ -659,8 +649,6 @@ public partial class SettingsWindow : Window
 
     private void AddSubTraySection(Grid grid, ProviderConfig config, IReadOnlyList<ProviderUsageDetail> subTrayDetails)
     {
-        config.EnabledSubTrays ??= new List<string>();
-
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -696,10 +684,11 @@ public partial class SettingsWindow : Window
 
     private CheckBox CreateSubTrayCheckBox(ProviderConfig config, string detailName)
     {
+        var enabledSubTrays = config.EnabledSubTrays ?? new List<string>();
         var checkBox = new CheckBox
         {
             Content = detailName,
-            IsChecked = config.EnabledSubTrays.Contains(detailName, StringComparer.OrdinalIgnoreCase),
+            IsChecked = enabledSubTrays.Contains(detailName, StringComparer.OrdinalIgnoreCase),
             FontSize = 10,
             Margin = new Thickness(0, 1, 0, 1),
             Cursor = Cursors.Hand
@@ -707,20 +696,24 @@ public partial class SettingsWindow : Window
         checkBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
         checkBox.Checked += (_, _) =>
         {
-            if (!config.EnabledSubTrays.Contains(detailName, StringComparer.OrdinalIgnoreCase))
+            var trackedConfig = GetOrCreateTrackedConfig(config);
+            trackedConfig.EnabledSubTrays ??= new List<string>();
+            if (!trackedConfig.EnabledSubTrays.Contains(detailName, StringComparer.OrdinalIgnoreCase))
             {
-                var enabledSubTrays = config.EnabledSubTrays.ToList();
+                var enabledSubTrays = trackedConfig.EnabledSubTrays.ToList();
                 enabledSubTrays.Add(detailName);
-                config.EnabledSubTrays = enabledSubTrays;
+                trackedConfig.EnabledSubTrays = enabledSubTrays;
             }
 
             MarkSettingsChanged(refreshTrayIcons: true);
         };
         checkBox.Unchecked += (_, _) =>
         {
-            var enabledSubTrays = config.EnabledSubTrays.ToList();
+            var trackedConfig = GetOrCreateTrackedConfig(config);
+            trackedConfig.EnabledSubTrays ??= new List<string>();
+            var enabledSubTrays = trackedConfig.EnabledSubTrays.ToList();
             enabledSubTrays.RemoveAll(name => name.Equals(detailName, StringComparison.OrdinalIgnoreCase));
-            config.EnabledSubTrays = enabledSubTrays;
+            trackedConfig.EnabledSubTrays = enabledSubTrays;
             MarkSettingsChanged(refreshTrayIcons: true);
         };
         return checkBox;
@@ -741,7 +734,8 @@ public partial class SettingsWindow : Window
         {
             keyBox.TextChanged += (s, e) =>
             {
-                config.ApiKey = keyBox.Text;
+                var trackedConfig = GetOrCreateTrackedConfig(config);
+                trackedConfig.ApiKey = keyBox.Text;
                 MarkSettingsChanged();
             };
         }
@@ -779,6 +773,47 @@ public partial class SettingsWindow : Window
         }
 
         ScheduleAutoSave();
+    }
+
+    private ProviderConfig GetOrCreateTrackedConfig(ProviderConfig config)
+    {
+        var existing = _configs.FirstOrDefault(current =>
+            current.ProviderId.Equals(config.ProviderId, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        var tracked = CloneConfig(config);
+        _configs.Add(tracked);
+        return tracked;
+    }
+
+    private static ProviderConfig CloneConfig(ProviderConfig config)
+    {
+        return new ProviderConfig
+        {
+            ProviderId = config.ProviderId,
+            ApiKey = config.ApiKey,
+            Type = config.Type,
+            PlanType = config.PlanType,
+            Limit = config.Limit,
+            BaseUrl = config.BaseUrl,
+            ShowInTray = config.ShowInTray,
+            EnableNotifications = config.EnableNotifications,
+            EnabledSubTrays = config.EnabledSubTrays.ToList(),
+            AuthSource = config.AuthSource,
+            Description = config.Description,
+            Models = config.Models
+                .Select(model => new AIModelConfig
+                {
+                    Id = model.Id,
+                    Name = model.Name,
+                    Matches = model.Matches.ToList(),
+                    Color = model.Color
+                })
+                .ToList()
+        };
     }
 
     private void ApplyFontPreferenceChange(Action applyChange)
