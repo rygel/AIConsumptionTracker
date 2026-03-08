@@ -13,8 +13,8 @@ public class CodexAuthService : ICodexAuthService
 
     public CodexAuthService(ILogger<CodexAuthService> logger, string? authFilePath = null)
     {
-        _logger = logger;
-        _authFilePath = authFilePath;
+        this._logger = logger;
+        this._authFilePath = authFilePath;
     }
 
     public string? GetAccessToken()

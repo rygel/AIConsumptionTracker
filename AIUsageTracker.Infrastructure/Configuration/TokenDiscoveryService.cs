@@ -14,8 +14,8 @@ public class TokenDiscoveryService
 
     public TokenDiscoveryService(ILogger<TokenDiscoveryService> logger, IAppPathProvider pathProvider)
     {
-        _logger = logger;
-        _pathProvider = pathProvider;
+        this._logger = logger;
+        this._pathProvider = pathProvider;
     }
 
     private string GetUserProfilePath() => this._pathProvider.GetUserProfileRoot();
