@@ -77,24 +77,36 @@ public class MonitorLauncher
         }
     }
 
-    public static async Task<int> GetAgentPortAsync()
+    private static async Task<(MonitorInfo? Info, int Port, bool IsRunning)> ResolveMonitorStateAsync()
     {
         var info = await GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
-        return info?.Port > 0 ? info.Port : DefaultPort;
+        if (info != null)
+        {
+            return (info, info.Port, true);
+        }
+
+        var port = DefaultPort;
+        var isRunning = await CheckHealthAsync(port).ConfigureAwait(false);
+        return (null, port, isRunning);
+    }
+
+    public static async Task<int> GetAgentPortAsync()
+    {
+        var (_, port, _) = await ResolveMonitorStateAsync().ConfigureAwait(false);
+        return port;
     }
 
     public static async Task<bool> IsAgentRunningAsync()
     {
-        var info = await GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+        var (info, port, isRunning) = await ResolveMonitorStateAsync().ConfigureAwait(false);
         if (info != null)
         {
             MonitorService.LogDiagnostic($"Monitor is running on port {info.Port}");
             return true;
         }
 
-        var port = DefaultPort;
         MonitorService.LogDiagnostic($"Checking Monitor status on port: {port}");
-        if (await CheckHealthAsync(port).ConfigureAwait(false))
+        if (isRunning)
         {
             MonitorService.LogDiagnostic($"Monitor is running on port {port}");
             return true;
@@ -106,16 +118,15 @@ public class MonitorLauncher
     
     public static async Task<(bool IsRunning, int Port)> IsAgentRunningWithPortAsync()
     {
-        var info = await GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+        var (info, port, isRunning) = await ResolveMonitorStateAsync().ConfigureAwait(false);
         if (info != null)
         {
             return (true, info.Port);
         }
 
-        var port = await GetAgentPortAsync().ConfigureAwait(false);
         MonitorService.LogDiagnostic($"Probing Monitor port: {port}");
-        
-        if (await CheckHealthAsync(port).ConfigureAwait(false))
+
+        if (isRunning)
         {
             return (true, port);
         }
@@ -219,15 +230,18 @@ public class MonitorLauncher
         await StartupSemaphore.WaitAsync().ConfigureAwait(false);
         try
         {
-            var validatedInfo = await GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+            var (validatedInfo, port, isRunning) = await ResolveMonitorStateAsync().ConfigureAwait(false);
             if (validatedInfo != null)
             {
                 MonitorService.LogDiagnostic($"Monitor already running on port {validatedInfo.Port}; skipping start.");
                 return true;
             }
 
-            // Get the port to use
-            var port = await GetAgentPortAsync().ConfigureAwait(false);
+            if (isRunning)
+            {
+                MonitorService.LogDiagnostic($"Monitor already responding on port {port}; skipping start.");
+                return true;
+            }
 
             var monitorExeName = OperatingSystem.IsWindows()
                 ? "AIUsageTracker.Monitor.exe"

@@ -241,20 +241,9 @@ public class MonitorService : IMonitorService
 
     public async Task RefreshPortAsync()
     {
-        var info = await MonitorLauncher.GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
-        if (info != null && info.Port > 0)
+        var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync().ConfigureAwait(false);
+        if (!isRunning)
         {
-            this.AgentUrl = $"http://localhost:{info.Port}";
-            return;
-        }
-
-        // Fallback when monitor info is missing or stale.
-        var port = await MonitorLauncher.GetAgentPortAsync().ConfigureAwait(false);
-
-        // Verify the Monitor is actually running on that port
-        if (!await MonitorLauncher.IsAgentRunningAsync().ConfigureAwait(false))
-        {
-            // Monitor not responding on expected port, will need to locate or start it
             MonitorService.LogDiagnostic($"Monitor not responding on port {port}. Attempting to locate...");
         }
 
