@@ -18,7 +18,7 @@ public sealed class KestrelWebApplicationFactory<TEntryPoint> : IDisposable
 
     public KestrelWebApplicationFactory()
     {
-        _projectPath = Path.GetFullPath(
+        this._projectPath = Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIUsageTracker.Web"));
     }
 
@@ -29,6 +29,51 @@ public sealed class KestrelWebApplicationFactory<TEntryPoint> : IDisposable
             this.EnsureStarted();
             return this._serverAddress ?? throw new InvalidOperationException("Server failed to start.");
         }
+    }
+
+    public void Dispose()
+    {
+        if (this._disposed)
+        {
+            return;
+        }
+
+        this._disposed = true;
+
+        if (this._process == null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!this._process.HasExited)
+            {
+                this._process.CloseMainWindow();
+                if (!this._process.WaitForExit(5000))
+                {
+                    this._process.Kill(entireProcessTree: true);
+                    this._process.WaitForExit(5000);
+                }
+            }
+        }
+        catch
+        {
+            // Ignore cleanup failures.
+        }
+        finally
+        {
+            this._process.Dispose();
+            this._process = null;
+        }
+    }
+
+    private static int GetAvailablePort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        return port;
     }
 
     private void EnsureStarted()
@@ -69,7 +114,7 @@ public sealed class KestrelWebApplicationFactory<TEntryPoint> : IDisposable
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            CreateNoWindow = true
+            CreateNoWindow = true,
         };
         startInfo.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
         startInfo.Environment["MSBuildEnableWorkloadResolver"] = "false";
@@ -80,7 +125,7 @@ public sealed class KestrelWebApplicationFactory<TEntryPoint> : IDisposable
         this._process = new Process
         {
             StartInfo = startInfo,
-            EnableRaisingEvents = true
+            EnableRaisingEvents = true,
         };
         this._process.OutputDataReceived += (_, args) =>
         {
@@ -107,14 +152,6 @@ public sealed class KestrelWebApplicationFactory<TEntryPoint> : IDisposable
 
         this.WaitForServerReady(address);
         this._serverAddress = address;
-    }
-
-    private static int GetAvailablePort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        return port;
     }
 
     private void WaitForServerReady(string address)
@@ -147,42 +184,5 @@ public sealed class KestrelWebApplicationFactory<TEntryPoint> : IDisposable
         throw new TimeoutException(
             $"AIUsageTracker.Web did not start on {address} within 30s. "
             + $"Output: {this._startupOutput}");
-    }
-
-    public void Dispose()
-    {
-        if (this._disposed)
-        {
-            return;
-        }
-
-        this._disposed = true;
-
-        if (this._process == null)
-        {
-            return;
-        }
-
-        try
-        {
-            if (!this._process.HasExited)
-            {
-                this._process.CloseMainWindow();
-                if (!this._process.WaitForExit(5000))
-                {
-                    this._process.Kill(entireProcessTree: true);
-                    this._process.WaitForExit(5000);
-                }
-            }
-        }
-        catch
-        {
-            // Ignore cleanup failures.
-        }
-        finally
-        {
-            this._process.Dispose();
-            this._process = null;
-        }
     }
 }

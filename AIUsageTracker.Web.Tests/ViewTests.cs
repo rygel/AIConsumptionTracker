@@ -215,7 +215,8 @@ public class ViewTests : WebTestBase
             }
         }
 
-        Assert.IsTrue(hasProvidersLink || hasChartsLink || hasHistoryLink,
+        Assert.IsTrue(
+            hasProvidersLink || hasChartsLink || hasHistoryLink,
             "Should have navigation to main sections");
     }
 
