@@ -20,25 +20,8 @@ public class MonitorProcessService
 
     public async Task<(bool IsRunning, int Port, string Message, string? Error)> GetAgentStatusDetailedAsync()
     {
-        var info = await MonitorLauncher.GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
-        if (info != null)
-        {
-            return (true, info.Port, $"Healthy on port {info.Port}.", null);
-        }
-
-        var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync().ConfigureAwait(false);
-        if (isRunning)
-        {
-            return (true, port, $"Healthy on port {port}.", null);
-        }
-
-        var infoPath = this.ResolveExistingAgentInfoPath();
-        if (infoPath == null)
-        {
-            return (false, port, "Monitor info file not found. Start Monitor to initialize it.", "agent-info-missing");
-        }
-
-        return (false, port, $"Monitor not reachable on port {port}.", "monitor-unreachable");
+        var status = await this.GetAgentStatusSnapshotAsync().ConfigureAwait(false);
+        return (status.IsRunning, status.Port, status.Message, status.Error);
     }
 
     public async Task<bool> StartAgentAsync()
@@ -49,7 +32,7 @@ public class MonitorProcessService
 
     public async Task<(bool Success, string Message)> StartAgentDetailedAsync()
     {
-        var status = await this.GetAgentStatusDetailedAsync().ConfigureAwait(false);
+        var status = await this.GetAgentStatusSnapshotAsync().ConfigureAwait(false);
         if (status.IsRunning)
         {
             return (true, $"Monitor already running on port {status.Port}.");
@@ -62,7 +45,7 @@ public class MonitorProcessService
             return (false, "Failed to start monitor or monitor did not become healthy.");
         }
 
-        var updated = await this.GetAgentStatusDetailedAsync().ConfigureAwait(false);
+        var updated = await this.GetAgentStatusSnapshotAsync().ConfigureAwait(false);
         if (updated.IsRunning)
         {
             return (true, $"Monitor started on port {updated.Port}.");
@@ -79,7 +62,7 @@ public class MonitorProcessService
 
     public async Task<(bool Success, string Message)> StopAgentDetailedAsync()
     {
-        var status = await this.GetAgentStatusDetailedAsync().ConfigureAwait(false);
+        var status = await this.GetAgentStatusSnapshotAsync().ConfigureAwait(false);
         if (!status.IsRunning && status.Error == "agent-info-missing")
         {
             return (true, "Monitor already stopped (info file missing).");
@@ -98,5 +81,42 @@ public class MonitorProcessService
     private string? ResolveExistingAgentInfoPath()
     {
         return MonitorInfoPathCatalog.ResolveExistingReadPath();
+    }
+
+    private async Task<AgentStatusSnapshot> GetAgentStatusSnapshotAsync()
+    {
+        var info = await MonitorLauncher.GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
+        if (info != null)
+        {
+            return AgentStatusSnapshot.Healthy(info.Port);
+        }
+
+        var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync().ConfigureAwait(false);
+        if (isRunning)
+        {
+            return AgentStatusSnapshot.Healthy(port);
+        }
+
+        return this.ResolveExistingAgentInfoPath() == null
+            ? AgentStatusSnapshot.InfoMissing(port)
+            : AgentStatusSnapshot.Unreachable(port);
+    }
+
+    private readonly record struct AgentStatusSnapshot(bool IsRunning, int Port, string Message, string? Error)
+    {
+        public static AgentStatusSnapshot Healthy(int port)
+        {
+            return new(true, port, $"Healthy on port {port}.", null);
+        }
+
+        public static AgentStatusSnapshot InfoMissing(int port)
+        {
+            return new(false, port, "Monitor info file not found. Start Monitor to initialize it.", "agent-info-missing");
+        }
+
+        public static AgentStatusSnapshot Unreachable(int port)
+        {
+            return new(false, port, $"Monitor not reachable on port {port}.", "monitor-unreachable");
+        }
     }
 }
