@@ -33,20 +33,21 @@ public class MonitorService : IMonitorService
         {
             _sharedHttpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
         }
+
         return _sharedHttpClient;
     }
 
     public MonitorService(HttpClient httpClient, ILogger<MonitorService>? logger)
     {
-        _httpClient = httpClient;
-        _logger = logger;
-        _jsonOptions = new JsonSerializerOptions
+        this._httpClient = httpClient;
+        this._logger = logger;
+        this._jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
             PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }
+            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) },
         };
-        
+
         // Note: Port discovery is now done explicitly via RefreshPortAsync()
         // to avoid race conditions where the Monitor port changes
     }
@@ -69,8 +70,12 @@ public class MonitorService : IMonitorService
         lock (_diagnosticsLog)
         {
             _diagnosticsLog.Add($"[{timestamp}] {message}");
-            if (_diagnosticsLog.Count > 100) _diagnosticsLog.RemoveAt(0);
+            if (_diagnosticsLog.Count > 100)
+            {
+                _diagnosticsLog.RemoveAt(0);
+            }
         }
+
         System.Diagnostics.Debug.WriteLine($"[{timestamp}] [DIAG] {message}");
     }
 
@@ -96,7 +101,7 @@ public class MonitorService : IMonitorService
             RefreshErrorCount = refreshErrorCount,
             RefreshAverageLatencyMs = refreshRequestCount == 0 ? 0 : refreshTotalLatencyMs / (double)refreshRequestCount,
             RefreshLastLatencyMs = refreshLastLatencyMs,
-            RefreshErrorRatePercent = refreshRequestCount == 0 ? 0 : (refreshErrorCount / (double)refreshRequestCount) * 100.0
+            RefreshErrorRatePercent = refreshRequestCount == 0 ? 0 : (refreshErrorCount / (double)refreshRequestCount) * 100.0,
         };
     }
 
@@ -134,23 +139,23 @@ public class MonitorService : IMonitorService
             {
                 if (info.Port > 0)
                 {
-                    AgentUrl = $"http://localhost:{info.Port}";
+                    this.AgentUrl = $"http://localhost:{info.Port}";
                     LogDiagnostic($"Found Monitor running on port {info.Port} from monitor.json");
                 }
 
-                LastAgentErrors = info.Errors ?? new List<string>();
+                this.LastAgentErrors = info.Errors ?? new List<string>();
                 return;
             }
-            
+
             LogDiagnostic("monitor.json missing, stale, or invalid; using default port 5000");
-            AgentUrl = "http://localhost:5000";
-            LastAgentErrors = new List<string>();
+            this.AgentUrl = "http://localhost:5000";
+            this.LastAgentErrors = new List<string>();
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Error refreshing monitor info");
-            AgentUrl = "http://localhost:5000";
-            LastAgentErrors = new List<string>();
+            this._logger?.LogWarning(ex, "Error refreshing monitor info");
+            this.AgentUrl = "http://localhost:5000";
+            this.LastAgentErrors = new List<string>();
         }
     }
 
@@ -159,21 +164,21 @@ public class MonitorService : IMonitorService
         var info = await MonitorLauncher.GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
         if (info != null && info.Port > 0)
         {
-            AgentUrl = $"http://localhost:{info.Port}";
+            this.AgentUrl = $"http://localhost:{info.Port}";
             return;
         }
 
         // Fallback when monitor info is missing or stale.
         var port = await MonitorLauncher.GetAgentPortAsync().ConfigureAwait(false);
-        
+
         // Verify the Monitor is actually running on that port
         if (!await MonitorLauncher.IsAgentRunningAsync().ConfigureAwait(false))
         {
             // Monitor not responding on expected port, will need to locate or start it
             MonitorService.LogDiagnostic($"Monitor not responding on port {port}. Attempting to locate...");
         }
-        
-        AgentUrl = $"http://localhost:{port}";
+
+        this.AgentUrl = $"http://localhost:{port}";
     }
 
     // Provider usage endpoints
@@ -183,11 +188,11 @@ public class MonitorService : IMonitorService
         try
         {
             using var requestTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(UsageRequestTimeoutSeconds));
-            var usage = await _httpClient.GetFromJsonAsync<List<ProviderUsage>>(
-                $"{AgentUrl}/api/usage", 
-                _jsonOptions,
+            var usage = await this._httpClient.GetFromJsonAsync<List<ProviderUsage>>(
+                $"{this.AgentUrl}/api/usage",
+                this._jsonOptions,
                 requestTimeout.Token).ConfigureAwait(false);
-            LogDiagnostic($"Successfully fetched usage from {AgentUrl}");
+            LogDiagnostic($"Successfully fetched usage from {this.AgentUrl}");
             stopwatch.Stop();
             RecordUsageTelemetry(stopwatch.Elapsed, true);
             return usage ?? new List<ProviderUsage>();
@@ -196,41 +201,41 @@ public class MonitorService : IMonitorService
         {
             // Connection failed - Monitor may have moved to a different port
             // Refresh port discovery and retry once
-            LogDiagnostic($"Connection failed to {AgentUrl}, refreshing port and retrying...");
-            await RefreshPortAsync();
-            
+            LogDiagnostic($"Connection failed to {this.AgentUrl}, refreshing port and retrying...");
+            await this.RefreshPortAsync().ConfigureAwait(false);
+
             try
             {
                 using var requestTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(UsageRequestTimeoutSeconds));
-                var usage = await _httpClient.GetFromJsonAsync<List<ProviderUsage>>(
-                    $"{AgentUrl}/api/usage",
-                    _jsonOptions,
+                var usage = await this._httpClient.GetFromJsonAsync<List<ProviderUsage>>(
+                    $"{this.AgentUrl}/api/usage",
+                    this._jsonOptions,
                     requestTimeout.Token).ConfigureAwait(false);
-                LogDiagnostic($"Successfully fetched usage from {AgentUrl} after port refresh");
+                LogDiagnostic($"Successfully fetched usage from {this.AgentUrl} after port refresh");
                 stopwatch.Stop();
                 RecordUsageTelemetry(stopwatch.Elapsed, true);
                 return usage ?? new List<ProviderUsage>();
             }
             catch (HttpRequestException)
-            {
-                stopwatch.Stop();
-                RecordUsageTelemetry(stopwatch.Elapsed, false);
-                LogDiagnostic($"Failed to fetch usage from {AgentUrl} after port refresh: Connection error");
-                return new List<ProviderUsage>();
-            }
+                {
+                    stopwatch.Stop();
+                    RecordUsageTelemetry(stopwatch.Elapsed, false);
+                    LogDiagnostic($"Failed to fetch usage from {this.AgentUrl} after port refresh: Connection error");
+                    return new List<ProviderUsage>();
+                }
         }
         catch (TaskCanceledException)
         {
             stopwatch.Stop();
             RecordUsageTelemetry(stopwatch.Elapsed, false);
-            LogDiagnostic($"Failed to fetch usage from {AgentUrl}: request timed out after {UsageRequestTimeoutSeconds}s");
+            LogDiagnostic($"Failed to fetch usage from {this.AgentUrl}: request timed out after {UsageRequestTimeoutSeconds}s");
             return new List<ProviderUsage>();
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
             RecordUsageTelemetry(stopwatch.Elapsed, false);
-            LogDiagnostic($"Failed to fetch usage from {AgentUrl}: {ex.Message}");
+            LogDiagnostic($"Failed to fetch usage from {this.AgentUrl}: {ex.Message}");
             return new List<ProviderUsage>();
         }
     }
@@ -239,9 +244,9 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            return await _httpClient.GetFromJsonAsync<ProviderUsage>(
-                $"{AgentUrl}/api/usage/{providerId}",
-                _jsonOptions).ConfigureAwait(false);
+            return await this._httpClient.GetFromJsonAsync<ProviderUsage>(
+                $"{this.AgentUrl}/api/usage/{providerId}",
+                this._jsonOptions).ConfigureAwait(false);
         }
         catch
         {
@@ -253,9 +258,9 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            var history = await _httpClient.GetFromJsonAsync<List<ProviderUsage>>(
-                $"{AgentUrl}/api/history?limit={limit}",
-                _jsonOptions).ConfigureAwait(false);
+            var history = await this._httpClient.GetFromJsonAsync<List<ProviderUsage>>(
+                $"{this.AgentUrl}/api/history?limit={limit}",
+                this._jsonOptions).ConfigureAwait(false);
             return history ?? new List<ProviderUsage>();
         }
         catch (Exception)
@@ -268,9 +273,9 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            var history = await _httpClient.GetFromJsonAsync<List<ProviderUsage>>(
-                $"{AgentUrl}/api/history/{providerId}?limit={limit}",
-                _jsonOptions).ConfigureAwait(false);
+            var history = await this._httpClient.GetFromJsonAsync<List<ProviderUsage>>(
+                $"{this.AgentUrl}/api/history/{providerId}?limit={limit}",
+                this._jsonOptions).ConfigureAwait(false);
             return history ?? new List<ProviderUsage>();
         }
         catch (Exception)
@@ -284,7 +289,7 @@ public class MonitorService : IMonitorService
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var response = await _httpClient.PostAsync($"{AgentUrl}/api/refresh", null).ConfigureAwait(false);
+            var response = await this._httpClient.PostAsync($"{this.AgentUrl}/api/refresh", null).ConfigureAwait(false);
             stopwatch.Stop();
             RecordRefreshTelemetry(stopwatch.Elapsed, response.IsSuccessStatusCode);
             return response.IsSuccessStatusCode;
@@ -303,21 +308,23 @@ public class MonitorService : IMonitorService
         try
         {
             using var requestTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(ConfigRequestTimeoutSeconds));
-            var configs = await _httpClient.GetFromJsonAsync<List<ProviderConfig>>(
-                $"{AgentUrl}/api/config",
-                _jsonOptions,
+            var configs = await this._httpClient.GetFromJsonAsync<List<ProviderConfig>>(
+                $"{this.AgentUrl}/api/config",
+                this._jsonOptions,
                 requestTimeout.Token).ConfigureAwait(false);
             return configs ?? new List<ProviderConfig>();
         }
         catch (TaskCanceledException)
         {
-            _logger?.LogWarning("GetConfigsAsync timeout after {Timeout}s at {Url}",
-                ConfigRequestTimeoutSeconds, $"{AgentUrl}/api/config");
+            this._logger?.LogWarning(
+                "GetConfigsAsync timeout after {Timeout}s at {Url}",
+                ConfigRequestTimeoutSeconds,
+                $"{this.AgentUrl}/api/config");
             return new List<ProviderConfig>();
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "GetConfigsAsync error");
+            this._logger?.LogWarning(ex, "GetConfigsAsync error");
             return new List<ProviderConfig>();
         }
     }
@@ -326,15 +333,15 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync(
-                $"{AgentUrl}/api/config",
+            var response = await this._httpClient.PostAsJsonAsync(
+                $"{this.AgentUrl}/api/config",
                 config,
-                _jsonOptions).ConfigureAwait(false);
+                this._jsonOptions).ConfigureAwait(false);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "SaveConfigAsync error");
+            this._logger?.LogWarning(ex, "SaveConfigAsync error");
             return false;
         }
     }
@@ -343,12 +350,12 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            var response = await _httpClient.DeleteAsync($"{AgentUrl}/api/config/{providerId}").ConfigureAwait(false);
+            var response = await this._httpClient.DeleteAsync($"{this.AgentUrl}/api/config/{providerId}").ConfigureAwait(false);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "RemoveConfigAsync error");
+            this._logger?.LogWarning(ex, "RemoveConfigAsync error");
             return false;
         }
     }
@@ -358,14 +365,14 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            var prefs = await _httpClient.GetFromJsonAsync<AppPreferences>(
-                $"{AgentUrl}/api/preferences",
-                _jsonOptions).ConfigureAwait(false);
+            var prefs = await this._httpClient.GetFromJsonAsync<AppPreferences>(
+                $"{this.AgentUrl}/api/preferences",
+                this._jsonOptions).ConfigureAwait(false);
             return prefs ?? new AppPreferences();
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "GetPreferencesAsync error");
+            this._logger?.LogWarning(ex, "GetPreferencesAsync error");
             return new AppPreferences();
         }
     }
@@ -374,22 +381,22 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync(
-                $"{AgentUrl}/api/preferences",
+            var response = await this._httpClient.PostAsJsonAsync(
+                $"{this.AgentUrl}/api/preferences",
                 preferences,
-                _jsonOptions).ConfigureAwait(false);
+                this._jsonOptions).ConfigureAwait(false);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "SavePreferencesAsync error");
+            this._logger?.LogWarning(ex, "SavePreferencesAsync error");
             return false;
         }
     }
 
     public async Task<bool> SendTestNotificationAsync()
     {
-        var result = await SendTestNotificationDetailedAsync().ConfigureAwait(false);
+        var result = await this.SendTestNotificationDetailedAsync().ConfigureAwait(false);
         return result.Success;
     }
 
@@ -397,26 +404,42 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            await RefreshPortAsync().ConfigureAwait(false);
-            var response = await _httpClient.PostAsync($"{AgentUrl}/api/notifications/test", null).ConfigureAwait(false);
+            await this.RefreshPortAsync().ConfigureAwait(false);
+            var response = await this._httpClient.PostAsync($"{this.AgentUrl}/api/notifications/test", null).ConfigureAwait(false);
 
             if (response.IsSuccessStatusCode)
             {
-                var result = await response.Content.ReadFromJsonAsync<AgentTestNotificationResult>(_jsonOptions).ConfigureAwait(false);
-                return result ?? new AgentTestNotificationResult { Success = true, Message = "Test sent. Check system notifications." };
+                var result = await response.Content.ReadFromJsonAsync<AgentTestNotificationResult>(this._jsonOptions).ConfigureAwait(false);
+                return result ?? new AgentTestNotificationResult
+                {
+                    Success = true,
+                    Message = "Test sent. Check system notifications.",
+                };
             }
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                return new AgentTestNotificationResult { Success = false, Message = "Monitor endpoint not available. Restart Monitor and try again." };
+                return new AgentTestNotificationResult
+                {
+                    Success = false,
+                    Message = "Monitor endpoint not available. Restart Monitor and try again.",
+                };
             }
 
-            return new AgentTestNotificationResult { Success = false, Message = $"Monitor returned {(int)response.StatusCode} ({response.ReasonPhrase})." };
+            return new AgentTestNotificationResult
+            {
+                Success = false,
+                Message = $"Monitor returned {(int)response.StatusCode} ({response.ReasonPhrase}).",
+            };
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "SendTestNotificationAsync error");
-            return new AgentTestNotificationResult { Success = false, Message = "Could not reach Monitor. Ensure it is running and try again." };
+            this._logger?.LogWarning(ex, "SendTestNotificationAsync error");
+            return new AgentTestNotificationResult
+            {
+                Success = false,
+                Message = "Could not reach Monitor. Ensure it is running and try again.",
+            };
         }
     }
 
@@ -425,10 +448,10 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            var response = await _httpClient.PostAsync($"{AgentUrl}/api/scan-keys", null).ConfigureAwait(false);
+            var response = await this._httpClient.PostAsync($"{this.AgentUrl}/api/scan-keys", null).ConfigureAwait(false);
             if (response.IsSuccessStatusCode)
             {
-                var result = await response.Content.ReadFromJsonAsync<ScanKeysResponse>(_jsonOptions).ConfigureAwait(false);
+                var result = await response.Content.ReadFromJsonAsync<ScanKeysResponse>(this._jsonOptions).ConfigureAwait(false);
                 if (result != null)
                 {
                     return (result.Discovered, result.Configs ?? new List<ProviderConfig>());
@@ -437,8 +460,9 @@ public class MonitorService : IMonitorService
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "ScanForKeysAsync error");
+            this._logger?.LogWarning(ex, "ScanForKeysAsync error");
         }
+
         return (0, new List<ProviderConfig>());
     }
 
@@ -447,7 +471,7 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            var response = await _httpClient.GetAsync($"{AgentUrl}/api/health").ConfigureAwait(false);
+            var response = await this._httpClient.GetAsync($"{this.AgentUrl}/api/health").ConfigureAwait(false);
             return response.IsSuccessStatusCode;
         }
         catch
@@ -458,19 +482,19 @@ public class MonitorService : IMonitorService
 
     public Task<string> GetHealthDetailsAsync()
     {
-        return GetEndpointDetailsAsync("/api/health");
+        return this.GetEndpointDetailsAsync("/api/health");
     }
 
     public Task<string> GetDiagnosticsDetailsAsync()
     {
-        return GetEndpointDetailsAsync("/api/diagnostics");
+        return this.GetEndpointDetailsAsync("/api/diagnostics");
     }
 
     private async Task<string> GetEndpointDetailsAsync(string endpointPath)
     {
         try
         {
-            var response = await _httpClient.GetAsync($"{AgentUrl}{endpointPath}").ConfigureAwait(false);
+            var response = await this._httpClient.GetAsync($"{this.AgentUrl}{endpointPath}").ConfigureAwait(false);
             var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
@@ -490,14 +514,14 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            var response = await _httpClient.GetAsync($"{AgentUrl}/api/health").ConfigureAwait(false);
+            var response = await this._httpClient.GetAsync($"{this.AgentUrl}/api/health").ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 return new AgentContractHandshakeResult
                 {
                     IsReachable = false,
                     IsCompatible = false,
-                    Message = $"Agent health check failed ({(int)response.StatusCode})."
+                    Message = $"Agent health check failed ({(int)response.StatusCode}).",
                 };
             }
 
@@ -521,7 +545,7 @@ public class MonitorService : IMonitorService
                     IsReachable = true,
                     IsCompatible = false,
                     AgentVersion = reportedAgentVersion,
-                    Message = $"Agent API contract version is missing (expected {ExpectedApiContractVersion})."
+                    Message = $"Agent API contract version is missing (expected {ExpectedApiContractVersion}).",
                 };
             }
 
@@ -533,7 +557,7 @@ public class MonitorService : IMonitorService
                     IsCompatible = true,
                     AgentContractVersion = contractVersion,
                     AgentVersion = reportedAgentVersion,
-                    Message = "Agent API contract is compatible."
+                    Message = "Agent API contract is compatible.",
                 };
             }
 
@@ -547,7 +571,7 @@ public class MonitorService : IMonitorService
                 IsCompatible = false,
                 AgentContractVersion = contractVersion,
                 AgentVersion = reportedAgentVersion,
-                Message = $"Agent API contract mismatch: expected {ExpectedApiContractVersion}, got {contractVersion}{versionSuffix}."
+                Message = $"Agent API contract mismatch: expected {ExpectedApiContractVersion}, got {contractVersion}{versionSuffix}.",
             };
         }
         catch (Exception ex)
@@ -556,7 +580,7 @@ public class MonitorService : IMonitorService
             {
                 IsReachable = false,
                 IsCompatible = false,
-                Message = $"Agent API handshake failed: {ex.Message}"
+                Message = $"Agent API handshake failed: {ex.Message}",
             };
         }
     }
@@ -574,7 +598,7 @@ public class MonitorService : IMonitorService
             JsonValueKind.Number => property.GetRawText(),
             JsonValueKind.True => bool.TrueString,
             JsonValueKind.False => bool.FalseString,
-            _ => null
+            _ => null,
         };
     }
 
@@ -582,7 +606,7 @@ public class MonitorService : IMonitorService
     {
         [JsonPropertyName("discovered")]
         public int Discovered { get; set; }
-        
+
         [JsonPropertyName("configs")]
         public IReadOnlyList<ProviderConfig>? Configs { get; set; }
     }
@@ -592,28 +616,28 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            var response = await _httpClient.GetAsync($"{AgentUrl}/api/providers/{providerId}/check").ConfigureAwait(false);
+            var response = await this._httpClient.GetAsync($"{this.AgentUrl}/api/providers/{providerId}/check").ConfigureAwait(false);
             if (response.IsSuccessStatusCode)
             {
-                var result = await response.Content.ReadFromJsonAsync<CheckResponse>(_jsonOptions).ConfigureAwait(false);
+                var result = await response.Content.ReadFromJsonAsync<CheckResponse>(this._jsonOptions).ConfigureAwait(false);
                 return (result?.Success ?? false, result?.Message ?? "Unknown status");
             }
-            else
+
+            // Try to read error message if available
+            try
             {
-                // Try to read error message if available
-                try
+                var error = await response.Content.ReadFromJsonAsync<CheckResponse>(this._jsonOptions).ConfigureAwait(false);
+                if (!string.IsNullOrEmpty(error?.Message))
                 {
-                    var error = await response.Content.ReadFromJsonAsync<CheckResponse>(_jsonOptions).ConfigureAwait(false);
-                    if (!string.IsNullOrEmpty(error?.Message))
-                        return (false, error.Message);
+                    return (false, error.Message);
                 }
-                catch (Exception ex)
-                {
-                    _logger?.LogDebug(ex, "Failed to parse provider check error response for {ProviderId}", providerId);
-                }
-                
-                return (false, $"HTTP {response.StatusCode}");
             }
+            catch (Exception ex)
+            {
+                this._logger?.LogDebug(ex, "Failed to parse provider check error response for {ProviderId}", providerId);
+            }
+
+            return (false, $"HTTP {response.StatusCode}");
         }
         catch (Exception ex)
         {
@@ -625,7 +649,7 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            var response = await _httpClient.GetAsync($"{AgentUrl}/api/export/{format}").ConfigureAwait(false);
+            var response = await this._httpClient.GetAsync($"{this.AgentUrl}/api/export/{format}").ConfigureAwait(false);
             if (response.IsSuccessStatusCode)
             {
                 return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -633,8 +657,9 @@ public class MonitorService : IMonitorService
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "ExportDataAsync error");
+            this._logger?.LogWarning(ex, "ExportDataAsync error");
         }
+
         return string.Empty;
     }
 
@@ -642,7 +667,7 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            var response = await _httpClient.GetAsync($"{AgentUrl}/api/export?format={format}&days={days}").ConfigureAwait(false);
+            var response = await this._httpClient.GetAsync($"{this.AgentUrl}/api/export?format={format}&days={days}").ConfigureAwait(false);
             if (response.IsSuccessStatusCode)
             {
                 return await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
@@ -650,8 +675,9 @@ public class MonitorService : IMonitorService
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "ExportDataAsync error");
+            this._logger?.LogWarning(ex, "ExportDataAsync error");
         }
+
         return null; // or throw
     }
 
