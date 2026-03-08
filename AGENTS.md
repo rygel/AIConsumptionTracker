@@ -76,6 +76,14 @@ dotnet test --filter "FullyQualifiedName~ProviderManagerTests"
   - Full test suites: 180-300 seconds
 - If a command times out, isolate the specific hanging test or build step before retrying.
 
+### `outln` Helper
+
+Use the `outln` CLI tool for fast log triage on large outputs.
+
+- `outln <pattern> <path>`
+- Produces compact one-line summaries per matching file.
+- Helpful for quickly narrowing analyzer output, test logs, and warning-heavy build logs.
+
 ### Local Test Environment Stabilization
 
 **Important local finding (2026-03-06):** on this machine, plain `dotnet build` / `dotnet test` can fail or behave erratically during SDK workload resolver / project-reference evaluation even after repairing and reinstalling the .NET 8 SDK. This is a local tooling/workflow issue, not necessarily an application-code issue.
