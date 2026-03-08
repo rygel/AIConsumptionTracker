@@ -51,5 +51,3 @@ public class ProviderModel : PageModel
         return this.Page();
     }
 }
-
-

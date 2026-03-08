@@ -6,6 +6,7 @@ namespace AIUsageTracker.Web.Tests;
 public abstract class WebTestBase
 {
     protected static KestrelWebApplicationFactory<Program>? Factory { get; private set; }
+
     protected static string ServerUrl { get; private set; } = string.Empty;
 
     [ClassInitialize(InheritanceBehavior.BeforeEachDerivedClass)]

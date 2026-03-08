@@ -17,5 +17,3 @@ public class ErrorModel : PageModel
         this.RequestId = Activity.Current?.Id ?? this.HttpContext.TraceIdentifier;
     }
 }
-
-

@@ -19,9 +19,11 @@ public class ReliabilityModel : PageModel
         this._analyticsService = analyticsService;
     }
 
-    public List<ProviderUsage>? LatestUsage { get; set; }
+    public IReadOnlyList<ProviderUsage>? LatestUsage { get; set; }
+
     public IReadOnlyDictionary<string, ProviderReliabilitySnapshot> ReliabilityByProvider { get; private set; }
         = new Dictionary<string, ProviderReliabilitySnapshot>(StringComparer.OrdinalIgnoreCase);
+
     public bool IsDatabaseAvailable => this._dbService.IsDatabaseAvailable();
 
     public async Task OnGetAsync()

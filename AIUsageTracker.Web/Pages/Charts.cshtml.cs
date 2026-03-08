@@ -107,5 +107,3 @@ public class ChartsModel : PageModel
         }).ConfigureAwait(false) ?? new Dictionary<string, string>(StringComparer.Ordinal);
     }
 }
-
-
