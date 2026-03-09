@@ -37,6 +37,31 @@ Batch B (Core model files) and Batch C (Infrastructure services) still have warn
 
 ---
 
+## Update: 2026-03-09 - Batch C Progress
+
+**Status: COMPLETED** - Infrastructure services fixed.
+
+**Completed Files (SA1101 and MA0004 warnings fixed):**
+1. ✅ WindowsNotificationService.cs - 6 SA1101 warnings fixed
+2. ✅ CodexAuthService.cs - 8 SA1101 warnings fixed
+3. ✅ DataExportService.cs - 14 SA1101 warnings fixed
+4. ✅ JsonConfigLoader.cs - 10 SA1101 warnings fixed
+5. ✅ TokenDiscoveryService.cs - 22 SA1101 warnings fixed
+6. ✅ UsageAnalyticsService.cs - 30 SA1101 warnings fixed
+7. ✅ ResilientHttpClient.cs - 30 SA1101 warnings fixed
+8. ✅ GitHubUpdateChecker.cs - 66 SA1101 warnings + 6 MA0004 warnings fixed
+
+**Total warnings fixed in Batch C:**
+- SA1101 (explicit this. prefix): 186 warnings
+- MA0004 (missing ConfigureAwait(false)): 6 warnings
+
+**Build Status:**
+```bash
+dotnet build AIUsageTracker.Infrastructure/AIUsageTracker.Infrastructure.csproj --configuration Debug --disable-build-servers -m:1 --no-incremental
+```
+
+---
+
 ## Update: 2026-03-09 - Batch B Progress
 
 **Status: COMPLETED** - Core model files fixed.
