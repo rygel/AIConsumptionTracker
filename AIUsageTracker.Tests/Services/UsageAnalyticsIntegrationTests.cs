@@ -151,7 +151,7 @@ public class UsageAnalyticsIntegrationTests
         {
             await connection.OpenAsync().ConfigureAwait(false);
 
-        const string createSql = @"
+            const string createSql = @"
             CREATE TABLE providers (
                 provider_id TEXT PRIMARY KEY,
                 provider_name TEXT,
@@ -169,31 +169,31 @@ public class UsageAnalyticsIntegrationTests
                 next_reset_time TEXT,
                 response_latency_ms REAL NOT NULL DEFAULT 0
             );";
-        await using (var createCommand = connection.CreateCommand())
-        {
-            createCommand.CommandText = createSql;
-            await createCommand.ExecuteNonQueryAsync();
-        }
+            await using (var createCommand = connection.CreateCommand())
+            {
+                createCommand.CommandText = createSql;
+                await createCommand.ExecuteNonQueryAsync();
+            }
 
-        const string insertSql = @"
+            const string insertSql = @"
             INSERT INTO provider_history (
                 provider_id, requests_used, requests_available, is_available, fetched_at, response_latency_ms
             ) VALUES (
                 $providerId, $requestsUsed, $requestsAvailable, $isAvailable, $fetchedAt, $responseLatencyMs
             );";
 
-        foreach (var row in rows)
-        {
-            await using var insertCommand = connection.CreateCommand();
-            insertCommand.CommandText = insertSql;
-            insertCommand.Parameters.AddWithValue("$providerId", row.ProviderId);
-            insertCommand.Parameters.AddWithValue("$requestsUsed", row.RequestsUsed);
-            insertCommand.Parameters.AddWithValue("$requestsAvailable", row.RequestsAvailable);
-            insertCommand.Parameters.AddWithValue("$isAvailable", row.IsAvailable ? 1 : 0);
-            insertCommand.Parameters.AddWithValue("$fetchedAt", row.FetchedAt);
-            insertCommand.Parameters.AddWithValue("$responseLatencyMs", row.ResponseLatencyMs);
-            await insertCommand.ExecuteNonQueryAsync();
-        }
+            foreach (var row in rows)
+            {
+                await using var insertCommand = connection.CreateCommand();
+                insertCommand.CommandText = insertSql;
+                insertCommand.Parameters.AddWithValue("$providerId", row.ProviderId);
+                insertCommand.Parameters.AddWithValue("$requestsUsed", row.RequestsUsed);
+                insertCommand.Parameters.AddWithValue("$requestsAvailable", row.RequestsAvailable);
+                insertCommand.Parameters.AddWithValue("$isAvailable", row.IsAvailable ? 1 : 0);
+                insertCommand.Parameters.AddWithValue("$fetchedAt", row.FetchedAt);
+                insertCommand.Parameters.AddWithValue("$responseLatencyMs", row.ResponseLatencyMs);
+                await insertCommand.ExecuteNonQueryAsync();
+            }
         }
     }
 
