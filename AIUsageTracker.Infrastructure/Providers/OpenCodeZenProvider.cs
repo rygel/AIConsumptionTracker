@@ -76,7 +76,7 @@ public class OpenCodeZenProvider : ProviderBase
                     PlanType = PlanType.Usage,
                     AuthSource = config.AuthSource,
                     RawJson = $"CLI not found at path: {this._cliPath}",
-                    HttpStatus = 404
+                    HttpStatus = 404,
                 },
             };
         }
@@ -101,7 +101,7 @@ public class OpenCodeZenProvider : ProviderBase
                     PlanType = PlanType.Usage,
                     AuthSource = config.AuthSource,
                     RawJson = ex.ToString(),
-                    HttpStatus = 500
+                    HttpStatus = 500,
                 },
             };
         }
