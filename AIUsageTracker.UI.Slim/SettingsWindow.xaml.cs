@@ -332,16 +332,16 @@ public partial class SettingsWindow : Window
         this._autoSaveTimer.Start();
     }
 
-    private void OnPrivacyChanged(object? sender, bool isPrivacyMode)
+    private void OnPrivacyChanged(object? sender, PrivacyChangedEventArgs e)
     {
         if (!this.Dispatcher.CheckAccess())
         {
-            this.Dispatcher.Invoke(() => this.OnPrivacyChanged(sender, isPrivacyMode));
+            this.Dispatcher.Invoke(() => this.OnPrivacyChanged(sender, e));
             return;
         }
 
-        this._isPrivacyMode = isPrivacyMode;
-        this._preferences.IsPrivacyMode = isPrivacyMode;
+        this._isPrivacyMode = e.IsPrivacyMode;
+        this._preferences.IsPrivacyMode = e.IsPrivacyMode;
         this.UpdatePrivacyButtonState();
         this.PopulateProviders();
     }
