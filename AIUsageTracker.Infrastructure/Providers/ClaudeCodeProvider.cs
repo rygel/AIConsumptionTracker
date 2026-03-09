@@ -2,275 +2,239 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-namespace AIUsageTracker.Infrastructure.Providers
+using System.Diagnostics;
+using System.Globalization;
+using System.Net.Http.Headers;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
+using Microsoft.Extensions.Logging;
+
+namespace AIUsageTracker.Infrastructure.Providers;
+
+public class ClaudeCodeProvider : ProviderBase
 {
-    using System.Diagnostics;
-    using System.Globalization;
-    using System.Net.Http.Headers;
-    using System.Text.Json;
-    using System.Text.RegularExpressions;
-    using Microsoft.Extensions.Logging;
-    using AIUsageTracker.Core.Models;
-    using AIUsageTracker.Core.Providers;
-
-    public class ClaudeCodeProvider : ProviderBase
-    {
-        public static ProviderDefinition StaticDefinition { get; } = new(
-            providerId: "claude-code",
-            displayName: "Claude Code",
-            planType: PlanType.Usage,
-            isQuotaBased: false,
-            defaultConfigType: "pay-as-you-go",
-            autoIncludeWhenUnconfigured: true,
-            discoveryEnvironmentVariables: new[] { "ANTHROPIC_API_KEY", "CLAUDE_API_KEY" },
-            iconAssetName: "anthropic",
-            fallbackBadgeColorHex: "#FFA500",
-            fallbackBadgeInitial: "C",
-            authIdentityCandidatePathTemplates: new[]
-            {
-                "%USERPROFILE%\\.claude\\.credentials.json"
-            },
-            sessionAuthFileSchemas: new[]
-            {
-                new ProviderAuthFileSchema("claudeAiOauth", "accessToken")
-            });
-
-        public override ProviderDefinition Definition => StaticDefinition;
-
-        public override string ProviderId => StaticDefinition.ProviderId;
-
-        private readonly ILogger<ClaudeCodeProvider> _logger;
-        private readonly HttpClient _httpClient;
-
-        public ClaudeCodeProvider(ILogger<ClaudeCodeProvider> logger, HttpClient httpClient)
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "claude-code",
+        displayName: "Claude Code",
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go",
+        autoIncludeWhenUnconfigured: true,
+        discoveryEnvironmentVariables: new[] { "ANTHROPIC_API_KEY", "CLAUDE_API_KEY" },
+        iconAssetName: "anthropic",
+        fallbackBadgeColorHex: "#FFA500",
+        fallbackBadgeInitial: "C",
+        authIdentityCandidatePathTemplates: new[]
         {
-            this._logger = logger;
-            this._httpClient = httpClient;
+            "%USERPROFILE%\\.claude\\.credentials.json",
+        },
+        sessionAuthFileSchemas: new[]
+        {
+            new ProviderAuthFileSchema("claudeAiOauth", "accessToken"),
+        });
+
+    /// <inheritdoc/>
+    public override ProviderDefinition Definition => StaticDefinition;
+
+    /// <inheritdoc/>
+    public override string ProviderId => StaticDefinition.ProviderId;
+
+    private readonly ILogger<ClaudeCodeProvider> _logger;
+    private readonly HttpClient _httpClient;
+
+    public ClaudeCodeProvider(ILogger<ClaudeCodeProvider> logger, HttpClient httpClient)
+    {
+        this._logger = logger;
+        this._httpClient = httpClient;
+    }
+
+    /// <inheritdoc/>
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    {
+        // Check if API key is configured
+        if (string.IsNullOrEmpty(config.ApiKey))
+        {
+            return new[]
+            {
+                new ProviderUsage
+            {
+                ProviderId = this.ProviderId,
+                ProviderName = "Claude Code",
+                IsAvailable = false,
+                Description = "No API key configured",
+                UsageUnit = "Status",
+                IsQuotaBased = false,
+                PlanType = PlanType.Usage,
+                RawJson = "{\"source\":\"claude-code\",\"status\":\"api_key_missing\"}",
+                HttpStatus = 401
+            },
+            };
         }
 
-        public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+        // Try to get usage from Anthropic API first
+        try
         {
-            // Check if API key is configured
-            if (string.IsNullOrEmpty(config.ApiKey))
+            var apiUsage = await this.GetUsageFromApiAsync(config.ApiKey).ConfigureAwait(false);
+            if (apiUsage != null)
             {
-                return new[] { new ProviderUsage
+                return new[] { apiUsage };
+            }
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogWarning(ex, "Failed to get Claude usage from API, falling back to CLI");
+        }
+
+        // Fall back to CLI if API fails
+        return await this.GetUsageFromCliAsync(config).ConfigureAwait(false);
+    }
+
+    private async Task<ProviderUsage?> GetUsageFromApiAsync(string apiKey)
+    {
+        try
+        {
+            // Make a test request to get rate limit headers
+            // Note: Anthropic API doesn't have a usage endpoint, so we use rate limits from headers
+            var testRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
+            testRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            testRequest.Headers.Add("anthropic-version", "2023-06-01");
+            testRequest.Content = new StringContent("{\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}", System.Text.Encoding.UTF8, "application/json");
+
+            using var testResponse = await this._httpClient.SendAsync(testRequest).ConfigureAwait(false);
+            var responseBody = await testResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+            // Extract rate limit information from headers
+            var rateLimitHeaders = this.ExtractRateLimitInfo(testResponse.Headers);
+
+            // Log response for debugging
+            this._logger.LogDebug($"Claude API test call: Status={testResponse.StatusCode}, RPM={rateLimitHeaders.RequestsRemaining}/{rateLimitHeaders.RequestsLimit}");
+
+            // Even if the request fails (e.g., 429 rate limited), we can still get rate limit headers
+            if (rateLimitHeaders.RequestsLimit > 0)
+            {
+                // Calculate usage percentage based on rate limits
+                double usagePercentage = 0;
+                string? warningMessage = null;
+
+                // Calculate percentage: (limit - remaining) / limit * 100
+                var used = rateLimitHeaders.RequestsLimit - rateLimitHeaders.RequestsRemaining;
+                usagePercentage = (used / (double)rateLimitHeaders.RequestsLimit) * 100.0;
+
+                // Determine warning level
+                if (usagePercentage >= 90)
+                {
+                    warningMessage = "⚠️ CRITICAL: Approaching rate limit!";
+                }
+                else if (usagePercentage >= 70)
+                {
+                    warningMessage = "⚠️ WARNING: High usage";
+                }
+
+                // Build description with rate limit info
+                var description = $"Tier: {rateLimitHeaders.GetTierName()} | Used: {used}/{rateLimitHeaders.RequestsLimit} RPM ({usagePercentage:F0}%)";
+
+                // Build detailed tooltip info
+                var tooltipDetails = new List<ProviderUsageDetail>();
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Rate Limit Tier", Used = rateLimitHeaders.GetTierName(), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Limit", Used = rateLimitHeaders.RequestsLimit.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Remaining", Used = rateLimitHeaders.RequestsRemaining.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Limit", Used = rateLimitHeaders.InputTokensLimit.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Remaining", Used = rateLimitHeaders.InputTokensRemaining.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Current RPM Usage", Used = $"{usagePercentage:F1}%", DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
+
+                return new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
                     ProviderName = "Claude Code",
-                    IsAvailable = false,
-                    Description = "No API key configured",
-                    UsageUnit = "Status",
+                    RequestsPercentage = usagePercentage,
+                    RequestsUsed = 0, // Anthropic doesn't provide cost via API
+                    RequestsAvailable = 0,
+                    UsageUnit = "RPM",
                     IsQuotaBased = false,
                     PlanType = PlanType.Usage,
-                    RawJson = "{\"source\":\"claude-code\",\"status\":\"api_key_missing\"}",
-                    HttpStatus = 401
-                }};
+                    IsAvailable = true,
+                    Description = description,
+                    Details = tooltipDetails,
+                    AccountName = warningMessage ?? string.Empty, // Using AccountName to carry warning state
+                    RawJson = responseBody,
+                    HttpStatus = (int)testResponse.StatusCode,
+                };
             }
 
-            // Try to get usage from Anthropic API first
-            try
-            {
-                var apiUsage = await this.GetUsageFromApiAsync(config.ApiKey);
-                if (apiUsage != null)
-                {
-                    return new[] { apiUsage };
-                }
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogWarning(ex, "Failed to get Claude usage from API, falling back to CLI");
-            }
+            // No rate limit headers found
+            return null;
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogError(ex, "Error calling Anthropic API");
+            return null;
+        }
+    }
 
-            // Fall back to CLI if API fails
-            return await this.GetUsageFromCliAsync(config);
+    private RateLimitInfo ExtractRateLimitInfo(System.Net.Http.Headers.HttpResponseHeaders headers)
+    {
+        var info = new RateLimitInfo();
+
+        if (headers.TryGetValues("anthropic-ratelimit-requests-limit", out var requestLimitValues))
+        {
+            if (int.TryParse(requestLimitValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var limit))
+            {
+                info.RequestsLimit = limit;
+            }
         }
 
-        private async Task<ProviderUsage?> GetUsageFromApiAsync(string apiKey)
+        if (headers.TryGetValues("anthropic-ratelimit-requests-remaining", out var requestRemainingValues))
+        {
+            if (int.TryParse(requestRemainingValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var remaining))
+            {
+                info.RequestsRemaining = remaining;
+            }
+        }
+
+        if (headers.TryGetValues("anthropic-ratelimit-input-tokens-limit", out var inputLimitValues))
+        {
+            if (int.TryParse(inputLimitValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var inputLimit))
+            {
+                info.InputTokensLimit = inputLimit;
+            }
+        }
+
+        if (headers.TryGetValues("anthropic-ratelimit-input-tokens-remaining", out var inputRemainingValues))
+        {
+            if (int.TryParse(inputRemainingValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var inputRemaining))
+            {
+                info.InputTokensRemaining = inputRemaining;
+            }
+        }
+
+        return info;
+    }
+
+    private async Task<IEnumerable<ProviderUsage>> GetUsageFromCliAsync(ProviderConfig config)
+    {
+        return await Task.Run(async () =>
         {
             try
             {
-                // Make a test request to get rate limit headers
-                // Note: Anthropic API doesn't have a usage endpoint, so we use rate limits from headers
-                var testRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
-                testRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-                testRequest.Headers.Add("anthropic-version", "2023-06-01");
-                testRequest.Content = new StringContent("{\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}", System.Text.Encoding.UTF8, "application/json");
-
-                using var testResponse = await this._httpClient.SendAsync(testRequest).ConfigureAwait(false);
-                var responseBody = await testResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
-
-                // Extract rate limit information from headers
-                var rateLimitHeaders = this.ExtractRateLimitInfo(testResponse.Headers);
-
-                // Log response for debugging
-                this._logger.LogDebug($"Claude API test call: Status={testResponse.StatusCode}, RPM={rateLimitHeaders.RequestsRemaining}/{rateLimitHeaders.RequestsLimit}");
-
-                // Even if the request fails (e.g., 429 rate limited), we can still get rate limit headers
-                if (rateLimitHeaders.RequestsLimit > 0)
+                var startInfo = new ProcessStartInfo
                 {
-                    // Calculate usage percentage based on rate limits
-                    double usagePercentage = 0;
-                    string? warningMessage = null;
+                    FileName = "claude",
+                    Arguments = "usage",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
 
-                    // Calculate percentage: (limit - remaining) / limit * 100
-                    var used = rateLimitHeaders.RequestsLimit - rateLimitHeaders.RequestsRemaining;
-                    usagePercentage = (used / (double)rateLimitHeaders.RequestsLimit) * 100.0;
-
-                    // Determine warning level
-                    if (usagePercentage >= 90)
-                    {
-                        warningMessage = "⚠️ CRITICAL: Approaching rate limit!";
-                    }
-                    else if (usagePercentage >= 70)
-                    {
-                        warningMessage = "⚠️ WARNING: High usage";
-                    }
-
-                    // Build description with rate limit info
-                    var description = $"Tier: {rateLimitHeaders.GetTierName()} | Used: {used}/{rateLimitHeaders.RequestsLimit} RPM ({usagePercentage:F0}%)";
-
-                    // Build detailed tooltip info
-                    var tooltipDetails = new List<ProviderUsageDetail>();
-                    tooltipDetails.Add(new ProviderUsageDetail { Name = "Rate Limit Tier", Used = rateLimitHeaders.GetTierName(), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
-                    tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Limit", Used = rateLimitHeaders.RequestsLimit.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
-                    tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Remaining", Used = rateLimitHeaders.RequestsRemaining.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
-                    tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Limit", Used = rateLimitHeaders.InputTokensLimit.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
-                    tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Remaining", Used = rateLimitHeaders.InputTokensRemaining.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
-                    tooltipDetails.Add(new ProviderUsageDetail { Name = "Current RPM Usage", Used = $"{usagePercentage:F1}%", DetailType = ProviderUsageDetailType.Other, WindowKind = WindowKind.None });
-
-                    return new ProviderUsage
-                    {
-                        ProviderId = this.ProviderId,
-                        ProviderName = "Claude Code",
-                        RequestsPercentage = usagePercentage,
-                        RequestsUsed = 0, // Anthropic doesn't provide cost via API
-                        RequestsAvailable = 0,
-                        UsageUnit = "RPM",
-                        IsQuotaBased = false,
-                        PlanType = PlanType.Usage,
-                        IsAvailable = true,
-                        Description = description,
-                        Details = tooltipDetails,
-                        AccountName = warningMessage ?? string.Empty, // Using AccountName to carry warning state
-                        RawJson = responseBody,
-                        HttpStatus = (int)testResponse.StatusCode
-                    };
-                }
-
-                // No rate limit headers found
-                return null;
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogError(ex, "Error calling Anthropic API");
-                return null;
-            }
-        }
-
-        private RateLimitInfo ExtractRateLimitInfo(System.Net.Http.Headers.HttpResponseHeaders headers)
-        {
-            var info = new RateLimitInfo();
-
-            if (headers.TryGetValues("anthropic-ratelimit-requests-limit", out var requestLimitValues))
-            {
-                if (int.TryParse(requestLimitValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var limit))
-                    info.RequestsLimit = limit;
-            }
-
-            if (headers.TryGetValues("anthropic-ratelimit-requests-remaining", out var requestRemainingValues))
-            {
-                if (int.TryParse(requestRemainingValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var remaining))
-                    info.RequestsRemaining = remaining;
-            }
-
-            if (headers.TryGetValues("anthropic-ratelimit-input-tokens-limit", out var inputLimitValues))
-            {
-                if (int.TryParse(inputLimitValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var inputLimit))
-                    info.InputTokensLimit = inputLimit;
-            }
-
-            if (headers.TryGetValues("anthropic-ratelimit-input-tokens-remaining", out var inputRemainingValues))
-            {
-                if (int.TryParse(inputRemainingValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var inputRemaining))
-                    info.InputTokensRemaining = inputRemaining;
-            }
-
-            return info;
-        }
-
-        private async Task<IEnumerable<ProviderUsage>> GetUsageFromCliAsync(ProviderConfig config)
-        {
-            return await Task.Run(async () =>
-            {
-                try
+                using var process = Process.Start(startInfo);
+                if (process == null)
                 {
-                    var startInfo = new ProcessStartInfo
+                    // CLI not found, but key is configured - show as available
+                    return new[]
                     {
-                        FileName = "claude",
-                        Arguments = "usage",
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-
-                    using var process = Process.Start(startInfo);
-                    if (process == null)
-                    {
-                        // CLI not found, but key is configured - show as available
-                        return new[] { new ProviderUsage
-                        {
-                            ProviderId = this.ProviderId,
-                            ProviderName = "Claude Code",
-                            IsAvailable = true,
-                            Description = "Connected (API key configured)",
-                            UsageUnit = "Status",
-                            IsQuotaBased = false,
-                            PlanType = PlanType.Usage,
-                            RawJson = "{\"source\":\"claude-cli\",\"status\":\"process_start_failed\"}",
-                            HttpStatus = 503
-                        }};
-                    }
-
-                    var outputTask = process.StandardOutput.ReadToEndAsync();
-                    var errorTask = process.StandardError.ReadToEndAsync();
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                    try
-                    {
-                        await process.WaitForExitAsync(cts.Token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        this._logger.LogWarning("Claude Code CLI timed out");
-                    }
-                    var output = await outputTask;
-                    var error = await errorTask;
-
-                    if (process.ExitCode != 0)
-                    {
-                        this._logger.LogWarning($"Claude Code CLI failed: {error}");
-                        // CLI failed, but key is configured - show as available
-                        return new[] { new ProviderUsage
-                        {
-                            ProviderId = this.ProviderId,
-                            ProviderName = "Claude Code",
-                            IsAvailable = true,
-                            Description = "Connected (API key configured)",
-                            UsageUnit = "Status",
-                            IsQuotaBased = false,
-                            PlanType = PlanType.Usage,
-                            RawJson = string.IsNullOrWhiteSpace(error) ? "{\"source\":\"claude-cli\",\"status\":\"failed\"}" : error,
-                            HttpStatus = 500
-                        }};
-                    }
-
-                    return new[] { this.ParseCliOutput(output) };
-                }
-                catch (Exception ex)
-                {
-                    this._logger.LogError(ex, "Failed to run Claude Code CLI");
-                    // Exception occurred, but key is configured - show as available
-                    return new[] { new ProviderUsage
+                        new ProviderUsage
                     {
                         ProviderId = this.ProviderId,
                         ProviderName = "Claude Code",
@@ -279,90 +243,149 @@ namespace AIUsageTracker.Infrastructure.Providers
                         UsageUnit = "Status",
                         IsQuotaBased = false,
                         PlanType = PlanType.Usage,
-                        RawJson = ex.ToString(),
+                        RawJson = "{\"source\":\"claude-cli\",\"status\":\"process_start_failed\"}",
+                        HttpStatus = 503
+                    },
+                    };
+                }
+
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                var errorTask = process.StandardError.ReadToEndAsync();
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                try
+                {
+                    await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    this._logger.LogWarning("Claude Code CLI timed out");
+                }
+
+                var output = await outputTask.ConfigureAwait(false);
+                var error = await errorTask.ConfigureAwait(false);
+
+                if (process.ExitCode != 0)
+                {
+                    this._logger.LogWarning($"Claude Code CLI failed: {error}");
+
+                    // CLI failed, but key is configured - show as available
+                    return new[]
+                    {
+                        new ProviderUsage
+                    {
+                        ProviderId = this.ProviderId,
+                        ProviderName = "Claude Code",
+                        IsAvailable = true,
+                        Description = "Connected (API key configured)",
+                        UsageUnit = "Status",
+                        IsQuotaBased = false,
+                        PlanType = PlanType.Usage,
+                        RawJson = string.IsNullOrWhiteSpace(error) ? "{\"source\":\"claude-cli\",\"status\":\"failed\"}" : error,
                         HttpStatus = 500
-                    }};
+                    },
+                    };
                 }
-            });
-        }
 
-        private ProviderUsage ParseCliOutput(string output)
-        {
-            // Parse Claude Code usage output
-            double currentUsage = 0;
-            double budgetLimit = 0;
-
-            var usageMatch = Regex.Match(output, @"Current Usage[:\s]+\$?(?<usage>[0-9.]+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
-            if (usageMatch.Success)
-            {
-                double.TryParse(usageMatch.Groups["usage"].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out currentUsage);
+                return new[] { this.ParseCliOutput(output) };
             }
-
-            var budgetMatch = Regex.Match(output, @"Budget Limit[:\s]+\$?(?<budget>[0-9.]+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
-            if (budgetMatch.Success)
+            catch (Exception ex)
             {
-                double.TryParse(budgetMatch.Groups["budget"].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out budgetLimit);
-            }
+                this._logger.LogError(ex, "Failed to run Claude Code CLI");
 
-            var remainingMatch = Regex.Match(output, @"Remaining[:\s]+\$?(?<remaining>[0-9.]+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
-            if (remainingMatch.Success && budgetLimit == 0)
-            {
-                double remaining;
-                if (double.TryParse(remainingMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out remaining))
+                // Exception occurred, but key is configured - show as available
+                return new[]
                 {
-                    budgetLimit = currentUsage + remaining;
-                }
-            }
-
-            double usagePercentage = budgetLimit > 0 ? (currentUsage / budgetLimit) * 100.0 : 0;
-
-            return new ProviderUsage
-            {
-                ProviderId = this.ProviderId,
-                ProviderName = "Claude Code",
-                RequestsPercentage = Math.Min(usagePercentage, 100),
-                RequestsUsed = currentUsage,
-                RequestsAvailable = budgetLimit,
-                UsageUnit = "USD",
-                IsQuotaBased = false,
-                PlanType = PlanType.Usage,
-                IsAvailable = true,
-                Description = budgetLimit > 0
-                    ? $"${currentUsage.ToString("F2", CultureInfo.InvariantCulture)} used of ${budgetLimit.ToString("F2", CultureInfo.InvariantCulture)} limit"
-                    : $"${currentUsage.ToString("F2", CultureInfo.InvariantCulture)} used",
-                RawJson = output,
-                HttpStatus = 200
-            };
-        }
-
-        private class RateLimitInfo
-        {
-            public int RequestsLimit { get; set; }
-
-            public int RequestsRemaining { get; set; }
-
-            public int InputTokensLimit { get; set; }
-
-            public int InputTokensRemaining { get; set; }
-
-            public string GetTierName()
-            {
-                // Determine tier based on request limits
-                // Tier 1: 50 RPM
-                // Tier 2: 1,000 RPM  
-                // Tier 3: 2,000 RPM
-                // Tier 4: 4,000 RPM
-                return this.RequestsLimit switch
+                    new ProviderUsage
                 {
-                    <= 50 => "Tier 1",
-                    <= 1000 => "Tier 2",
-                    <= 2000 => "Tier 3",
-                    <= 4000 => "Tier 4",
-                    _ => "Custom"
+                    ProviderId = this.ProviderId,
+                    ProviderName = "Claude Code",
+                    IsAvailable = true,
+                    Description = "Connected (API key configured)",
+                    UsageUnit = "Status",
+                    IsQuotaBased = false,
+                    PlanType = PlanType.Usage,
+                    RawJson = ex.ToString(),
+                    HttpStatus = 500
+                },
                 };
             }
-        }
+        }).ConfigureAwait(false);
     }
 
+    private ProviderUsage ParseCliOutput(string output)
+    {
+        // Parse Claude Code usage output
+        double currentUsage = 0;
+        double budgetLimit = 0;
 
+        var usageMatch = Regex.Match(output, @"Current Usage[:\s]+\$?(?<usage>[0-9.]+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
+        if (usageMatch.Success)
+        {
+            double.TryParse(usageMatch.Groups["usage"].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out currentUsage);
+        }
+
+        var budgetMatch = Regex.Match(output, @"Budget Limit[:\s]+\$?(?<budget>[0-9.]+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
+        if (budgetMatch.Success)
+        {
+            double.TryParse(budgetMatch.Groups["budget"].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out budgetLimit);
+        }
+
+        var remainingMatch = Regex.Match(output, @"Remaining[:\s]+\$?(?<remaining>[0-9.]+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
+        if (remainingMatch.Success && budgetLimit == 0)
+        {
+            double remaining;
+            if (double.TryParse(remainingMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out remaining))
+            {
+                budgetLimit = currentUsage + remaining;
+            }
+        }
+
+        double usagePercentage = budgetLimit > 0 ? (currentUsage / budgetLimit) * 100.0 : 0;
+
+        return new ProviderUsage
+        {
+            ProviderId = this.ProviderId,
+            ProviderName = "Claude Code",
+            RequestsPercentage = Math.Min(usagePercentage, 100),
+            RequestsUsed = currentUsage,
+            RequestsAvailable = budgetLimit,
+            UsageUnit = "USD",
+            IsQuotaBased = false,
+            PlanType = PlanType.Usage,
+            IsAvailable = true,
+            Description = budgetLimit > 0
+                ? $"${currentUsage.ToString("F2", CultureInfo.InvariantCulture)} used of ${budgetLimit.ToString("F2", CultureInfo.InvariantCulture)} limit"
+                : $"${currentUsage.ToString("F2", CultureInfo.InvariantCulture)} used",
+            RawJson = output,
+            HttpStatus = 200,
+        };
+    }
+
+    private class RateLimitInfo
+    {
+        public int RequestsLimit { get; set; }
+
+        public int RequestsRemaining { get; set; }
+
+        public int InputTokensLimit { get; set; }
+
+        public int InputTokensRemaining { get; set; }
+
+        public string GetTierName()
+        {
+            // Determine tier based on request limits
+            // Tier 1: 50 RPM
+            // Tier 2: 1,000 RPM
+            // Tier 3: 2,000 RPM
+            // Tier 4: 4,000 RPM
+            return this.RequestsLimit switch
+            {
+                <= 50 => "Tier 1",
+                <= 1000 => "Tier 2",
+                <= 2000 => "Tier 3",
+                <= 4000 => "Tier 4",
+                _ => "Custom",
+            };
+        }
+    }
 }
