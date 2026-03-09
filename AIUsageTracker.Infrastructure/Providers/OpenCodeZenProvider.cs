@@ -19,13 +19,13 @@ public class OpenCodeZenProvider : ProviderBase
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;
     private readonly ILogger<OpenCodeZenProvider> _logger;
-    private string this._cliPath;
+    private string _cliPath;
 
     public OpenCodeZenProvider(ILogger<OpenCodeZenProvider> logger)
     {
         this._logger = logger;
         // Default path - should be configurable in real app
-        this.this._cliPath = OperatingSystem.IsWindows()
+        this._cliPath = OperatingSystem.IsWindows()
             ? @"C:\Users\Alexander\AppData\Roaming\npm\opencode.cmd"
             : "opencode";
     }
@@ -33,7 +33,7 @@ public class OpenCodeZenProvider : ProviderBase
     public OpenCodeZenProvider(ILogger<OpenCodeZenProvider> logger, string cliPath) : this(logger)
     {
         this._logger = logger;
-        this.this._cliPath = cliPath;
+        this._cliPath = cliPath;
     }
 
     private static readonly Regex[] CleanupPatterns = new[]
@@ -47,9 +47,9 @@ public class OpenCodeZenProvider : ProviderBase
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
         // Check if CLI exists first
-        var pathExists = string.Equals(this.this._cliPath, "opencode", StringComparison.OrdinalIgnoreCase)
+        var pathExists = string.Equals(this._cliPath, "opencode", StringComparison.OrdinalIgnoreCase)
             ? await IsInPath("opencode")
-            : File.Exists(this.this._cliPath);
+            : File.Exists(this._cliPath);
 
         if (!pathExists)
         {
@@ -64,7 +64,7 @@ public class OpenCodeZenProvider : ProviderBase
                     IsQuotaBased = false,
                     PlanType = PlanType.Usage,
                     AuthSource = config.AuthSource,
-                    RawJson = $"CLI not found at path: {this.this._cliPath}",
+                    RawJson = $"CLI not found at path: {this._cliPath}",
                     HttpStatus = 404
                 }
             };
@@ -100,7 +100,7 @@ public class OpenCodeZenProvider : ProviderBase
     {
         var psi = new ProcessStartInfo
         {
-            FileName = this.this._cliPath,
+            FileName = this._cliPath,
             Arguments = "stats --days 7 --models 10",
             RedirectStandardOutput = true,
             RedirectStandardError = true,

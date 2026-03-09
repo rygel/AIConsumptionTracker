@@ -25,7 +25,7 @@ public class UiPreferencesStore
 
     internal void SetPreferencesPathOverrideForTesting(string? path)
     {
-        this.this._preferencesPathOverride = string.IsNullOrWhiteSpace(path) ? null : path;
+        this._preferencesPathOverride = string.IsNullOrWhiteSpace(path) ? null : path;
     }
 
     private string GetPreferencesPath()
