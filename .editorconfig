@@ -65,6 +65,13 @@ dot_style_diagnostics.use_slashes_for_doc_comments = false
 dot_style_diagnostics.xml_header = false
 dot_style_diagnostics.separate_multiple_def_lines = false
 
+# Formatting rules that dotnet format can enforce (aligns with the mechanical cleanup focus)
+csharp_new_line_between_members = true
+dotnet_style_qualification_for_field = true:warning
+dotnet_style_qualification_for_property = true:warning
+dotnet_style_qualification_for_method = true:warning
+dotnet_style_qualification_for_event = true:warning
+
 [AIUsageTracker.Tests/**/*.cs]
 dot_diagnostic.MA0074.severity = warning
 dot_diagnostic.MA0004.severity = warning
