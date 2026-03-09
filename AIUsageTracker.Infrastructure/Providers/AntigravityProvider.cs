@@ -1,3 +1,7 @@
+// <copyright file="AntigravityProvider.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.Infrastructure.Providers
 {
     using System.Diagnostics;
@@ -471,10 +475,15 @@ namespace AIUsageTracker.Infrastructure.Providers
 
             var data = JsonSerializer.Deserialize<AntigravityResponse>(responseString);
 
-            if (data?.UserStatus == null) throw new Exception("Invalid Antigravity response");
+            if (data?.UserStatus == null)
 
+            {
+
+                throw new Exception("Invalid Antigravity response");
+
+            }
             this._logger.LogDebug("[Antigravity] Email: {Email}, Models: {ModelCount}",
-                PrivacyHelper.MaskContent(data.UserStatus.Email ?? ""),
+                PrivacyHelper.MaskContent(data.UserStatus.Email ?? string.Empty),
                 data.UserStatus.CascadeModelConfigData?.ClientModelConfigs?.Count ?? 0);
 
             var modelConfigs = data.UserStatus.CascadeModelConfigData?.ClientModelConfigs ?? new List<ClientModelConfig>();

@@ -1,3 +1,7 @@
+// <copyright file="Program.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.CLI
 {
     using AIUsageTracker.Core.Models;
@@ -96,7 +100,10 @@ namespace AIUsageTracker.CLI
                     break;
                 case "history":
                     int days = 7;
-                    if (args.Length > 1 && int.TryParse(args[1], System.Globalization.CultureInfo.InvariantCulture, out int d)) days = d;
+                    if (args.Length > 1 && int.TryParse(args[1], System.Globalization.CultureInfo.InvariantCulture, out int d)
+                    {
+                        ) days = d;
+                    }
                     await ShowHistory(agentService, days, json).ConfigureAwait(false);
                     break;
                 case "list":
@@ -123,7 +130,9 @@ namespace AIUsageTracker.CLI
                     break;
                 case "config":
                     if (args.Length == 1)
+                    {
                         await ShowConfig(agentService).ConfigureAwait(false);
+                    }
                     else if (args.Length >= 3)
                         await SetConfig(agentService, args[1], args[2]).ConfigureAwait(false);
                     else
@@ -192,14 +201,19 @@ namespace AIUsageTracker.CLI
 
             for (int i = 1; i < args.Length; i++)
             {
-                if (string.Equals(args[i], "--format", StringComparison.Ordinal) && i + 1 < args.Length) format = args[++i];
+                if (string.Equals(args[i], "--format", StringComparison.Ordinal)
+                {
+                    && i + 1 < args.Length) format = args[++i];
+                }
                 else if (string.Equals(args[i], "--days", StringComparison.Ordinal) && i + 1 < args.Length && int.TryParse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture, out int d)) { days = d; i++; }
                 else if (string.Equals(args[i], "--output", StringComparison.Ordinal) && i + 1 < args.Length) output = args[++i];
             }
 
             // Adjust default extension if format changed but output didn't
-            if (string.Equals(format, "json", StringComparison.Ordinal) && output.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)) output = Path.ChangeExtension(output, ".json");
-
+            if (string.Equals(format, "json", StringComparison.Ordinal)
+            {
+                && output.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)) output = Path.ChangeExtension(output, ".json");
+            }
             Console.WriteLine($"Exporting {days} days of history to {output} ({format})...");
 
             var stream = await service.ExportDataAsync(format, days).ConfigureAwait(false);
@@ -364,7 +378,9 @@ namespace AIUsageTracker.CLI
             {
                 object? typedValue = null;
                 if (prop.PropertyType == typeof(bool))
+                {
                     typedValue = bool.Parse(value);
+                }
                 else if (prop.PropertyType == typeof(int))
                     typedValue = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
                 else if (prop.PropertyType == typeof(double))
@@ -376,7 +392,9 @@ namespace AIUsageTracker.CLI
                 {
                     prop.SetValue(prefs, typedValue);
                     if (await service.SavePreferencesAsync(prefs).ConfigureAwait(false))
+                    {
                         Console.WriteLine($"Configuration '{key}' updated to '{value}'.");
+                    }
                     else
                         Console.WriteLine("Failed to save configuration.");
                 }
@@ -400,14 +418,18 @@ namespace AIUsageTracker.CLI
                 case "stop":
                     Console.WriteLine("Stopping Agent...");
                     if (await MonitorLauncher.StopAgentAsync().ConfigureAwait(false))
+                    {
                         Console.WriteLine("Agent stopped.");
+                    }
                     else
                         Console.WriteLine("Failed to stop Agent.");
                     break;
                 case "start":
                     Console.WriteLine("Starting Agent...");
                     if (await MonitorLauncher.StartAgentAsync().ConfigureAwait(false))
+                    {
                         Console.WriteLine("Agent started.");
+                    }
                     else
                         Console.WriteLine("Failed to start Agent.");
                     break;
@@ -416,7 +438,9 @@ namespace AIUsageTracker.CLI
                     await MonitorLauncher.StopAgentAsync().ConfigureAwait(false);
                     await Task.Delay(1000).ConfigureAwait(false); // Wait a bit
                     if (await MonitorLauncher.StartAgentAsync().ConfigureAwait(false))
+                    {
                         Console.WriteLine("Agent restarted.");
+                    }
                     else
                         Console.WriteLine("Failed to restart Agent.");
                     break;
@@ -447,7 +471,10 @@ namespace AIUsageTracker.CLI
                 if (!usage.Any())
                 {
                     Console.WriteLine("No active providers found.");
-                    if (!showAll) Console.WriteLine("Use --all to see all configured providers.");
+                    if (!showAll)
+                    {
+                        Console.WriteLine("Use --all to see all configured providers.");
+                    }
                 }
 
                 foreach (var u in usage)
@@ -456,13 +483,13 @@ namespace AIUsageTracker.CLI
                     var pct = u.IsAvailable ? $"{usedPct:F0}%" : "-";
                     // Handle missing PlanType or IsQuotaBased if relying on serialized data
                     var type = u.IsQuotaBased ? "Quota" : "Pay-As-You-Go";
-                    var accountInfo = !string.IsNullOrWhiteSpace(u.AccountName) ? $" [{u.AccountName}]" : "";
+                    var accountInfo = !string.IsNullOrWhiteSpace(u.AccountName) ? $" [{u.AccountName}]" : string.Empty;
                     var providerDisplayName = ProviderMetadataCatalog.GetDisplayName(u.ProviderId, u.ProviderName);
 
                     var description = u.Description;
                     if (u.Details != null && u.Details.Any() && string.IsNullOrEmpty(description))
                     {
-                        description = ""; // Keep generic description empty if details exist
+                        description = string.Empty; // Keep generic description empty if details exist
                     }
 
                     // Append account to description (first line)
@@ -482,7 +509,7 @@ namespace AIUsageTracker.CLI
 
                     for (int i = 1; i < lines.Length; i++)
                     {
-                        Console.WriteLine($"{"",-36} | {"",-14} | {"",-10} | {lines[i]}");
+                        Console.WriteLine($"{string.Empty,-36} | {string.Empty,-14} | {string.Empty,-10} | {lines[i]}");
                     }
 
                     var displayableDetails = u.Details?
@@ -493,7 +520,7 @@ namespace AIUsageTracker.CLI
                         foreach (var d in displayableDetails)
                         {
                             var name = "  " + d.Name;
-                            Console.WriteLine($"{name,-36} | {"",-14} | {d.Used,-10} | {d.Description}");
+                            Console.WriteLine($"{name,-36} | {string.Empty,-14} | {d.Used,-10} | {d.Description}");
                         }
                     }
                 }

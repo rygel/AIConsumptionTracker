@@ -1,3 +1,7 @@
+// <copyright file="XiaomiProvider.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.Infrastructure.Providers
 {
     using System.Net.Http.Json;
@@ -61,8 +65,13 @@ namespace AIUsageTracker.Infrastructure.Providers
                 var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 var data = JsonSerializer.Deserialize<XiaomiResponse>(content);
 
-                if (data == null || data.Data == null) throw new Exception("Invalid response from Xiaomi API");
+                if (data == null || data.Data == null)
 
+                {
+
+                    throw new Exception("Invalid response from Xiaomi API");
+
+                }
                 double balance = data.Data.Balance;
                 // Assuming quota is available in response or unlimited
                 double quota = data.Data.Quota;

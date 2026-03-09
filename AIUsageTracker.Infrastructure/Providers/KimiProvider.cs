@@ -1,3 +1,7 @@
+// <copyright file="KimiProvider.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.Infrastructure.Providers
 {
     using System.Globalization;
@@ -83,7 +87,7 @@ namespace AIUsageTracker.Infrastructure.Providers
                 var description = "Active";
 
                 // Limits Detail
-                string soonestResetStr = "";
+                string soonestResetStr = string.Empty;
                 DateTime? soonestResetDt = null;
                 var details = new List<ProviderUsageDetail>();
                 TimeSpan minDiff = TimeSpan.MaxValue;
@@ -109,7 +113,7 @@ namespace AIUsageTracker.Infrastructure.Providers
                     {
                         Name = "Weekly Limit",
                         Used = $"{weeklyUsedPct.ToString("F1", CultureInfo.InvariantCulture)}% used",
-                        Description = $"{remaining} remaining{(!string.IsNullOrEmpty(data.Usage.ResetTime) ? $" (Resets: {this.FormatResetTime(data.Usage.ResetTime)})" : "")}",
+                        Description = $"{remaining} remaining{(!string.IsNullOrEmpty(data.Usage.ResetTime) ? $" (Resets: {this.FormatResetTime(data.Usage.ResetTime)})" : string.Empty)}",
                         NextResetTime = weeklyResetDt,
                         DetailType = ProviderUsageDetailType.QuotaWindow,
                         WindowKind = WindowKind.Secondary
@@ -120,18 +124,25 @@ namespace AIUsageTracker.Infrastructure.Providers
                 {
                     foreach (var limitItem in data.Limits)
                     {
-                        if (limitItem.Detail == null || limitItem.Window == null) continue;
-
+                        if (limitItem.Detail == null || limitItem.Window == null)
+                        {
+                            continue;
+                        }
                         var win = limitItem.Window;
                         var det = limitItem.Detail;
 
-                        if (det.Limit <= 0) continue;
+                        if (det.Limit <= 0)
 
+                        {
+
+                            continue;
+
+                        }
                         string name = $"{this.FormatDuration(win.Duration, win.TimeUnit ?? "TIME_UNIT_MINUTE")} Limit";
                         var itemUsed = det.Limit - det.Remaining;
                         var itemUsedPercentage = det.Limit > 0 ? (itemUsed / (double)det.Limit) * 100.0 : 0;
 
-                        var resetDisplay = this.FormatResetTime(det.ResetTime ?? "");
+                        var resetDisplay = this.FormatResetTime(det.ResetTime ?? string.Empty);
                         DateTime? itemResetDt = null;
                         if (DateTime.TryParse(det.ResetTime, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
                         {
@@ -192,9 +203,18 @@ namespace AIUsageTracker.Infrastructure.Providers
 
         private string FormatDuration(long duration, string unit)
         {
-            if (string.Equals(unit, "TIME_UNIT_MINUTE", StringComparison.Ordinal)) return duration == 60 ? "Hourly" : $"{duration}m";
-            if (string.Equals(unit, "TIME_UNIT_HOUR", StringComparison.Ordinal)) return $"{duration}h";
-            if (string.Equals(unit, "TIME_UNIT_DAY", StringComparison.Ordinal)) return $"{duration}d";
+            if (string.Equals(unit, "TIME_UNIT_MINUTE", StringComparison.Ordinal)
+            {
+                ) return duration == 60 ? "Hourly" : $"{duration}m";
+            }
+            if (string.Equals(unit, "TIME_UNIT_HOUR", StringComparison.Ordinal)
+            {
+                ) return $"{duration}h";
+            }
+            if (string.Equals(unit, "TIME_UNIT_DAY", StringComparison.Ordinal)
+            {
+                ) return $"{duration}d";
+            }
             return unit;
         }
 

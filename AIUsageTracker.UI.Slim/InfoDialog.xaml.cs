@@ -1,3 +1,7 @@
+// <copyright file="InfoDialog.xaml.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.UI.Slim
 {
     using System;
@@ -103,14 +107,23 @@ namespace AIUsageTracker.UI.Slim
         // Or we could duplicate the PrivacyHelper logic here to keep Slim independent
         private string MaskString(string input)
         {
-            if (string.IsNullOrEmpty(input)) return input;
-            if (input.Length <= 2) return "**";
+            if (string.IsNullOrEmpty(input)
+            {
+                ) return input;
+            }
+            if (input.Length <= 2)
+            {
+                return "**";
+            }
             return input.Substring(0, 1) + new string('*', Math.Min(input.Length - 2, 5)) + input.Substring(input.Length - 1);
         }
 `n
         private string MaskPath(string path)
         {
-            if (string.IsNullOrEmpty(path)) return path;
+            if (string.IsNullOrEmpty(path)
+            {
+                ) return path;
+            }
             var filename = Path.GetFileName(path);
             return Path.Combine("C:\\Users\\***\\...", filename);
         }

@@ -1,3 +1,7 @@
+// <copyright file="SettingsWindow.xaml.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.UI.Slim
 {
     using System.Diagnostics;
@@ -1002,8 +1006,10 @@ namespace AIUsageTracker.UI.Slim
     `n
         private void UpdateFontPreview()
         {
-            if (this.FontPreviewText == null) return;
-
+            if (this.FontPreviewText == null)
+            {
+                return;
+            }
             // Update font family
             if (!string.IsNullOrEmpty(this._preferences.FontFamily))
             {

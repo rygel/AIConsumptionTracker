@@ -1,3 +1,7 @@
+// <copyright file="MainViewModel.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.UI.Slim.ViewModels
 {
     using AIUsageTracker.Core.Models;
@@ -59,8 +63,10 @@ namespace AIUsageTracker.UI.Slim.ViewModels
     `n
         public async Task RefreshDataAsync()
         {
-            if (this.IsLoading) return;
-
+            if (this.IsLoading)
+            {
+                return;
+            }
             this.IsLoading = true;
             this.StatusMessage = "Refreshing data...";
             try

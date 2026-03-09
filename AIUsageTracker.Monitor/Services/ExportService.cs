@@ -1,3 +1,7 @@
+// <copyright file="ExportService.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.Monitor.Services
 {
     using AIUsageTracker.Core.Models;
@@ -17,9 +21,14 @@ namespace AIUsageTracker.Monitor.Services
         public async Task<(byte[] content, string contentType, string fileName)> ExportAsync(string format, int days)
         {
             // Limit days to reasonable range
-            if (days < 1) days = 1;
-            if (days > 365) days = 365;
-
+            if (days < 1)
+            {
+                days = 1;
+            }
+            if (days > 365)
+            {
+                days = 365;
+            }
             // Estimate limit based on days (assuming ~100 requests/day max for safety)
             var limit = days * 100;
             var history = await this._database.GetHistoryAsync(limit);
@@ -67,7 +76,10 @@ namespace AIUsageTracker.Monitor.Services
     `n
         private static string EscapeCsv(string field)
         {
-            if (string.IsNullOrEmpty(field)) return "";
+            if (string.IsNullOrEmpty(field)
+            {
+                ) return string.Empty;
+            }
             if (field.Contains(",") || field.Contains("\"") || field.Contains("\n"))
             {
                 return $"\"{field.Replace("\"", "\"\"")}\"";

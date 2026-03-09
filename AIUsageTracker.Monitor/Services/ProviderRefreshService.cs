@@ -1,3 +1,7 @@
+// <copyright file="ProviderRefreshService.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.Monitor.Services
 {
     using AIUsageTracker.Core.Interfaces;
@@ -687,7 +691,7 @@ namespace AIUsageTracker.Monitor.Services
                     var previous = history[1];
 
                     bool isReset = false;
-                    string resetReason = "";
+                    string resetReason = string.Empty;
 
                     // 1. Explicit Reset Detection (via NextResetTime moving forward)
                     if (current.NextResetTime.HasValue && previous.NextResetTime.HasValue)
@@ -777,8 +781,12 @@ namespace AIUsageTracker.Monitor.Services
                     var usage = usages.FirstOrDefault();
 
                     if (usage == null)
+
+                    {
+
                         return (false, "No usage data returned", 404);
 
+                    }
                     if (usage.HttpStatus >= 400 && usage.HttpStatus != 429) // 429 is rate limit, which means auth works
                     {
                         return (false, usage.Description, usage.HttpStatus);

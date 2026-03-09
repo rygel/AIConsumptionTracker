@@ -1,3 +1,7 @@
+// <copyright file="FileLogger.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.Monitor.Logging
 {
     public class FileLogger : ILogger
@@ -31,8 +35,9 @@ namespace AIUsageTracker.Monitor.Logging
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
             if (!this.IsEnabled(logLevel))
+            {
                 return;
-
+            }
             var message = formatter(state, exception);
             var levelStr = GetLevelString(logLevel);
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);

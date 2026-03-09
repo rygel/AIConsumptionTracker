@@ -1,3 +1,7 @@
+// <copyright file="Program.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -96,7 +100,7 @@ try
         {
             Program.AllocConsole();
         }
-        logger.LogInformation("");
+        logger.LogInformation(string.Empty);
         logger.LogInformation("═══════════════════════════════════════════════════════════════");
         logger.LogInformation("  AIUsageTracker.Monitor - DEBUG MODE");
         logger.LogInformation("═══════════════════════════════════════════════════════════════");
@@ -107,7 +111,7 @@ try
         logger.LogInformation("  Runtime:    {Runtime}", Environment.Version);
         logger.LogInformation("  Command Line: {CommandLine}", Environment.CommandLine);
         logger.LogInformation("═══════════════════════════════════════════════════════════════");
-        logger.LogInformation("");
+        logger.LogInformation(string.Empty);
     }
 
     // Reserve the canonical monitor port with retry for transient bind races.
@@ -145,7 +149,13 @@ try
         options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
     });
 
-    if (isDebugMode) logger.LogDebug("Registering services...");
+    if (isDebugMode)
+
+    {
+
+        logger.LogDebug("Registering services...");
+
+    }
     builder.Services.AddSingleton(loggerFactory);
     builder.Services.AddSingleton(pathProvider);
     builder.Services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
@@ -197,7 +207,10 @@ try
     // Health endpoint (check if agent is running)
     app.MapGet("/api/health", (ILogger<Program> logger) =>
     {
-        if (isDebugMode) logger.LogDebug("GET /api/health");
+        if (isDebugMode)
+        {
+            logger.LogDebug("GET /api/health");
+        }
         return Results.Ok(new
         {
             status = "healthy",
@@ -212,8 +225,10 @@ try
     // Diagnostics endpoint
     app.MapGet("/api/diagnostics", (EndpointDataSource endpointDataSource, ProviderRefreshService refreshService, ILogger<Program> logger) =>
     {
-        if (isDebugMode) logger.LogDebug("GET /api/diagnostics");
-
+        if (isDebugMode)
+        {
+            logger.LogDebug("GET /api/diagnostics");
+        }
         var apiEndpoints = endpointDataSource.Endpoints
             .OfType<RouteEndpoint>()
             .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) == true)
@@ -378,20 +393,20 @@ try
 
     if (isDebugMode)
     {
-        logger.LogInformation("");
+        logger.LogInformation(string.Empty);
         logger.LogInformation("═══════════════════════════════════════════════════════════════");
         logger.LogInformation("  Agent ready! Listening on http://localhost:{Port}", port);
         logger.LogInformation("═══════════════════════════════════════════════════════════════");
-        logger.LogInformation("");
+        logger.LogInformation(string.Empty);
         logger.LogInformation("  API Endpoints:");
         logger.LogInformation("    GET  http://localhost:{Port}/api/health", port);
         logger.LogInformation("    GET  http://localhost:{Port}/api/usage", port);
         logger.LogInformation("    GET  http://localhost:{Port}/api/config", port);
         logger.LogInformation("    POST http://localhost:{Port}/api/refresh", port);
-        logger.LogInformation("");
+        logger.LogInformation(string.Empty);
         logger.LogInformation("  Press Ctrl+C to stop");
         logger.LogInformation("═══════════════════════════════════════════════════════════════");
-        logger.LogInformation("");
+        logger.LogInformation(string.Empty);
     }
 
     // Update metadata only after successful bind/start.
@@ -425,14 +440,20 @@ static int ResolveCanonicalPort(int preferredPort, bool debug, ILogger logger)
             listener.Start();
             // Successfully bound - this is our port
             listener.Stop();
-            if (debug) logger.LogDebug("Port {Port} is available on attempt {Attempt}", preferredPort, attempt);
+            if (debug)
+            {
+                logger.LogDebug("Port {Port} is available on attempt {Attempt}", preferredPort, attempt);
+            }
             return preferredPort;
         }
         catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
         {
             if (attempt < maxAttempts)
             {
-                if (debug) logger.LogDebug("Port {Port} in use on attempt {Attempt}, retrying...", preferredPort, attempt);
+                if (debug)
+                {
+                    logger.LogDebug("Port {Port} in use on attempt {Attempt}, retrying...", preferredPort, attempt);
+                }
                 Thread.Sleep(attemptDelay);
                 continue;
             }

@@ -1,3 +1,7 @@
+// <copyright file="BaseViewModel.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.UI.Slim.ViewModels
 {
     using System.ComponentModel;
@@ -14,7 +18,10 @@ namespace AIUsageTracker.UI.Slim.ViewModels
     `n
         protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
         {
-            if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+            if (EqualityComparer<T>.Default.Equals(field, value)
+            {
+                ) return false;
+            }
             field = value;
             this.OnPropertyChanged(propertyName);
             return true;

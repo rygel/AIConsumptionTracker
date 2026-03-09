@@ -1,3 +1,7 @@
+// <copyright file="DataExportService.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.Infrastructure.Services
 {
     using System.Globalization;
@@ -62,7 +66,10 @@ namespace AIUsageTracker.Infrastructure.Services
         {
             try
             {
-                if (!File.Exists(this._dbPath)) return null;
+                if (!File.Exists(this._dbPath)
+                {
+                    ) return null;
+                }
                 return await File.ReadAllBytesAsync(this._dbPath).ConfigureAwait(false);
             }
             catch (Exception ex)

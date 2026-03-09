@@ -1,3 +1,7 @@
+// <copyright file="ImportService.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.Monitor.Services
 {
     using System.Text.Json;
@@ -63,8 +67,10 @@ namespace AIUsageTracker.Monitor.Services
                     while (!reader.EndOfStream)
                     {
                         var line = await reader.ReadLineAsync();
-                        if (string.IsNullOrWhiteSpace(line)) continue;
-
+                        if (string.IsNullOrWhiteSpace(line)
+                        {
+                            ) continue;
+                        }
                         var values = line.Split(',');
                         if (values.Length < 5)
                         {

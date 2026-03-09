@@ -1,3 +1,7 @@
+// <copyright file="OpenCodeZenProvider.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.Infrastructure.Providers
 {
     using System.Diagnostics;
@@ -254,7 +258,7 @@ namespace AIUsageTracker.Infrastructure.Providers
             var cleaned = output;
             foreach (var pattern in CleanupPatterns)
             {
-                cleaned = pattern.Replace(cleaned, "");
+                cleaned = pattern.Replace(cleaned, string.Empty);
             }
             return cleaned;
         }
@@ -264,7 +268,7 @@ namespace AIUsageTracker.Infrastructure.Providers
             var match = Regex.Match(input, pattern, RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
             if (match.Success && match.Groups.Count > 1)
             {
-                var valueStr = match.Groups[1].Value.Replace(",", "");
+                var valueStr = match.Groups[1].Value.Replace(",", string.Empty);
 
                 if (typeof(T) == typeof(double))
                 {
@@ -287,9 +291,18 @@ namespace AIUsageTracker.Infrastructure.Providers
         private string FormatTokens(double tokens)
         {
             var culture = System.Globalization.CultureInfo.InvariantCulture;
-            if (tokens >= 1_000_000_000) return (tokens / 1_000_000_000).ToString("F1", culture) + "B";
-            if (tokens >= 1_000_000) return (tokens / 1_000_000).ToString("F1", culture) + "M";
-            if (tokens >= 1_000) return (tokens / 1_000).ToString("F1", culture) + "K";
+            if (tokens >= 1_000_000_000)
+            {
+                return (tokens / 1_000_000_000).ToString("F1", culture) + "B";
+            }
+            if (tokens >= 1_000_000)
+            {
+                return (tokens / 1_000_000).ToString("F1", culture) + "M";
+            }
+            if (tokens >= 1_000)
+            {
+                return (tokens / 1_000).ToString("F1", culture) + "K";
+            }
             return tokens.ToString("F0", culture);
         }
 
@@ -301,8 +314,13 @@ namespace AIUsageTracker.Infrastructure.Providers
                 .Skip(1)
                 .FirstOrDefault();
 
-            if (string.IsNullOrEmpty(modelBlocks)) return models;
+            if (string.IsNullOrEmpty(modelBlocks)
 
+            {
+
+                ) return models;
+
+            }
             var modelPattern = new Regex(@"(?<model>[^\n]+)\s+Messages\s+(?<messages>[0-9,]+)\s+Input Tokens\s+(?<input>[0-9.,KM]+)\s+Output Tokens\s+(?<output>[0-9.,KM]+)", RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
 
             foreach (Match match in modelPattern.Matches(modelBlocks))
@@ -310,7 +328,7 @@ namespace AIUsageTracker.Infrastructure.Providers
                 var model = new ModelUsage
                 {
                     Name = match.Groups["model"].Value.Trim(),
-                    Messages = int.Parse(match.Groups["messages"].Value.Replace(",", "")),
+                    Messages = int.Parse(match.Groups["messages"].Value.Replace(",", string.Empty)),
                     Tokens = this.ParseTokenCount(match.Groups["input"].Value) + this.ParseTokenCount(match.Groups["output"].Value),
                     Cost = 0.0
                 };
@@ -328,8 +346,13 @@ namespace AIUsageTracker.Infrastructure.Providers
                 .Skip(1)
                 .FirstOrDefault();
 
-            if (string.IsNullOrEmpty(toolBlocks)) return tools;
+            if (string.IsNullOrEmpty(toolBlocks)
 
+            {
+
+                ) return tools;
+
+            }
             var toolPattern = new Regex(@"(?<tool>\w+)\s+[█]+(?<count>[0-9]+)\s+\((?<percentage>[\d.]+)%\)", RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
 
             foreach (Match match in toolPattern.Matches(toolBlocks))
@@ -348,13 +371,23 @@ namespace AIUsageTracker.Infrastructure.Providers
 
         private double ParseTokenCount(string value)
         {
-            if (string.IsNullOrEmpty(value)) return 0;
-
-            var cleaned = value.Replace(",", "");
-            if (cleaned.EndsWith("B")) return double.Parse(cleaned[..^1]) * 1_000_000_000;
-            if (cleaned.EndsWith("M")) return double.Parse(cleaned[..^1]) * 1_000_000;
-            if (cleaned.EndsWith("K")) return double.Parse(cleaned[..^1]) * 1_000;
-
+            if (string.IsNullOrEmpty(value)
+            {
+                ) return 0;
+            }
+            var cleaned = value.Replace(",", string.Empty);
+            if (cleaned.EndsWith("B")
+            {
+                ) return double.Parse(cleaned[..^1]) * 1_000_000_000;
+            }
+            if (cleaned.EndsWith("M")
+            {
+                ) return double.Parse(cleaned[..^1]) * 1_000_000;
+            }
+            if (cleaned.EndsWith("K")
+            {
+                ) return double.Parse(cleaned[..^1]) * 1_000;
+            }
             return double.Parse(cleaned);
         }
 

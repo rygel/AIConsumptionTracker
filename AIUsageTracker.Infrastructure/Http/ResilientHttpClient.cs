@@ -1,3 +1,7 @@
+// <copyright file="ResilientHttpClient.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.Infrastructure.Http
 {
     using System.Net;
@@ -63,8 +67,9 @@ namespace AIUsageTracker.Infrastructure.Http
         public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken = default)
         {
             if (this._disposed)
+            {
                 throw new ObjectDisposedException(nameof(ResilientHttpClient));
-
+            }
             return await this._circuitBreakerPolicy
                 .WrapAsync(this._retryPolicy)
                 .ExecuteAsync(async ct => await this._httpClient.SendAsync(request, ct).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);

@@ -1,3 +1,7 @@
+// <copyright file="ProviderDetailContractTests.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.Tests.Core
 {
     using AIUsageTracker.Core.Models;
@@ -106,11 +110,13 @@ namespace AIUsageTracker.Tests.Core
         private static bool ValidateDetailCombination(ProviderUsageDetail detail)
         {
             if (detail.DetailType == ProviderUsageDetailType.Unknown)
+            {
                 return false;
-
+            }
             if (detail.DetailType == ProviderUsageDetailType.QuotaWindow && detail.WindowKind == WindowKind.None)
+            {
                 return false;
-
+            }
             return true;
         }
 
@@ -119,7 +125,7 @@ namespace AIUsageTracker.Tests.Core
         {
             var detail = new ProviderUsageDetail
             {
-                Name = "",
+                Name = string.Empty,
                 DetailType = ProviderUsageDetailType.Other,
                 WindowKind = WindowKind.None
             };

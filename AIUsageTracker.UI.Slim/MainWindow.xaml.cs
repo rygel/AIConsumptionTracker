@@ -1,3 +1,7 @@
+// <copyright file="MainWindow.xaml.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.UI.Slim
 {
     using System.Diagnostics;
@@ -409,8 +413,10 @@ namespace AIUsageTracker.UI.Slim
     `n
         private async Task SaveWindowPositionAsync()
         {
-            if (!this.IsLoaded || !this._preferencesLoaded) return;
-
+            if (!this.IsLoaded || !this._preferencesLoaded)
+            {
+                return;
+            }
             // Only save if position has changed meaningfully
             if (Math.Abs(this._preferences.WindowLeft.GetValueOrDefault() - this.Left) > 1 ||
                 Math.Abs(this._preferences.WindowTop.GetValueOrDefault() - this.Top) > 1)
@@ -424,8 +430,9 @@ namespace AIUsageTracker.UI.Slim
         private async Task InitializeAsync()
         {
             if (this._isLoading || this._monitorService == null)
+            {
                 return;
-
+            }
             try
             {
                 this._isLoading = true;
@@ -643,8 +650,10 @@ namespace AIUsageTracker.UI.Slim
     `n
         private void InitializeUpdateChecker()
         {
-            if (this._preferences == null) return;
-
+            if (this._preferences == null)
+            {
+                return;
+            }
             var channel = this._preferences.UpdateChannel;
             this._updateChecker = new GitHubUpdateChecker(
                 NullLogger<GitHubUpdateChecker>.Instance,
@@ -858,8 +867,9 @@ namespace AIUsageTracker.UI.Slim
         private async Task RefreshDataAsync()
         {
             if (this._isLoading || this._monitorService == null)
+            {
                 return;
-
+            }
             try
             {
                 this._isLoading = true;
@@ -1005,7 +1015,10 @@ namespace AIUsageTracker.UI.Slim
                             () => currentIsQuota.Value ? this._preferences.IsPlansAndQuotasCollapsed : this._preferences.IsPayAsYouGoCollapsed,
                             v =>
                             {
-                                if (currentIsQuota.Value) this._preferences.IsPlansAndQuotasCollapsed = v;
+                                if (currentIsQuota.Value)
+                                {
+                                    this._preferences.IsPlansAndQuotasCollapsed = v;
+                                }
                                 else this._preferences.IsPayAsYouGoCollapsed = v;
                             });
 
@@ -1015,12 +1028,19 @@ namespace AIUsageTracker.UI.Slim
                         currentContainer = container;
                     }
 
-                    if (currentContainer == null) continue;
+                    if (currentContainer == null)
 
+                    {
+
+                        continue;
+
+                    }
                     // Check if this section is collapsed
                     var isCollapsed = currentIsQuota.Value ? this._preferences.IsPlansAndQuotasCollapsed : this._preferences.IsPayAsYouGoCollapsed;
-                    if (isCollapsed) continue;
-
+                    if (isCollapsed)
+                    {
+                        continue;
+                    }
                     // Special handling for Antigravity
                     if (ProviderMetadataCatalog.IsAggregateParentProviderId(usage.ProviderId ?? string.Empty))
                     {
@@ -1157,7 +1177,9 @@ namespace AIUsageTracker.UI.Slim
             // Container
             var container = new StackPanel();
             if (!string.IsNullOrEmpty(groupKey))
+            {
                 container.Tag = $"{groupKey}Container";
+            }
             container.Visibility = getCollapsed() ? Visibility.Collapsed : Visibility.Visible;
 
             // Click handler
@@ -1287,7 +1309,7 @@ namespace AIUsageTracker.UI.Slim
 
             // Name (gets remaining space)
             var accountPart = string.IsNullOrWhiteSpace(usage.AccountName)
-                ? ""
+                ? string.Empty
                 : $" [{(this._isPrivacyMode ? ProviderStatusPresentationCatalog.MaskAccountIdentifier(usage.AccountName) : usage.AccountName)}]";
             AddDockedElement(
                 contentPanel,
@@ -1496,8 +1518,10 @@ namespace AIUsageTracker.UI.Slim
     `n
         private void AddCollapsibleSubProviders(ProviderUsage usage, StackPanel container)
         {
-            if (usage.Details?.Any() != true) return;
-
+            if (usage.Details?.Any()
+            {
+                != true) return;
+            }
             var displayableDetails = ProviderSubDetailPresentationCatalog.GetDisplayableDetails(usage);
 
             if (!displayableDetails.Any())
@@ -1539,9 +1563,21 @@ namespace AIUsageTracker.UI.Slim
         {
             var diff = nextReset - DateTime.Now;
 
-            if (diff.TotalSeconds <= 0) return "0m";
-            if (diff.TotalDays >= 1) return $"{diff.Days}d {diff.Hours}h";
-            if (diff.TotalHours >= 1) return $"{diff.Hours}h {diff.Minutes}m";
+            if (diff.TotalSeconds <= 0)
+
+            {
+
+                return "0m";
+
+            }
+            if (diff.TotalDays >= 1)
+            {
+                return $"{diff.Days}d {diff.Hours}h";
+            }
+            if (diff.TotalHours >= 1)
+            {
+                return $"{diff.Hours}h {diff.Minutes}m";
+            }
             return $"{Math.Max(1, (int)Math.Ceiling(diff.TotalMinutes))}m";
         }
     `n
@@ -1642,8 +1678,17 @@ namespace AIUsageTracker.UI.Slim
             var yellowThreshold = this._preferences.ColorThresholdYellow;
             var redThreshold = this._preferences.ColorThresholdRed;
 
-            if (usedPercentage >= redThreshold) return this.GetResourceBrush("ProgressBarRed", Brushes.Crimson);
-            if (usedPercentage >= yellowThreshold) return this.GetResourceBrush("ProgressBarYellow", Brushes.Gold);
+            if (usedPercentage >= redThreshold)
+
+            {
+
+                return this.GetResourceBrush("ProgressBarRed", Brushes.Crimson);
+
+            }
+            if (usedPercentage >= yellowThreshold)
+            {
+                return this.GetResourceBrush("ProgressBarYellow", Brushes.Gold);
+            }
             return this.GetResourceBrush("ProgressBarGreen", Brushes.MediumSeaGreen);
         }
     `n
@@ -2109,8 +2154,10 @@ namespace AIUsageTracker.UI.Slim
         {
             try
             {
-                if (!this.IsLoaded) return;
-
+                if (!this.IsLoaded)
+                {
+                    return;
+                }
                 this._preferences.AlwaysOnTop = this.AlwaysOnTopCheck.IsChecked ?? true;
                 if (this._preferences.AlwaysOnTop)
                 {
@@ -2138,8 +2185,10 @@ namespace AIUsageTracker.UI.Slim
         {
             try
             {
-                if (!this.IsLoaded) return;
-
+                if (!this.IsLoaded)
+                {
+                    return;
+                }
                 this._preferences.InvertProgressBar = this.ShowUsedToggle.IsChecked ?? false;
                 await this.SaveUiPreferencesAsync();
 

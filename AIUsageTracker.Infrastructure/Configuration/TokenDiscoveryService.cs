@@ -1,3 +1,7 @@
+// <copyright file="TokenDiscoveryService.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace AIUsageTracker.Infrastructure.Configuration
 {
     using System.Collections;
@@ -36,8 +40,13 @@ namespace AIUsageTracker.Infrastructure.Configuration
                 var key = var.Key.ToString()?.ToUpperInvariant();
                 var value = var.Value?.ToString();
 
-                if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(value)) continue;
+                if (string.IsNullOrEmpty(key)
 
+                {
+
+                    || string.IsNullOrEmpty(value)) continue;
+
+                }
                 this.TryAddEnvironmentVariable(discoveredConfigs, key, value);
             }
 

@@ -1,3 +1,7 @@
+// <copyright file="Program.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
 namespace Seeder
 {
     using System;
@@ -142,8 +146,8 @@ namespace Seeder
                 {
                     providers.Add(new ProviderFixture
                     {
-                        ProviderId = reader.IsDBNull(0) ? "" : reader.GetString(0),
-                        ProviderName = reader.IsDBNull(1) ? "" : reader.GetString(1),
+                        ProviderId = reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+                        ProviderName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
                         AccountName = reader.IsDBNull(2) ? null : reader.GetString(2),
                         IsActive = reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
                         ConfigJson = reader.IsDBNull(4) ? null : reader.GetString(4)
@@ -174,14 +178,14 @@ namespace Seeder
                 {
                     latestHistory.Add(new HistoryFixture
                     {
-                        ProviderId = reader.IsDBNull(0) ? "" : reader.GetString(0),
+                        ProviderId = reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
                         RequestsUsed = reader.IsDBNull(1) ? 0 : reader.GetDouble(1),
                         RequestsAvailable = reader.IsDBNull(2) ? 0 : reader.GetDouble(2),
                         RequestsPercentage = reader.IsDBNull(3) ? 0 : reader.GetDouble(3),
                         IsAvailable = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
-                        StatusMessage = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                        StatusMessage = reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
                         NextResetTime = reader.IsDBNull(6) ? null : reader.GetString(6),
-                        FetchedAt = reader.IsDBNull(7) ? "" : reader.GetString(7),
+                        FetchedAt = reader.IsDBNull(7) ? string.Empty : reader.GetString(7),
                         DetailsJson = reader.IsDBNull(8) ? null : reader.GetString(8),
                         ResponseLatencyMs = reader.IsDBNull(9) ? 0 : reader.GetDouble(9)
                     });
@@ -207,14 +211,14 @@ namespace Seeder
                 {
                     history7Days.Add(new HistoryFixture
                     {
-                        ProviderId = reader.IsDBNull(0) ? "" : reader.GetString(0),
+                        ProviderId = reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
                         RequestsUsed = reader.IsDBNull(1) ? 0 : reader.GetDouble(1),
                         RequestsAvailable = reader.IsDBNull(2) ? 0 : reader.GetDouble(2),
                         RequestsPercentage = reader.IsDBNull(3) ? 0 : reader.GetDouble(3),
                         IsAvailable = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
-                        StatusMessage = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                        StatusMessage = reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
                         NextResetTime = reader.IsDBNull(6) ? null : reader.GetString(6),
-                        FetchedAt = reader.IsDBNull(7) ? "" : reader.GetString(7),
+                        FetchedAt = reader.IsDBNull(7) ? string.Empty : reader.GetString(7),
                         DetailsJson = reader.IsDBNull(8) ? null : reader.GetString(8),
                         ResponseLatencyMs = reader.IsDBNull(9) ? 0 : reader.GetDouble(9)
                     });
