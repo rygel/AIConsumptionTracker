@@ -2,350 +2,367 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-namespace AIUsageTracker.Infrastructure.Providers
+using System.Globalization;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
+using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Providers;
+using Microsoft.Extensions.Logging;
+
+namespace AIUsageTracker.Infrastructure.Providers;
+
+public class GeminiProvider : ProviderBase
 {
-    using System.Globalization;
-    using System.Net.Http.Json;
-    using System.Text;
-    using System.Text.Json;
-    using System.Text.Json.Serialization;
-    using System.Text.RegularExpressions;
-    using Microsoft.Extensions.Logging;
-    using AIUsageTracker.Core.Models;
-    using AIUsageTracker.Core.Providers;
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "gemini-cli",
+        displayName: "Google Gemini",
+        planType: PlanType.Coding,
+        isQuotaBased: true,
+        defaultConfigType: "quota-based",
+        autoIncludeWhenUnconfigured: true,
+        includeInWellKnownProviders: true,
+        handledProviderIds: new[] { "gemini-cli", "gemini" },
+        rooConfigPropertyNames: new[] { "geminiApiKey" },
+        iconAssetName: "google",
+        fallbackBadgeColorHex: "#1E90FF",
+        fallbackBadgeInitial: "G");
 
-    public class GeminiProvider : ProviderBase
+    /// <inheritdoc/>
+    public override ProviderDefinition Definition => StaticDefinition;
+
+    /// <inheritdoc/>
+    public override string ProviderId => StaticDefinition.ProviderId;
+
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<GeminiProvider> _logger;
+    private readonly string? _accountsPathOverride;
+    private readonly string? _oauthCredsPathOverride;
+
+    // Public OAuth client ID embedded in the open-source gemini-cli tool.
+    // This is NOT a secret — it is intentionally public and shipped with the CLI.
+    private const string GeminiCliClientId =
+        "10710060605" + "91-tmhssin2h21lcre235vtoloj" + "h4g403ep.apps.googleusercontent.com";
+
+    // Alternative client ID from the VS Code / JetBrains plugin which sometimes has better access.
+    private const string GeminiPluginClientId =
+        "681255809395" + "-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
+
+    public GeminiProvider(HttpClient httpClient, ILogger<GeminiProvider> logger)
+        : this(httpClient, logger, null, null)
     {
-        public static ProviderDefinition StaticDefinition { get; } = new(
-            providerId: "gemini-cli",
-            displayName: "Google Gemini",
-            planType: PlanType.Coding,
-            isQuotaBased: true,
-            defaultConfigType: "quota-based",
-            autoIncludeWhenUnconfigured: true,
-            includeInWellKnownProviders: true,
-            handledProviderIds: new[] { "gemini-cli", "gemini" },
-            rooConfigPropertyNames: new[] { "geminiApiKey" },
-            iconAssetName: "google",
-            fallbackBadgeColorHex: "#1E90FF",
-            fallbackBadgeInitial: "G");
+    }
 
-        public override ProviderDefinition Definition => StaticDefinition;
+    // Constructor for testing
+    internal GeminiProvider(HttpClient httpClient, ILogger<GeminiProvider> logger, string? accountsPathOverride, string? oauthCredsPathOverride)
+    {
+        this._httpClient = httpClient;
+        this._logger = logger;
+        this._accountsPathOverride = accountsPathOverride;
+        this._oauthCredsPathOverride = oauthCredsPathOverride;
+    }
 
-        public override string ProviderId => StaticDefinition.ProviderId;
-
-        private readonly HttpClient _httpClient;
-        private readonly ILogger<GeminiProvider> _logger;
-        private readonly string? _accountsPathOverride;
-        private readonly string? _oauthCredsPathOverride;
-
-        // Public OAuth client ID embedded in the open-source gemini-cli tool.
-        // This is NOT a secret — it is intentionally public and shipped with the CLI.
-        private const string GeminiCliClientId =
-            "10710060605" + "91-tmhssin2h21lcre235vtoloj" + "h4g403ep.apps.googleusercontent.com";
-
-        // Alternative client ID from the VS Code / JetBrains plugin which sometimes has better access.
-        private const string GeminiPluginClientId =
-            "681255809395" + "-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
-
-        public GeminiProvider(HttpClient httpClient, ILogger<GeminiProvider> logger)
-            : this(httpClient, logger, null, null)
+    /// <inheritdoc/>
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    {
+        // 1. Load Accounts
+        var accounts = this.LoadAntigravityAccounts();
+        if (accounts == null || accounts.Accounts == null || !accounts.Accounts.Any())
         {
-        }
-
-        // Constructor for testing
-        internal GeminiProvider(HttpClient httpClient, ILogger<GeminiProvider> logger, string? accountsPathOverride, string? oauthCredsPathOverride)
-        {
-            this._httpClient = httpClient;
-            this._logger = logger;
-            this._accountsPathOverride = accountsPathOverride;
-            this._oauthCredsPathOverride = oauthCredsPathOverride;
-        }
-
-        public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
-        {
-            // 1. Load Accounts
-            var accounts = this.LoadAntigravityAccounts();
-            if (accounts == null || accounts.Accounts == null || !accounts.Accounts.Any())
+            return new[]
             {
-                return new[] { new ProviderUsage
+                new ProviderUsage
+            {
+                ProviderId = this.ProviderId,
+                ProviderName = "Gemini CLI",
+                IsAvailable = false,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                Description = "No Gemini accounts found"
+            },
+            };
+        }
+
+        var results = new List<ProviderUsage>();
+
+        foreach (var account in accounts.Accounts)
+        {
+            try
+            {
+                var accessToken = await this.RefreshTokenAsync(account.RefreshToken).ConfigureAwait(false);
+                var buckets = await this.FetchQuotaAsync(accessToken, account.ProjectId).ConfigureAwait(false);
+                var allBuckets = buckets ?? new List<Bucket>();
+
+                double minFrac = 1.0;
+                string mainResetStr = string.Empty;
+                DateTime? soonestResetDt = null;
+                var details = new List<ProviderUsageDetail>();
+
+                if (allBuckets.Any())
+                {
+                    foreach (var bucket in allBuckets)
+                    {
+                        minFrac = Math.Min(minFrac, bucket.RemainingFraction);
+                        string name = "Quota Bucket";
+                        if (bucket.ExtensionData != null && bucket.ExtensionData.TryGetValue("quotaId", out var qidElement))
+                        {
+                            var qid = qidElement;
+                            name = System.Text.RegularExpressions.Regex.Replace(name, "(?<lower>[a-z])(?<upper>[A-Z])", "${lower} ${upper}", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
+                            name = name.Replace("Requests Per Day", "(Day)").Replace("Requests Per Minute", "(Min)");
+                        }
+
+                        var bucketRemainingPercentage = UsageMath.ClampPercent(bucket.RemainingFraction * 100.0);
+                        string? resetTime = bucket.ResetTime;
+
+                        if (string.IsNullOrEmpty(resetTime) && bucket.ExtensionData != null && bucket.ExtensionData.TryGetValue("quotaId", out qidElement))
+                        {
+                            var qid = qidElement.ToString();
+                            if (qid.Contains("RequestsPerDay", StringComparison.OrdinalIgnoreCase))
+                            {
+                                resetTime = DateTime.UtcNow.Date.AddDays(1).ToString("o");
+                            }
+                            else if (qid.Contains("RequestsPerMinute", StringComparison.OrdinalIgnoreCase))
+                            {
+                                resetTime = DateTime.UtcNow.AddMinutes(1).ToString("o");
+                            }
+                        }
+
+                        string resetStr = string.Empty;
+                        DateTime? itemResetDt = null;
+                        if (!string.IsNullOrEmpty(resetTime))
+                        {
+                            if (DateTime.TryParse(resetTime, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal, out var dt))
+                            {
+                                var diff = dt.ToLocalTime() - DateTime.Now;
+                                if (diff.TotalSeconds > 0)
+                                {
+                                    resetStr = $" (Resets: ({dt.ToLocalTime():MMM dd HH:mm}))";
+                                    itemResetDt = dt.ToLocalTime();
+                                    bucket.ResetTime = resetTime;
+                                }
+                            }
+                        }
+
+                        details.Add(new ProviderUsageDetail
+                        {
+                            Name = name,
+                            Used = $"{bucketRemainingPercentage:F1}%",
+                            Description = $"{bucket.RemainingFraction:P1} remaining{resetStr}",
+                            NextResetTime = itemResetDt,
+                            DetailType = ProviderUsageDetailType.QuotaWindow,
+                            WindowKind = WindowKind.Primary,
+                        });
+                    }
+                }
+
+                // Sort details
+                details = details.OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase).ToList();
+
+                var remainingPercentage = UsageMath.ClampPercent(minFrac * 100.0);
+                var usedPercentage = 100.0 - remainingPercentage;
+
+                var soonestBucket = allBuckets.Where(b => !string.IsNullOrEmpty(b.ResetTime))
+                                              .OrderBy(b => DateTime.TryParse(b.ResetTime, System.Globalization.CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt) ? dt : DateTime.MaxValue)
+                                             .FirstOrDefault();
+
+                if (soonestBucket != null && DateTime.TryParse(soonestBucket.ResetTime, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal, out var sdt))
+                {
+                    var diff = sdt.ToLocalTime() - DateTime.Now;
+                    if (diff.TotalSeconds > 0)
+                    {
+                        mainResetStr = $" (Resets: ({sdt.ToLocalTime():MMM dd HH:mm}))";
+                        soonestResetDt = sdt.ToLocalTime();
+                    }
+                }
+
+                results.Add(new ProviderUsage
+                {
+                    ProviderId = this.ProviderId,
+                    ProviderName = "Gemini CLI",
+                    RequestsPercentage = remainingPercentage,
+                    RequestsUsed = usedPercentage,
+                    RequestsAvailable = 100,
+                    UsageUnit = "Quota %",
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Coding,
+                    AccountName = account.Email, // Separate usage per account
+                    Description = $"{remainingPercentage:F1}% Remaining{mainResetStr}",
+                    NextResetTime = soonestResetDt,
+                    Details = details,
+                    RawJson = JsonSerializer.Serialize(new { buckets = allBuckets }),
+                    HttpStatus = 200,
+                });
+            }
+            catch (Exception ex)
+            {
+                this._logger.LogWarning(ex, $"Failed to fetch Gemini quota for {account.Email}");
+                results.Add(new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
                     ProviderName = "Gemini CLI",
                     IsAvailable = false,
-                    IsQuotaBased = true,
-                    PlanType = PlanType.Coding,
-                    Description = "No Gemini accounts found"
-                }};
+                    Description = $"Error: {ex.Message}",
+                    AccountName = account.Email,
+                });
             }
-
-            var results = new List<ProviderUsage>();
-
-            foreach (var account in accounts.Accounts)
-            {
-                try
-                {
-                    var accessToken = await this.RefreshTokenAsync(account.RefreshToken).ConfigureAwait(false);
-                    var buckets = await this.FetchQuota(accessToken, account.ProjectId);
-                    var allBuckets = buckets ?? new List<Bucket>();
-
-                    double minFrac = 1.0;
-                    string mainResetStr = string.Empty;
-                    DateTime? soonestResetDt = null;
-                    var details = new List<ProviderUsageDetail>();
-
-                    if (allBuckets.Any())
-                    {
-                        foreach (var bucket in allBuckets)
-                        {
-                            minFrac = Math.Min(minFrac, bucket.RemainingFraction);
-                            string name = "Quota Bucket";
-                            if (bucket.ExtensionData != null && bucket.ExtensionData.TryGetValue("quotaId", out var qidElement))
-                            {
-                                var qid = qidElement;
-                                name = System.Text.RegularExpressions.Regex.Replace(name, "(?<lower>[a-z])(?<upper>[A-Z])", "${lower} ${upper}", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
-                                name = name.Replace("Requests Per Day", "(Day)").Replace("Requests Per Minute", "(Min)");
-                            }
-
-                            var bucketRemainingPercentage = UsageMath.ClampPercent(bucket.RemainingFraction * 100.0);
-                            string? resetTime = bucket.ResetTime;
-
-                            if (string.IsNullOrEmpty(resetTime) && bucket.ExtensionData != null && bucket.ExtensionData.TryGetValue("quotaId", out qidElement))
-                            {
-                                var qid = qidElement.ToString();
-                                if (qid.Contains("RequestsPerDay", StringComparison.OrdinalIgnoreCase))
-                                    resetTime = DateTime.UtcNow.Date.AddDays(1).ToString("o");
-                                else if (qid.Contains("RequestsPerMinute", StringComparison.OrdinalIgnoreCase))
-                                    resetTime = DateTime.UtcNow.AddMinutes(1).ToString("o");
-                            }
-
-                            string resetStr = string.Empty;
-                            DateTime? itemResetDt = null;
-                            if (!string.IsNullOrEmpty(resetTime))
-                            {
-                                if (DateTime.TryParse(resetTime, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal, out var dt))
-                                {
-                                    var diff = dt.ToLocalTime() - DateTime.Now;
-                                    if (diff.TotalSeconds > 0)
-                                    {
-                                        resetStr = $" (Resets: ({dt.ToLocalTime():MMM dd HH:mm}))";
-                                        itemResetDt = dt.ToLocalTime();
-                                        bucket.ResetTime = resetTime;
-                                    }
-                                }
-                            }
-
-                            details.Add(new ProviderUsageDetail
-                            {
-                                Name = name,
-                                Used = $"{bucketRemainingPercentage:F1}%",
-                                Description = $"{bucket.RemainingFraction:P1} remaining{resetStr}",
-                                NextResetTime = itemResetDt,
-                                DetailType = ProviderUsageDetailType.QuotaWindow,
-                                WindowKind = WindowKind.Primary
-                            });
-                        }
-                    }
-
-                    // Sort details
-                    details = details.OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase).ToList();
-
-                    var remainingPercentage = UsageMath.ClampPercent(minFrac * 100.0);
-                    var usedPercentage = 100.0 - remainingPercentage;
-
-                    var soonestBucket = allBuckets.Where(b => !string.IsNullOrEmpty(b.ResetTime))
-                                                  .OrderBy(b => DateTime.TryParse(b.ResetTime, System.Globalization.CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt) ? dt : DateTime.MaxValue)
-                                                 .FirstOrDefault();
-
-                    if (soonestBucket != null && DateTime.TryParse(soonestBucket.ResetTime, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal, out var sdt))
-                    {
-                        var diff = sdt.ToLocalTime() - DateTime.Now;
-                        if (diff.TotalSeconds > 0)
-                        {
-                            mainResetStr = $" (Resets: ({sdt.ToLocalTime():MMM dd HH:mm}))";
-                            soonestResetDt = sdt.ToLocalTime();
-                        }
-                    }
-
-                    results.Add(new ProviderUsage
-                    {
-                        ProviderId = this.ProviderId,
-                        ProviderName = "Gemini CLI",
-                        RequestsPercentage = remainingPercentage,
-                        RequestsUsed = usedPercentage,
-                        RequestsAvailable = 100,
-                        UsageUnit = "Quota %",
-                        IsQuotaBased = true,
-                        PlanType = PlanType.Coding,
-                        AccountName = account.Email, // Separate usage per account
-                        Description = $"{remainingPercentage:F1}% Remaining{mainResetStr}",
-                        NextResetTime = soonestResetDt,
-                        Details = details,
-                        RawJson = JsonSerializer.Serialize(new { buckets = allBuckets }),
-                        HttpStatus = 200
-                    });
-                }
-                catch (Exception ex)
-                {
-                    this._logger.LogWarning(ex, $"Failed to fetch Gemini quota for {account.Email}");
-                    results.Add(new ProviderUsage
-                    {
-                        ProviderId = this.ProviderId,
-                        ProviderName = "Gemini CLI",
-                        IsAvailable = false,
-                        Description = $"Error: {ex.Message}",
-                        AccountName = account.Email
-                    });
-                }
-            }
-
-            if (results.Any(r => r.IsAvailable))
-            {
-                results = results.Where(r => r.IsAvailable).ToList();
-            }
-
-            if (!results.Any())
-            {
-                return new[] { new ProviderUsage
-                 {
-                     ProviderId = this.ProviderId,
-                     ProviderName = "Gemini CLI",
-                     IsAvailable = false,
-                     Description = "Failed to fetch quota for any account"
-                 }};
-            }
-
-            return results;
         }
 
-        private AntigravityAccounts? LoadAntigravityAccounts()
+        if (results.Any(r => r.IsAvailable))
         {
-            var path = this._accountsPathOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config", "opencode", "antigravity-accounts.json");
-            if (!File.Exists(path)) return null;
+            results = results.Where(r => r.IsAvailable).ToList();
+        }
 
+        if (!results.Any())
+        {
+            return new[]
+            {
+                new ProviderUsage
+             {
+                 ProviderId = this.ProviderId,
+                 ProviderName = "Gemini CLI",
+                 IsAvailable = false,
+                 Description = "Failed to fetch quota for any account"
+             },
+            };
+        }
+
+        return results;
+    }
+
+    private AntigravityAccounts? LoadAntigravityAccounts()
+    {
+        var path = this._accountsPathOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config", "opencode", "antigravity-accounts.json");
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(path);
+            return JsonSerializer.Deserialize<AntigravityAccounts>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogError(ex, "Failed to load antigravity-accounts.json");
+            return null;
+        }
+    }
+
+    private async Task<string> RefreshTokenAsync(string refreshToken)
+    {
+        string clientId = GeminiCliClientId;
+
+        // Logic to prefer Plugin Client ID if specified in oauth_creds.json (used in tests)
+        if (!string.IsNullOrEmpty(this._oauthCredsPathOverride) && File.Exists(this._oauthCredsPathOverride))
+        {
             try
             {
-                var json = File.ReadAllText(path);
-                return JsonSerializer.Deserialize<AntigravityAccounts>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogError(ex, "Failed to load antigravity-accounts.json");
-                return null;
-            }
-        }
-
-        private async Task<string> RefreshTokenAsync(string refreshToken)
-        {
-            string clientId = GeminiCliClientId;
-
-            // Logic to prefer Plugin Client ID if specified in oauth_creds.json (used in tests)
-            if (!string.IsNullOrEmpty(this._oauthCredsPathOverride) && File.Exists(this._oauthCredsPathOverride))
-            {
-                try
+                var json = File.ReadAllText(this._oauthCredsPathOverride);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("id_token", out var idToken))
                 {
-                    var json = File.ReadAllText(this._oauthCredsPathOverride);
-                    using var doc = JsonDocument.Parse(json);
-                    if (doc.RootElement.TryGetProperty("id_token", out var idToken))
+                    var token = idToken.GetString();
+                    if (!string.IsNullOrEmpty(token))
                     {
-                        var token = idToken.GetString();
-                        if (!string.IsNullOrEmpty(token))
+                        var parts = token.Split('.');
+                        if (parts.Length > 1)
                         {
-                            var parts = token.Split('.');
-                            if (parts.Length > 1)
+                            var payload = Encoding.UTF8.GetString(Convert.FromBase64String(parts[1].Replace('-', '+').Replace('_', '/').PadRight(parts[1].Length + ((4 - (parts[1].Length % 4)) % 4), '=')));
+                            using var payloadDoc = JsonDocument.Parse(payload);
+                            if (payloadDoc.RootElement.TryGetProperty("aud", out var aud) && string.Equals(aud.GetString(), GeminiPluginClientId, StringComparison.Ordinal))
                             {
-                                var payload = Encoding.UTF8.GetString(Convert.FromBase64String(parts[1].Replace('-', '+').Replace('_', '/').PadRight(parts[1].Length + (4 - parts[1].Length % 4) % 4, '=')));
-                                using var payloadDoc = JsonDocument.Parse(payload);
-                                if (payloadDoc.RootElement.TryGetProperty("aud", out var aud) && string.Equals(aud.GetString(), GeminiPluginClientId, StringComparison.Ordinal))
-                                {
-                                    clientId = GeminiPluginClientId;
-                                }
+                                clientId = GeminiPluginClientId;
                             }
                         }
                     }
                 }
-                catch { /* Ignore */ }
             }
-
-            try
-            {
-                return await this.DoRefreshToken(refreshToken, clientId);
-            }
-            catch when (string.Equals(clientId, GeminiCliClientId, StringComparison.Ordinal))
-            {
-                // If default client fails, retry with plugin client
-                return await this.DoRefreshToken(refreshToken, GeminiPluginClientId);
+            catch
+            { /* Ignore */
             }
         }
 
-        private async Task<string> DoRefreshToken(string refreshToken, string clientId)
+        try
         {
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token");
-            var content = new FormUrlEncodedContent(new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                { "client_id", clientId },
-                { "client_secret", string.Empty },
-                { "refresh_token", refreshToken },
-                { "grant_type", "refresh_token" }
-            });
-            request.Content = content;
-
-            var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-
-            var tokenResponse = await response.Content.ReadFromJsonAsync<GeminiTokenResponse>().ConfigureAwait(false);
-            return tokenResponse?.AccessToken ?? throw new Exception("Failed to retrieve access token");
+            return await this.DoRefreshTokenAsync(refreshToken, clientId).ConfigureAwait(false);
         }
-
-        private async Task<List<Bucket>?> FetchQuota(string accessToken, string projectId)
+        catch when (string.Equals(clientId, GeminiCliClientId, StringComparison.Ordinal))
         {
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota");
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-            request.Content = JsonContent.Create(new { project = projectId });
-
-            var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-
-            var data = await response.Content.ReadFromJsonAsync<GeminiQuotaResponse>().ConfigureAwait(false);
-            return data?.Buckets;
+            // If default client fails, retry with plugin client
+            return await this.DoRefreshTokenAsync(refreshToken, GeminiPluginClientId).ConfigureAwait(false);
         }
+    }
 
-        private class AntigravityAccounts
+    private async Task<string> DoRefreshTokenAsync(string refreshToken, string clientId)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token");
+        var content = new FormUrlEncodedContent(new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            public List<Account>? Accounts { get; set; }
-        }
+            { "client_id", clientId },
+            { "client_secret", string.Empty },
+            { "refresh_token", refreshToken },
+            { "grant_type", "refresh_token" },
+        });
+        request.Content = content;
 
-        private class Account
-        {
-            public string Email { get; set; } = string.Empty;
+        var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
 
-            public string RefreshToken { get; set; } = string.Empty;
+        var tokenResponse = await response.Content.ReadFromJsonAsync<GeminiTokenResponse>().ConfigureAwait(false);
+        return tokenResponse?.AccessToken ?? throw new Exception("Failed to retrieve access token");
+    }
 
-            public string ProjectId { get; set; } = string.Empty;
-        }
+    private async Task<List<Bucket>?> FetchQuotaAsync(string accessToken, string projectId)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        request.Content = JsonContent.Create(new { project = projectId });
 
-        private class GeminiTokenResponse
-        {
-            [JsonPropertyName("access_token")]
-            public string? AccessToken { get; set; }
-        }
+        var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
 
-        private class GeminiQuotaResponse
-        {
-            [JsonPropertyName("buckets")]
-            public List<Bucket>? Buckets { get; set; }
-        }
+        var data = await response.Content.ReadFromJsonAsync<GeminiQuotaResponse>().ConfigureAwait(false);
+        return data?.Buckets;
+    }
 
-        private class Bucket
-        {
-            [JsonPropertyName("remainingFraction")]
-            public double RemainingFraction { get; set; }
+    private class AntigravityAccounts
+    {
+        public List<Account>? Accounts { get; set; }
+    }
 
-            [JsonPropertyName("resetTime")]
-            public string? ResetTime { get; set; }
+    private class Account
+    {
+        public string Email { get; set; } = string.Empty;
 
-            [JsonExtensionData]
-            public Dictionary<string, JsonElement>? ExtensionData { get; set; }
-        }
+        public string RefreshToken { get; set; } = string.Empty;
+
+        public string ProjectId { get; set; } = string.Empty;
+    }
+
+    private class GeminiTokenResponse
+    {
+        [JsonPropertyName("access_token")]
+        public string? AccessToken { get; set; }
+    }
+
+    private class GeminiQuotaResponse
+    {
+        [JsonPropertyName("buckets")]
+        public List<Bucket>? Buckets { get; set; }
+    }
+
+    private class Bucket
+    {
+        [JsonPropertyName("remainingFraction")]
+        public double RemainingFraction { get; set; }
+
+        [JsonPropertyName("resetTime")]
+        public string? ResetTime { get; set; }
+
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 }
