@@ -1,31 +1,32 @@
-using AIUsageTracker.Core.Models;
-
-namespace AIUsageTracker.Tests.Models;
-
-public class ModelTests
+namespace AIUsageTracker.Tests.Models
 {
-    [Fact]
-    public void ProviderUsage_Initialization_SetsDefaultValues()
-    {
-        // Arrange & Act
-        var usage = new ProviderUsage();
+    using AIUsageTracker.Core.Models;
 
-        // Assert
-        Assert.Equal(PlanType.Usage, usage.PlanType);
-        Assert.False(usage.IsQuotaBased);
-        Assert.True(usage.IsAvailable);
-        Assert.Empty(usage.Description);
+    public class ModelTests
+    {
+        [Fact]
+        public void ProviderUsage_Initialization_SetsDefaultValues()
+        {
+            // Arrange & Act
+            var usage = new ProviderUsage();
+
+            // Assert
+            Assert.Equal(PlanType.Usage, usage.PlanType);
+            Assert.False(usage.IsQuotaBased);
+            Assert.True(usage.IsAvailable);
+            Assert.Empty(usage.Description);
+        }
+
+        [Fact]
+        public void ProviderConfig_Initialization_SetsDefaultValues()
+        {
+            // Arrange & Act
+            var config = new ProviderConfig();
+
+            // Assert
+            Assert.Empty(config.ApiKey);
+            Assert.Equal("pay-as-you-go", config.Type);
+        }
     }
 
-    [Fact]
-    public void ProviderConfig_Initialization_SetsDefaultValues()
-    {
-        // Arrange & Act
-        var config = new ProviderConfig();
-
-        // Assert
-        Assert.Empty(config.ApiKey);
-        Assert.Equal("pay-as-you-go", config.Type);
-    }
 }
-

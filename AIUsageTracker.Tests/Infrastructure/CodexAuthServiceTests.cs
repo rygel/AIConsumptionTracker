@@ -1,26 +1,26 @@
-using AIUsageTracker.Infrastructure.Services;
-using Microsoft.Extensions.Logging;
-using Moq;
-
-namespace AIUsageTracker.Tests.Infrastructure;
-
-public sealed class CodexAuthServiceTests : IDisposable
+namespace AIUsageTracker.Tests.Infrastructure
 {
-    private readonly string _tempDirectory;
-    private readonly ILogger<CodexAuthService> _logger = Mock.Of<ILogger<CodexAuthService>>();
+    using AIUsageTracker.Infrastructure.Services;
+    using Microsoft.Extensions.Logging;
+    using Moq;
 
-    public CodexAuthServiceTests()
+    public sealed class CodexAuthServiceTests : IDisposable
     {
-        _tempDirectory = Path.Combine(Path.GetTempPath(), "codex-auth-service-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempDirectory);
-    }
+        private readonly string _tempDirectory;
+        private readonly ILogger<CodexAuthService> _logger = Mock.Of<ILogger<CodexAuthService>>();
 
-    [Fact]
-    public void GetAccessToken_ReadsNativeCodexAuth()
-    {
-        var authPath = CreateFile(
-            "codex-auth.json",
-            """
+        public CodexAuthServiceTests()
+        {
+            this._tempDirectory = Path.Combine(Path.GetTempPath(), "codex-auth-service-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(this._tempDirectory);
+        }
+
+        [Fact]
+        public void GetAccessToken_ReadsNativeCodexAuth()
+        {
+            var authPath = this.CreateFile(
+                "codex-auth.json",
+                """
             {
               "tokens": {
                 "access_token": "native-token",
@@ -29,18 +29,18 @@ public sealed class CodexAuthServiceTests : IDisposable
             }
             """);
 
-        var service = new CodexAuthService(_logger, authPath);
+            var service = new CodexAuthService(this._logger, authPath);
 
-        Assert.Equal("native-token", service.GetAccessToken());
-        Assert.Equal("acct-native", service.GetAccountId());
-    }
+            Assert.Equal("native-token", service.GetAccessToken());
+            Assert.Equal("acct-native", service.GetAccountId());
+        }
 
-    [Fact]
-    public void GetAccessToken_ReadsCompatibilityAuth()
-    {
-        var authPath = CreateFile(
-            "opencode-auth.json",
-            """
+        [Fact]
+        public void GetAccessToken_ReadsCompatibilityAuth()
+        {
+            var authPath = this.CreateFile(
+                "opencode-auth.json",
+                """
             {
               "openai": {
                 "access": "compat-token",
@@ -49,24 +49,25 @@ public sealed class CodexAuthServiceTests : IDisposable
             }
             """);
 
-        var service = new CodexAuthService(_logger, authPath);
+            var service = new CodexAuthService(this._logger, authPath);
 
-        Assert.Equal("compat-token", service.GetAccessToken());
-        Assert.Equal("acct-compat", service.GetAccountId());
-    }
-`n
-    public void Dispose()
-    {
-        if (Directory.Exists(_tempDirectory))
-        {
-            Directory.Delete(_tempDirectory, recursive: true);
+            Assert.Equal("compat-token", service.GetAccessToken());
+            Assert.Equal("acct-compat", service.GetAccountId());
         }
-    }
-`n
-    private string CreateFile(string relativePath, string content)
-    {
-        var fullPath = Path.Combine(_tempDirectory, relativePath);
-        File.WriteAllText(fullPath, content);
-        return fullPath;
+    `n
+        public void Dispose()
+        {
+            if (Directory.Exists(this._tempDirectory))
+            {
+                Directory.Delete(this._tempDirectory, recursive: true);
+            }
+        }
+    `n
+        private string CreateFile(string relativePath, string content)
+        {
+            var fullPath = Path.Combine(this._tempDirectory, relativePath);
+            File.WriteAllText(fullPath, content);
+            return fullPath;
+        }
     }
 }

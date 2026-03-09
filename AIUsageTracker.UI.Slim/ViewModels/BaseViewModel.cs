@@ -1,22 +1,23 @@
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
-
-namespace AIUsageTracker.UI.Slim.ViewModels;
-
-public abstract class BaseViewModel : INotifyPropertyChanged
+namespace AIUsageTracker.UI.Slim.ViewModels
 {
-    public event PropertyChangedEventHandler? PropertyChanged;
+    using System.ComponentModel;
+    using System.Runtime.CompilerServices;
 
-    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    public abstract class BaseViewModel : INotifyPropertyChanged
     {
-        this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-`n
-    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
-    {
-        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
-        field = value;
-        this.OnPropertyChanged(propertyName);
-        return true;
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    `n
+        protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+            field = value;
+            this.OnPropertyChanged(propertyName);
+            return true;
+        }
     }
 }

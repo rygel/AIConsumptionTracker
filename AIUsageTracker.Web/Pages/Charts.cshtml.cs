@@ -1,109 +1,110 @@
-using AIUsageTracker.Web.Services;
-using AIUsageTracker.Core.Models;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.OutputCaching;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Extensions.Caching.Memory;
-
-namespace AIUsageTracker.Web.Pages;
-
-[OutputCache(PolicyName = "ChartsCache")]
-public class ChartsModel : PageModel
+namespace AIUsageTracker.Web.Pages
 {
-    private const string ProviderColorsCacheKey = "charts-provider-colors-v1";
+    using AIUsageTracker.Web.Services;
+    using AIUsageTracker.Core.Models;
+    using Microsoft.AspNetCore.Mvc;
+    using Microsoft.AspNetCore.OutputCaching;
+    using Microsoft.AspNetCore.Mvc.RazorPages;
+    using Microsoft.Extensions.Caching.Memory;
 
-    private readonly AIUsageTracker.Core.Interfaces.IConfigLoader _configLoader;
-    private readonly WebDatabaseService _dbService;
-    private readonly IMemoryCache _memoryCache;
-
-    public ChartsModel(
-        WebDatabaseService dbService,
-        AIUsageTracker.Core.Interfaces.IConfigLoader configLoader,
-        IMemoryCache memoryCache)
+    [OutputCache(PolicyName = "ChartsCache")]
+    public class ChartsModel : PageModel
     {
-        this._dbService = dbService;
-        this._configLoader = configLoader;
-        this._memoryCache = memoryCache;
-    }
+        private const string ProviderColorsCacheKey = "charts-provider-colors-v1";
 
-    public IReadOnlyList<ChartDataPoint>? ChartData { get; set; }
+        private readonly AIUsageTracker.Core.Interfaces.IConfigLoader _configLoader;
+        private readonly WebDatabaseService _dbService;
+        private readonly IMemoryCache _memoryCache;
 
-    public IReadOnlyDictionary<string, string> ProviderColors { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
-
-    public bool IsDatabaseAvailable => this._dbService.IsDatabaseAvailable();
-
-    public async Task OnGetAsync(int hours = 24)
-    {
-        if (this.IsDatabaseAvailable)
+        public ChartsModel(
+            WebDatabaseService dbService,
+            AIUsageTracker.Core.Interfaces.IConfigLoader configLoader,
+            IMemoryCache memoryCache)
         {
+            this._dbService = dbService;
+            this._configLoader = configLoader;
+            this._memoryCache = memoryCache;
+        }
+
+        public IReadOnlyList<ChartDataPoint>? ChartData { get; set; }
+
+        public IReadOnlyDictionary<string, string> ProviderColors { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        public bool IsDatabaseAvailable => this._dbService.IsDatabaseAvailable();
+
+        public async Task OnGetAsync(int hours = 24)
+        {
+            if (this.IsDatabaseAvailable)
+            {
+                var chartTask = this._dbService.GetChartDataAsync(hours);
+                var colorTask = this.GetProviderColorsAsync();
+
+                await Task.WhenAll(chartTask, colorTask);
+
+                this.ChartData = await chartTask;
+                this.ProviderColors = await colorTask;
+            }
+        }
+
+        public async Task<IActionResult> OnGetResetEventsAsync(int hours = 24)
+        {
+            if (!this.IsDatabaseAvailable)
+            {
+                return new JsonResult(Array.Empty<ResetEvent>());
+            }
+
+            var events = await this._dbService.GetRecentResetEventsAsync(hours);
+            return new JsonResult(events);
+        }
+
+        public async Task<IActionResult> OnGetChartPayloadAsync(int hours = 24)
+        {
+            if (!this.IsDatabaseAvailable)
+            {
+                return new JsonResult(new
+                {
+                    chartData = Array.Empty<ChartDataPoint>(),
+                    resetEvents = Array.Empty<ResetEvent>(),
+                });
+            }
+
             var chartTask = this._dbService.GetChartDataAsync(hours);
-            var colorTask = this.GetProviderColorsAsync();
+            var resetTask = this._dbService.GetRecentResetEventsAsync(hours);
+            await Task.WhenAll(chartTask, resetTask);
 
-            await Task.WhenAll(chartTask, colorTask);
-
-            this.ChartData = await chartTask;
-            this.ProviderColors = await colorTask;
-        }
-    }
-
-    public async Task<IActionResult> OnGetResetEventsAsync(int hours = 24)
-    {
-        if (!this.IsDatabaseAvailable)
-        {
-            return new JsonResult(Array.Empty<ResetEvent>());
-        }
-
-        var events = await this._dbService.GetRecentResetEventsAsync(hours);
-        return new JsonResult(events);
-    }
-
-    public async Task<IActionResult> OnGetChartPayloadAsync(int hours = 24)
-    {
-        if (!this.IsDatabaseAvailable)
-        {
             return new JsonResult(new
             {
-                chartData = Array.Empty<ChartDataPoint>(),
-                resetEvents = Array.Empty<ResetEvent>(),
+                chartData = await chartTask,
+                resetEvents = await resetTask,
             });
         }
 
-        var chartTask = this._dbService.GetChartDataAsync(hours);
-        var resetTask = this._dbService.GetRecentResetEventsAsync(hours);
-        await Task.WhenAll(chartTask, resetTask);
-
-        return new JsonResult(new
+        private async Task<IReadOnlyDictionary<string, string>> GetProviderColorsAsync()
         {
-            chartData = await chartTask,
-            resetEvents = await resetTask,
-        });
-    }
-
-    private async Task<IReadOnlyDictionary<string, string>> GetProviderColorsAsync()
-    {
-        return await this._memoryCache.GetOrCreateAsync(ProviderColorsCacheKey, async entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
-
-            var colors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var configs = await this._configLoader.LoadConfigAsync();
-            foreach (var cfg in configs)
+            return await this._memoryCache.GetOrCreateAsync(ProviderColorsCacheKey, async entry =>
             {
-                if (cfg.Models == null)
-                {
-                    continue;
-                }
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
 
-                foreach (var model in cfg.Models)
+                var colors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var configs = await this._configLoader.LoadConfigAsync();
+                foreach (var cfg in configs)
                 {
-                    if (!string.IsNullOrEmpty(model.Color) && !string.IsNullOrEmpty(model.Name))
+                    if (cfg.Models == null)
                     {
-                        colors[model.Name] = model.Color;
+                        continue;
+                    }
+
+                    foreach (var model in cfg.Models)
+                    {
+                        if (!string.IsNullOrEmpty(model.Color) && !string.IsNullOrEmpty(model.Name))
+                        {
+                            colors[model.Name] = model.Color;
+                        }
                     }
                 }
-            }
 
-            return colors;
-        }).ConfigureAwait(false) ?? new Dictionary<string, string>(StringComparer.Ordinal);
+                return colors;
+            }).ConfigureAwait(false) ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        }
     }
 }

@@ -1,8 +1,9 @@
-namespace AIUsageTracker.Core.Interfaces;
-
-public interface IUpdateCheckerService
+namespace AIUsageTracker.Core.Interfaces
 {
-    Task<UpdateInfo?> CheckForUpdatesAsync();
+    public interface IUpdateCheckerService
+    {
+        Task<UpdateInfo?> CheckForUpdatesAsync();
 
-    Task<bool> DownloadAndInstallUpdateAsync(UpdateInfo updateInfo, IProgress<double>? progress = null);
+        Task<bool> DownloadAndInstallUpdateAsync(UpdateInfo updateInfo, IProgress<double>? progress = null);
+    }
 }

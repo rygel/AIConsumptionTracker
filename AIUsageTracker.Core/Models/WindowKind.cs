@@ -1,9 +1,10 @@
-namespace AIUsageTracker.Core.Models;
-
-public enum WindowKind
+namespace AIUsageTracker.Core.Models
 {
-    None = 0,
-    Primary = 1,
-    Secondary = 2,
-    Spark = 3,
+    public enum WindowKind
+    {
+        None = 0,
+        Primary = 1,
+        Secondary = 2,
+        Spark = 3,
+    }
 }

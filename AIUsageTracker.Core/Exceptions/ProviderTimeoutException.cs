@@ -1,19 +1,20 @@
-namespace AIUsageTracker.Core.Exceptions;
-
-/// <summary>
-/// Exception thrown when a request times out.
-/// </summary>
-public class ProviderTimeoutException : ProviderException
+namespace AIUsageTracker.Core.Exceptions
 {
-    public System.TimeSpan TimeoutDuration { get; }
-
-    public ProviderTimeoutException(
-        string providerId,
-        System.TimeSpan timeoutDuration,
-        string message = "Request timed out",
-        System.Exception? innerException = null)
-        : base(providerId, message, ProviderErrorType.TimeoutError, innerException: innerException)
+    /// <summary>
+    /// Exception thrown when a request times out.
+    /// </summary>
+    public class ProviderTimeoutException : ProviderException
     {
-        this.TimeoutDuration = timeoutDuration;
+        public System.TimeSpan TimeoutDuration { get; }
+
+        public ProviderTimeoutException(
+            string providerId,
+            System.TimeSpan timeoutDuration,
+            string message = "Request timed out",
+            System.Exception? innerException = null)
+            : base(providerId, message, ProviderErrorType.TimeoutError, innerException: innerException)
+        {
+            this.TimeoutDuration = timeoutDuration;
+        }
     }
 }

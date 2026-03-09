@@ -1,27 +1,28 @@
-using AIUsageTracker.Web.Services;
-using AIUsageTracker.Core.Models;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-
-namespace AIUsageTracker.Web.Pages;
-
-public class ProvidersModel : PageModel
+namespace AIUsageTracker.Web.Pages
 {
-    private readonly WebDatabaseService _dbService;
+    using AIUsageTracker.Web.Services;
+    using AIUsageTracker.Core.Models;
+    using Microsoft.AspNetCore.Mvc.RazorPages;
 
-    public ProvidersModel(WebDatabaseService dbService)
+    public class ProvidersModel : PageModel
     {
-        this._dbService = dbService;
-    }
+        private readonly WebDatabaseService _dbService;
 
-    public IReadOnlyList<ProviderInfo>? Providers { get; set; }
-
-    public bool IsDatabaseAvailable => this._dbService.IsDatabaseAvailable();
-
-    public async Task OnGetAsync()
-    {
-        if (this.IsDatabaseAvailable)
+        public ProvidersModel(WebDatabaseService dbService)
         {
-            this.Providers = await this._dbService.GetProvidersAsync().ConfigureAwait(false);
+            this._dbService = dbService;
+        }
+
+        public IReadOnlyList<ProviderInfo>? Providers { get; set; }
+
+        public bool IsDatabaseAvailable => this._dbService.IsDatabaseAvailable();
+
+        public async Task OnGetAsync()
+        {
+            if (this.IsDatabaseAvailable)
+            {
+                this.Providers = await this._dbService.GetProvidersAsync().ConfigureAwait(false);
+            }
         }
     }
 }

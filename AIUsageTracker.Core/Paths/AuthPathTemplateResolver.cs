@@ -1,15 +1,16 @@
-namespace AIUsageTracker.Core.Paths;
-
-public static class AuthPathTemplateResolver
+namespace AIUsageTracker.Core.Paths
 {
-    public static string Resolve(string pathTemplate, string userProfileRoot)
+    public static class AuthPathTemplateResolver
     {
-        var appDataRoot = Path.Combine(userProfileRoot, "AppData", "Roaming");
-        var localAppDataRoot = Path.Combine(userProfileRoot, "AppData", "Local");
+        public static string Resolve(string pathTemplate, string userProfileRoot)
+        {
+            var appDataRoot = Path.Combine(userProfileRoot, "AppData", "Roaming");
+            var localAppDataRoot = Path.Combine(userProfileRoot, "AppData", "Local");
 
-        return pathTemplate
-            .Replace("%USERPROFILE%", userProfileRoot, StringComparison.OrdinalIgnoreCase)
-            .Replace("%APPDATA%", appDataRoot, StringComparison.OrdinalIgnoreCase)
-            .Replace("%LOCALAPPDATA%", localAppDataRoot, StringComparison.OrdinalIgnoreCase);
+            return pathTemplate
+                .Replace("%USERPROFILE%", userProfileRoot, StringComparison.OrdinalIgnoreCase)
+                .Replace("%APPDATA%", appDataRoot, StringComparison.OrdinalIgnoreCase)
+                .Replace("%LOCALAPPDATA%", localAppDataRoot, StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

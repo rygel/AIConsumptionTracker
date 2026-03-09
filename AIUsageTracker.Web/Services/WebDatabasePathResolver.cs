@@ -1,92 +1,93 @@
-using Microsoft.Data.Sqlite;
-using Serilog;
-
-namespace AIUsageTracker.Web.Services;
-
-internal static class WebDatabasePathResolver
+namespace AIUsageTracker.Web.Services
 {
-    public static string Resolve(string localAppDataRoot, string snapshotRoot)
+    using Microsoft.Data.Sqlite;
+    using Serilog;
+
+    internal static class WebDatabasePathResolver
     {
-        var canonicalDatabasePath = AIUsageTracker.Core.Paths.AppPathCatalog.GetCanonicalDatabasePath(localAppDataRoot);
-        var snapshotDatabasePath = Path.Combine(snapshotRoot, "usage.db");
-        if (TryCopySnapshot(canonicalDatabasePath, snapshotDatabasePath) && CanOpen(snapshotDatabasePath))
+        public static string Resolve(string localAppDataRoot, string snapshotRoot)
         {
-            Log.Information(
-                "Using runtime snapshot database for web UI. Source: {SourcePath}; Snapshot: {SnapshotPath}",
-                canonicalDatabasePath,
-                snapshotDatabasePath);
-            return snapshotDatabasePath;
-        }
-
-        return canonicalDatabasePath;
-    }
-
-    public static bool CanOpen(string databasePath)
-    {
-        if (!File.Exists(databasePath))
-        {
-            return false;
-        }
-
-        try
-        {
-            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+            var canonicalDatabasePath = AIUsageTracker.Core.Paths.AppPathCatalog.GetCanonicalDatabasePath(localAppDataRoot);
+            var snapshotDatabasePath = Path.Combine(snapshotRoot, "usage.db");
+            if (TryCopySnapshot(canonicalDatabasePath, snapshotDatabasePath) && CanOpen(snapshotDatabasePath))
             {
-                DataSource = databasePath,
-                Mode = SqliteOpenMode.ReadOnly,
-                Cache = SqliteCacheMode.Private,
-                Pooling = false,
-                DefaultTimeout = 5,
-            }.ToString());
-            connection.Open();
-            using var command = connection.CreateCommand();
-            command.CommandText = "SELECT name FROM sqlite_master LIMIT 1";
-            _ = command.ExecuteScalar();
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Web UI could not open SQLite database at {DatabasePath}", databasePath);
-            return false;
-        }
-    }
+                Log.Information(
+                    "Using runtime snapshot database for web UI. Source: {SourcePath}; Snapshot: {SnapshotPath}",
+                    canonicalDatabasePath,
+                    snapshotDatabasePath);
+                return snapshotDatabasePath;
+            }
 
-    private static bool TryCopySnapshot(string sourceDatabasePath, string destinationDatabasePath)
-    {
-        try
+            return canonicalDatabasePath;
+        }
+
+        public static bool CanOpen(string databasePath)
         {
-            var destinationDirectory = Path.GetDirectoryName(destinationDatabasePath);
-            if (string.IsNullOrWhiteSpace(destinationDirectory))
+            if (!File.Exists(databasePath))
             {
                 return false;
             }
 
-            Directory.CreateDirectory(destinationDirectory);
-            File.Copy(sourceDatabasePath, destinationDatabasePath, overwrite: true);
-
-            foreach (var sidecarSuffix in new[] { "-wal", "-shm" })
+            try
             {
-                var sourceSidecarPath = sourceDatabasePath + sidecarSuffix;
-                var destinationSidecarPath = destinationDatabasePath + sidecarSuffix;
-                if (!File.Exists(sourceSidecarPath))
+                using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
                 {
-                    File.Delete(destinationSidecarPath);
-                    continue;
+                    DataSource = databasePath,
+                    Mode = SqliteOpenMode.ReadOnly,
+                    Cache = SqliteCacheMode.Private,
+                    Pooling = false,
+                    DefaultTimeout = 5,
+                }.ToString());
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = "SELECT name FROM sqlite_master LIMIT 1";
+                _ = command.ExecuteScalar();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Web UI could not open SQLite database at {DatabasePath}", databasePath);
+                return false;
+            }
+        }
+
+        private static bool TryCopySnapshot(string sourceDatabasePath, string destinationDatabasePath)
+        {
+            try
+            {
+                var destinationDirectory = Path.GetDirectoryName(destinationDatabasePath);
+                if (string.IsNullOrWhiteSpace(destinationDirectory))
+                {
+                    return false;
                 }
 
-                File.Copy(sourceSidecarPath, destinationSidecarPath, overwrite: true);
-            }
+                Directory.CreateDirectory(destinationDirectory);
+                File.Copy(sourceDatabasePath, destinationDatabasePath, overwrite: true);
 
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(
-                ex,
-                "Failed to create runtime database snapshot for web UI from {SourcePath} to {DestinationPath}",
-                sourceDatabasePath,
-                destinationDatabasePath);
-            return false;
+                foreach (var sidecarSuffix in new[] { "-wal", "-shm" })
+                {
+                    var sourceSidecarPath = sourceDatabasePath + sidecarSuffix;
+                    var destinationSidecarPath = destinationDatabasePath + sidecarSuffix;
+                    if (!File.Exists(sourceSidecarPath))
+                    {
+                        File.Delete(destinationSidecarPath);
+                        continue;
+                    }
+
+                    File.Copy(sourceSidecarPath, destinationSidecarPath, overwrite: true);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(
+                    ex,
+                    "Failed to create runtime database snapshot for web UI from {SourcePath} to {DestinationPath}",
+                    sourceDatabasePath,
+                    destinationDatabasePath);
+                return false;
+            }
         }
     }
 }

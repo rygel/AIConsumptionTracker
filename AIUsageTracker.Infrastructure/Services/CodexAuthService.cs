@@ -1,121 +1,122 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using AIUsageTracker.Core.Interfaces;
-using AIUsageTracker.Core.Paths;
-using AIUsageTracker.Infrastructure.Providers;
-using Microsoft.Extensions.Logging;
-
-namespace AIUsageTracker.Infrastructure.Services;
-
-public class CodexAuthService : ICodexAuthService
+namespace AIUsageTracker.Infrastructure.Services
 {
-    private readonly ILogger<CodexAuthService> _logger;
-    private readonly string? _authFilePath;
+    using System.Text.Json;
+    using System.Text.Json.Serialization;
+    using AIUsageTracker.Core.Interfaces;
+    using AIUsageTracker.Core.Paths;
+    using AIUsageTracker.Infrastructure.Providers;
+    using Microsoft.Extensions.Logging;
 
-    public CodexAuthService(ILogger<CodexAuthService> logger, string? authFilePath = null)
+    public class CodexAuthService : ICodexAuthService
     {
-        this._logger = logger;
-        this._authFilePath = authFilePath;
-    }
+        private readonly ILogger<CodexAuthService> _logger;
+        private readonly string? _authFilePath;
 
-    public string? GetAccessToken()
-    {
-        var auth = this.LoadAuth();
-        return auth?.AccessToken;
-    }
-
-    public string? GetAccountId()
-    {
-        var auth = this.LoadAuth();
-        return auth?.AccountId;
-    }
-
-    private CodexAuth? LoadAuth()
-    {
-        foreach (var path in this.GetAuthFileCandidates())
+        public CodexAuthService(ILogger<CodexAuthService> logger, string? authFilePath = null)
         {
-            if (!File.Exists(path))
-            {
-                continue;
-            }
+            this._logger = logger;
+            this._authFilePath = authFilePath;
+        }
 
-            try
+        public string? GetAccessToken()
+        {
+            var auth = this.LoadAuth();
+            return auth?.AccessToken;
+        }
+
+        public string? GetAccountId()
+        {
+            var auth = this.LoadAuth();
+            return auth?.AccountId;
+        }
+
+        private CodexAuth? LoadAuth()
+        {
+            foreach (var path in this.GetAuthFileCandidates())
             {
-                var json = File.ReadAllText(path);
-                using var doc = JsonDocument.Parse(json);
-                var auth = TryReadAuth(doc.RootElement);
-                if (auth != null)
+                if (!File.Exists(path))
                 {
-                    return auth;
+                    continue;
+                }
+
+                try
+                {
+                    var json = File.ReadAllText(path);
+                    using var doc = JsonDocument.Parse(json);
+                    var auth = TryReadAuth(doc.RootElement);
+                    if (auth != null)
+                    {
+                        return auth;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this._logger.LogDebug(ex, "Failed to read Codex auth file at {Path}", path);
                 }
             }
-            catch (Exception ex)
-            {
-                this._logger.LogDebug(ex, "Failed to read Codex auth file at {Path}", path);
-            }
+
+            return null;
         }
 
-        return null;
-    }
-
-    private IEnumerable<string> GetAuthFileCandidates()
-    {
-        if (!string.IsNullOrWhiteSpace(this._authFilePath))
+        private IEnumerable<string> GetAuthFileCandidates()
         {
-            yield return this._authFilePath;
-            yield break;
+            if (!string.IsNullOrWhiteSpace(this._authFilePath))
+            {
+                yield return this._authFilePath;
+                yield break;
+            }
+
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            foreach (var pathTemplate in CodexProvider.StaticDefinition.AuthIdentityCandidatePathTemplates)
+            {
+                var path = AuthPathTemplateResolver.Resolve(pathTemplate, home);
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    yield return path;
+                }
+            }
         }
 
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        foreach (var pathTemplate in CodexProvider.StaticDefinition.AuthIdentityCandidatePathTemplates)
+        private static CodexAuth? TryReadAuth(JsonElement root)
         {
-            var path = AuthPathTemplateResolver.Resolve(pathTemplate, home);
-            if (!string.IsNullOrWhiteSpace(path))
+            foreach (var schema in CodexProvider.StaticDefinition.SessionAuthFileSchemas)
             {
-                yield return path;
-            }
-        }
-    }
+                if (!root.TryGetProperty(schema.RootProperty, out var element) || element.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
 
-    private static CodexAuth? TryReadAuth(JsonElement root)
-    {
-        foreach (var schema in CodexProvider.StaticDefinition.SessionAuthFileSchemas)
+                var accessToken = element.TryGetProperty(schema.AccessTokenProperty, out var accessTokenElement) &&
+                                  accessTokenElement.ValueKind == JsonValueKind.String
+                    ? accessTokenElement.GetString()
+                    : null;
+
+                if (string.IsNullOrWhiteSpace(accessToken))
+                {
+                    continue;
+                }
+
+                var accountId = !string.IsNullOrWhiteSpace(schema.AccountIdProperty) &&
+                                element.TryGetProperty(schema.AccountIdProperty, out var accountIdElement) &&
+                                accountIdElement.ValueKind == JsonValueKind.String
+                    ? accountIdElement.GetString()
+                    : null;
+
+                return new CodexAuth
+                {
+                    AccessToken = accessToken,
+                    AccountId = accountId,
+                };
+            }
+
+            return null;
+        }
+
+        private sealed class CodexAuth
         {
-            if (!root.TryGetProperty(schema.RootProperty, out var element) || element.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
+            public string? AccessToken { get; set; }
 
-            var accessToken = element.TryGetProperty(schema.AccessTokenProperty, out var accessTokenElement) &&
-                              accessTokenElement.ValueKind == JsonValueKind.String
-                ? accessTokenElement.GetString()
-                : null;
-
-            if (string.IsNullOrWhiteSpace(accessToken))
-            {
-                continue;
-            }
-
-            var accountId = !string.IsNullOrWhiteSpace(schema.AccountIdProperty) &&
-                            element.TryGetProperty(schema.AccountIdProperty, out var accountIdElement) &&
-                            accountIdElement.ValueKind == JsonValueKind.String
-                ? accountIdElement.GetString()
-                : null;
-
-            return new CodexAuth
-            {
-                AccessToken = accessToken,
-                AccountId = accountId,
-            };
+            public string? AccountId { get; set; }
         }
-
-        return null;
-    }
-
-    private sealed class CodexAuth
-    {
-        public string? AccessToken { get; set; }
-
-        public string? AccountId { get; set; }
     }
 }

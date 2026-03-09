@@ -1,37 +1,38 @@
-using Microsoft.Data.Sqlite;
-
-namespace AIUsageTracker.Web.Services;
-
-internal sealed class WebDatabaseConnectionFactory
+namespace AIUsageTracker.Web.Services
 {
-    private readonly string _databasePath;
-    private readonly string _readConnectionString;
+    using Microsoft.Data.Sqlite;
 
-    public WebDatabaseConnectionFactory(string databasePath)
+    internal sealed class WebDatabaseConnectionFactory
     {
-        this._databasePath = databasePath;
-        this._readConnectionString = new SqliteConnectionStringBuilder
+        private readonly string _databasePath;
+        private readonly string _readConnectionString;
+
+        public WebDatabaseConnectionFactory(string databasePath)
         {
-            DataSource = this._databasePath,
-            Mode = SqliteOpenMode.ReadOnly,
-            Cache = SqliteCacheMode.Private,
-            Pooling = false,
-            DefaultTimeout = 10,
-        }.ToString();
-    }
+            this._databasePath = databasePath;
+            this._readConnectionString = new SqliteConnectionStringBuilder
+            {
+                DataSource = this._databasePath,
+                Mode = SqliteOpenMode.ReadOnly,
+                Cache = SqliteCacheMode.Private,
+                Pooling = false,
+                DefaultTimeout = 10,
+            }.ToString();
+        }
 
-    public bool IsDatabaseAvailable()
-    {
-        return File.Exists(this._databasePath);
-    }
+        public bool IsDatabaseAvailable()
+        {
+            return File.Exists(this._databasePath);
+        }
 
-    public string GetDatabasePath()
-    {
-        return this._databasePath;
-    }
+        public string GetDatabasePath()
+        {
+            return this._databasePath;
+        }
 
-    public SqliteConnection CreateReadConnection()
-    {
-        return new SqliteConnection(this._readConnectionString);
+        public SqliteConnection CreateReadConnection()
+        {
+            return new SqliteConnection(this._readConnectionString);
+        }
     }
 }

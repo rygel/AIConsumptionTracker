@@ -1,45 +1,46 @@
-namespace AIUsageTracker.Core.Models;
-
-public class ProviderUsageDetail
+namespace AIUsageTracker.Core.Models
 {
-    public string Name { get; set; } = string.Empty;
-
-    public string ModelName { get; set; } = string.Empty;
-
-    public string GroupName { get; set; } = string.Empty;
-
-    public string Used { get; set; } = string.Empty;
-
-    public string Description { get; set; } = string.Empty;
-
-    public DateTime? NextResetTime { get; set; }
-
-    public ProviderUsageDetailType DetailType { get; set; } = ProviderUsageDetailType.Unknown;
-
-    public WindowKind WindowKind { get; set; } = WindowKind.None;
-
-    public bool IsPrimaryQuotaDetail()
+    public class ProviderUsageDetail
     {
-        return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.WindowKind == WindowKind.Primary;
-    }
+        public string Name { get; set; } = string.Empty;
 
-    public bool IsSecondaryQuotaDetail()
-    {
-        return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.WindowKind == WindowKind.Secondary;
-    }
+        public string ModelName { get; set; } = string.Empty;
 
-    public bool IsWindowQuotaDetail()
-    {
-        return this.DetailType == ProviderUsageDetailType.QuotaWindow;
-    }
+        public string GroupName { get; set; } = string.Empty;
 
-    public bool IsCreditDetail()
-    {
-        return this.DetailType == ProviderUsageDetailType.Credit;
-    }
+        public string Used { get; set; } = string.Empty;
 
-    public bool IsDisplayableSubProviderDetail()
-    {
-        return this.DetailType == ProviderUsageDetailType.Model || this.DetailType == ProviderUsageDetailType.Other;
+        public string Description { get; set; } = string.Empty;
+
+        public DateTime? NextResetTime { get; set; }
+
+        public ProviderUsageDetailType DetailType { get; set; } = ProviderUsageDetailType.Unknown;
+
+        public WindowKind WindowKind { get; set; } = WindowKind.None;
+
+        public bool IsPrimaryQuotaDetail()
+        {
+            return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.WindowKind == WindowKind.Primary;
+        }
+
+        public bool IsSecondaryQuotaDetail()
+        {
+            return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.WindowKind == WindowKind.Secondary;
+        }
+
+        public bool IsWindowQuotaDetail()
+        {
+            return this.DetailType == ProviderUsageDetailType.QuotaWindow;
+        }
+
+        public bool IsCreditDetail()
+        {
+            return this.DetailType == ProviderUsageDetailType.Credit;
+        }
+
+        public bool IsDisplayableSubProviderDetail()
+        {
+            return this.DetailType == ProviderUsageDetailType.Model || this.DetailType == ProviderUsageDetailType.Other;
+        }
     }
 }

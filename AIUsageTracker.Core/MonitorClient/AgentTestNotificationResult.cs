@@ -1,8 +1,9 @@
-namespace AIUsageTracker.Core.MonitorClient;
-
-public sealed class AgentTestNotificationResult
+namespace AIUsageTracker.Core.MonitorClient
 {
-    public bool Success { get; init; }
+    public sealed class AgentTestNotificationResult
+    {
+        public bool Success { get; init; }
 
-    public string Message { get; init; } = string.Empty;
+        public string Message { get; init; } = string.Empty;
+    }
 }

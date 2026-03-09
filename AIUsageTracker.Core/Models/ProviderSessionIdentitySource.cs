@@ -1,8 +1,9 @@
-namespace AIUsageTracker.Core.Models;
-
-public enum ProviderSessionIdentitySource
+namespace AIUsageTracker.Core.Models
 {
-    None,
-    OpenAi,
-    Codex,
+    public enum ProviderSessionIdentitySource
+    {
+        None,
+        OpenAi,
+        Codex,
+    }
 }

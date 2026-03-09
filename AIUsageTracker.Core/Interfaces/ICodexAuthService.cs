@@ -1,8 +1,9 @@
-namespace AIUsageTracker.Core.Interfaces;
-
-public interface ICodexAuthService
+namespace AIUsageTracker.Core.Interfaces
 {
-    string? GetAccessToken();
+    public interface ICodexAuthService
+    {
+        string? GetAccessToken();
 
-    string? GetAccountId();
+        string? GetAccountId();
+    }
 }

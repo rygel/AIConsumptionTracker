@@ -1,95 +1,96 @@
-using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.Interfaces;
-using Microsoft.Extensions.Logging;
-using System.Collections.ObjectModel;
-
-namespace AIUsageTracker.UI.Slim.ViewModels;
-
-public class MainViewModel : BaseViewModel
+namespace AIUsageTracker.UI.Slim.ViewModels
 {
-    private readonly IMonitorService _monitorService;
-    private readonly IUsageAnalyticsService _analyticsService;
-    private readonly ILogger<MainViewModel> _logger;
-    private bool _isLoading;
-    private bool _isPrivacyMode;
-    private ObservableCollection<ProviderUsage> _usages = new();
-    private DateTime _lastRefreshTime = DateTime.MinValue;
-    private string _statusMessage = "Initializing...";
+    using AIUsageTracker.Core.Models;
+    using AIUsageTracker.Core.Interfaces;
+    using Microsoft.Extensions.Logging;
+    using System.Collections.ObjectModel;
 
-    public bool IsLoading
+    public class MainViewModel : BaseViewModel
     {
-        get => _isLoading;
-        set => SetProperty(ref _isLoading, value);
-    }
-`n
-    public bool IsPrivacyMode
-    {
-        get => _isPrivacyMode;
-        set => SetProperty(ref _isPrivacyMode, value);
-    }
-`n
-    public string StatusMessage
-    {
-        get => _statusMessage;
-        set => SetProperty(ref _statusMessage, value);
-    }
-`n
-    public ObservableCollection<ProviderUsage> Usages
-    {
-        get => _usages;
-        private set => SetProperty(ref _usages, value);
-    }
-`n
-    public DateTime LastRefreshTime
-    {
-        get => _lastRefreshTime;
-        private set => SetProperty(ref _lastRefreshTime, value);
-    }
-`n
-    public MainViewModel(
-        IMonitorService monitorService,
-        IUsageAnalyticsService analyticsService,
-        ILogger<MainViewModel> logger)
-    {
-        _monitorService = monitorService;
-        _analyticsService = analyticsService;
-        _logger = logger;
-        _isPrivacyMode = false; // Initial state
-    }
-`n
-    public async Task RefreshDataAsync()
-    {
-        if (IsLoading) return;
+        private readonly IMonitorService _monitorService;
+        private readonly IUsageAnalyticsService _analyticsService;
+        private readonly ILogger<MainViewModel> _logger;
+        private bool _isLoading;
+        private bool _isPrivacyMode;
+        private ObservableCollection<ProviderUsage> _usages = new();
+        private DateTime _lastRefreshTime = DateTime.MinValue;
+        private string _statusMessage = "Initializing...";
 
-        IsLoading = true;
-        StatusMessage = "Refreshing data...";
-        try
+        public bool IsLoading
         {
-            await _monitorService.RefreshPortAsync();
-            var results = await _monitorService.GetUsageAsync();
+            get => this._isLoading;
+            set => this.SetProperty(ref this._isLoading, value);
+        }
+    `n
+        public bool IsPrivacyMode
+        {
+            get => this._isPrivacyMode;
+            set => this.SetProperty(ref this._isPrivacyMode, value);
+        }
+    `n
+        public string StatusMessage
+        {
+            get => this._statusMessage;
+            set => this.SetProperty(ref this._statusMessage, value);
+        }
+    `n
+        public ObservableCollection<ProviderUsage> Usages
+        {
+            get => this._usages;
+            private set => this.SetProperty(ref this._usages, value);
+        }
+    `n
+        public DateTime LastRefreshTime
+        {
+            get => this._lastRefreshTime;
+            private set => this.SetProperty(ref this._lastRefreshTime, value);
+        }
+    `n
+        public MainViewModel(
+            IMonitorService monitorService,
+            IUsageAnalyticsService analyticsService,
+            ILogger<MainViewModel> logger)
+        {
+            this._monitorService = monitorService;
+            this._analyticsService = analyticsService;
+            this._logger = logger;
+            this._isPrivacyMode = false; // Initial state
+        }
+    `n
+        public async Task RefreshDataAsync()
+        {
+            if (this.IsLoading) return;
 
-            Usages.Clear();
-            foreach (var usage in results)
+            this.IsLoading = true;
+            this.StatusMessage = "Refreshing data...";
+            try
             {
-                Usages.Add(usage);
-            }
+                await this._monitorService.RefreshPortAsync();
+                var results = await this._monitorService.GetUsageAsync();
 
-            LastRefreshTime = DateTime.Now;
-            StatusMessage = results.Any() ? "Data updated" : "No active providers found";
+                this.Usages.Clear();
+                foreach (var usage in results)
+                {
+                    this.Usages.Add(usage);
+                }
+
+                this.LastRefreshTime = DateTime.Now;
+                this.StatusMessage = results.Any() ? "Data updated" : "No active providers found";
+            }
+            catch (Exception ex)
+            {
+                this._logger.LogError(ex, "Failed to refresh data in MainViewModel");
+                this.StatusMessage = "Connection failed";
+            }
+            finally
+            {
+                this.IsLoading = false;
+            }
         }
-        catch (Exception ex)
+    `n
+        public void SetPrivacyMode(bool enabled)
         {
-            _logger.LogError(ex, "Failed to refresh data in MainViewModel");
-            StatusMessage = "Connection failed";
+            this.IsPrivacyMode = enabled;
         }
-        finally
-        {
-            IsLoading = false;
-        }
-    }
-`n
-    public void SetPrivacyMode(bool enabled)
-    {
-        IsPrivacyMode = enabled;
     }
 }

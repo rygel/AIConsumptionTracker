@@ -1,82 +1,83 @@
-using System.Net.Http.Json;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using Microsoft.Extensions.Logging;
-using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.Providers;
-
-namespace AIUsageTracker.Infrastructure.Providers;
-
-public class MistralProvider : ProviderBase
+namespace AIUsageTracker.Infrastructure.Providers
 {
-    public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "mistral",
-        displayName: "Mistral",
-        planType: PlanType.Usage,
-        isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go",
-        rooConfigPropertyNames: new[] { "mistralApiKey" },
-        iconAssetName: "mistral",
-        fallbackBadgeColorHex: "#FF4500",
-        fallbackBadgeInitial: "Mi");
+    using System.Net.Http.Json;
+    using System.Text.Json;
+    using System.Text.Json.Serialization;
+    using Microsoft.Extensions.Logging;
+    using AIUsageTracker.Core.Models;
+    using AIUsageTracker.Core.Providers;
 
-    public override ProviderDefinition Definition => StaticDefinition;
-
-    public override string ProviderId => StaticDefinition.ProviderId;
-
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<MistralProvider> _logger;
-
-    public MistralProvider(HttpClient httpClient, ILogger<MistralProvider> logger)
+    public class MistralProvider : ProviderBase
     {
-        this._httpClient = httpClient;
-        this._logger = logger;
-    }
+        public static ProviderDefinition StaticDefinition { get; } = new(
+            providerId: "mistral",
+            displayName: "Mistral",
+            planType: PlanType.Usage,
+            isQuotaBased: false,
+            defaultConfigType: "pay-as-you-go",
+            rooConfigPropertyNames: new[] { "mistralApiKey" },
+            iconAssetName: "mistral",
+            fallbackBadgeColorHex: "#FF4500",
+            fallbackBadgeInitial: "Mi");
 
-    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
-    {
-        if (string.IsNullOrEmpty(config.ApiKey))
+        public override ProviderDefinition Definition => StaticDefinition;
+
+        public override string ProviderId => StaticDefinition.ProviderId;
+
+        private readonly HttpClient _httpClient;
+        private readonly ILogger<MistralProvider> _logger;
+
+        public MistralProvider(HttpClient httpClient, ILogger<MistralProvider> logger)
         {
-            return new[] { CreateUnavailableUsage("API Key missing") };
+            this._httpClient = httpClient;
+            this._logger = logger;
         }
 
-        // Mistral does not have a public usage/billing API endpoint
-        // We verify the key works by calling the models list endpoint
-        try
+        public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, "https://api.mistral.ai/v1/models");
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", config.ApiKey);
-
-            var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
-            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-
-            if (response.IsSuccessStatusCode)
+            if (string.IsNullOrEmpty(config.ApiKey))
             {
-                return new[] { new ProviderUsage
+                return new[] { this.CreateUnavailableUsage("API Key missing") };
+            }
+
+            // Mistral does not have a public usage/billing API endpoint
+            // We verify the key works by calling the models list endpoint
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, "https://api.mistral.ai/v1/models");
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", config.ApiKey);
+
+                var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
+                var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+                if (response.IsSuccessStatusCode)
                 {
-                    ProviderId = ProviderId,
-                    ProviderName = "Mistral AI",
-                    IsAvailable = true,
-                    RequestsPercentage = 0,
-                    IsQuotaBased = false,
-                    PlanType = PlanType.Usage,
-                    Description = "Connected (Check Dashboard)",
-                    UsageUnit = "Status",
-                    RawJson = content,
-                    HttpStatus = (int)response.StatusCode
-                }};
+                    return new[] { new ProviderUsage
+                    {
+                        ProviderId = this.ProviderId,
+                        ProviderName = "Mistral AI",
+                        IsAvailable = true,
+                        RequestsPercentage = 0,
+                        IsQuotaBased = false,
+                        PlanType = PlanType.Usage,
+                        Description = "Connected (Check Dashboard)",
+                        UsageUnit = "Status",
+                        RawJson = content,
+                        HttpStatus = (int)response.StatusCode
+                    }};
+                }
+                else
+                {
+                    return new[] { this.CreateUnavailableUsageFromStatus(response) };
+                }
             }
-            else
+            catch (Exception ex)
             {
-                return new[] { CreateUnavailableUsageFromStatus(response) };
+                this._logger.LogError(ex, "Failed to verify Mistral API key");
+                return new[] { this.CreateUnavailableUsageFromException(ex, "Failed to verify Mistral API key") };
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to verify Mistral API key");
-            return new[] { CreateUnavailableUsageFromException(ex, "Failed to verify Mistral API key") };
         }
     }
+
+
 }
-
-

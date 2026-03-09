@@ -1,7 +1,8 @@
-namespace AIUsageTracker.Core.Models;
-
-public enum PlanType
+namespace AIUsageTracker.Core.Models
 {
-    Usage,
-    Coding,
+    public enum PlanType
+    {
+        Usage,
+        Coding,
+    }
 }

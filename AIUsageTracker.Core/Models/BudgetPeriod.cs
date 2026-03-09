@@ -1,9 +1,10 @@
-namespace AIUsageTracker.Core.Models;
-
-public enum BudgetPeriod
+namespace AIUsageTracker.Core.Models
 {
-    Daily,
-    Weekly,
-    Monthly,
-    Yearly,
+    public enum BudgetPeriod
+    {
+        Daily,
+        Weekly,
+        Monthly,
+        Yearly,
+    }
 }

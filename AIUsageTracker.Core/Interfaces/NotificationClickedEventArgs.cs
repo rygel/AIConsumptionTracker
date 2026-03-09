@@ -1,8 +1,9 @@
-namespace AIUsageTracker.Core.Interfaces;
-
-public class NotificationClickedEventArgs : EventArgs
+namespace AIUsageTracker.Core.Interfaces
 {
-    public string Action { get; set; } = string.Empty;
+    public class NotificationClickedEventArgs : EventArgs
+    {
+        public string Action { get; set; } = string.Empty;
 
-    public string Data { get; set; } = string.Empty;
+        public string Data { get; set; } = string.Empty;
+    }
 }

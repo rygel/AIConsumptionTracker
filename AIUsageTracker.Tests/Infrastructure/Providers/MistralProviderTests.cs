@@ -1,82 +1,83 @@
-using System.Net;
-using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.Exceptions;
-using AIUsageTracker.Infrastructure.Providers;
-using AIUsageTracker.Tests.Infrastructure;
-using Moq;
-using Moq.Protected;
-using Xunit;
-
-namespace AIUsageTracker.Tests.Infrastructure.Providers;
-
-public class MistralProviderTests : HttpProviderTestBase<MistralProvider>
+namespace AIUsageTracker.Tests.Infrastructure.Providers
 {
-    private readonly MistralProvider _provider;
+    using System.Net;
+    using AIUsageTracker.Core.Models;
+    using AIUsageTracker.Core.Exceptions;
+    using AIUsageTracker.Infrastructure.Providers;
+    using AIUsageTracker.Tests.Infrastructure;
+    using Moq;
+    using Moq.Protected;
+    using Xunit;
 
-    public MistralProviderTests()
+    public class MistralProviderTests : HttpProviderTestBase<MistralProvider>
     {
-        _provider = new MistralProvider(HttpClient, Logger.Object);
-        Config.ApiKey = "test-mistral-key";
-    }
+        private readonly MistralProvider _provider;
 
-    [Fact]
-    public async Task GetUsageAsync_ValidApiKey_ReturnsConnectedStatus()
-    {
-        // Arrange
-        SetupHttpResponse("https://api.mistral.ai/v1/models", new HttpResponseMessage
+        public MistralProviderTests()
         {
-            StatusCode = HttpStatusCode.OK,
-            Content = new StringContent("{\"data\":[]}")
-        });
+            this._provider = new MistralProvider(this.HttpClient, this.Logger.Object);
+            this.Config.ApiKey = "test-mistral-key";
+        }
 
-        // Act
-        var result = await _provider.GetUsageAsync(Config);
-
-        // Assert
-        var usage = result.Single();
-        Assert.True(usage.IsAvailable);
-        Assert.Equal("Mistral AI", usage.ProviderName);
-        Assert.Equal("Connected (Check Dashboard)", usage.Description);
-        Assert.Equal(200, usage.HttpStatus);
-    }
-
-    [Fact]
-    public async Task GetUsageAsync_InvalidApiKey_UsesBaseClassErrorMapping()
-    {
-        // Arrange
-        SetupHttpResponse("https://api.mistral.ai/v1/models", new HttpResponseMessage
+        [Fact]
+        public async Task GetUsageAsync_ValidApiKey_ReturnsConnectedStatus()
         {
-            StatusCode = HttpStatusCode.Unauthorized
-        });
+            // Arrange
+            this.SetupHttpResponse("https://api.mistral.ai/v1/models", new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent("{\"data\":[]}")
+            });
 
-        // Act
-        var result = await _provider.GetUsageAsync(Config);
+            // Act
+            var result = await this._provider.GetUsageAsync(this.Config);
 
-        // Assert
-        var usage = result.Single();
-        Assert.False(usage.IsAvailable);
-        Assert.Equal(401, usage.HttpStatus);
-        Assert.Contains("Authentication failed", usage.Description);
-    }
+            // Assert
+            var usage = result.Single();
+            Assert.True(usage.IsAvailable);
+            Assert.Equal("Mistral AI", usage.ProviderName);
+            Assert.Equal("Connected (Check Dashboard)", usage.Description);
+            Assert.Equal(200, usage.HttpStatus);
+        }
 
-    [Fact]
-    public async Task GetUsageAsync_Timeout_UsesBaseClassExceptionMapping()
-    {
-        // Arrange - Force a timeout by throwing TaskCanceledException
-        SetupHttpResponse(_ => true, null!);
-        MessageHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.IsAny<HttpRequestMessage>(),
-                ItExpr.IsAny<CancellationToken>())
-            .ThrowsAsync(new TaskCanceledException());
+        [Fact]
+        public async Task GetUsageAsync_InvalidApiKey_UsesBaseClassErrorMapping()
+        {
+            // Arrange
+            this.SetupHttpResponse("https://api.mistral.ai/v1/models", new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.Unauthorized
+            });
 
-        // Act
-        var result = await _provider.GetUsageAsync(Config);
+            // Act
+            var result = await this._provider.GetUsageAsync(this.Config);
 
-        // Assert
-        var usage = result.Single();
-        Assert.False(usage.IsAvailable);
-        Assert.Contains("timed out", usage.Description, StringComparison.OrdinalIgnoreCase);
+            // Assert
+            var usage = result.Single();
+            Assert.False(usage.IsAvailable);
+            Assert.Equal(401, usage.HttpStatus);
+            Assert.Contains("Authentication failed", usage.Description);
+        }
+
+        [Fact]
+        public async Task GetUsageAsync_Timeout_UsesBaseClassExceptionMapping()
+        {
+            // Arrange - Force a timeout by throwing TaskCanceledException
+            this.SetupHttpResponse(_ => true, null!);
+            this.MessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>(
+                    "SendAsync",
+                    ItExpr.IsAny<HttpRequestMessage>(),
+                    ItExpr.IsAny<CancellationToken>())
+                .ThrowsAsync(new TaskCanceledException());
+
+            // Act
+            var result = await this._provider.GetUsageAsync(this.Config);
+
+            // Assert
+            var usage = result.Single();
+            Assert.False(usage.IsAvailable);
+            Assert.Contains("timed out", usage.Description, StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

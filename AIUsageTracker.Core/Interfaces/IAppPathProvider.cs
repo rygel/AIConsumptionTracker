@@ -1,19 +1,20 @@
-namespace AIUsageTracker.Core.Interfaces;
-
-public interface IAppPathProvider
+namespace AIUsageTracker.Core.Interfaces
 {
-    string GetAppDataRoot();
+    public interface IAppPathProvider
+    {
+        string GetAppDataRoot();
 
-    string GetDatabasePath();
+        string GetDatabasePath();
 
-    string GetLogDirectory();
+        string GetLogDirectory();
 
-    string GetAuthFilePath();
+        string GetAuthFilePath();
 
-    string GetPreferencesFilePath();
+        string GetPreferencesFilePath();
 
-    string GetProviderConfigFilePath();
+        string GetProviderConfigFilePath();
 
-    // Discovery root for external tools (e.g., .claude, .codex)
-    string GetUserProfileRoot();
+        // Discovery root for external tools (e.g., .claude, .codex)
+        string GetUserProfileRoot();
+    }
 }

@@ -1,18 +1,19 @@
-namespace AIUsageTracker.Monitor.Logging;
-
-public class FileLoggerProvider : ILoggerProvider
+namespace AIUsageTracker.Monitor.Logging
 {
-    private readonly string _logFile;
-
-    public FileLoggerProvider(string logFile)
+    public class FileLoggerProvider : ILoggerProvider
     {
-        _logFile = logFile;
-    }
+        private readonly string _logFile;
 
-    public ILogger CreateLogger(string categoryName)
-    {
-        return new FileLogger(_logFile, categoryName);
-    }
+        public FileLoggerProvider(string logFile)
+        {
+            this._logFile = logFile;
+        }
 
-    public void Dispose() { }
+        public ILogger CreateLogger(string categoryName)
+        {
+            return new FileLogger(this._logFile, categoryName);
+        }
+
+        public void Dispose() { }
+    }
 }

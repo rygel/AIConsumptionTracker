@@ -1,33 +1,34 @@
-using AIUsageTracker.Core.Models;
-using AIUsageTracker.Infrastructure.Providers;
-using AIUsageTracker.Tests.Infrastructure;
-using Xunit;
-
-namespace AIUsageTracker.Tests.Infrastructure.Providers;
-
-public class OpenCodeZenProviderTests : HttpProviderTestBase<OpenCodeZenProvider>
+namespace AIUsageTracker.Tests.Infrastructure.Providers
 {
-    private readonly OpenCodeZenProvider _provider;
+    using AIUsageTracker.Core.Models;
+    using AIUsageTracker.Infrastructure.Providers;
+    using AIUsageTracker.Tests.Infrastructure;
+    using Xunit;
 
-    public OpenCodeZenProviderTests()
+    public class OpenCodeZenProviderTests : HttpProviderTestBase<OpenCodeZenProvider>
     {
-        _provider = new OpenCodeZenProvider(Logger.Object);
-        Config.ApiKey = "test-key";
-    }
+        private readonly OpenCodeZenProvider _provider;
 
-    [Fact]
-    public async Task GetUsageAsync_CliNotFound_ReturnsUnavailable()
-    {
-        // Arrange
-        var provider = new OpenCodeZenProvider(Logger.Object, "non-existent-cli");
+        public OpenCodeZenProviderTests()
+        {
+            this._provider = new OpenCodeZenProvider(this.Logger.Object);
+            this.Config.ApiKey = "test-key";
+        }
 
-        // Act
-        var result = await provider.GetUsageAsync(Config);
+        [Fact]
+        public async Task GetUsageAsync_CliNotFound_ReturnsUnavailable()
+        {
+            // Arrange
+            var provider = new OpenCodeZenProvider(this.Logger.Object, "non-existent-cli");
 
-        // Assert
-        var usage = result.Single();
-        Assert.False(usage.IsAvailable);
-        Assert.Equal(404, usage.HttpStatus);
-        Assert.Contains("CLI not found", usage.Description);
+            // Act
+            var result = await provider.GetUsageAsync(this.Config);
+
+            // Assert
+            var usage = result.Single();
+            Assert.False(usage.IsAvailable);
+            Assert.Equal(404, usage.HttpStatus);
+            Assert.Contains("CLI not found", usage.Description);
+        }
     }
 }

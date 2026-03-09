@@ -1,32 +1,33 @@
-using System.Net;
-
-namespace AIUsageTracker.Infrastructure.Http;
-
-public class ResilientHttpClientOptions
+namespace AIUsageTracker.Infrastructure.Http
 {
-    public int MaxRetryCount { get; set; } = 3;
+    using System.Net;
 
-    public double BackoffBase { get; set; } = 2;
+    public class ResilientHttpClientOptions
+    {
+        public int MaxRetryCount { get; set; } = 3;
 
-    public TimeSpan CircuitBreakerDuration { get; set; } = TimeSpan.FromSeconds(30);
+        public double BackoffBase { get; set; } = 2;
 
-    public int CircuitBreakerFailureThreshold { get; set; } = 5;
+        public TimeSpan CircuitBreakerDuration { get; set; } = TimeSpan.FromSeconds(30);
 
-    public IReadOnlyList<HttpStatusCode> RetryStatusCodes { get; set; } =
-    [
-        HttpStatusCode.RequestTimeout,
-        HttpStatusCode.TooManyRequests,
-        HttpStatusCode.InternalServerError,
-        HttpStatusCode.BadGateway,
-        HttpStatusCode.ServiceUnavailable,
-        HttpStatusCode.GatewayTimeout,
-    ];
+        public int CircuitBreakerFailureThreshold { get; set; } = 5;
 
-    public IReadOnlyList<HttpStatusCode> CircuitBreakerStatusCodes { get; set; } =
-    [
-        HttpStatusCode.InternalServerError,
-        HttpStatusCode.BadGateway,
-        HttpStatusCode.ServiceUnavailable,
-        HttpStatusCode.GatewayTimeout,
-    ];
+        public IReadOnlyList<HttpStatusCode> RetryStatusCodes { get; set; } =
+        [
+            HttpStatusCode.RequestTimeout,
+            HttpStatusCode.TooManyRequests,
+            HttpStatusCode.InternalServerError,
+            HttpStatusCode.BadGateway,
+            HttpStatusCode.ServiceUnavailable,
+            HttpStatusCode.GatewayTimeout,
+        ];
+
+        public IReadOnlyList<HttpStatusCode> CircuitBreakerStatusCodes { get; set; } =
+        [
+            HttpStatusCode.InternalServerError,
+            HttpStatusCode.BadGateway,
+            HttpStatusCode.ServiceUnavailable,
+            HttpStatusCode.GatewayTimeout,
+        ];
+    }
 }
