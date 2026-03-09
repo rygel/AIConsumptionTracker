@@ -5,8 +5,6 @@
 namespace AIUsageTracker.Monitor
 {
     using System.Diagnostics;
-    using System.Net;
-    using System.Net.Sockets;
     using System.Runtime.InteropServices;
     using System.Text.Json;
     using System.Text.Json.Serialization;
@@ -18,11 +16,10 @@ namespace AIUsageTracker.Monitor
     using AIUsageTracker.Infrastructure.Helpers;
     using AIUsageTracker.Infrastructure.Providers;
     using AIUsageTracker.Infrastructure.Services;
+    using AIUsageTracker.Monitor.Endpoints;
     using AIUsageTracker.Monitor.Logging;
     using AIUsageTracker.Monitor.Services;
     using Microsoft.AspNetCore.Builder;
-    using Microsoft.AspNetCore.Mvc;
-    using Microsoft.AspNetCore.Routing;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
 
@@ -123,7 +120,7 @@ namespace AIUsageTracker.Monitor
                 }
 
                 // Reserve the canonical monitor port with retry for transient bind races.
-                int port = ResolveCanonicalPort(preferredPort: 5000, debug: isDebugMode, logger: logger);
+                int port = MonitorPortResolver.ResolveCanonicalPort(preferredPort: 5000, debug: isDebugMode, logger: logger);
 
                 logger.LogDebug("Configuring web host on port {Port}...", port);
                 logger.LogDebug("Base Directory: {BaseDir}", AppDomain.CurrentDomain.BaseDirectory);
@@ -211,169 +208,13 @@ namespace AIUsageTracker.Monitor
                 const string apiContractVersion = "1";
                 var agentVersion = typeof(UsageDatabase).Assembly.GetName().Version?.ToString() ?? "unknown";
 
-                // Health endpoint (check if agent is running)
-                app.MapGet("/api/health", (ILogger<Program> logger) =>
-                {
-                    if (isDebugMode)
-                    {
-                        logger.LogDebug("GET /api/health");
-                    }
-
-                    return Results.Ok(new
-                    {
-                        status = "healthy",
-                        timestamp = DateTime.UtcNow,
-                        port = port,
-                        processId = Environment.ProcessId,
-                        agentVersion = agentVersion,
-                        apiContractVersion = apiContractVersion,
-                    });
-                });
-
-                // Diagnostics endpoint
-                app.MapGet("/api/diagnostics", (EndpointDataSource endpointDataSource, ProviderRefreshService refreshService, ILogger<Program> logger) =>
-                {
-                    if (isDebugMode)
-                    {
-                        logger.LogDebug("GET /api/diagnostics");
-                    }
-
-                    var apiEndpoints = endpointDataSource.Endpoints
-                        .OfType<RouteEndpoint>()
-                        .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) == true)
-                        .GroupBy(endpoint => endpoint.RoutePattern.RawText!, StringComparer.OrdinalIgnoreCase)
-                        .Select(group => new
-                        {
-                            route = group.Key,
-                            methods = group
-                                .SelectMany(endpoint => endpoint.Metadata
-                                    .OfType<HttpMethodMetadata>()
-                                    .SelectMany(metadata => metadata.HttpMethods))
-                                .Where(method => !string.IsNullOrWhiteSpace(method))
-                                .Select(method => method.ToUpperInvariant())
-                                .Distinct(StringComparer.OrdinalIgnoreCase)
-                                .OrderBy(method => method)
-                                .ToArray(),
-                        })
-                        .OrderBy(endpoint => endpoint.route)
-                        .ToList();
-
-                    return Results.Ok(new
-                    {
-                        port = port,
-                        processId = Environment.ProcessId,
-                        workingDir = Directory.GetCurrentDirectory(),
-                        baseDir = AppDomain.CurrentDomain.BaseDirectory,
-                        startedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture),
-                        os = Environment.OSVersion.ToString(),
-                        runtime = Environment.Version.ToString(),
-                        args = args,
-                        endpoints = apiEndpoints,
-                        refreshTelemetry = refreshService.GetRefreshTelemetrySnapshot(),
-                    });
-                });
-
-                // Provider usage endpoints
-                app.MapGet("/api/usage", async (UsageDatabase db, IConfigService configService, ILogger<Program> logger) =>
-                {
-                    var usage = await db.GetLatestHistoryAsync();
-
-                    var configs = await configService.GetConfigsAsync();
-                    usage = usage
-                        .Where(u => !ProviderMetadataCatalog.ShouldSuppressUsageProviderId(configs, u.ProviderId))
-                        .ToList();
-
-                    logger.LogDebug(
-                        "GET /api/usage returning {Count} providers: {Providers}",
-                        usage.Count,
-                        string.Join(", ", usage.Select(u => u.ProviderId)));
-
-                    return Results.Ok(usage);
-                });
-
-                app.MapGet("/api/usage/{providerId}", async (string providerId, UsageDatabase db, ILogger<Program> logger) =>
-                {
-                    logger.LogDebug("GET /api/usage/{ProviderId}", providerId);
-                    var usage = await db.GetHistoryByProviderAsync(providerId, 1);
-                    var result = usage.FirstOrDefault();
-                    return result != null ? Results.Ok(result) : Results.NotFound();
-                });
-
-                app.MapPost("/api/refresh", async ([FromServices] ProviderRefreshService refreshService, ILogger<Program> logger) =>
-                {
-                    logger.LogDebug("POST /api/refresh");
-                    await refreshService.TriggerRefreshAsync();
-                    return Results.Ok(new { message = "Refresh triggered" });
-                });
-
-                app.MapPost("/api/notifications/test", ([FromServices] INotificationService notificationService, ILogger<Program> logger) =>
-                {
-                    logger.LogDebug("POST /api/notifications/test");
-                    notificationService.ShowNotification(
-                        "AI Usage Tracker",
-                        "This is a test notification from Slim Settings.",
-                        "openSettings",
-                        "notifications");
-                    return Results.Ok(new { message = "Test notification sent" });
-                });
-
-                // Config endpoints
-                app.MapGet("/api/config", async (IConfigService configService, ILogger<Program> logger) =>
-                {
-                    logger.LogDebug("GET /api/config");
-                    var configs = await configService.GetConfigsAsync();
-                    return Results.Ok(configs);
-                });
-
-                app.MapPost("/api/config", async (ProviderConfig config, IConfigService configService, ILogger<Program> logger) =>
-                {
-                    logger.LogDebug("POST /api/config ({ProviderId})", config.ProviderId);
-                    await configService.SaveConfigAsync(config);
-                    return Results.Ok(new { message = "Config saved" });
-                });
-
-                app.MapDelete("/api/config/{providerId}", async (string providerId, IConfigService configService, ILogger<Program> logger) =>
-                {
-                    logger.LogDebug("DELETE /api/config/{ProviderId}", providerId);
-                    await configService.RemoveConfigAsync(providerId);
-                    return Results.Ok(new { message = "Config removed" });
-                });
-
-                // Scan for keys endpoint
-                app.MapPost("/api/scan-keys", async ([FromServices] IConfigService configService, [FromServices] ProviderRefreshService refreshService, ILogger<Program> logger) =>
-                {
-                    logger.LogDebug("POST /api/scan-keys");
-                    var discovered = await configService.ScanForKeysAsync();
-                    logger.LogDebug("Discovered {Count} keys", discovered.Count);
-
-                    // Immediately refresh so newly discovered keys appear in /api/usage within seconds
-                    _ = Task.Run(async () => await refreshService.TriggerRefreshAsync(forceAll: true));
-
-                    return Results.Ok(new { discovered = discovered.Count, configs = discovered });
-                });
-
-                // History endpoints
-                app.MapGet("/api/history", async (UsageDatabase db, int? limit, ILogger<Program> logger) =>
-                {
-                    logger.LogDebug("GET /api/history (limit={Limit})", limit ?? 100);
-                    var history = await db.GetHistoryAsync(limit ?? 100);
-                    return Results.Ok(history);
-                });
-
-                app.MapGet("/api/history/{providerId}", async (string providerId, UsageDatabase db, int? limit, ILogger<Program> logger) =>
-                {
-                    logger.LogDebug("GET /api/history/{ProviderId}", providerId);
-                    var history = await db.GetHistoryByProviderAsync(providerId, limit ?? 100);
-                    return Results.Ok(history);
-                });
-
-                // Reset events endpoint
-                app.MapGet("/api/resets/{providerId}", async (string providerId, UsageDatabase db, int? limit, ILogger<Program> logger) =>
-                {
-                    logger.LogDebug("GET /api/resets/{ProviderId}", providerId);
-                    var resets = await db.GetResetEventsAsync(providerId, limit ?? 50);
-                    return Results.Ok(resets);
-                });
+                MonitorEndpointsRegistration.MapAll(
+                    app,
+                    isDebugMode,
+                    port,
+                    agentVersion,
+                    apiContractVersion,
+                    args);
 
                 await app.StartAsync();
 
@@ -385,10 +226,10 @@ namespace AIUsageTracker.Monitor
                     logger.LogInformation("═══════════════════════════════════════════════════════════════");
                     logger.LogInformation(string.Empty);
                     logger.LogInformation("  API Endpoints:");
-                    logger.LogInformation("    GET  http://localhost:{Port}/api/health", port);
-                    logger.LogInformation("    GET  http://localhost:{Port}/api/usage", port);
-                    logger.LogInformation("    GET  http://localhost:{Port}/api/config", port);
-                    logger.LogInformation("    POST http://localhost:{Port}/api/refresh", port);
+                    logger.LogInformation("    GET  http://localhost:{Port}{Route}", port, MonitorApiRoutes.Health);
+                    logger.LogInformation("    GET  http://localhost:{Port}{Route}", port, MonitorApiRoutes.Usage);
+                    logger.LogInformation("    GET  http://localhost:{Port}{Route}", port, MonitorApiRoutes.Config);
+                    logger.LogInformation("    POST http://localhost:{Port}{Route}", port, MonitorApiRoutes.Refresh);
                     logger.LogInformation(string.Empty);
                     logger.LogInformation("  Press Ctrl+C to stop");
                     logger.LogInformation("═══════════════════════════════════════════════════════════════");
@@ -396,13 +237,13 @@ namespace AIUsageTracker.Monitor
                 }
 
                 // Update metadata only after successful bind/start.
-                SaveMonitorInfo(port, isDebugMode, logger, pathProvider, startupStatus: "running");
+                MonitorInfoPersistence.SaveMonitorInfo(port, isDebugMode, logger, pathProvider, startupStatus: "running");
                 await app.WaitForShutdownAsync();
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Monitor startup failed");
-                SaveMonitorInfo(0, isDebugMode, logger, pathProvider, startupStatus: $"failed: {ex.Message}");
+                MonitorInfoPersistence.SaveMonitorInfo(0, isDebugMode, logger, pathProvider, startupStatus: $"failed: {ex.Message}");
                 throw;
             }
             finally
@@ -412,171 +253,20 @@ namespace AIUsageTracker.Monitor
             }
         }
 
-        // Helper: Resolve canonical monitor port with bind retry (no alternate-port scanning).
-        private static int ResolveCanonicalPort(int preferredPort, bool debug, ILogger logger)
-        {
-            var maxAttempts = 10;
-            var attemptDelay = TimeSpan.FromMilliseconds(100);
-
-            for (int attempt = 1; attempt <= maxAttempts; attempt++)
-            {
-                try
-                {
-                    // Try to actually bind to the port
-                    using var listener = new TcpListener(IPAddress.Loopback, preferredPort);
-                    listener.Start();
-                    // Successfully bound - this is our port
-                    listener.Stop();
-                    if (debug)
-                    {
-                        logger.LogDebug("Port {Port} is available on attempt {Attempt}", preferredPort, attempt);
-                    }
-
-                    return preferredPort;
-                }
-                catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
-                {
-                    if (attempt < maxAttempts)
-                    {
-                        if (debug)
-                        {
-                            logger.LogDebug("Port {Port} in use on attempt {Attempt}, retrying...", preferredPort, attempt);
-                        }
-
-                        Thread.Sleep(attemptDelay);
-                        continue;
-                    }
-
-                    logger.LogWarning("Preferred port {Port} is unavailable after {Attempts} attempts.", preferredPort, maxAttempts);
-                    break;
-                }
-            }
-
-            logger.LogWarning("Preferred port {Port} was unavailable; selecting a random high port", preferredPort);
-            return GetRandomHighPort(logger);
-        }
-
-        // Helper: Get a random high available port.
-        private static int GetRandomHighPort(ILogger logger)
-        {
-            var random = new Random();
-            const int minPort = 49152;
-            const int maxPort = 65535;
-            const int attempts = 200;
-
-            for (int attempt = 0; attempt < attempts; attempt++)
-            {
-                var candidate = random.Next(minPort, maxPort + 1);
-                try
-                {
-                    using var listener = new TcpListener(IPAddress.Loopback, candidate);
-                    listener.Start();
-                    listener.Stop();
-                    logger.LogInformation("Using random high port {Port}", candidate);
-                    return candidate;
-                }
-                catch (SocketException)
-                {
-                    // Keep searching.
-                }
-            }
-
-            throw new InvalidOperationException($"No available high port found in range {minPort}-{maxPort}.");
-        }
-
         // P/Invoke to allocate console window
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool AllocConsole();
 
-        // Helper: Save monitor info for UI to discover
+        // Compatibility wrapper kept for tests and external callers.
         public static void SaveMonitorInfo(int port, bool debug, ILogger logger, IAppPathProvider pathProvider, string? startupStatus = null)
         {
-            try
-            {
-                var info = new MonitorInfo
-                {
-                    Port = port,
-                    StartedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture),
-                    ProcessId = Environment.ProcessId,
-                    DebugMode = debug,
-                    Errors = new List<string>(),
-                    MachineName = Environment.MachineName,
-                    UserName = Environment.UserName,
-                };
-
-                // Add startup status if provided
-                if (!string.IsNullOrEmpty(startupStatus))
-                {
-                    var errors = info.Errors?.ToList() ?? new List<string>();
-                    errors.Add($"Startup status: {startupStatus}");
-                    info.Errors = errors;
-                }
-
-                var json = JsonSerializer.Serialize(info, new JsonSerializerOptions { WriteIndented = true });
-                foreach (var infoPath in GetMonitorInfoCandidatePaths(pathProvider))
-                {
-                    try
-                    {
-                        var directory = Path.GetDirectoryName(infoPath);
-                        if (!string.IsNullOrWhiteSpace(directory))
-                        {
-                            Directory.CreateDirectory(directory);
-                        }
-
-                        File.WriteAllText(infoPath, json);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger?.LogDebug(ex, "Failed to write monitor info to {MonitorInfoPath}", infoPath);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "Failed to save agent info");
-            }
+            MonitorInfoPersistence.SaveMonitorInfo(port, debug, logger, pathProvider, startupStatus);
         }
 
-        // Helper: Report error to agent info
+        // Compatibility wrapper kept for tests and external callers.
         public static void ReportError(string message, IAppPathProvider pathProvider, ILogger? logger = null)
         {
-            try
-            {
-                var jsonFile = GetExistingAgentInfoPath(pathProvider);
-
-                if (!string.IsNullOrWhiteSpace(jsonFile) && File.Exists(jsonFile))
-                {
-                    var json = File.ReadAllText(jsonFile);
-                    var info = JsonSerializer.Deserialize<MonitorInfo>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    if (info != null)
-                    {
-                        var errors = info.Errors?.ToList() ?? new List<string>();
-                        errors.Add(message);
-                        info.Errors = errors;
-                        var updatedJson = JsonSerializer.Serialize(info, new JsonSerializerOptions { WriteIndented = true });
-                        File.WriteAllText(jsonFile, updatedJson);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError(ex, "Error reporting failed");
-            }
-        }
-
-        private static string? GetExistingAgentInfoPath(IAppPathProvider pathProvider)
-        {
-            return GetMonitorInfoCandidatePaths(pathProvider)
-                .Where(File.Exists)
-                .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
-                .FirstOrDefault();
-        }
-
-        private static IEnumerable<string> GetMonitorInfoCandidatePaths(IAppPathProvider pathProvider)
-        {
-            var appDataRoot = pathProvider.GetAppDataRoot();
-            var userProfileRoot = pathProvider.GetUserProfileRoot();
-            return MonitorInfoPathCatalog.GetWriteCandidatePaths(appDataRoot, userProfileRoot);
+            MonitorInfoPersistence.ReportError(message, pathProvider, logger);
         }
     }
 }
