@@ -14,6 +14,6 @@ public class ProviderTimeoutException : ProviderException
         System.Exception? innerException = null)
         : base(providerId, message, ProviderErrorType.TimeoutError, innerException: innerException)
     {
-        TimeoutDuration = timeoutDuration;
+        this.TimeoutDuration = timeoutDuration;
     }
 }

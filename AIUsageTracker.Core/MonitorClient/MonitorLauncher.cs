@@ -1,7 +1,5 @@
 using System.Diagnostics;
-using System.IO;
 using System.Net.Http;
-using System.Text.Json;
 using AIUsageTracker.Core.Models;
 using Microsoft.Extensions.Logging;
 
@@ -9,7 +7,7 @@ namespace AIUsageTracker.Core.MonitorClient;
 
 public class MonitorLauncher
 {
-    private const int DefaultPort = 5000;
+    internal const int DefaultPort = 5000;
     private const int MaxWaitSeconds = 30;
     private const int StopWaitSeconds = 5;
     private static ILogger<MonitorLauncher>? _logger;
@@ -17,17 +15,30 @@ public class MonitorLauncher
     private static Func<IEnumerable<string>>? _monitorInfoCandidatePathsOverride;
     private static Func<int, Task<bool>>? _healthCheckOverride;
     private static Func<int, Task<bool>>? _processRunningOverride;
+    private static Func<int, Task<bool>>? _stopProcessOverride;
+    private static Func<Task<bool>>? _stopNamedProcessesOverride;
+
+    public readonly record struct MonitorStatusInfo(
+        bool IsRunning,
+        int Port,
+        bool HasMetadata,
+        string Message,
+        string? Error);
 
     public static void SetLogger(ILogger<MonitorLauncher> logger) => _logger = logger;
 
     internal static IDisposable PushTestOverrides(
         IEnumerable<string>? monitorInfoCandidatePaths = null,
         Func<int, Task<bool>>? healthCheckAsync = null,
-        Func<int, Task<bool>>? processRunningAsync = null)
+        Func<int, Task<bool>>? processRunningAsync = null,
+        Func<int, Task<bool>>? stopProcessAsync = null,
+        Func<Task<bool>>? stopNamedProcessesAsync = null)
     {
         var previousCandidatePaths = _monitorInfoCandidatePathsOverride;
         var previousHealthCheck = _healthCheckOverride;
         var previousProcessCheck = _processRunningOverride;
+        var previousStopProcess = _stopProcessOverride;
+        var previousStopNamedProcesses = _stopNamedProcessesOverride;
 
         if (monitorInfoCandidatePaths != null)
         {
@@ -45,94 +56,55 @@ public class MonitorLauncher
             _processRunningOverride = processRunningAsync;
         }
 
+        if (stopProcessAsync != null)
+        {
+            _stopProcessOverride = stopProcessAsync;
+        }
+
+        if (stopNamedProcessesAsync != null)
+        {
+            _stopNamedProcessesOverride = stopNamedProcessesAsync;
+        }
+
         return new TestOverrideScope(() =>
         {
             _monitorInfoCandidatePathsOverride = previousCandidatePaths;
             _healthCheckOverride = previousHealthCheck;
             _processRunningOverride = previousProcessCheck;
+            _stopProcessOverride = previousStopProcess;
+            _stopNamedProcessesOverride = previousStopNamedProcesses;
         });
-    }
-
-
-    private static async Task<MonitorInfo?> GetAgentInfoAsync()
-    {
-        try
-        {
-            var path = GetExistingAgentInfoPath();
-
-            if (path != null)
-            {
-                var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
-                return JsonSerializer.Deserialize<MonitorInfo>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-            }
-            
-            return null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static async Task<(MonitorInfo? Info, int Port, bool IsRunning)> ResolveMonitorStateAsync()
-    {
-        var info = await GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
-        if (info != null)
-        {
-            return (info, info.Port, true);
-        }
-
-        var port = DefaultPort;
-        var isRunning = await CheckHealthAsync(port).ConfigureAwait(false);
-        return (null, port, isRunning);
     }
 
     public static async Task<int> GetAgentPortAsync()
     {
-        var (_, port, _) = await ResolveMonitorStateAsync().ConfigureAwait(false);
-        return port;
+        var readyState = await ResolveReadyStateAsync().ConfigureAwait(false);
+        return readyState.Port;
     }
 
     public static async Task<bool> IsAgentRunningAsync()
     {
-        var (info, port, isRunning) = await ResolveMonitorStateAsync().ConfigureAwait(false);
-        if (info != null)
-        {
-            MonitorService.LogDiagnostic($"Monitor is running on port {info.Port}");
-            return true;
-        }
-
-        MonitorService.LogDiagnostic($"Checking Monitor status on port: {port}");
-        if (isRunning)
-        {
-            MonitorService.LogDiagnostic($"Monitor is running on port {port}");
-            return true;
-        }
-
-        MonitorService.LogDiagnostic($"Monitor not found on port {port}.");
-        return false;
+        var readyState = await GetReadyStateAsync().ConfigureAwait(false);
+        return readyState.IsRunning;
     }
     
     public static async Task<(bool IsRunning, int Port)> IsAgentRunningWithPortAsync()
     {
-        var (info, port, isRunning) = await ResolveMonitorStateAsync().ConfigureAwait(false);
-        if (info != null)
-        {
-            return (true, info.Port);
-        }
+        var readyState = await GetReadyStateAsync().ConfigureAwait(false);
+        return (readyState.IsRunning, readyState.Port);
+    }
 
-        MonitorService.LogDiagnostic($"Probing Monitor port: {port}");
+    public static async Task<(bool IsRunning, int Port, bool HasMetadata)> GetAgentStatusAsync()
+    {
+        var status = await GetAgentStatusInfoAsync().ConfigureAwait(false);
+        return (status.IsRunning, status.Port, status.HasMetadata);
+    }
 
-        if (isRunning)
-        {
-            return (true, port);
-        }
-        
-        MonitorService.LogDiagnostic($"Monitor not found on port {port}.");
-        return (false, port);
+    public static async Task<MonitorStatusInfo> GetAgentStatusInfoAsync()
+    {
+        return await MonitorLauncherStateResolver.GetAgentStatusInfoAsync(
+            ReadValidatedAgentInfoAsync,
+            CheckHealthAsync).ConfigureAwait(false);
     }
 
     private static async Task<bool> CheckHealthAsync(int port)
@@ -148,8 +120,19 @@ public class MonitorLauncher
             var response = await client.GetAsync($"http://localhost:{port}/api/health").ConfigureAwait(false);
             return response.IsSuccessStatusCode;
         }
+        catch (HttpRequestException ex)
+        {
+            MonitorService.LogDiagnostic($"Health check request failed on port {port}: {ex.Message}");
+            return false;
+        }
+        catch (TaskCanceledException ex)
+        {
+            MonitorService.LogDiagnostic($"Health check timed out on port {port}: {ex.Message}");
+            return false;
+        }
         catch
         {
+            MonitorService.LogDiagnostic($"Health check failed on port {port} for an unknown reason.");
             return false;
         }
     }
@@ -173,37 +156,20 @@ public class MonitorLauncher
         }
         catch (ArgumentException)
         {
+            MonitorService.LogDiagnostic($"Monitor process {processId} was not found.");
             return Task.FromResult(false);
         }
         catch
         {
+            MonitorService.LogDiagnostic($"Failed to query monitor process {processId}.");
             return Task.FromResult(false);
         }
     }
 
     public static async Task<MonitorInfo?> GetAndValidateMonitorInfoAsync()
     {
-        var info = await GetAgentInfoAsync().ConfigureAwait(false);
-        if (info == null)
-        {
-            return null;
-        }
-
-        var port = info.Port;
-        var processId = info.ProcessId;
-
-        var healthOk = await CheckHealthAsync(port).ConfigureAwait(false);
-        var processRunning = await CheckProcessRunningAsync(processId).ConfigureAwait(false);
-
-        if (healthOk && processRunning)
-        {
-            return info;
-        }
-
-        MonitorService.LogDiagnostic($"Monitor metadata stale: health={healthOk}, processRunning={processRunning}, invalidating metadata");
-
-        await InvalidateMonitorInfoAsync().ConfigureAwait(false);
-        return null;
+        var metadataState = await ReadValidatedAgentInfoAsync().ConfigureAwait(false);
+        return metadataState.IsUsable ? metadataState.Info : null;
     }
 
     public static Task InvalidateMonitorInfoAsync()
@@ -212,9 +178,7 @@ public class MonitorLauncher
         {
             foreach (var infoPath in GetExistingAgentInfoPaths())
             {
-                var backupPath = infoPath + ".stale." + DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                File.Move(infoPath, backupPath, overwrite: true);
-                MonitorService.LogDiagnostic($"Backed up stale metadata to: {backupPath}");
+                InvalidateMonitorInfoPath(infoPath);
             }
         }
         catch (Exception ex)
@@ -225,86 +189,46 @@ public class MonitorLauncher
         return Task.CompletedTask;
     }
 
+    private static Task QuarantineMonitorInfoAsync(string infoPath, string? diagnosticMessage = null)
+    {
+        if (!string.IsNullOrEmpty(diagnosticMessage))
+        {
+            MonitorService.LogDiagnostic(diagnosticMessage);
+        }
+
+        InvalidateMonitorInfoPath(infoPath);
+        return Task.CompletedTask;
+    }
+
+    private static void InvalidateMonitorInfoPath(string infoPath)
+    {
+        var backupPath = infoPath + ".stale." + DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        File.Move(infoPath, backupPath, overwrite: true);
+        MonitorService.LogDiagnostic($"Backed up stale metadata to: {backupPath}");
+    }
+
     public static async Task<bool> StartAgentAsync()
     {
         await StartupSemaphore.WaitAsync().ConfigureAwait(false);
         try
         {
-            var (validatedInfo, port, isRunning) = await ResolveMonitorStateAsync().ConfigureAwait(false);
-            if (validatedInfo != null)
+            var readyState = await ResolveReadyStateAsync().ConfigureAwait(false);
+            if (readyState.IsRunning)
             {
-                MonitorService.LogDiagnostic($"Monitor already running on port {validatedInfo.Port}; skipping start.");
+                var source = readyState.FromMetadata ? "metadata" : "health check";
+                MonitorService.LogDiagnostic($"Monitor already running on port {readyState.Port} via {source}; skipping start.");
                 return true;
             }
 
-            if (isRunning)
+            var launchPlan = MonitorLauncherProcessController.TryResolveLaunchPlan(readyState.Port);
+            if (launchPlan == null)
             {
-                MonitorService.LogDiagnostic($"Monitor already responding on port {port}; skipping start.");
-                return true;
-            }
-
-            var monitorExeName = OperatingSystem.IsWindows()
-                ? "AIUsageTracker.Monitor.exe"
-                : "AIUsageTracker.Monitor";
-            // Try to find Agent executable
-            var possiblePaths = new[]
-            {
-                // Development paths
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIUsageTracker.Monitor", "bin", "Debug", "net8.0", monitorExeName),
-                Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIUsageTracker.Monitor", "bin", "Release", "net8.0", monitorExeName),
-                // Installed paths
-                Path.Combine(AppContext.BaseDirectory, monitorExeName),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "AIUsageTracker", monitorExeName),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AIUsageTracker", monitorExeName),
-            };
-
-            MonitorService.LogDiagnostic($"Locating Monitor executable (checked {possiblePaths.Length} common locations)...");
-            var agentPath = possiblePaths.FirstOrDefault(File.Exists);
-
-            if (agentPath == null)
-            {
-                MonitorService.LogDiagnostic("Monitor executable not found. Searching for project directory for 'dotnet run'...");
-                // Try dotnet run in the Agent project directory
-                var agentProjectDir = FindAgentProjectDirectory();
-                if (agentProjectDir != null)
-                {
-                    MonitorService.LogDiagnostic($"Found Monitor project at: {agentProjectDir}. Launching via 'dotnet run'...");
-                    var psi = new ProcessStartInfo
-                    {
-                        FileName = "dotnet",
-                        Arguments = $"run --project \"{agentProjectDir}\" --urls \"http://localhost:{port}\" -- --debug",
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                        WindowStyle = ProcessWindowStyle.Hidden,
-                        WorkingDirectory = agentProjectDir,
-                    };
-
-                    // Prevent MSBuild from leaving zombie processes that hold file locks
-                    psi.Environment["MSBUILDDISABLENODEREUSE"] = "1";
-                    psi.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
-
-                    Process.Start(psi);
-                    return true;
-                }
-
-                MonitorService.LogDiagnostic("Could not find Monitor executable or project directory.");
                 return false;
             }
 
-            MonitorService.LogDiagnostic($"Monitor executable found at: {agentPath}. Launching...");
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = agentPath,
-                Arguments = $"--urls \"http://localhost:{port}\" --debug",
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
-                WorkingDirectory = Path.GetDirectoryName(agentPath),
-            };
-
-            Process.Start(startInfo);
-            MonitorService.LogDiagnostic("Monitor process started.");
-            return true;
+            return MonitorLauncherProcessController.TryStartMonitorProcess(
+                launchPlan.Value.StartInfo,
+                launchPlan.Value.LaunchTarget);
         }
         catch (Exception ex)
         {
@@ -317,164 +241,82 @@ public class MonitorLauncher
         }
     }
 
+    public static async Task<bool> EnsureAgentRunningAsync(CancellationToken cancellationToken = default)
+    {
+        var readyState = await GetReadyStateAsync().ConfigureAwait(false);
+        if (readyState.IsRunning)
+        {
+            MonitorService.LogDiagnostic($"Monitor already ready on port {readyState.Port}; no startup needed.");
+            return true;
+        }
+
+        var started = await StartAgentAsync().ConfigureAwait(false);
+        if (!started)
+        {
+            return false;
+        }
+
+        var waitedState = await WaitForReadyStateAsync(cancellationToken).ConfigureAwait(false);
+        return waitedState.HasValue;
+    }
+
     public static async Task<bool> StopAgentAsync()
     {
-        try
-        {
-            var info = await GetAgentInfoAsync().ConfigureAwait(false);
-            var targetPort = info?.Port > 0 ? info.Port : await GetAgentPortAsync().ConfigureAwait(false);
-            if (info?.ProcessId > 0)
-            {
-                if (await TryStopProcessAsync(info.ProcessId).ConfigureAwait(false))
-                {
-                    return true;
-                }
-            }
-
-            // Fallback: try to find and kill by process name
-            var processes = Process.GetProcessesByName("AIUsageTracker.Monitor")
-                .ToArray();
-            var stoppedAny = false;
-            foreach (var process in processes)
-            {
-                using (process)
-                {
-                    if (await TryStopProcessAsync(process).ConfigureAwait(false))
-                    {
-                        stoppedAny = true;
-                    }
-                }
-            }
-
-            if (stoppedAny)
-            {
-                return true;
-            }
-
-            return !await CheckHealthAsync(targetPort).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogWarning(ex, "Failed to stop Agent");
-            return false;
-        }
-    }
-
-    private static async Task<bool> TryStopProcessAsync(int processId)
-    {
-        try
-        {
-            using var process = Process.GetProcessById(processId);
-            return await TryStopProcessAsync(process).ConfigureAwait(false);
-        }
-        catch (ArgumentException)
-        {
-            return true;
-        }
-        catch (Exception ex)
-        {
-            MonitorService.LogDiagnostic($"Failed to stop process {processId}: {ex.Message}");
-            return false;
-        }
-    }
-
-    private static async Task<bool> TryStopProcessAsync(Process process)
-    {
-        try
-        {
-            if (process.HasExited)
-            {
-                return true;
-            }
-
-            process.Kill(entireProcessTree: true);
-            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(StopWaitSeconds)).ConfigureAwait(false);
-            return true;
-        }
-        catch (TimeoutException)
-        {
-            MonitorService.LogDiagnostic($"Timed out waiting for process {process.Id} to exit.");
-            return process.HasExited;
-        }
-        catch (InvalidOperationException)
-        {
-            return true;
-        }
-        catch (Exception ex)
-        {
-            MonitorService.LogDiagnostic($"Failed to stop process {process.Id}: {ex.Message}");
-            return false;
-        }
+        var metadataState = await ReadValidatedAgentInfoAsync().ConfigureAwait(false);
+        return await MonitorLauncherProcessController.StopAgentAsync(
+            metadataState.Info,
+            metadataState.EffectivePort,
+            StopWaitSeconds,
+            CheckHealthAsync,
+            processId => MonitorLauncherProcessController.TryStopProcessAsync(processId, StopWaitSeconds, _stopProcessOverride),
+            () => MonitorLauncherProcessController.TryStopNamedProcessesAsync(StopWaitSeconds, _stopNamedProcessesOverride),
+            InvalidateMonitorInfoAsync,
+            _logger).ConfigureAwait(false);
     }
 
     public static async Task<bool> WaitForAgentAsync(CancellationToken cancellationToken = default)
     {
         MonitorService.LogDiagnostic($"Waiting for Monitor to start (max {MaxWaitSeconds}s)...");
-        var startTime = DateTime.Now;
-        int attempt = 0;
-        while ((DateTime.Now - startTime).TotalSeconds < MaxWaitSeconds)
-        {
-            attempt++;
-            var (isRunning, port) = await IsAgentRunningWithPortAsync().ConfigureAwait(false);
-            if (isRunning)
-            {
-                MonitorService.LogDiagnostic($"Monitor is ready on port {port} after {(DateTime.Now - startTime).TotalSeconds:F1}s.");
-                return true;
-            }
-
-            if (attempt % 5 == 0) // Log status every 1 second (5 * 200ms)
-            {
-                MonitorService.LogDiagnostic($"Still waiting for Monitor... (elapsed: {(DateTime.Now - startTime).TotalSeconds:F1}s)");
-            }
-
-            await Task.Delay(200, cancellationToken).ConfigureAwait(false);
-        }
-        MonitorService.LogDiagnostic("Timed out waiting for Monitor.");
-        return false;
+        var readyState = await WaitForReadyStateAsync(cancellationToken).ConfigureAwait(false);
+        return readyState.HasValue;
     }
 
-    private static string? FindAgentProjectDirectory()
+    private static async Task<MonitorLauncherStateResolver.MonitorReadyState?> WaitForReadyStateAsync(CancellationToken cancellationToken)
     {
-        var currentDir = AppContext.BaseDirectory;
-        for (int i = 0; i < 5; i++)
-        {
-            var agentDir = Path.Combine(currentDir, "AIUsageTracker.Monitor");
-            if (Directory.Exists(agentDir) && File.Exists(Path.Combine(agentDir, "AIUsageTracker.Monitor.csproj")))
-            {
-                return agentDir;
-            }
+        return await MonitorLauncherStateResolver.WaitForReadyStateAsync(
+            MaxWaitSeconds,
+            ResolveReadyStateAsync,
+            cancellationToken).ConfigureAwait(false);
+    }
 
-            var parent = Directory.GetParent(currentDir);
-            if (parent == null)
-            {
-                break;
-            }
+    private static async Task<MonitorLauncherStateResolver.MonitorReadyState> ResolveReadyStateAsync()
+    {
+        return await MonitorLauncherStateResolver.ResolveReadyStateAsync(
+            ReadValidatedAgentInfoAsync,
+            CheckHealthAsync).ConfigureAwait(false);
+    }
 
-            currentDir = parent.FullName;
-        }
+    private static async Task<MonitorLauncherStateResolver.MonitorReadyState> GetReadyStateAsync()
+    {
+        return await MonitorLauncherStateResolver.GetReadyStateAsync(ResolveReadyStateAsync).ConfigureAwait(false);
+    }
 
-        // Try common locations
-        var possibleRoots = new[]
-        {
-            Environment.CurrentDirectory,
-            AppContext.BaseDirectory,
-        };
+    private static Task<(MonitorInfo? Info, string? Path)> ReadAgentInfoAsync()
+    {
+        return MonitorLauncherStateResolver.ReadAgentInfoAsync(
+            GetExistingAgentInfoPaths(),
+            infoPath => QuarantineMonitorInfoAsync(
+                infoPath,
+                $"Monitor metadata at '{infoPath}' was empty or invalid; invalidating metadata."));
+    }
 
-        foreach (var root in possibleRoots)
-        {
-            if (!Directory.Exists(root))
-            {
-                continue;
-            }
-
-            var agentDir = Path.Combine(root, "AIUsageTracker.Monitor");
-            if (Directory.Exists(agentDir) && File.Exists(Path.Combine(agentDir, "AIUsageTracker.Monitor.csproj")))
-            {
-                return agentDir;
-            }
-        }
-
-        return null;
+    private static Task<MonitorLauncherStateResolver.MonitorMetadataState> ReadValidatedAgentInfoAsync()
+    {
+        return MonitorLauncherStateResolver.ReadValidatedAgentInfoAsync(
+            ReadAgentInfoAsync,
+            CheckHealthAsync,
+            CheckProcessRunningAsync,
+            infoPath => QuarantineMonitorInfoAsync(infoPath));
     }
 
     private static string? GetExistingAgentInfoPath()
@@ -496,9 +338,7 @@ public class MonitorLauncher
             return _monitorInfoCandidatePathsOverride();
         }
 
-        var appDataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var userProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return MonitorInfoPathCatalog.GetReadCandidatePaths(appDataRoot, userProfileRoot);
+        return MonitorInfoPathCatalog.GetReadCandidatePathsFromEnvironment();
     }
 
     private sealed class TestOverrideScope : IDisposable

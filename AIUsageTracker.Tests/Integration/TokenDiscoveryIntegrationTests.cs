@@ -110,4 +110,18 @@ public class TokenDiscoveryIntegrationTests : IntegrationTestBase
             Environment.SetEnvironmentVariable("MOONSHOT_API_KEY", null);
         }
     }
+
+    [Fact]
+    public async Task DiscoverTokensAsync_FindsStandaloneRooSecrets()
+    {
+        var content = "{\"roo\":{\"apiConfigs\":{\"default\":{\"openAiApiKey\":\"roo-secret-key\"}}}}";
+        CreateFile(".roo/secrets.json", content);
+
+        var configs = await _service.DiscoverTokensAsync();
+
+        var config = configs.FirstOrDefault(c => c.ProviderId == "openai");
+        Assert.NotNull(config);
+        Assert.Equal("roo-secret-key", config.ApiKey);
+        Assert.Equal("Roo Code: " + Path.Combine(TestRootPath, ".roo", "secrets.json"), config.AuthSource);
+    }
 }

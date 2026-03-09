@@ -14,6 +14,6 @@ public class ProviderRateLimitException : ProviderException
         System.Exception? innerException = null)
         : base(providerId, message, ProviderErrorType.RateLimitError, 429, innerException)
     {
-        RetryAfter = retryAfter;
+        this.RetryAfter = retryAfter;
     }
 }

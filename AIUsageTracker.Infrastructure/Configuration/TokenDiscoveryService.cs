@@ -1,8 +1,9 @@
-using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.Interfaces;
-using AIUsageTracker.Infrastructure.Providers;
 using System.Collections;
 using System.Text.Json;
+using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Paths;
+using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Infrastructure.Configuration;
@@ -14,13 +15,11 @@ public class TokenDiscoveryService
 
     public TokenDiscoveryService(ILogger<TokenDiscoveryService> logger, IAppPathProvider pathProvider)
     {
-        _logger = logger;
-        _pathProvider = pathProvider;
+        this._logger = logger;
+        this._pathProvider = pathProvider;
     }
 
     private string GetUserProfilePath() => this._pathProvider.GetUserProfileRoot();
-    private string GetAppDataPath() => Path.Combine(this.GetUserProfilePath(), "AppData", "Roaming");
-    private string GetLocalAppDataPath() => Path.Combine(this.GetUserProfilePath(), "AppData", "Local");
 
     public async Task<IReadOnlyList<ProviderConfig>> DiscoverTokensAsync()
     {
@@ -48,16 +47,13 @@ public class TokenDiscoveryService
         // 4. Discover from Roo Code
         await this.DiscoverRooCodeTokensAsync(discoveredConfigs).ConfigureAwait(false);
 
-        // 5. Discover from providers.json (to get IDs user might have added)
-        await this.DiscoverFromProvidersFileAsync(discoveredConfigs).ConfigureAwait(false);
-
-        // 6. Discover from Claude Code
+        // 5. Discover from Claude Code
         await this.DiscoverClaudeCodeTokenAsync(discoveredConfigs).ConfigureAwait(false);
 
-        // 7. Discover native Codex session token
+        // 6. Discover native Codex session token
         await this.DiscoverCodexSessionTokenAsync(discoveredConfigs).ConfigureAwait(false);
 
-        // 8. Discover OpenAI session token from OpenCode auth files
+        // 7. Discover OpenAI session token from OpenCode auth files
         await this.DiscoverOpenAiSessionTokenAsync(discoveredConfigs).ConfigureAwait(false);
 
         return discoveredConfigs;
@@ -174,50 +170,6 @@ public class TokenDiscoveryService
         }
     }
 
-    private async Task DiscoverFromProvidersFileAsync(List<ProviderConfig> configs)
-    {
-        var providersPath = this._pathProvider.GetProviderConfigFilePath();
-
-        _logger.LogDebug("[OpenCode Discovery] Checking for providers.json at: {Path}", providersPath);
-
-        if (File.Exists(providersPath))
-        {
-            _logger.LogInformation("[OpenCode Discovery] Found providers.json at: {Path}", providersPath);
-
-            try
-            {
-                var json = await File.ReadAllTextAsync(providersPath).ConfigureAwait(false);
-                _logger.LogDebug("[OpenCode Discovery] Read {Length} bytes from providers.json", json.Length);
-
-                var known = JsonSerializer.Deserialize<Dictionary<string, string>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-                if (known != null)
-                {
-                    _logger.LogInformation("[OpenCode Discovery] Parsed {Count} providers from providers.json", known.Count);
-
-                    foreach (var id in known.Keys)
-                    {
-                        _logger.LogDebug("[OpenCode Discovery] Found provider: {ProviderId}, Key present: {HasKey}",
-                            id, !string.IsNullOrEmpty(known[id]));
-                        this.AddIfNotExists(configs, id, known[id], "Discovered in providers.json", "Config: providers.json");
-                    }
-                }
-                else
-                {
-                    _logger.LogWarning("[OpenCode Discovery] Failed to parse providers.json - result was null");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "[OpenCode Discovery] Error reading providers.json: {Message}", ex.Message);
-            }
-        }
-        else
-        {
-            _logger.LogDebug("[OpenCode Discovery] providers.json not found at: {Path}", providersPath);
-        }
-    }
-
     private IEnumerable<string> GetCodexAuthCandidates()
     {
         return this.GetCandidatePaths(CodexProvider.StaticDefinition);
@@ -225,9 +177,7 @@ public class TokenDiscoveryService
 
     private IEnumerable<string> GetOpenCodeAuthCandidates()
     {
-        return new[] { this._pathProvider.GetAuthFilePath() }
-            .Concat(this.GetCandidatePaths(OpenAIProvider.StaticDefinition))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
+        return this.GetCandidatePaths(OpenAIProvider.StaticDefinition);
     }
 
     private static string? TryReadCodexAccessToken(JsonElement root)
@@ -269,10 +219,7 @@ public class TokenDiscoveryService
 
     private string ResolvePathTemplate(string pathTemplate)
     {
-        return pathTemplate
-            .Replace("%USERPROFILE%", GetUserProfilePath(), StringComparison.OrdinalIgnoreCase)
-            .Replace("%APPDATA%", GetAppDataPath(), StringComparison.OrdinalIgnoreCase)
-            .Replace("%LOCALAPPDATA%", GetLocalAppDataPath(), StringComparison.OrdinalIgnoreCase);
+        return AuthPathTemplateResolver.Resolve(pathTemplate, this.GetUserProfilePath());
     }
 
     private void AddOrUpdate(List<ProviderConfig> configs, string providerId, string key, string description, string source)
@@ -308,7 +255,6 @@ public class TokenDiscoveryService
 
     private async Task DiscoverKiloCodeTokensAsync(List<ProviderConfig> configs)
     {
-        // 1. Try VS Code extension secrets.json
         var kiloSecretsPath = Path.Combine(this.GetUserProfilePath(), ".kilocode", "secrets.json");
         if (File.Exists(kiloSecretsPath))
         {
@@ -318,13 +264,16 @@ public class TokenDiscoveryService
                 using var doc = JsonDocument.Parse(json);
                 if (doc.RootElement.TryGetProperty("kilo code.kilo-code", out var kiloEntry))
                 {
-                    // Extract Roo Cline config for other providers (not Kilo Code itself)
                     if (kiloEntry.TryGetProperty("roo_cline_config_api_config", out var rooProp))
                     {
                         var rooJson = rooProp.GetString();
                         if (!string.IsNullOrEmpty(rooJson))
                         {
-                            this.ParseRooConfig(configs, rooJson);
+                            this.TryProcessRooConfigJson(
+                                configs,
+                                rooJson,
+                                "Discovered in Kilo Code Roo config",
+                                "Kilo Code Roo Config");
                         }
                     }
                 }
@@ -340,75 +289,79 @@ public class TokenDiscoveryService
     {
         try
         {
-            // Roo Code stores its config in VS Code globalStorage
-            var vscodePath = this.GetVSCodeGlobalStoragePath();
-            if (!string.IsNullOrEmpty(vscodePath))
-            {
-                var rooStoragePath = Path.Combine(vscodePath, "roovetgit.roo-code");
-                if (Directory.Exists(rooStoragePath))
-                {
-                    // Look for state.vscdb or similar files
-                    var stateFiles = Directory.GetFiles(rooStoragePath, "*.json");
-                    foreach (var stateFile in stateFiles)
-                    {
-                        try
-                        {
-                            var json = await File.ReadAllTextAsync(stateFile).ConfigureAwait(false);
-                            using var doc = JsonDocument.Parse(json);
-
-                            // Extract API configurations from Roo Code state
-                             if (doc.RootElement.TryGetProperty("apiConfigs", out var configsProp))
-                            {
-                                foreach (var configPair in configsProp.EnumerateObject())
-                                {
-                                    var config = configPair.Value;
-                                    TryAddRooKeys(configs, config);
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogDebug(ex, "Failed to parse Roo Code state file {Path}", stateFile);
-                        }
-                    }
-                }
-            }
-
-            // Also check for standalone Roo Code config directory (similar to Kilo Code)
-            var rooConfigPath = Path.Combine(this.GetUserProfilePath(), ".roo");
-            if (Directory.Exists(rooConfigPath))
-            {
-                var secretsPath = Path.Combine(rooConfigPath, "secrets.json");
-                if (File.Exists(secretsPath))
-                {
-                    try
-                    {
-                        var json = await File.ReadAllTextAsync(secretsPath).ConfigureAwait(false);
-                        using var doc = JsonDocument.Parse(json);
-
-                        // Parse similar structure to Kilo Code
-                        if (doc.RootElement.TryGetProperty("roo", out var rooEntry))
-                        {
-                            if (rooEntry.TryGetProperty("apiConfigs", out var configsProp))
-                            {
-                                foreach (var configPair in configsProp.EnumerateObject())
-                                {
-                                    var config = configPair.Value;
-                                    this.TryAddRooKeys(configs, config);
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogDebug(ex, "Failed to parse Roo secrets from {Path}", secretsPath);
-                    }
-                }
-            }
+            await this.DiscoverRooStateTokensAsync(configs).ConfigureAwait(false);
+            await this.DiscoverStandaloneRooTokensAsync(configs).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Roo Code token discovery failed");
+        }
+    }
+
+    private async Task DiscoverRooStateTokensAsync(List<ProviderConfig> configs)
+    {
+        var vscodePath = this.GetVSCodeGlobalStoragePath();
+        if (string.IsNullOrEmpty(vscodePath))
+        {
+            return;
+        }
+
+        var rooStoragePath = Path.Combine(vscodePath, "roovetgit.roo-code");
+        if (!Directory.Exists(rooStoragePath))
+        {
+            return;
+        }
+
+        var stateFiles = Directory.GetFiles(rooStoragePath, "*.json");
+        foreach (var stateFile in stateFiles)
+        {
+            try
+            {
+                var json = await File.ReadAllTextAsync(stateFile).ConfigureAwait(false);
+                using var doc = JsonDocument.Parse(json);
+                this.TryProcessRooApiConfigs(
+                    configs,
+                    doc.RootElement,
+                    "Discovered in Roo Code state",
+                    $"Roo Code: {stateFile}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to parse Roo Code state file {Path}", stateFile);
+            }
+        }
+    }
+
+    private async Task DiscoverStandaloneRooTokensAsync(List<ProviderConfig> configs)
+    {
+        var rooConfigPath = Path.Combine(this.GetUserProfilePath(), ".roo");
+        if (!Directory.Exists(rooConfigPath))
+        {
+            return;
+        }
+
+        var secretsPath = Path.Combine(rooConfigPath, "secrets.json");
+        if (!File.Exists(secretsPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var json = await File.ReadAllTextAsync(secretsPath).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("roo", out var rooEntry))
+            {
+                this.TryProcessRooApiConfigs(
+                    configs,
+                    rooEntry,
+                    "Discovered in Roo Code secrets",
+                    $"Roo Code: {secretsPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to parse Roo secrets from {Path}", secretsPath);
         }
     }
 
@@ -419,7 +372,7 @@ public class TokenDiscoveryService
             // Windows
             if (OperatingSystem.IsWindows())
             {
-                var appData = this.GetAppDataPath();
+                var appData = Path.Combine(this.GetUserProfilePath(), "AppData", "Roaming");
                 return Path.Combine(appData, "Code", "User", "globalStorage");
             }
             // macOS
@@ -443,22 +396,11 @@ public class TokenDiscoveryService
         }
     }
 
-
-    private void ParseRooConfig(List<ProviderConfig> configs, string rooJson)
+    private void TryProcessRooConfigJson(List<ProviderConfig> configs, string rooJson, string description, string source)
     {
         try
         {
-            using var rooDoc = JsonDocument.Parse(rooJson);
-            if (rooDoc.RootElement.TryGetProperty("apiConfigs", out var configsProp))
-            {
-                foreach (var configPair in configsProp.EnumerateObject())
-                {
-                    var config = configPair.Value;
-
-                    // Logic for common providers in Roo Cline
-                    this.TryAddRooKeys(configs, config);
-                }
-            }
+            this.AddRooTokens(configs, RooTokenConfigParser.Parse(rooJson), description, source);
         }
         catch (Exception ex)
         {
@@ -482,26 +424,20 @@ public class TokenDiscoveryService
             $"Env: {environmentVariableName}");
     }
 
-    private void TryAddRooKeys(List<ProviderConfig> configs, JsonElement config)
+    private void TryProcessRooApiConfigs(List<ProviderConfig> configs, JsonElement root, string description, string source)
     {
-        foreach (var definition in ProviderMetadataCatalog.Definitions.Where(d => d.RooConfigPropertyNames.Count > 0))
-        {
-            foreach (var propertyName in definition.RooConfigPropertyNames)
-            {
-                this.TryAddRooKey(configs, config, propertyName, definition.ProviderId);
-            }
-        }
+        this.AddRooTokens(configs, RooTokenConfigParser.Parse(root), description, source);
     }
 
-    private void TryAddRooKey(List<ProviderConfig> configs, JsonElement config, string propName, string providerId)
+    private void AddRooTokens(
+        List<ProviderConfig> configs,
+        IReadOnlyList<RooTokenConfigParser.DiscoveredProviderToken> tokens,
+        string description,
+        string source)
     {
-        if (config.TryGetProperty(propName, out var keyProp))
+        foreach (var token in tokens)
         {
-            var key = keyProp.GetString();
-            if (!string.IsNullOrEmpty(key))
-            {
-                this.AddIfNotExists(configs, providerId, key, "Discovered in Kilo Code (Roo Config)", "Kilo Code Roo Config");
-            }
+            this.AddIfNotExists(configs, token.ProviderId, token.ApiKey, description, source);
         }
     }
 

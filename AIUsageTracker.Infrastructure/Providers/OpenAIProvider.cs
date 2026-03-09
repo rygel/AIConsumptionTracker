@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Paths;
 using AIUsageTracker.Core.Providers;
 using System.Net;
 using System.Net.Http.Headers;
@@ -51,15 +52,16 @@ public class OpenAIProvider : ProviderBase
     private readonly string? _authFilePath;
 
     public OpenAIProvider(HttpClient httpClient, ILogger<OpenAIProvider> logger)
-        : this(httpClient, logger, null)
     {
+        this._httpClient = httpClient;
+        this._logger = logger;
     }
 
     public OpenAIProvider(HttpClient httpClient, ILogger<OpenAIProvider> logger, string? authFilePath)
     {
-        _httpClient = httpClient;
-        _logger = logger;
-        _authFilePath = authFilePath;
+        this._httpClient = httpClient;
+        this._logger = logger;
+        this._authFilePath = authFilePath;
     }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
@@ -275,15 +277,10 @@ public class OpenAIProvider : ProviderBase
         }
 
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
         foreach (var pathTemplate in StaticDefinition.AuthIdentityCandidatePathTemplates)
         {
-            var path = pathTemplate
-                .Replace("%USERPROFILE%", userProfile, StringComparison.OrdinalIgnoreCase)
-                .Replace("%APPDATA%", appData, StringComparison.OrdinalIgnoreCase)
-                .Replace("%LOCALAPPDATA%", localAppData, StringComparison.OrdinalIgnoreCase);
+            var path = AuthPathTemplateResolver.Resolve(pathTemplate, userProfile);
 
             if (!string.IsNullOrWhiteSpace(path))
             {

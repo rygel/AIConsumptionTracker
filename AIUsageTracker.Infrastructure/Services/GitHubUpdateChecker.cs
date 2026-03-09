@@ -4,29 +4,16 @@ using NetSparkleUpdater.Enums;
 using NetSparkleUpdater.SignatureVerifiers;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.Updates;
 
 namespace AIUsageTracker.Infrastructure.Services;
 
 public class GitHubUpdateChecker : IUpdateCheckerService
 {
     private readonly ILogger<GitHubUpdateChecker> _logger;
+    private readonly HttpClient _httpClient;
     private readonly UpdateChannel _channel;
     
-    // Architecture-specific appcast URLs
-    private static readonly Dictionary<string, string> STABLE_APPCAST_URLS = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["x64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_x64.xml",
-        ["x86"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_x86.xml",
-        ["arm64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_arm64.xml"
-    };
-    
-    private static readonly Dictionary<string, string> BETA_APPCAST_URLS = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["x64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_beta_x64.xml",
-        ["x86"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_beta_x86.xml",
-        ["arm64"] = "https://github.com/rygel/AIConsumptionTracker/releases/latest/download/appcast_beta_arm64.xml"
-    };
-
     private string GetAppcastUrlForCurrentArchitecture()
     {
         var currentArch = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString().ToLower(System.Globalization.CultureInfo.InvariantCulture);
@@ -37,30 +24,31 @@ public class GitHubUpdateChecker : IUpdateCheckerService
             ["x64"] = "x64",
             ["x86"] = "x86",
             ["arm64"] = "arm64",
-            ["arm"] = "arm64"
+            ["arm"] = "arm64",
         };
         
         var targetArch = archMapping.GetValueOrDefault(currentArch, "x64");
         
-        // Select URL based on channel
-        var appcastUrls = _channel == UpdateChannel.Beta ? BETA_APPCAST_URLS : STABLE_APPCAST_URLS;
-        var channelSuffix = _channel.ToAppcastSuffix();
-        
-        if (appcastUrls.TryGetValue(targetArch, out var url))
+        if (!archMapping.ContainsKey(currentArch))
         {
-            _logger.LogDebug("Using appcast for architecture {Architecture} ({Channel}): {Url}", targetArch, _channel, url);
-            return url;
+            _logger.LogWarning("Unknown architecture {Architecture}, falling back to x64", currentArch);
         }
-        
-        // Fallback to x64 if unknown
-        _logger.LogWarning("Unknown architecture {Architecture}, falling back to x64", currentArch);
-        return appcastUrls["x64"];
+
+        var url = ReleaseUrlCatalog.GetAppcastUrl(targetArch, _channel == UpdateChannel.Beta);
+        _logger.LogDebug("Using appcast for architecture {Architecture} ({Channel}): {Url}", targetArch, _channel, url);
+        return url;
     }
 
-    public GitHubUpdateChecker(ILogger<GitHubUpdateChecker> logger, UpdateChannel channel = UpdateChannel.Stable)
+    public GitHubUpdateChecker(ILogger<GitHubUpdateChecker> logger, HttpClient httpClient, UpdateChannel channel = UpdateChannel.Stable)
     {
         _logger = logger;
+        _httpClient = httpClient;
         _channel = channel;
+
+        if (!_httpClient.DefaultRequestHeaders.UserAgent.Any())
+        {
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "AIUsageTracker");
+        }
     }
 
     public async Task<AIUsageTracker.Core.Interfaces.UpdateInfo?> CheckForUpdatesAsync()
@@ -99,10 +87,10 @@ public class GitHubUpdateChecker : IUpdateCheckerService
                         return new AIUsageTracker.Core.Interfaces.UpdateInfo
                         {
                             Version = latest.Version ?? latestVersion.ToString(),
-                            ReleaseUrl = latest.ReleaseNotesLink ?? $"https://github.com/rygel/AIConsumptionTracker/releases/tag/v{latestVersion}",
+                            ReleaseUrl = latest.ReleaseNotesLink ?? ReleaseUrlCatalog.GetReleaseTagUrl(latestVersion.ToString()),
                             DownloadUrl = latest.DownloadLink ?? string.Empty,
                             ReleaseNotes = releaseNotes,
-                            PublishedAt = latest.PublicationDate
+                            PublishedAt = latest.PublicationDate,
                         };
                     }
                 }
@@ -130,69 +118,14 @@ public class GitHubUpdateChecker : IUpdateCheckerService
                 return false;
             }
 
-            // Create temp directory for download
-            var tempDir = Path.Combine(Path.GetTempPath(), "AIUsageTracker_Updates");
-            Directory.CreateDirectory(tempDir);
-            var downloadPath = Path.Combine(tempDir, $"AIUsageTracker_Setup_{updateInfo.Version}.exe");
-
-            // Download the file
-            _logger.LogInformation("Downloading from {Url} to {Path}", updateInfo.DownloadUrl, downloadPath);
-            using (var client = new System.Net.Http.HttpClient())
+            var downloadPath = GetInstallerDownloadPath(updateInfo.Version);
+            var downloadSucceeded = await DownloadInstallerAsync(updateInfo.DownloadUrl, downloadPath, progress).ConfigureAwait(false);
+            if (!downloadSucceeded)
             {
-                var response = await client.GetAsync(updateInfo.DownloadUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead);
-                response.EnsureSuccessStatusCode();
-                var totalBytes = response.Content.Headers.ContentLength ?? -1L;
-                var downloadedBytes = 0L;
-                var buffer = new byte[8192];
-                using (var stream = await response.Content.ReadAsStreamAsync())
-                using (var fileStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                {
-                    int read;
-                    while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                    {
-                        await fileStream.WriteAsync(buffer, 0, read);
-                        downloadedBytes += read;
-                        if (totalBytes > 0 && progress != null)
-                        {
-                            var percentage = (double)downloadedBytes / totalBytes * 100;
-                            progress.Report(percentage);
-                        }
-                    }
-                }
-            }
-
-            _logger.LogInformation("Download completed successfully to {Path}", downloadPath);
-
-            // Verify file exists
-            if (!File.Exists(downloadPath))
-            {
-                _logger.LogError("Downloaded file not found at {Path}", downloadPath);
                 return false;
             }
 
-            // Run the installer
-            _logger.LogInformation("Starting installer...");
-            var process = new System.Diagnostics.Process
-            {
-                StartInfo = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = downloadPath,
-                    Arguments = "/CLOSEAPPLICATIONS /RESTARTAPPLICATIONS",
-                    UseShellExecute = true,
-                    Verb = "runas" // Run as administrator
-                }
-            };
-
-            if (process.Start())
-            {
-                _logger.LogInformation("Installer started successfully. Application will restart.");
-                return true;
-            }
-            else
-            {
-                _logger.LogError("Failed to start installer");
-                return false;
-            }
+            return StartInstaller(downloadPath);
         }
         catch (Exception ex)
         {
@@ -201,17 +134,71 @@ public class GitHubUpdateChecker : IUpdateCheckerService
         }
     }
 
+    private static string GetInstallerDownloadPath(string version)
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "AIUsageTracker_Updates");
+        Directory.CreateDirectory(tempDir);
+        return Path.Combine(tempDir, $"AIUsageTracker_Setup_{version}.exe");
+    }
+
+    private async Task<bool> DownloadInstallerAsync(string downloadUrl, string downloadPath, IProgress<double>? progress)
+    {
+        var partialDownloadPath = $"{downloadPath}.partial";
+        _logger.LogInformation("Downloading from {Url} to {Path}", downloadUrl, downloadPath);
+        DeleteIfExists(downloadPath);
+        DeleteIfExists(partialDownloadPath);
+
+        using var response = await _httpClient.GetAsync(downloadUrl, System.Net.Http.HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        var totalBytes = response.Content.Headers.ContentLength ?? -1L;
+        var downloadedBytes = 0L;
+        var buffer = new byte[8192];
+
+        await using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+        await using var fileStream = new FileStream(partialDownloadPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+        int read;
+        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false)) > 0)
+        {
+            await fileStream.WriteAsync(buffer, 0, read).ConfigureAwait(false);
+            downloadedBytes += read;
+            if (totalBytes > 0 && progress != null)
+            {
+                var percentage = (double)downloadedBytes / totalBytes * 100;
+                progress.Report(percentage);
+            }
+        }
+
+        await fileStream.FlushAsync().ConfigureAwait(false);
+        File.Move(partialDownloadPath, downloadPath, overwrite: true);
+        _logger.LogInformation("Download completed successfully to {Path}", downloadPath);
+
+        if (File.Exists(downloadPath))
+        {
+            return true;
+        }
+
+        _logger.LogError("Downloaded file not found at {Path}", downloadPath);
+        return false;
+    }
+
+    private static void DeleteIfExists(string path)
+    {
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
+    }
+
     private async Task<string> FetchReleaseNotesFromGitHub(string version)
     {
         try
         {
-            using var client = new System.Net.Http.HttpClient();
-            client.DefaultRequestHeaders.Add("User-Agent", "AIUsageTracker");
-            
-            var url = $"https://api.github.com/repos/rygel/AIConsumptionTracker/releases/tags/v{version}";
+            var url = ReleaseUrlCatalog.GetGitHubReleaseApiUrl(version);
             _logger.LogDebug("Fetching release notes from: {Url}", url);
             
-            var response = await client.GetAsync(url);
+            using var response = await _httpClient.GetAsync(url);
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Failed to fetch release notes: {StatusCode}", response.StatusCode);
@@ -234,6 +221,37 @@ public class GitHubUpdateChecker : IUpdateCheckerService
         {
             _logger.LogWarning(ex, "Failed to fetch release notes from GitHub API");
             return string.Empty;
+        }
+    }
+
+    private bool StartInstaller(string installerPath)
+    {
+        _logger.LogInformation("Starting installer from {Path}", installerPath);
+
+        var startInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = installerPath,
+            Arguments = "/CLOSEAPPLICATIONS /RESTARTAPPLICATIONS",
+            UseShellExecute = true,
+            Verb = "runas", // Run as administrator
+        };
+
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(startInfo);
+            if (process == null)
+            {
+                _logger.LogError("Installer launch returned no process for {Path}", installerPath);
+                return false;
+            }
+
+            _logger.LogInformation("Installer started successfully from {Path} (PID {ProcessId}).", installerPath, process.Id);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start installer from {Path}", installerPath);
+            return false;
         }
     }
 }

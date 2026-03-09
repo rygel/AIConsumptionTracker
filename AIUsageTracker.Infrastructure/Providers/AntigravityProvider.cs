@@ -48,8 +48,8 @@ public class AntigravityProvider : ProviderBase
 
     internal AntigravityProvider(HttpClient httpClient, ILogger<AntigravityProvider> logger)
     {
-        _httpClient = httpClient;
-        _logger = logger;
+        this._httpClient = httpClient;
+        this._logger = logger;
     }
 
     private static HttpClient CreateLocalhostClient()

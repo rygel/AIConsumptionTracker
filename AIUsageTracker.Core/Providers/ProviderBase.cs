@@ -24,7 +24,7 @@ public abstract class ProviderBase : IProviderService
 
     public virtual bool CanHandleProviderId(string providerId)
     {
-        return Definition.HandlesProviderId(providerId);
+        return this.Definition.HandlesProviderId(providerId);
     }
 
     public abstract Task<IEnumerable<ProviderUsage>> GetUsageAsync(
@@ -41,13 +41,13 @@ public abstract class ProviderBase : IProviderService
     {
         return new ProviderUsage
         {
-            ProviderId = ProviderId,
-            ProviderName = Definition.DisplayName ?? ProviderId,
+            ProviderId = this.ProviderId,
+            ProviderName = this.Definition.DisplayName ?? this.ProviderId,
             IsAvailable = false,
             Description = description,
             PlanType = planType,
             IsQuotaBased = isQuotaBased,
-            UsageUnit = usageUnit ?? GetDefaultUsageUnit(),
+            UsageUnit = usageUnit ?? this.GetDefaultUsageUnit(),
             AuthSource = authSource ?? string.Empty,
             HttpStatus = httpStatus,
             RequestsPercentage = 0,
@@ -69,29 +69,29 @@ public abstract class ProviderBase : IProviderService
         
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
-            return CreateUnavailableUsage(
+            return this.CreateUnavailableUsage(
                 $"Authentication failed ({statusCode})",
                 statusCode,
                 authSource);
         }
-        
+
         if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
-            return CreateUnavailableUsage(
+            return this.CreateUnavailableUsage(
                 $"Access denied ({statusCode})",
                 statusCode,
                 authSource);
         }
-        
+
         if ((int)response.StatusCode >= 500)
         {
-            return CreateUnavailableUsage(
+            return this.CreateUnavailableUsage(
                 $"Server error ({statusCode})",
                 statusCode,
                 authSource);
         }
-        
-        return CreateUnavailableUsage(
+
+        return this.CreateUnavailableUsage(
             $"Request failed ({statusCode})",
             statusCode,
             authSource);
@@ -110,7 +110,7 @@ public abstract class ProviderBase : IProviderService
             _ => $"{context}: {ex.Message}",
         };
 
-        return CreateUnavailableUsage(message, 0, authSource);
+        return this.CreateUnavailableUsage(message, 0, authSource);
     }
 
     protected virtual ProviderUsage CreateUnavailableUsageFromProviderException(
@@ -131,7 +131,7 @@ public abstract class ProviderBase : IProviderService
             _ => ex.Message,
         };
 
-        return CreateUnavailableUsage(
+        return this.CreateUnavailableUsage(
             description,
             ex.HttpStatusCode ?? 0,
             authSource);

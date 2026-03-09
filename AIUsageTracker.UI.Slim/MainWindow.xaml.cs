@@ -17,6 +17,7 @@ using Microsoft.Win32;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Core.Updates;
 using AIUsageTracker.Infrastructure.Providers;
 using AIUsageTracker.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
@@ -64,6 +65,7 @@ public partial class MainWindow : Window
     private DispatcherTimer? _pollingTimer;
     private DateTime _lastTrayConfigRefresh = DateTime.MinValue;
     private string? _monitorContractWarningMessage;
+    private bool _isUpdateCheckInProgress;
     private readonly DispatcherTimer _updateCheckTimer;
     private readonly DispatcherTimer _alwaysOnTopTimer;
     private HwndSource? _windowSource;
@@ -454,26 +456,13 @@ public partial class MainWindow : Window
                     {
                         Dispatcher.Invoke(() => ShowStatus("Monitor not running. Starting monitor...", StatusType.Warning));
 
-                        if (await MonitorLauncher.StartAgentAsync())
-                        {
-                            Dispatcher.Invoke(() => ShowStatus("Waiting for monitor...", StatusType.Warning));
-                            var monitorReady = await MonitorLauncher.WaitForAgentAsync();
-
-                            if (!monitorReady)
-                            {
-                                Dispatcher.Invoke(() => {
-                                    ShowStatus("Monitor failed to start", StatusType.Error);
-                                    ShowErrorState("Monitor failed to start.\n\nPlease ensure AIUsageTracker.Monitor is installed and try again.");
-                                });
-                                return false;
-                            }
-
-                        }
-                        else
+                        Dispatcher.Invoke(() => ShowStatus("Waiting for monitor...", StatusType.Warning));
+                        var monitorReady = await MonitorLauncher.EnsureAgentRunningAsync();
+                        if (!monitorReady)
                         {
                             Dispatcher.Invoke(() => {
-                                ShowStatus("Could not start monitor", StatusType.Error);
-                                ShowErrorState("Could not start monitor automatically.\n\nPlease start it manually:\n\ndotnet run --project AIUsageTracker.Monitor");
+                                ShowStatus("Monitor failed to start", StatusType.Error);
+                                ShowErrorState("Monitor failed to start.\n\nPlease ensure AIUsageTracker.Monitor is installed and try again.");
                             });
                             return false;
                         }
@@ -652,7 +641,10 @@ public partial class MainWindow : Window
         if (_preferences == null) return;
         
         var channel = _preferences.UpdateChannel;
-        _updateChecker = new GitHubUpdateChecker(NullLogger<GitHubUpdateChecker>.Instance, channel);
+        _updateChecker = new GitHubUpdateChecker(
+            NullLogger<GitHubUpdateChecker>.Instance,
+            App.Host.Services.GetRequiredService<HttpClient>(),
+            channel);
     }
 
     private async Task SaveUiPreferencesAsync()
@@ -2165,7 +2157,7 @@ public partial class MainWindow : Window
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = "https://github.com/rygel/AIConsumptionTracker/releases",
+                FileName = ReleaseUrlCatalog.GetReleasesPageUrl(),
                 UseShellExecute = true
             });
             return;
@@ -2456,8 +2448,15 @@ public partial class MainWindow : Window
 
     private async Task CheckForUpdatesAsync()
     {
+        if (_isUpdateCheckInProgress)
+        {
+            _logger.LogDebug("Skipping overlapping update check request.");
+            return;
+        }
+
         try
         {
+            _isUpdateCheckInProgress = true;
             _latestUpdate = await _updateChecker.CheckForUpdatesAsync();
 
             if (_latestUpdate != null)
@@ -2477,6 +2476,10 @@ public partial class MainWindow : Window
         {
             _logger.LogWarning(ex, "Update check failed");
         }
+        finally
+        {
+            _isUpdateCheckInProgress = false;
+        }
     }
 
     private async void UpdateBtn_Click(object sender, RoutedEventArgs e)
@@ -2485,7 +2488,7 @@ public partial class MainWindow : Window
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = "https://github.com/rygel/AIConsumptionTracker/releases/latest",
+                FileName = ReleaseUrlCatalog.GetLatestReleasePageUrl(),
                 UseShellExecute = true
             });
             return;
@@ -2567,18 +2570,15 @@ public partial class MainWindow : Window
             ShowStatus("Restarting monitor...", StatusType.Warning);
 
             // Try to start agent
-            if (await MonitorLauncher.StartAgentAsync())
+            var monitorReady = await MonitorLauncher.EnsureAgentRunningAsync();
+            if (monitorReady)
             {
-                var monitorReady = await MonitorLauncher.WaitForAgentAsync();
-                if (monitorReady)
-                {
-                    ShowStatus("Monitor restarted", StatusType.Success);
-                    await RefreshDataAsync();
-                }
-                else
-                {
-                    ShowStatus("Monitor restart failed", StatusType.Error);
-                }
+                ShowStatus("Monitor restarted", StatusType.Success);
+                await RefreshDataAsync();
+            }
+            else
+            {
+                ShowStatus("Monitor restart failed", StatusType.Error);
             }
         }
         catch (Exception ex)
@@ -2613,24 +2613,16 @@ public partial class MainWindow : Window
             {
                 // Start the monitor
                 ShowStatus("Starting monitor...", StatusType.Warning);
-                if (await MonitorLauncher.StartAgentAsync())
+                var monitorReady = await MonitorLauncher.EnsureAgentRunningAsync();
+                if (monitorReady)
                 {
-                    var monitorReady = await MonitorLauncher.WaitForAgentAsync();
-                    if (monitorReady)
-                    {
-                        ShowStatus("Monitor started", StatusType.Success);
-                        UpdateMonitorToggleButton(true);
-                        await RefreshDataAsync();
-                    }
-                    else
-                    {
-                        ShowStatus("Monitor failed to start", StatusType.Error);
-                        UpdateMonitorToggleButton(false);
-                    }
+                    ShowStatus("Monitor started", StatusType.Success);
+                    UpdateMonitorToggleButton(true);
+                    await RefreshDataAsync();
                 }
                 else
                 {
-                    ShowStatus("Could not start monitor", StatusType.Error);
+                    ShowStatus("Monitor failed to start", StatusType.Error);
                     UpdateMonitorToggleButton(false);
                 }
             }

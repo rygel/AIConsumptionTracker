@@ -10,22 +10,22 @@ public class WindowsNotificationService : INotificationService
 
     public WindowsNotificationService(ILogger<WindowsNotificationService> logger)
     {
-        _logger = logger;
+        this._logger = logger;
     }
 
     public void Initialize()
     {
-        if (_isInitialized) return;
+        if (this._isInitialized) return;
 
-        _logger.LogInformation("Initializing notification service");
-        _isInitialized = true;
+        this._logger.LogInformation("Initializing notification service");
+        this._isInitialized = true;
     }
 
     public void Unregister()
     {
-        if (!_isInitialized) return;
+        if (!this._isInitialized) return;
 
-        _isInitialized = false;
+        this._isInitialized = false;
     }
 
     public void ShowNotification(string title, string message, string? action = null, string? argument = null)

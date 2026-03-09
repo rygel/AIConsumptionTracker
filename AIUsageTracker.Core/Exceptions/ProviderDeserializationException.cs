@@ -14,6 +14,6 @@ public class ProviderDeserializationException : ProviderException
         System.Exception? innerException = null)
         : base(providerId, message, ProviderErrorType.DeserializationError, innerException: innerException)
     {
-        RawResponse = rawResponse;
+        this.RawResponse = rawResponse;
     }
 }

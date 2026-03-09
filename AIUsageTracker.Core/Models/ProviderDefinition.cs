@@ -71,31 +71,31 @@ public sealed class ProviderDefinition
             throw new ArgumentException("Display name cannot be empty.", nameof(displayName));
         }
 
-        ProviderId = providerId;
-        DisplayName = displayName;
-        PlanType = planType;
-        IsQuotaBased = isQuotaBased;
-        DefaultConfigType = defaultConfigType;
-        AutoIncludeWhenUnconfigured = autoIncludeWhenUnconfigured;
-        IncludeInWellKnownProviders = includeInWellKnownProviders;
-        SupportsChildProviderIds = supportsChildProviderIds;
-        DiscoveryEnvironmentVariables = NormalizeValues(discoveryEnvironmentVariables);
-        RooConfigPropertyNames = NormalizeValues(rooConfigPropertyNames);
-        NonPersistedProviderIds = NormalizeValues(nonPersistedProviderIds);
-        VisibleDerivedProviderIds = NormalizeValues(visibleDerivedProviderIds);
-        ExplicitApiKeyPrefixes = NormalizeValues(explicitApiKeyPrefixes);
-        SessionAuthCanonicalProviderId = sessionAuthCanonicalProviderId;
-        SessionAuthMigrationDescription = sessionAuthMigrationDescription;
-        SettingsMode = settingsMode;
-        UseSessionAuthStatusWhenQuotaBasedOrSessionToken = useSessionAuthStatusWhenQuotaBasedOrSessionToken;
-        SessionStatusLabel = sessionStatusLabel;
-        SessionIdentitySource = sessionIdentitySource;
-        RefreshOnStartupWithCachedData = refreshOnStartupWithCachedData;
-        IconAssetName = iconAssetName;
-        FallbackBadgeColorHex = fallbackBadgeColorHex;
-        FallbackBadgeInitial = fallbackBadgeInitial;
-        AuthIdentityCandidatePathTemplates = NormalizeValues(authIdentityCandidatePathTemplates);
-        SessionAuthFileSchemas = sessionAuthFileSchemas?
+        this.ProviderId = providerId;
+        this.DisplayName = displayName;
+        this.PlanType = planType;
+        this.IsQuotaBased = isQuotaBased;
+        this.DefaultConfigType = defaultConfigType;
+        this.AutoIncludeWhenUnconfigured = autoIncludeWhenUnconfigured;
+        this.IncludeInWellKnownProviders = includeInWellKnownProviders;
+        this.SupportsChildProviderIds = supportsChildProviderIds;
+        this.DiscoveryEnvironmentVariables = NormalizeValues(discoveryEnvironmentVariables);
+        this.RooConfigPropertyNames = NormalizeValues(rooConfigPropertyNames);
+        this.NonPersistedProviderIds = NormalizeValues(nonPersistedProviderIds);
+        this.VisibleDerivedProviderIds = NormalizeValues(visibleDerivedProviderIds);
+        this.ExplicitApiKeyPrefixes = NormalizeValues(explicitApiKeyPrefixes);
+        this.SessionAuthCanonicalProviderId = sessionAuthCanonicalProviderId;
+        this.SessionAuthMigrationDescription = sessionAuthMigrationDescription;
+        this.SettingsMode = settingsMode;
+        this.UseSessionAuthStatusWhenQuotaBasedOrSessionToken = useSessionAuthStatusWhenQuotaBasedOrSessionToken;
+        this.SessionStatusLabel = sessionStatusLabel;
+        this.SessionIdentitySource = sessionIdentitySource;
+        this.RefreshOnStartupWithCachedData = refreshOnStartupWithCachedData;
+        this.IconAssetName = iconAssetName;
+        this.FallbackBadgeColorHex = fallbackBadgeColorHex;
+        this.FallbackBadgeInitial = fallbackBadgeInitial;
+        this.AuthIdentityCandidatePathTemplates = NormalizeValues(authIdentityCandidatePathTemplates);
+        this.SessionAuthFileSchemas = sessionAuthFileSchemas?
             .Where(schema => schema != null)
             .Distinct()
             .ToArray()
@@ -117,9 +117,9 @@ public sealed class ProviderDefinition
             }
         }
 
-        _handledProviderIds = normalizedHandledIds;
-        HandledProviderIds = normalizedHandledIds.ToArray();
-        DisplayNameOverrides = displayNameOverrides ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        this._handledProviderIds = normalizedHandledIds;
+        this.HandledProviderIds = normalizedHandledIds.ToArray();
+        this.DisplayNameOverrides = displayNameOverrides ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
     public bool HandlesProviderId(string providerId)
@@ -129,17 +129,17 @@ public sealed class ProviderDefinition
             return false;
         }
 
-        if (_handledProviderIds.Contains(providerId))
+        if (this._handledProviderIds.Contains(providerId))
         {
             return true;
         }
 
-        if (!SupportsChildProviderIds)
+        if (!this.SupportsChildProviderIds)
         {
             return false;
         }
 
-        return _handledProviderIds.Any(handled =>
+        return this._handledProviderIds.Any(handled =>
             providerId.StartsWith($"{handled}.", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -150,14 +150,14 @@ public sealed class ProviderDefinition
             return null;
         }
 
-        if (DisplayNameOverrides.TryGetValue(providerId, out var mapped))
+        if (this.DisplayNameOverrides.TryGetValue(providerId, out var mapped))
         {
             return mapped;
         }
 
-        if (_handledProviderIds.Contains(providerId))
+        if (this._handledProviderIds.Contains(providerId))
         {
-            return DisplayName;
+            return this.DisplayName;
         }
 
         return null;

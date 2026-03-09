@@ -15,9 +15,9 @@ public class DataExportService : IDataExportService
 
     public DataExportService(IWebDatabaseRepository repository, ILogger<DataExportService> logger, string dbPath)
     {
-        _repository = repository;
-        _logger = logger;
-        _dbPath = dbPath;
+        this._repository = repository;
+        this._logger = logger;
+        this._dbPath = dbPath;
     }
 
     public async Task<string> ExportHistoryToCsvAsync()

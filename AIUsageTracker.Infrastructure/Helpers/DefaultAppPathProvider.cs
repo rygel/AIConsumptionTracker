@@ -1,50 +1,45 @@
-using AIUsageTracker.Core.Interfaces;
 using System.IO;
+using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Core.Paths;
 
 namespace AIUsageTracker.Infrastructure.Helpers;
 
 public class DefaultAppPathProvider : IAppPathProvider
 {
-    private const string AppName = "AIUsageTracker";
-    private const string LegacyAppName = "AIConsumptionTracker";
-
     public string GetAppDataRoot()
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var primary = Path.Combine(localAppData, AppName);
-        var legacy = Path.Combine(localAppData, LegacyAppName);
-
-        return Directory.Exists(primary) ? primary : (Directory.Exists(legacy) ? legacy : primary);
+        return AppPathCatalog.GetCanonicalAppDataRoot(localAppData);
     }
 
     public string GetDatabasePath()
     {
-        return Path.Combine(GetAppDataRoot(), "usage.db");
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return AppPathCatalog.GetCanonicalDatabasePath(localAppData);
     }
 
     public string GetLogDirectory()
     {
-        return Path.Combine(GetAppDataRoot(), "logs");
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return AppPathCatalog.GetCanonicalLogDirectory(localAppData);
     }
 
     public string GetAuthFilePath()
     {
-        // Auth is typically in UserProfile for CLI tools
-        var home = GetUserProfileRoot();
-        var primary = Path.Combine(home, ".opencode", "auth.json");
-        var legacy = Path.Combine(home, ".ai-consumption-tracker", "auth.json");
-        
-        return File.Exists(primary) ? primary : (File.Exists(legacy) ? legacy : primary);
+        var home = this.GetUserProfileRoot();
+        return AppPathCatalog.GetCanonicalAuthFilePath(home);
     }
 
     public string GetPreferencesFilePath()
     {
-        return Path.Combine(GetAppDataRoot(), "preferences.json");
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return AppPathCatalog.GetCanonicalPreferencesPath(localAppData);
     }
 
     public string GetProviderConfigFilePath()
     {
-        return Path.Combine(GetAppDataRoot(), "providers.json");
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return AppPathCatalog.GetCanonicalProviderConfigPath(localAppData);
     }
 
     public string GetUserProfileRoot()

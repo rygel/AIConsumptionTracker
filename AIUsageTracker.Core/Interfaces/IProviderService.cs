@@ -9,7 +9,7 @@ public interface IProviderService
 
     bool CanHandleProviderId(string providerId)
     {
-        return Definition.HandlesProviderId(providerId);
+        return this.Definition.HandlesProviderId(providerId);
     }
 
     Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null);

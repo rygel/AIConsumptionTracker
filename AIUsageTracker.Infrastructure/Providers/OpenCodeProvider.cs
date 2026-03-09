@@ -24,8 +24,8 @@ public class OpenCodeProvider : ProviderBase
 
     public OpenCodeProvider(HttpClient httpClient, ILogger<OpenCodeProvider> logger)
     {
-        _httpClient = httpClient;
-        _logger = logger;
+        this._httpClient = httpClient;
+        this._logger = logger;
     }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)

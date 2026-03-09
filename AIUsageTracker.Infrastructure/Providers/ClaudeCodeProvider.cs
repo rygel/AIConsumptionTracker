@@ -38,8 +38,8 @@ public class ClaudeCodeProvider : ProviderBase
 
     public ClaudeCodeProvider(ILogger<ClaudeCodeProvider> logger, HttpClient httpClient)
     {
-        _logger = logger;
-        _httpClient = httpClient;
+        this._logger = logger;
+        this._httpClient = httpClient;
     }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
