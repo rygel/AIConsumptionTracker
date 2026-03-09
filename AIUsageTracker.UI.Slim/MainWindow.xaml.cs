@@ -35,35 +35,44 @@ namespace AIUsageTracker.UI.Slim;
 
 public partial class MainWindow : Window
 {
+    private const int RefreshCooldownSeconds = 120;
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoActivate = 0x0010;
+    private const uint SwpNoOwnerZOrder = 0x0200;
+
     private static readonly Regex MarkdownTokenRegex = new(
         @"(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*|\[[^\]]+\]\([^)]+\))",
         RegexOptions.Compiled | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
+
+    private static readonly TimeSpan StartupPollingInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan NormalPollingInterval = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan TrayConfigRefreshInterval = TimeSpan.FromMinutes(5);
+    private static readonly IntPtr HwndTopmost = new(-1);
+    private static readonly IntPtr HwndNoTopmost = new(-2);
 
     private readonly MainViewModel _viewModel;
     private readonly IMonitorService _monitorService;
     private readonly ILogger<MainWindow> _logger;
     private readonly UiPreferencesStore _preferencesStore;
+    private readonly Dictionary<string, ImageSource> _iconCache = new(StringComparer.Ordinal);
+    private readonly DispatcherTimer _updateCheckTimer;
+    private readonly DispatcherTimer _alwaysOnTopTimer;
+
     private IUpdateCheckerService _updateChecker;
     private AppPreferences _preferences = new();
     private List<ProviderUsage> _usages = new();
     private List<ProviderConfig> _configs = new();
     private bool _isPrivacyMode = App.IsPrivacyMode;
-    private bool _isLoading = false;
-    private readonly Dictionary<string, ImageSource> _iconCache = new(StringComparer.Ordinal);
+    private bool _isLoading;
     private DateTime _lastMonitorUpdate = DateTime.MinValue;
     private DateTime _lastRefreshTrigger = DateTime.MinValue;
-    private const int RefreshCooldownSeconds = 120;
-    private static readonly TimeSpan StartupPollingInterval = TimeSpan.FromSeconds(2);
-    private static readonly TimeSpan NormalPollingInterval = TimeSpan.FromMinutes(1);
-    private static readonly TimeSpan TrayConfigRefreshInterval = TimeSpan.FromMinutes(5);
     private bool _isPollingInProgress;
     private bool _isTrayIconUpdateInProgress;
     private DispatcherTimer? _pollingTimer;
     private DateTime _lastTrayConfigRefresh = DateTime.MinValue;
     private string? _monitorContractWarningMessage;
     private bool _isUpdateCheckInProgress;
-    private readonly DispatcherTimer _updateCheckTimer;
-    private readonly DispatcherTimer _alwaysOnTopTimer;
     private HwndSource? _windowSource;
     private UpdateInfo? _latestUpdate;
     private bool _preferencesLoaded;
@@ -97,13 +106,6 @@ public partial class MainWindow : Window
         int cx,
         int cy,
         uint uFlags);
-
-    private static readonly IntPtr HwndTopmost = new(-1);
-    private static readonly IntPtr HwndNoTopmost = new(-2);
-    private const uint SwpNoSize = 0x0001;
-    private const uint SwpNoMove = 0x0002;
-    private const uint SwpNoActivate = 0x0010;
-    private const uint SwpNoOwnerZOrder = 0x0200;
 
     public MainWindow(
         MainViewModel viewModel,
@@ -284,7 +286,7 @@ public partial class MainWindow : Window
             ? $"{appVersion.Major}.{appVersion.Minor}.{appVersion.Build}"
             : "0.0.0";
 
-        var suffix = GetPrereleaseLabel(assembly);
+        var suffix = this.GetPrereleaseLabel(assembly);
         var displayVersion = string.IsNullOrWhiteSpace(suffix)
             ? $"v{versionCore}"
             : $"v{versionCore} {suffix}";
@@ -293,7 +295,7 @@ public partial class MainWindow : Window
         this.Title = $"AI Usage Tracker {displayVersion}";
     }
 
-    private static string? GetPrereleaseLabel(Assembly assembly)
+    private string? GetPrereleaseLabel(Assembly assembly)
     {
         var informationalVersion = assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
@@ -355,12 +357,12 @@ public partial class MainWindow : Window
 
     private void LogWindowFocusTransition(string eventName)
     {
-        var foregroundSummary = GetForegroundWindowSummary();
+        var foregroundSummary = this.GetForegroundWindowSummary();
         var message = $"[WINDOW] evt={eventName} fg={foregroundSummary} vis={this.IsVisible} state={this.WindowState} top={this.Topmost}";
         this._logger.LogDebug("{WindowMessage}", message);
     }
 
-    private static string GetForegroundWindowSummary()
+    private string GetForegroundWindowSummary()
     {
         var hwnd = GetForegroundWindow();
         if (hwnd == IntPtr.Zero)
@@ -779,7 +781,7 @@ public partial class MainWindow : Window
         }
     }
 
-    public void ShowAndActivate()
+    internal void ShowAndActivate()
     {
         this.Show();
         this.WindowState = WindowState.Normal;
@@ -925,7 +927,7 @@ public partial class MainWindow : Window
     }
 
     // UI Element Creation Helpers
-    private static TextBlock CreateText(string text, double fontSize, Brush foreground,
+    private TextBlock CreateText(string text, double fontSize, Brush foreground,
         FontWeight? fontWeight = null, Thickness? margin = null)
     {
         return new TextBlock
@@ -938,7 +940,7 @@ public partial class MainWindow : Window
         };
     }
 
-    private static Border CreateSeparator(Brush color, double opacity = 0.5, double height = 1)
+    private Border CreateSeparator(Brush color, double opacity = 0.5, double height = 1)
     {
         return new Border
         {
@@ -949,7 +951,7 @@ public partial class MainWindow : Window
         };
     }
 
-    private static Grid CreateCollapsibleHeaderGrid(Thickness margin)
+    private Grid CreateCollapsibleHeaderGrid(Thickness margin)
     {
         var header = new Grid { Margin = margin };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -1170,10 +1172,10 @@ public partial class MainWindow : Window
         var titleText = isGroupHeader ? title.ToUpper(System.Globalization.CultureInfo.InvariantCulture) : title;
         var titleForeground = isGroupHeader ? accent : this.GetResourceBrush("SecondaryText", Brushes.Gray);
 
-        var header = CreateCollapsibleHeaderGrid(margin);
+        var header = this.CreateCollapsibleHeaderGrid(margin);
 
         // Toggle button
-        var toggleText = CreateText(
+        var toggleText = this.CreateText(
             getCollapsed() ? "▶" : "▼",
             fontSize,
             accent,
@@ -1184,7 +1186,7 @@ public partial class MainWindow : Window
         toggleText.Tag = "ToggleIcon";
 
         // Title
-        var titleBlock = CreateText(
+        var titleBlock = this.CreateText(
             titleText,
             10.0,
             titleForeground,
@@ -1193,7 +1195,7 @@ public partial class MainWindow : Window
         titleBlock.VerticalAlignment = VerticalAlignment.Center;
 
         // Separator line
-        var line = CreateSeparator(accent, lineOpacity);
+        var line = this.CreateSeparator(accent, lineOpacity);
 
         // Container
         var container = new StackPanel();
@@ -1281,7 +1283,7 @@ public partial class MainWindow : Window
         // Provider icon or bullet for child items
         if (isChild)
         {
-            AddDockedElement(contentPanel, this.CreateBulletMarker(), Dock.Left);
+            this.AddDockedElement(contentPanel, this.CreateBulletMarker(), Dock.Left);
         }
         else
         {
@@ -1291,7 +1293,7 @@ public partial class MainWindow : Window
             providerIcon.Width = 14;
             providerIcon.Height = 14;
             providerIcon.VerticalAlignment = VerticalAlignment.Center;
-            AddDockedElement(contentPanel, providerIcon, Dock.Left);
+            this.AddDockedElement(contentPanel, providerIcon, Dock.Left);
         }
 
         // Right Side: Usage/Status
@@ -1308,7 +1310,7 @@ public partial class MainWindow : Window
         if (!presentation.SuppressSingleResetTime && usage.NextResetTime.HasValue)
         {
             var relative = this.GetRelativeTimeString(usage.NextResetTime.Value);
-            AddDockedElement(
+            this.AddDockedElement(
                 contentPanel,
                 this.CreateDockedTextBlock(
                     $"(Resets: {relative})",
@@ -1320,7 +1322,7 @@ public partial class MainWindow : Window
         }
 
         // Right Side: Usage/Status - must be added last to Dock.Right to appear left of reset time
-        AddDockedElement(
+        this.AddDockedElement(
             contentPanel,
             this.CreateDockedTextBlock(
                 statusText,
@@ -1333,7 +1335,7 @@ public partial class MainWindow : Window
         var accountPart = string.IsNullOrWhiteSpace(usage.AccountName)
             ? string.Empty
             : $" [{(this._isPrivacyMode ? ProviderStatusPresentationCatalog.MaskAccountIdentifier(usage.AccountName) : usage.AccountName)}]";
-        AddDockedElement(
+        this.AddDockedElement(
             contentPanel,
             this.CreateDockedTextBlock(
                 $"{friendlyName}{accountPart}",
@@ -1349,7 +1351,7 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(toolTipContent))
         {
             grid.ToolTip = this.CreateTopmostAwareToolTip(grid, toolTipContent);
-            ConfigureCardToolTip(grid);
+            this.ConfigureCardToolTip(grid);
         }
 
         container.Children.Add(grid);
@@ -1402,7 +1404,7 @@ public partial class MainWindow : Window
         return toolTip;
     }
 
-    private static void AddDockedElement(DockPanel panel, UIElement element, Dock dock)
+    private void AddDockedElement(DockPanel panel, UIElement element, Dock dock)
     {
         panel.Children.Add(element);
         DockPanel.SetDock(element, dock);
@@ -1441,7 +1443,7 @@ public partial class MainWindow : Window
         };
     }
 
-    private static void ConfigureCardToolTip(FrameworkElement target)
+    private void ConfigureCardToolTip(FrameworkElement target)
     {
         ToolTipService.SetInitialShowDelay(target, 100);
         ToolTipService.SetShowDuration(target, 15000);
@@ -1498,12 +1500,12 @@ public partial class MainWindow : Window
         // Content Overlay
         var bulletPanel = new DockPanel { LastChildFill = false, Margin = new Thickness(6, 0, 6, 0) };
 
-        AddDockedElement(bulletPanel, this.CreateBulletMarker(), Dock.Left);
+        this.AddDockedElement(bulletPanel, this.CreateBulletMarker(), Dock.Left);
 
         // Reset time on the right (if available) - shown in yellow
         if (!string.IsNullOrEmpty(presentation.ResetText))
         {
-            AddDockedElement(
+            this.AddDockedElement(
                 bulletPanel,
                 this.CreateDockedTextBlock(
                     presentation.ResetText,
@@ -1515,7 +1517,7 @@ public partial class MainWindow : Window
         }
 
         // Value on the right
-        AddDockedElement(
+        this.AddDockedElement(
             bulletPanel,
             this.CreateDockedTextBlock(
                 presentation.DisplayText,
@@ -1525,7 +1527,7 @@ public partial class MainWindow : Window
             Dock.Right);
 
         // Name on the left
-        AddDockedElement(
+        this.AddDockedElement(
             bulletPanel,
             this.CreateDockedTextBlock(
                 detail.Name,
@@ -2101,7 +2103,7 @@ public partial class MainWindow : Window
             if (webPath == null)
             {
                 // Try dotnet run
-                var webProjectDir = FindProjectDirectory("AIUsageTracker.Web");
+                var webProjectDir = this.FindProjectDirectory("AIUsageTracker.Web");
                 if (webProjectDir != null)
                 {
                     var psi = new ProcessStartInfo
@@ -2139,7 +2141,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private static string? FindProjectDirectory(string projectName)
+    private string? FindProjectDirectory(string projectName)
     {
         var currentDir = AppContext.BaseDirectory;
         var dir = new DirectoryInfo(currentDir);
@@ -2334,7 +2336,7 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            var headerLevel = GetHeaderLevel(trimmed);
+            var headerLevel = this.GetHeaderLevel(trimmed);
             if (headerLevel > 0)
             {
                 var headerText = trimmed[(headerLevel + 1)..];
@@ -2367,7 +2369,7 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            if (TryParseNumberedItem(trimmed, out var numberedPrefix, out var numberedText))
+            if (this.TryParseNumberedItem(trimmed, out var numberedPrefix, out var numberedText))
             {
                 var numbered = new Paragraph
                 {
@@ -2396,7 +2398,7 @@ public partial class MainWindow : Window
         return document;
     }
 
-    private static int GetHeaderLevel(string trimmedLine)
+    private int GetHeaderLevel(string trimmedLine)
     {
         var level = 0;
         while (level < trimmedLine.Length && trimmedLine[level] == '#')
@@ -2407,7 +2409,7 @@ public partial class MainWindow : Window
         return level > 0 && level < trimmedLine.Length && trimmedLine[level] == ' ' ? level : 0;
     }
 
-    private static bool TryParseNumberedItem(string line, out int number, out string content)
+    private bool TryParseNumberedItem(string line, out int number, out string content)
     {
         number = 0;
         content = string.Empty;
@@ -2616,7 +2618,7 @@ public partial class MainWindow : Window
                     Children =
                     {
                         new TextBlock { Text = $"Downloading version {this._latestUpdate.Version}...", Margin = new Thickness(0, 0, 0, 10) },
-                        progressBar
+                        progressBar,
                     },
                 },
             };

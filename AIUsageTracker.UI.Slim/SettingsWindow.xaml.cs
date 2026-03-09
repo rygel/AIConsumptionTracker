@@ -24,17 +24,13 @@ namespace AIUsageTracker.UI.Slim;
 
 public partial class SettingsWindow : Window
 {
-    private sealed class ThemeOption
-    {
-        public AppTheme Value { get; init; }
-
-        public string Label { get; init; } = string.Empty;
-    }
-
     private readonly IMonitorService _monitorService;
     private readonly ILogger<SettingsWindow> _logger;
     private readonly IAppPathProvider _pathProvider;
     private readonly UiPreferencesStore _preferencesStore;
+    private readonly SemaphoreSlim _autoSaveSemaphore = new(1, 1);
+    private readonly DispatcherTimer _autoSaveTimer;
+
     private List<ProviderConfig> _configs = new();
     private List<ProviderUsage> _usages = new();
     private string? _gitHubAuthUsername;
@@ -45,10 +41,6 @@ public partial class SettingsWindow : Window
     private bool _isDeterministicScreenshotMode;
     private bool _isLoadingSettings;
     private bool _hasPendingAutoSave;
-    private readonly SemaphoreSlim _autoSaveSemaphore = new(1, 1);
-    private readonly DispatcherTimer _autoSaveTimer;
-
-    public bool SettingsChanged { get; private set; }
 
     public SettingsWindow(IMonitorService monitorService, ILogger<SettingsWindow> logger, UiPreferencesStore preferencesStore, IAppPathProvider pathProvider)
     {
@@ -77,6 +69,8 @@ public partial class SettingsWindow : Window
         App.Host.Services.GetRequiredService<IAppPathProvider>())
     {
     }
+
+    internal bool SettingsChanged { get; private set; }
 
 #pragma warning disable VSTHRD100 // WPF event handlers require async void signatures.
     private async void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
@@ -196,7 +190,7 @@ public partial class SettingsWindow : Window
             await this.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
             this.UpdateLayout();
 
-            var tabSlug = BuildTabSlug(header, index);
+            var tabSlug = this.BuildTabSlug(header, index);
             var fileName = $"screenshot_settings_{tabSlug}_privacy.png";
             App.RenderWindowContent(this, Path.Combine(outputDirectory, fileName));
             capturedFiles.Add(fileName);
@@ -278,7 +272,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private static string BuildTabSlug(string? header, int index)
+    private string BuildTabSlug(string? header, int index)
     {
         if (string.IsNullOrWhiteSpace(header))
         {
@@ -604,7 +598,7 @@ public partial class SettingsWindow : Window
 
         if (settingsBehavior.IsInactive)
         {
-            headerPanel.Children.Add(CreateInactiveBadge());
+            headerPanel.Children.Add(this.CreateInactiveBadge());
         }
 
         return headerPanel;
@@ -633,7 +627,7 @@ public partial class SettingsWindow : Window
         return checkBox;
     }
 
-    private static Border CreateInactiveBadge()
+    private Border CreateInactiveBadge()
     {
         var status = new Border
         {
@@ -790,12 +784,12 @@ public partial class SettingsWindow : Window
             return existing;
         }
 
-        var tracked = CloneConfig(config);
+        var tracked = this.CloneConfig(config);
         this._configs.Add(tracked);
         return tracked;
     }
 
-    private static ProviderConfig CloneConfig(ProviderConfig config)
+    private ProviderConfig CloneConfig(ProviderConfig config)
     {
         return new ProviderConfig
         {
@@ -918,7 +912,7 @@ public partial class SettingsWindow : Window
         this.InvertCalculationsCheck.IsChecked = this._preferences.InvertCalculations;
         this.ThemeCombo.DisplayMemberPath = nameof(ThemeOption.Label);
         this.ThemeCombo.SelectedValuePath = nameof(ThemeOption.Value);
-        this.ThemeCombo.ItemsSource = GetThemeOptions();
+        this.ThemeCombo.ItemsSource = this.GetThemeOptions();
         this.ThemeCombo.SelectedValue = this._preferences.Theme;
 
         this.UpdateChannelCombo.ItemsSource = new[]
@@ -951,7 +945,7 @@ public partial class SettingsWindow : Window
         this.UpdateFontPreview();
     }
 
-    private static IReadOnlyList<ThemeOption> GetThemeOptions()
+    private IReadOnlyList<ThemeOption> GetThemeOptions()
     {
         return new List<ThemeOption>
         {
@@ -1377,11 +1371,11 @@ public partial class SettingsWindow : Window
             bundle.AppendLine();
 
             bundle.AppendLine("=== Monitor Health ===");
-            bundle.AppendLine(FormatJsonForBundle(healthDetails));
+            bundle.AppendLine(this.FormatJsonForBundle(healthDetails));
             bundle.AppendLine();
 
             bundle.AppendLine("=== Monitor Diagnostics ===");
-            bundle.AppendLine(FormatJsonForBundle(diagnosticsDetails));
+            bundle.AppendLine(this.FormatJsonForBundle(diagnosticsDetails));
             bundle.AppendLine();
 
             bundle.AppendLine("=== Monitor Errors (monitor.json) ===");
@@ -1439,7 +1433,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private static string FormatJsonForBundle(string content)
+    private string FormatJsonForBundle(string content)
     {
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -1526,8 +1520,8 @@ public partial class SettingsWindow : Window
             this._preferences.NotifyOnQuotaExceeded = this.NotifyQuotaExceededCheck.IsChecked ?? true;
             this._preferences.NotifyOnProviderErrors = this.NotifyProviderErrorsCheck.IsChecked ?? false;
             this._preferences.EnableQuietHours = this.EnableQuietHoursCheck.IsChecked ?? false;
-            this._preferences.QuietHoursStart = NormalizeQuietHour(this.QuietHoursStartBox.Text, "22:00");
-            this._preferences.QuietHoursEnd = NormalizeQuietHour(this.QuietHoursEndBox.Text, "07:00");
+            this._preferences.QuietHoursStart = this.NormalizeQuietHour(this.QuietHoursStartBox.Text, "22:00");
+            this._preferences.QuietHoursEnd = this.NormalizeQuietHour(this.QuietHoursEndBox.Text, "07:00");
 
             var prefsSaved = await this.SaveUiPreferencesAsync(showErrorDialog);
             if (!prefsSaved)
@@ -1689,7 +1683,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private static string NormalizeQuietHour(string value, string fallback)
+    private string NormalizeQuietHour(string value, string fallback)
     {
         if (TimeSpan.TryParse(value, out var parsed))
         {
