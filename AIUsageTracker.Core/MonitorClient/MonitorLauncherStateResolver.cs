@@ -21,7 +21,7 @@ namespace AIUsageTracker.Core.MonitorClient
             public int EffectivePort => this.Info?.Port > 0 ? this.Info.Port : MonitorLauncher.DefaultPort;
         }
 
-        internal readonly record struct MonitorReadyState(int Port, bool IsRunning, bool FromMetadata);
+        internal readonly record struct MonitorReadyState(int Port, bool IsRunning, bool FromMetadata, string? StartupFailure = null);
 
         public static async Task<(MonitorInfo? Info, string? Path)> ReadAgentInfoAsync(
             IEnumerable<string> candidatePaths,
@@ -163,6 +163,16 @@ namespace AIUsageTracker.Core.MonitorClient
                 return new MonitorReadyState(metadataState.Info!.Port, IsRunning: true, FromMetadata: true);
             }
 
+            var startupFailure = GetStartupFailure(metadataState.Info?.Errors);
+            if (!string.IsNullOrWhiteSpace(startupFailure))
+            {
+                return new MonitorReadyState(
+                    metadataState.EffectivePort,
+                    IsRunning: false,
+                    FromMetadata: false,
+                    StartupFailure: startupFailure);
+            }
+
             var port = metadataState.EffectivePort;
             var isRunning = await checkHealthAsync(port).ConfigureAwait(false);
             return new MonitorReadyState(port, isRunning, FromMetadata: false);
@@ -176,6 +186,12 @@ namespace AIUsageTracker.Core.MonitorClient
             {
                 var source = readyState.FromMetadata ? "metadata" : "health check";
                 MonitorService.LogDiagnostic($"Monitor is running on port {readyState.Port} via {source}.");
+                return readyState;
+            }
+
+            if (!string.IsNullOrWhiteSpace(readyState.StartupFailure))
+            {
+                MonitorService.LogDiagnostic($"Monitor startup reported failure: {readyState.StartupFailure}");
                 return readyState;
             }
 
@@ -200,6 +216,13 @@ namespace AIUsageTracker.Core.MonitorClient
                     return readyState;
                 }
 
+                if (!string.IsNullOrWhiteSpace(readyState.StartupFailure))
+                {
+                    MonitorService.LogDiagnostic(
+                        $"Monitor startup failed after {stopwatch.Elapsed.TotalSeconds:F1}s: {readyState.StartupFailure}");
+                    return null;
+                }
+
                 if (attempt % 5 == 0)
                 {
                     MonitorService.LogDiagnostic($"Still waiting for Monitor... (elapsed: {stopwatch.Elapsed.TotalSeconds:F1}s)");
@@ -218,6 +241,15 @@ namespace AIUsageTracker.Core.MonitorClient
 
             MonitorService.LogDiagnostic("Timed out waiting for Monitor.");
             return null;
+        }
+
+        private static string? GetStartupFailure(IReadOnlyList<string>? errors)
+        {
+            return errors?.FirstOrDefault(error =>
+                !string.IsNullOrWhiteSpace(error) &&
+                error.StartsWith("Startup status:", StringComparison.OrdinalIgnoreCase) &&
+                !error.Contains("running", StringComparison.OrdinalIgnoreCase) &&
+                !error.Contains("starting", StringComparison.OrdinalIgnoreCase));
         }
     }
 }

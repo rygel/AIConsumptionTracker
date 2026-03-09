@@ -24,8 +24,9 @@ public class StartupAntiHammerTests
             IHttpClientFactory httpClientFactory,
             IConfigService configService,
             IAppPathProvider pathProvider,
-            System.Collections.Generic.IEnumerable<IProviderService> providers)
-            : base(logger, loggerFactory, database, notificationService, httpClientFactory, configService, pathProvider, providers)
+            System.Collections.Generic.IEnumerable<IProviderService> providers,
+            UsageAlertsService usageAlertsService)
+            : base(logger, loggerFactory, database, notificationService, httpClientFactory, configService, pathProvider, providers, usageAlertsService)
         {
         }
 
@@ -56,6 +57,12 @@ public class StartupAntiHammerTests
         var mockHttpClientFactory = new Mock<IHttpClientFactory>();
         var mockConfigService = new Mock<IConfigService>();
         var mockPathProvider = new Mock<IAppPathProvider>();
+        var mockUsageAlertsLogger = new Mock<ILogger<UsageAlertsService>>();
+        var usageAlertsService = new UsageAlertsService(
+            mockUsageAlertsLogger.Object,
+            mockDb.Object,
+            mockNotificationService.Object,
+            mockConfigService.Object);
 
         mockDb.Setup(db => db.IsHistoryEmptyAsync())
             .ReturnsAsync(false);
@@ -71,7 +78,8 @@ public class StartupAntiHammerTests
             mockHttpClientFactory.Object,
             mockConfigService.Object,
             mockPathProvider.Object,
-            Enumerable.Empty<IProviderService>());
+            Enumerable.Empty<IProviderService>(),
+            usageAlertsService);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
@@ -95,6 +103,12 @@ public class StartupAntiHammerTests
         var mockHttpClientFactory = new Mock<IHttpClientFactory>();
         var mockConfigService = new Mock<IConfigService>();
         var mockPathProvider = new Mock<IAppPathProvider>();
+        var mockUsageAlertsLogger = new Mock<ILogger<UsageAlertsService>>();
+        var usageAlertsService = new UsageAlertsService(
+            mockUsageAlertsLogger.Object,
+            mockDb.Object,
+            mockNotificationService.Object,
+            mockConfigService.Object);
 
         mockDb.Setup(db => db.IsHistoryEmptyAsync())
             .ReturnsAsync(true);
@@ -111,7 +125,8 @@ public class StartupAntiHammerTests
             mockHttpClientFactory.Object,
             mockConfigService.Object,
             mockPathProvider.Object,
-            Enumerable.Empty<IProviderService>());
+            Enumerable.Empty<IProviderService>(),
+            usageAlertsService);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 

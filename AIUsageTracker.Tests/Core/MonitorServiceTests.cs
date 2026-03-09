@@ -110,6 +110,105 @@ public class MonitorServiceTests
     }
 
     [Fact]
+    public async Task GetUsageAsync_RequestTimesOut_RefreshesEndpointAndRetriesAsync()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), "monitor-service-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            var infoPath = await this.CreateMonitorInfoAsync(tempDirectory, new MonitorInfo
+            {
+                Port = 5333,
+                ProcessId = 4242,
+            });
+
+            using var _ = MonitorLauncher.PushTestOverrides(
+                monitorInfoCandidatePaths: new[] { infoPath },
+                healthCheckAsync: port => Task.FromResult(port == 5333),
+                processRunningAsync: processId => Task.FromResult(processId == 4242));
+
+            var requestedUrls = new List<string>();
+            var usage = new List<ProviderUsage>
+            {
+                new() { ProviderId = "openai", ProviderName = "OpenAI", IsAvailable = true },
+            };
+
+            this._service.AgentUrl = "http://localhost:5000";
+
+            this._mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>(
+                    "SendAsync",
+                    ItExpr.IsAny<HttpRequestMessage>(),
+                    ItExpr.IsAny<CancellationToken>())
+                .Returns<HttpRequestMessage, CancellationToken>((request, _) =>
+                {
+                    requestedUrls.Add(request.RequestUri!.ToString());
+                    return requestedUrls.Count == 1
+                        ? Task.FromException<HttpResponseMessage>(new TaskCanceledException("timeout"))
+                        : Task.FromResult(new HttpResponseMessage
+                        {
+                            StatusCode = HttpStatusCode.OK,
+                            Content = JsonContent.Create(usage, options: new JsonSerializerOptions
+                            {
+                                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+                            }),
+                        });
+                });
+
+            var result = await this._service.GetUsageAsync();
+
+            Assert.Single(result);
+            Assert.Equal("http://localhost:5333", this._service.AgentUrl);
+            Assert.Contains("http://localhost:5000/api/usage", requestedUrls);
+            Assert.Contains("http://localhost:5333/api/usage", requestedUrls);
+        }
+        finally
+        {
+            Directory.Delete(tempDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_RequestTimesOutTwice_ReturnsEmptyListAsync()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), "monitor-service-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            var infoPath = await this.CreateMonitorInfoAsync(tempDirectory, new MonitorInfo
+            {
+                Port = 5333,
+                ProcessId = 4242,
+            });
+
+            using var _ = MonitorLauncher.PushTestOverrides(
+                monitorInfoCandidatePaths: new[] { infoPath },
+                healthCheckAsync: port => Task.FromResult(port == 5333),
+                processRunningAsync: processId => Task.FromResult(processId == 4242));
+
+            this._service.AgentUrl = "http://localhost:5000";
+
+            this._mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>(
+                    "SendAsync",
+                    ItExpr.IsAny<HttpRequestMessage>(),
+                    ItExpr.IsAny<CancellationToken>())
+                .ThrowsAsync(new TaskCanceledException("timeout"));
+
+            var result = await this._service.GetUsageAsync();
+
+            Assert.Empty(result);
+            Assert.Equal("http://localhost:5333", this._service.AgentUrl);
+        }
+        finally
+        {
+            Directory.Delete(tempDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task TriggerRefreshAsync_RequestFails_RecordsRefreshErrorTelemetryAsync()
     {
         // Arrange
@@ -375,5 +474,13 @@ public class MonitorServiceTests
                 req.RequestUri.AbsolutePath == path &&
                 queryParts.All(qp => req.RequestUri.Query.Contains(qp))),
             ItExpr.IsAny<CancellationToken>());
+    }
+
+    private async Task<string> CreateMonitorInfoAsync(string directory, MonitorInfo info)
+    {
+        var path = Path.Combine(directory, "monitor.json");
+        var json = JsonSerializer.Serialize(info);
+        await File.WriteAllTextAsync(path, json);
+        return path;
     }
 }

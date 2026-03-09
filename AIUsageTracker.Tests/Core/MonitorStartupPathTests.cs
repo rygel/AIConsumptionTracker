@@ -2,6 +2,9 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
@@ -139,6 +142,77 @@ public sealed class MonitorStartupPathTests : IDisposable
     }
 
     [Fact]
+    public async Task RefreshAgentInfoAsync_PreservesLaunchErrors_WhenMetadataShowsStartupFailureAsync()
+    {
+        var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = 0,
+            ProcessId = 2222,
+            Errors = new List<string> { "Startup status: failed: port bind failed" },
+        });
+
+        using var _ = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: _ => Task.FromResult(false),
+            processRunningAsync: _ => Task.FromResult(false));
+
+        var service = this.CreateMonitorService();
+        service.AgentUrl = "http://localhost:5444";
+
+        await service.RefreshAgentInfoAsync();
+
+        Assert.Equal("http://localhost:5000", service.AgentUrl);
+        var error = Assert.Single(service.LastAgentErrors);
+        Assert.Contains("failed", error, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(Directory.GetFiles(this._tempDirectory, "monitor.json.stale.*", SearchOption.TopDirectoryOnly));
+    }
+
+    [Fact]
+    public async Task RefreshPortAsync_UsesHealthyResolvedPortAsync()
+    {
+        var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = 5555,
+            ProcessId = 3210,
+        });
+
+        using var _ = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: port => Task.FromResult(port == 5555),
+            processRunningAsync: processId => Task.FromResult(processId == 3210));
+
+        var service = this.CreateMonitorService();
+        service.AgentUrl = "http://localhost:5000";
+
+        await service.RefreshPortAsync();
+
+        Assert.Equal("http://localhost:5555", service.AgentUrl);
+    }
+
+    [Fact]
+    public async Task RefreshPortAsync_KeepsExistingAgentUrl_WhenResolvedPortIsNotHealthyAsync()
+    {
+        var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = 5444,
+            ProcessId = 2222,
+        });
+
+        using var _ = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: _ => Task.FromResult(false),
+            processRunningAsync: _ => Task.FromResult(false));
+
+        var service = this.CreateMonitorService();
+        service.AgentUrl = "http://localhost:5333";
+
+        await service.RefreshPortAsync();
+
+        Assert.Equal("http://localhost:5333", service.AgentUrl);
+        Assert.Single(Directory.GetFiles(this._tempDirectory, "monitor.json.stale.*", SearchOption.TopDirectoryOnly));
+    }
+
+    [Fact]
     public async Task IsAgentRunningWithPortAsync_ReturnsHealthyMetadataPortAsync()
     {
         var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
@@ -195,6 +269,31 @@ public sealed class MonitorStartupPathTests : IDisposable
     }
 
     [Fact]
+    public async Task WaitForAgentAsync_ReturnsFalseQuickly_WhenMetadataReportsStartupFailureAsync()
+    {
+        var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = 0,
+            ProcessId = 7777,
+            Errors = new List<string> { "Startup status: failed: port bind failed" },
+        });
+
+        using var _ = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: _ => Task.FromResult(false),
+            processRunningAsync: _ => Task.FromResult(false));
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var result = await MonitorLauncher.WaitForAgentAsync(cancellationTokenSource.Token);
+
+        stopwatch.Stop();
+        Assert.False(result);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2), "Startup failure should abort wait quickly.");
+    }
+
+    [Fact]
     public async Task StopAgentAsync_InvalidatesMetadata_WhenKnownProcessStopsAsync()
     {
         var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
@@ -239,6 +338,61 @@ public sealed class MonitorStartupPathTests : IDisposable
         Assert.Empty(Directory.GetFiles(this._tempDirectory, "monitor.json.stale.*", SearchOption.TopDirectoryOnly));
     }
 
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task RefreshPortAsync_WithLiveEndpoint_ReconnectsAfterStaleMetadataAndPortChangeAsync()
+    {
+        var firstProviderId = "provider-a";
+        var secondProviderId = "provider-b";
+
+        await using var firstEndpoint = await TestMonitorEndpoint.StartAsync(firstProviderId);
+        var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = firstEndpoint.Port,
+            ProcessId = 1234,
+        });
+
+        using var _ = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            processRunningAsync: processId => Task.FromResult(processId == 1234 || processId == 5678));
+
+        var service = new MonitorService(new HttpClient(), NullLogger<MonitorService>.Instance)
+        {
+            AgentUrl = "http://localhost:5000",
+        };
+
+        await service.RefreshPortAsync();
+        Assert.Equal($"http://localhost:{firstEndpoint.Port}", service.AgentUrl);
+
+        var firstUsage = Assert.Single(await service.GetUsageAsync());
+        Assert.Equal(firstProviderId, firstUsage.ProviderId);
+
+        await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = GetUnusedPort(),
+            ProcessId = 5678,
+        });
+
+        await service.RefreshPortAsync();
+        Assert.Equal($"http://localhost:{firstEndpoint.Port}", service.AgentUrl);
+
+        var preservedUsage = Assert.Single(await service.GetUsageAsync());
+        Assert.Equal(firstProviderId, preservedUsage.ProviderId);
+
+        await using var secondEndpoint = await TestMonitorEndpoint.StartAsync(secondProviderId);
+        await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = secondEndpoint.Port,
+            ProcessId = 5678,
+        });
+
+        await service.RefreshPortAsync();
+        Assert.Equal($"http://localhost:{secondEndpoint.Port}", service.AgentUrl);
+
+        var secondUsage = Assert.Single(await service.GetUsageAsync());
+        Assert.Equal(secondProviderId, secondUsage.ProviderId);
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {
@@ -264,5 +418,140 @@ public sealed class MonitorStartupPathTests : IDisposable
         var path = Path.Combine(this._tempDirectory, "monitor.json");
         await File.WriteAllTextAsync(path, content).ConfigureAwait(false);
         return path;
+    }
+
+    private static int GetUnusedPort()
+    {
+        using var listener = new TcpListener(IPAddress.IPv6Any, 0);
+        listener.Server.DualMode = true;
+        listener.Start();
+        return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+
+    private sealed class TestMonitorEndpoint : IAsyncDisposable
+    {
+        private readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        };
+        private readonly TcpListener _listener;
+        private readonly CancellationTokenSource _cancellationTokenSource = new();
+        private readonly Task _acceptLoopTask;
+        private readonly string _providerId;
+
+        private TestMonitorEndpoint(TcpListener listener, string providerId)
+        {
+            this._listener = listener;
+            this._providerId = providerId;
+            this.Port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            this._acceptLoopTask = this.AcceptLoopAsync();
+        }
+
+        public int Port { get; }
+
+        public static Task<TestMonitorEndpoint> StartAsync(string providerId)
+        {
+            var listener = new TcpListener(IPAddress.IPv6Any, 0);
+            listener.Server.DualMode = true;
+            listener.Start();
+            return Task.FromResult(new TestMonitorEndpoint(listener, providerId));
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await this._cancellationTokenSource.CancelAsync().ConfigureAwait(false);
+            this._listener.Stop();
+
+            try
+            {
+                await this._acceptLoopTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (SocketException)
+            {
+            }
+        }
+
+        private async Task AcceptLoopAsync()
+        {
+            while (!this._cancellationTokenSource.IsCancellationRequested)
+            {
+                TcpClient client;
+                try
+                {
+                    client = await this._listener.AcceptTcpClientAsync(this._cancellationTokenSource.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (ObjectDisposedException)
+                {
+                    break;
+                }
+                catch (SocketException)
+                {
+                    break;
+                }
+
+                _ = this.HandleClientAsync(client);
+            }
+        }
+
+        private async Task HandleClientAsync(TcpClient client)
+        {
+            using var _ = client;
+            using var stream = client.GetStream();
+            using var reader = new StreamReader(stream, Encoding.ASCII, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+
+            var requestLine = await reader.ReadLineAsync().ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(requestLine))
+            {
+                return;
+            }
+
+            while (!string.IsNullOrEmpty(await reader.ReadLineAsync().ConfigureAwait(false)))
+            {
+            }
+
+            var requestPath = requestLine.Split(' ')[1];
+            var payload = requestPath switch
+            {
+                "/api/health" => JsonSerializer.Serialize(new
+                {
+                    status = "healthy",
+                    api_contract_version = MonitorService.ExpectedApiContractVersion,
+                    agent_version = "test-endpoint",
+                }),
+                "/api/usage" => JsonSerializer.Serialize(
+                    new[]
+                    {
+                        new ProviderUsage
+                        {
+                            ProviderId = this._providerId,
+                            ProviderName = this._providerId,
+                            IsAvailable = true,
+                        },
+                    },
+                    this._jsonOptions),
+                _ => JsonSerializer.Serialize(new { message = "not found" }),
+            };
+
+            var statusLine = requestPath is "/api/health" or "/api/usage"
+                ? "HTTP/1.1 200 OK"
+                : "HTTP/1.1 404 Not Found";
+            var body = Encoding.UTF8.GetBytes(payload);
+            var header = Encoding.ASCII.GetBytes(
+                $"{statusLine}\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
+
+            await stream.WriteAsync(header).ConfigureAwait(false);
+            await stream.WriteAsync(body).ConfigureAwait(false);
+            await stream.FlushAsync().ConfigureAwait(false);
+        }
     }
 }

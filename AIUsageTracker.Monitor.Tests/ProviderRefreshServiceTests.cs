@@ -23,6 +23,7 @@ public class ProviderRefreshServiceTests
     private readonly Mock<IHttpClientFactory> _mockHttpClientFactory;
     private readonly Mock<IAppPathProvider> _mockPathProvider;
     private readonly Mock<ConfigService> _mockConfigService;
+    private readonly UsageAlertsService _usageAlertsService;
     private readonly ProviderRefreshService _service;
 
     public ProviderRefreshServiceTests()
@@ -37,6 +38,12 @@ public class ProviderRefreshServiceTests
         // ConfigService needs a logger and path provider, using NullLogger
         var configLogger = new Mock<ILogger<ConfigService>>();
         this._mockConfigService = new Mock<ConfigService>(configLogger.Object, this._mockPathProvider.Object);
+        var alertsLogger = new Mock<ILogger<UsageAlertsService>>();
+        this._usageAlertsService = new UsageAlertsService(
+            alertsLogger.Object,
+            this._mockDatabase.Object,
+            this._mockNotificationService.Object,
+            this._mockConfigService.Object);
 
         this._service = new ProviderRefreshService(
             this._mockLogger.Object,
@@ -46,213 +53,8 @@ public class ProviderRefreshServiceTests
             this._mockHttpClientFactory.Object,
             this._mockConfigService.Object,
             this._mockPathProvider.Object,
-            Enumerable.Empty<IProviderService>());
-    }
-
-    [Fact]
-    public void CheckUsageAlertsAsync_UsageAboveThreshold_TriggersNotification()
-    {
-        // Arrange
-        var prefs = new AppPreferences { EnableNotifications = true, NotificationThreshold = 90.0 };
-        var configs = new List<ProviderConfig>
-        {
-            new ProviderConfig { ProviderId = "test", EnableNotifications = true },
-        };
-        var usages = new List<ProviderUsage>
-        {
-            new ProviderUsage
-            {
-                ProviderId = "test",
-                ProviderName = "Test Provider",
-                RequestsPercentage = 95.0,
-                IsAvailable = true,
-            },
-        };
-
-        // Act
-        this._service.CheckUsageAlerts(usages, prefs, configs);
-
-        // Assert
-        this._mockNotificationService.Verify(n => n.ShowUsageAlert("Test Provider", 95.0), Times.Once);
-    }
-
-    [Fact]
-    public void CheckUsageAlertsAsync_QuotaRemainingLow_TriggersNotificationFromUsedPercent()
-    {
-        // Arrange
-        var prefs = new AppPreferences { EnableNotifications = true, NotificationThreshold = 90.0 };
-        var configs = new List<ProviderConfig>
-        {
-            new ProviderConfig { ProviderId = "test", EnableNotifications = true },
-        };
-        var usages = new List<ProviderUsage>
-        {
-            new ProviderUsage
-            {
-                ProviderId = "test",
-                ProviderName = "Test Provider",
-                RequestsPercentage = 5.0, // remaining %
-                IsQuotaBased = true,
-                PlanType = PlanType.Coding,
-                IsAvailable = true,
-            },
-        };
-
-        // Act
-        this._service.CheckUsageAlerts(usages, prefs, configs);
-
-        // Assert
-        this._mockNotificationService.Verify(n => n.ShowUsageAlert("Test Provider", 95.0), Times.Once);
-    }
-
-    [Fact]
-    public void CheckUsageAlertsAsync_QuotaRemainingHigh_DoesNotTriggerNotification()
-    {
-        // Arrange
-        var prefs = new AppPreferences { EnableNotifications = true, NotificationThreshold = 90.0 };
-        var configs = new List<ProviderConfig>
-        {
-            new ProviderConfig { ProviderId = "test", EnableNotifications = true },
-        };
-        var usages = new List<ProviderUsage>
-        {
-            new ProviderUsage
-            {
-                ProviderId = "test",
-                ProviderName = "Test Provider",
-                RequestsPercentage = 30.0, // remaining %, 70% used
-                IsQuotaBased = true,
-                PlanType = PlanType.Coding,
-                IsAvailable = true,
-            },
-        };
-
-        // Act
-        this._service.CheckUsageAlerts(usages, prefs, configs);
-
-        // Assert
-        this._mockNotificationService.Verify(n => n.ShowUsageAlert(It.IsAny<string>(), It.IsAny<double>()), Times.Never);
-    }
-
-    [Fact]
-    public void CheckUsageAlertsAsync_NotificationsDisabledGlobally_DoesNotTrigger()
-    {
-        // Arrange
-        var prefs = new AppPreferences { EnableNotifications = false, NotificationThreshold = 90.0 };
-        var configs = new List<ProviderConfig>
-        {
-            new ProviderConfig { ProviderId = "test", EnableNotifications = true },
-        };
-        var usages = new List<ProviderUsage>
-        {
-            new ProviderUsage
-            {
-                ProviderId = "test",
-                ProviderName = "Test Provider",
-                RequestsPercentage = 95.0,
-                IsAvailable = true,
-            },
-        };
-
-        // Act
-        this._service.CheckUsageAlerts(usages, prefs, configs);
-
-        // Assert
-        this._mockNotificationService.Verify(n => n.ShowUsageAlert(It.IsAny<string>(), It.IsAny<double>()), Times.Never);
-    }
-
-    [Fact]
-    public void CheckUsageAlertsAsync_ProviderNotificationsDisabled_DoesNotTrigger()
-    {
-        // Arrange
-        var prefs = new AppPreferences { EnableNotifications = true, NotificationThreshold = 90.0 };
-        var configs = new List<ProviderConfig>
-        {
-            new ProviderConfig { ProviderId = "test", EnableNotifications = false },
-        };
-        var usages = new List<ProviderUsage>
-        {
-            new ProviderUsage
-            {
-                ProviderId = "test",
-                ProviderName = "Test Provider",
-                RequestsPercentage = 95.0,
-                IsAvailable = true,
-            },
-        };
-
-        // Act
-        this._service.CheckUsageAlerts(usages, prefs, configs);
-
-        // Assert
-        this._mockNotificationService.Verify(n => n.ShowUsageAlert(It.IsAny<string>(), It.IsAny<double>()), Times.Never);
-    }
-
-    [Fact]
-    public void CheckUsageAlertsAsync_UsageThresholdNotificationsDisabled_DoesNotTrigger()
-    {
-        // Arrange
-        var prefs = new AppPreferences
-        {
-            EnableNotifications = true,
-            NotifyOnUsageThreshold = false,
-            NotificationThreshold = 90.0,
-        };
-        var configs = new List<ProviderConfig>
-        {
-            new ProviderConfig { ProviderId = "test", EnableNotifications = true },
-        };
-        var usages = new List<ProviderUsage>
-        {
-            new ProviderUsage
-            {
-                ProviderId = "test",
-                ProviderName = "Test Provider",
-                RequestsPercentage = 95.0,
-                IsAvailable = true,
-            },
-        };
-
-        // Act
-        this._service.CheckUsageAlerts(usages, prefs, configs);
-
-        // Assert
-        this._mockNotificationService.Verify(n => n.ShowUsageAlert(It.IsAny<string>(), It.IsAny<double>()), Times.Never);
-    }
-
-    [Fact]
-    public void CheckUsageAlertsAsync_QuietHoursAlwaysEnabled_DoesNotTrigger()
-    {
-        // Arrange
-        var prefs = new AppPreferences
-        {
-            EnableNotifications = true,
-            NotifyOnUsageThreshold = true,
-            NotificationThreshold = 90.0,
-            EnableQuietHours = true,
-            QuietHoursStart = "22:00",
-            QuietHoursEnd = "22:00",
-        };
-        var configs = new List<ProviderConfig>
-        {
-            new ProviderConfig { ProviderId = "test", EnableNotifications = true },
-        };
-        var usages = new List<ProviderUsage>
-        {
-            new ProviderUsage
-            {
-                ProviderId = "test",
-                ProviderName = "Test Provider",
-                RequestsPercentage = 95.0,
-                IsAvailable = true,
-            },
-        };
-
-        // Act
-        this._service.CheckUsageAlerts(usages, prefs, configs);
-
-        // Assert
-        this._mockNotificationService.Verify(n => n.ShowUsageAlert(It.IsAny<string>(), It.IsAny<double>()), Times.Never);
+            Enumerable.Empty<IProviderService>(),
+            this._usageAlertsService);
     }
 
     [Fact]

@@ -226,9 +226,10 @@ public class MonitorService : IMonitorService
         LogDiagnostic("Refreshing Monitor Info from file...");
         try
         {
-            var info = await MonitorLauncher.GetAndValidateMonitorInfoAsync().ConfigureAwait(false);
-            if (info != null)
+            var metadata = await MonitorLauncher.GetMonitorMetadataSnapshotAsync().ConfigureAwait(false);
+            if (metadata.IsUsable && metadata.Info != null)
             {
+                var info = metadata.Info;
                 if (info.Port > 0)
                 {
                     this.AgentUrl = $"http://localhost:{info.Port}";
@@ -239,9 +240,10 @@ public class MonitorService : IMonitorService
                 return;
             }
 
+            var preservedErrors = GetActionableMetadataErrors(metadata.Info?.Errors);
             LogDiagnostic("monitor.json missing, stale, or invalid; using default port 5000");
             this.AgentUrl = "http://localhost:5000";
-            this.LastAgentErrors = new List<string>();
+            this.LastAgentErrors = preservedErrors;
         }
         catch (Exception ex)
         {
@@ -254,13 +256,16 @@ public class MonitorService : IMonitorService
     /// <inheritdoc/>
     public async Task RefreshPortAsync()
     {
-        var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync().ConfigureAwait(false);
-        if (!isRunning)
+        var status = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
+        if (!status.IsRunning)
         {
-            MonitorService.LogDiagnostic($"Monitor not responding on port {port}. Attempting to locate...");
+            MonitorService.LogDiagnostic(
+                $"{status.Message} Keeping existing Monitor endpoint {this.AgentUrl}.");
+            return;
         }
 
-        this.AgentUrl = $"http://localhost:{port}";
+        this.AgentUrl = $"http://localhost:{status.Port}";
+        MonitorService.LogDiagnostic($"Using Monitor endpoint {this.AgentUrl}.");
     }
 
     // Provider usage endpoints
@@ -270,49 +275,32 @@ public class MonitorService : IMonitorService
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            using var requestTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(UsageRequestTimeoutSeconds));
-            var usage = await this._httpClient.GetFromJsonAsync<List<ProviderUsage>>(
-                $"{this.AgentUrl}/api/usage",
-                this._jsonOptions,
-                requestTimeout.Token).ConfigureAwait(false);
+            var usage = await this.GetUsageOnceAsync().ConfigureAwait(false);
             LogDiagnostic($"Successfully fetched usage from {this.AgentUrl}");
             stopwatch.Stop();
             RecordUsageTelemetry(stopwatch.Elapsed, true);
             return usage ?? new List<ProviderUsage>();
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (IsRecoverableUsageFailure(ex))
         {
-            // Connection failed - Monitor may have moved to a different port
-            // Refresh port discovery and retry once
-            LogDiagnostic($"Connection failed to {this.AgentUrl}, refreshing port and retrying...");
+            LogDiagnostic($"{DescribeUsageFailure(ex)} to {this.AgentUrl}, refreshing port and retrying...");
             await this.RefreshPortAsync().ConfigureAwait(false);
 
             try
             {
-                using var requestTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(UsageRequestTimeoutSeconds));
-                var usage = await this._httpClient.GetFromJsonAsync<List<ProviderUsage>>(
-                    $"{this.AgentUrl}/api/usage",
-                    this._jsonOptions,
-                    requestTimeout.Token).ConfigureAwait(false);
+                var usage = await this.GetUsageOnceAsync().ConfigureAwait(false);
                 LogDiagnostic($"Successfully fetched usage from {this.AgentUrl} after port refresh");
                 stopwatch.Stop();
                 RecordUsageTelemetry(stopwatch.Elapsed, true);
                 return usage ?? new List<ProviderUsage>();
             }
-            catch (HttpRequestException)
+            catch (Exception retryEx) when (IsRecoverableUsageFailure(retryEx))
             {
                 stopwatch.Stop();
                 RecordUsageTelemetry(stopwatch.Elapsed, false);
-                LogDiagnostic($"Failed to fetch usage from {this.AgentUrl} after port refresh: Connection error");
+                LogDiagnostic($"Failed to fetch usage from {this.AgentUrl} after port refresh: {DescribeUsageFailure(retryEx)}");
                 return new List<ProviderUsage>();
             }
-        }
-        catch (TaskCanceledException)
-        {
-            stopwatch.Stop();
-            RecordUsageTelemetry(stopwatch.Elapsed, false);
-            LogDiagnostic($"Failed to fetch usage from {this.AgentUrl}: request timed out after {UsageRequestTimeoutSeconds}s");
-            return new List<ProviderUsage>();
         }
         catch (Exception ex)
         {
@@ -321,6 +309,59 @@ public class MonitorService : IMonitorService
             LogDiagnostic($"Failed to fetch usage from {this.AgentUrl}: {ex.Message}");
             return new List<ProviderUsage>();
         }
+    }
+
+    private async Task<List<ProviderUsage>?> GetUsageOnceAsync()
+    {
+        using var requestTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(UsageRequestTimeoutSeconds));
+        return await this._httpClient.GetFromJsonAsync<List<ProviderUsage>>(
+            $"{this.AgentUrl}/api/usage",
+            this._jsonOptions,
+            requestTimeout.Token).ConfigureAwait(false);
+    }
+
+    private static bool IsRecoverableUsageFailure(Exception ex)
+    {
+        return ex is HttpRequestException or TaskCanceledException;
+    }
+
+    private static string DescribeUsageFailure(Exception ex)
+    {
+        return ex switch
+        {
+            TaskCanceledException => $"Request timed out after {UsageRequestTimeoutSeconds}s",
+            HttpRequestException httpRequestException when !string.IsNullOrWhiteSpace(httpRequestException.Message) => httpRequestException.Message,
+            _ => "Connection error",
+        };
+    }
+
+    private static IReadOnlyList<string> GetActionableMetadataErrors(IReadOnlyList<string>? errors)
+    {
+        if (errors == null || errors.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        return errors
+            .Where(IsActionableMetadataError)
+            .ToList();
+    }
+
+    private static bool IsActionableMetadataError(string error)
+    {
+        if (string.IsNullOrWhiteSpace(error))
+        {
+            return false;
+        }
+
+        if (error.StartsWith("Startup status:", StringComparison.OrdinalIgnoreCase))
+        {
+            return !error.Contains("running", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return error.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+               error.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+               error.Contains("exception", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <inheritdoc/>

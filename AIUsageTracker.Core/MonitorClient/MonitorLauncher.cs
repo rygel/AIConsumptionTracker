@@ -29,6 +29,12 @@ public class MonitorLauncher
         string Message,
         string? Error);
 
+    internal readonly record struct MonitorMetadataSnapshot(
+        MonitorInfo? Info,
+        bool IsUsable,
+        bool HealthOk,
+        bool ProcessRunning);
+
     public static void SetLogger(ILogger<MonitorLauncher> logger) => _logger = logger;
 
     internal static IDisposable PushTestOverrides(
@@ -174,6 +180,16 @@ public class MonitorLauncher
     {
         var metadataState = await ReadValidatedAgentInfoAsync().ConfigureAwait(false);
         return metadataState.IsUsable ? metadataState.Info : null;
+    }
+
+    internal static async Task<MonitorMetadataSnapshot> GetMonitorMetadataSnapshotAsync()
+    {
+        var metadataState = await ReadValidatedAgentInfoAsync().ConfigureAwait(false);
+        return new MonitorMetadataSnapshot(
+            metadataState.Info,
+            metadataState.IsUsable,
+            metadataState.HealthOk,
+            metadataState.ProcessRunning);
     }
 
     public static Task InvalidateMonitorInfoAsync()

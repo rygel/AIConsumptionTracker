@@ -469,7 +469,7 @@ public partial class MainWindow : Window
             {
                 try
                 {
-                    // Full port discovery: check monitor.json, then scan 5000-5010
+                    // Refresh the monitor endpoint from authoritative metadata/health before first contact.
                     await this._monitorService.RefreshPortAsync();
 
                     // Check if Monitor is running on the discovered port
@@ -482,13 +482,17 @@ public partial class MainWindow : Window
                         var monitorReady = await MonitorLauncher.EnsureAgentRunningAsync();
                         if (!monitorReady)
                         {
+                            await this._monitorService.RefreshAgentInfoAsync();
                             await this.Dispatcher.InvokeAsync(() =>
                             {
                                 this.ShowStatus("Monitor failed to start", StatusType.Error);
-                                this.ShowErrorState("Monitor failed to start.\n\nPlease ensure AIUsageTracker.Monitor is installed and try again.");
+                                this.ShowErrorState(this.BuildMonitorLaunchErrorMessage());
                             });
                             return false;
                         }
+
+                        // Monitor may have started on a different port; refresh the client endpoint before using it.
+                        await this._monitorService.RefreshPortAsync();
                     }
 
                     // Update monitor toggle button state
@@ -542,8 +546,9 @@ public partial class MainWindow : Window
 
         if (!isHealthy)
         {
+            await this._monitorService.RefreshAgentInfoAsync();
             this.ShowStatus("Monitor not reachable", StatusType.Error);
-            this.ShowErrorState("Cannot connect to Monitor.\n\nPlease ensure:\n1. Monitor is running\n2. Port is correct (check monitor.json)\n3. Firewall is not blocking\n\nTry restarting the Monitor.");
+            this.ShowErrorState(this.BuildMonitorConnectionErrorMessage());
             return;
         }
 
@@ -660,6 +665,36 @@ public partial class MainWindow : Window
 
         // Reinitialize update checker with correct channel
         this.InitializeUpdateChecker();
+    }
+
+    private string BuildMonitorLaunchErrorMessage()
+    {
+        return BuildMonitorErrorMessage(
+            "Monitor failed to start.",
+            "Please ensure AIUsageTracker.Monitor is installed and try again.");
+    }
+
+    private string BuildMonitorConnectionErrorMessage()
+    {
+        return BuildMonitorErrorMessage(
+            "Cannot connect to Monitor.",
+            "Please ensure:\n1. Monitor is running\n2. Port is correct (check monitor.json)\n3. Firewall is not blocking\n\nTry restarting the Monitor.");
+    }
+
+    private string BuildMonitorErrorMessage(string heading, string fallbackDetails)
+    {
+        if (this._monitorService.LastAgentErrors.Count == 0)
+        {
+            return $"{heading}\n\n{fallbackDetails}";
+        }
+
+        var details = string.Join(
+            Environment.NewLine,
+            this._monitorService.LastAgentErrors
+                .Take(3)
+                .Select(error => $"- {error}"));
+
+        return $"{heading}\n\nMonitor reported:\n{details}\n\n{fallbackDetails}";
     }
 
     private void InitializeUpdateChecker()
