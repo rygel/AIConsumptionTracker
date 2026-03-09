@@ -75,7 +75,7 @@ public class ZaiProvider : ProviderBase
              this._logger.LogDebug("[ZAI] No limits found in response");
              return new[] { new ProviderUsage
              {
-                 ProviderId = ProviderId,
+                 ProviderId = this.ProviderId,
                  ProviderName = "Z.AI",
                  IsAvailable = false,
                  Description = "No usage data available",
@@ -84,7 +84,7 @@ public class ZaiProvider : ProviderBase
                  RawJson = responseString,
                  HttpStatus = httpStatus
              }};
-        }
+         }
 
         // Log all limits for debugging
         foreach (var limit in limits)
@@ -241,7 +241,7 @@ public class ZaiProvider : ProviderBase
         {
             return new[] { new ProviderUsage
             {
-                ProviderId = ProviderId,
+                ProviderId = this.ProviderId,
                 ProviderName = $"Z.AI {planDescription}",
                 IsAvailable = false,
                 Description = "Usage unknown (missing quota metrics)",
@@ -263,11 +263,11 @@ public class ZaiProvider : ProviderBase
         var finalDescription = (string.IsNullOrEmpty(detailInfo) ? $"{finalRequestsPercentage.ToString("F1", CultureInfo.InvariantCulture)}% remaining" : detailInfo) + resetStr;
 
         this._logger.LogInformation("Z.AI Provider Usage - ProviderId: {ProviderId}, ProviderName: {ProviderName}, RequestsPercentage: {RequestsPercentage}%, RequestsUsed: {RequestsUsed}%, Description: {Description}, IsAvailable: {IsAvailable}",
-            ProviderId, $"Z.AI {planDescription}", finalRequestsPercentage, finalRequestsUsedReal, finalDescription, true);
+            this.ProviderId, $"Z.AI {planDescription}", finalRequestsPercentage, finalRequestsUsedReal, finalDescription, true);
         
         return new[] { new ProviderUsage
         {
-            ProviderId = ProviderId,
+            ProviderId = this.ProviderId,
             ProviderName = $"Z.AI {planDescription}",
             RequestsPercentage = finalRequestsPercentage,
             RequestsUsed = finalRequestsUsedReal,  // Store actual used count/percentage
