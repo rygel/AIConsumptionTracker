@@ -48,31 +48,31 @@ public class ZaiProvider : ProviderBase
         request.Headers.TryAddWithoutValidation("Authorization", config.ApiKey);
         request.Headers.TryAddWithoutValidation("Accept-Language", "en-US,en");
 
-        _logger.LogDebug("[ZAI] Sending API request to https://api.z.ai/api/monitor/usage/quota/limit");
-        var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+        this._logger.LogDebug("[ZAI] Sending API request to https://api.z.ai/api/monitor/usage/quota/limit");
+        var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
         var httpStatus = (int)response.StatusCode;
 
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogError("[ZAI] API returned {StatusCode}", response.StatusCode);
+            this._logger.LogError("[ZAI] API returned {StatusCode}", response.StatusCode);
             throw new Exception($"Z.AI API returned {response.StatusCode}");
         }
 
         var responseString = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-        _logger.LogDebug("[ZAI RAW RESPONSE] {Response}", responseString);
+        this._logger.LogDebug("[ZAI RAW RESPONSE] {Response}", responseString);
 
         // Parse envelope
         var envelope = JsonSerializer.Deserialize<ZaiEnvelope<ZaiQuotaLimitResponse>>(responseString);
-        _logger.LogDebug("[ZAI] Parsed envelope - Data is null: {IsNull}", envelope?.Data == null);
+        this._logger.LogDebug("[ZAI] Parsed envelope - Data is null: {IsNull}", envelope?.Data == null);
         
         string planDescription = "API";
 
         var limits = envelope?.Data?.Limits;
-        _logger.LogDebug("[ZAI] Limits count: {Count}", limits?.Count ?? 0);
+        this._logger.LogDebug("[ZAI] Limits count: {Count}", limits?.Count ?? 0);
 
         if (limits == null || !limits.Any())
         {
-             _logger.LogDebug("[ZAI] No limits found in response");
+             this._logger.LogDebug("[ZAI] No limits found in response");
              return new[] { new ProviderUsage
              {
                  ProviderId = ProviderId,
@@ -89,7 +89,7 @@ public class ZaiProvider : ProviderBase
         // Log all limits for debugging
         foreach (var limit in limits)
         {
-            _logger.LogDebug("[ZAI LIMIT] Type={Type} Total={Total} CurrentValue={Current} Remaining={Remaining} Percentage={Pct} ResetTime={Ts}",
+            this._logger.LogDebug("[ZAI LIMIT] Type={Type} Total={Total} CurrentValue={Current} Remaining={Remaining} Percentage={Pct} ResetTime={Ts}",
                 limit.Type, limit.Total, limit.CurrentValue, limit.Remaining, limit.Percentage, limit.NextResetTime);
         }
 
@@ -122,7 +122,7 @@ public class ZaiProvider : ProviderBase
             l.Type != null && (l.Type.Equals("TIME_LIMIT", StringComparison.OrdinalIgnoreCase) ||
                                l.Type.Equals("Time", StringComparison.OrdinalIgnoreCase)));
 
-        _logger.LogDebug("[ZAI] Found token limit: {Found}, mcp limit: {McpFound}",
+        this._logger.LogDebug("[ZAI] Found token limit: {Found}, mcp limit: {McpFound}",
             tokenLimit != null, mcpLimit != null);
 
         double? remainingPercent = null;
@@ -136,7 +136,7 @@ public class ZaiProvider : ProviderBase
         if (tokenLimit != null)
         {
             planDescription = "Coding Plan";
-            _logger.LogDebug("[ZAI] Processing TOKENS_LIMIT - Percentage={Pct} Total={Total} Current={Current} Remaining={Remaining}",
+            this._logger.LogDebug("[ZAI] Processing TOKENS_LIMIT - Percentage={Pct} Total={Total} Current={Current} Remaining={Remaining}",
                 tokenLimit.Percentage, tokenLimit.Total, tokenLimit.CurrentValue, tokenLimit.Remaining);
 
             if (tokenLimit.Percentage.HasValue && tokenLimit.Total == null && tokenLimit.CurrentValue == null && tokenLimit.Remaining == null)
@@ -147,7 +147,7 @@ public class ZaiProvider : ProviderBase
                     ? Math.Min(remainingPercent.Value, remainingPercentVal)
                     : remainingPercentVal;
                 detailInfo = $"{remainingPercentVal.ToString("F1", CultureInfo.InvariantCulture)}% Remaining";
-                _logger.LogDebug("[ZAI] Percentage-only mode: {Used}% used, {Remaining}% remaining", usedPercent, remainingPercentVal);
+                this._logger.LogDebug("[ZAI] Percentage-only mode: {Used}% used, {Remaining}% remaining", usedPercent, remainingPercentVal);
                 
                 finalRequestsUsedReal = 100 - remainingPercentVal;
             }
@@ -167,7 +167,7 @@ public class ZaiProvider : ProviderBase
                 {
                     double remainingPercentVal = (remainingVal / totalVal) * 100.0;
 
-                    _logger.LogDebug("[ZAI] Calculation: Remaining={RemainingVal} / Total={TotalVal} = {Percent}%",
+                    this._logger.LogDebug("[ZAI] Calculation: Remaining={RemainingVal} / Total={TotalVal} = {Percent}%",
                         remainingVal, totalVal, remainingPercentVal);
 
                     remainingPercent = remainingPercent.HasValue
@@ -192,19 +192,19 @@ public class ZaiProvider : ProviderBase
                 }
                 else
                 {
-                    _logger.LogDebug("[ZAI] Token limit missing usable quota metrics; usage unknown");
+                    this._logger.LogDebug("[ZAI] Token limit missing usable quota metrics; usage unknown");
                 }
             }
         }
 
         if (mcpLimit != null && mcpLimit.Percentage > 0)
         {
-            _logger.LogDebug("[ZAI] Processing TIME_LIMIT - Percentage: {Percentage}", mcpLimit.Percentage);
+            this._logger.LogDebug("[ZAI] Processing TIME_LIMIT - Percentage: {Percentage}", mcpLimit.Percentage);
             double mcpRemainingPercent = Math.Max(0, 100 - mcpLimit.Percentage.Value);
             remainingPercent = remainingPercent.HasValue
                 ? Math.Min(remainingPercent.Value, mcpRemainingPercent)
                 : mcpRemainingPercent;
-            _logger.LogDebug("[ZAI] MCP remaining percent: {McpRemainingPercent}", mcpRemainingPercent);
+            this._logger.LogDebug("[ZAI] MCP remaining percent: {McpRemainingPercent}", mcpRemainingPercent);
         }
 
         DateTime? nextResetTime = null;
@@ -216,21 +216,21 @@ public class ZaiProvider : ProviderBase
         if (limitWithReset != null)
         {
             var ts = limitWithReset.NextResetTime!.Value;
-            _logger.LogDebug("[ZAI] Reset timestamp from API: {Ts}", ts);
+            this._logger.LogDebug("[ZAI] Reset timestamp from API: {Ts}", ts);
 
             // Detect if seconds or milliseconds
             if (ts < 10000000000) // Likely seconds (e.g., 1773532800)
             {
                 var utcTime = DateTimeOffset.FromUnixTimeSeconds(ts);
                 nextResetTime = utcTime.LocalDateTime;
-                _logger.LogDebug("[ZAI] Interpreted as SECONDS: {Utc} UTC -> {Local} Local",
+                this._logger.LogDebug("[ZAI] Interpreted as SECONDS: {Utc} UTC -> {Local} Local",
                     utcTime.UtcDateTime, nextResetTime);
             }
             else // Likely milliseconds (e.g., 1773532800000)
             {
                 var utcTime = DateTimeOffset.FromUnixTimeMilliseconds(ts);
                 nextResetTime = utcTime.LocalDateTime;
-                _logger.LogDebug("[ZAI] Interpreted as MILLISECONDS: {Utc} UTC -> {Local} Local",
+                this._logger.LogDebug("[ZAI] Interpreted as MILLISECONDS: {Utc} UTC -> {Local} Local",
                     utcTime.UtcDateTime, nextResetTime);
             }
 
@@ -262,7 +262,7 @@ public class ZaiProvider : ProviderBase
 
         var finalDescription = (string.IsNullOrEmpty(detailInfo) ? $"{finalRequestsPercentage.ToString("F1", CultureInfo.InvariantCulture)}% remaining" : detailInfo) + resetStr;
 
-        _logger.LogInformation("Z.AI Provider Usage - ProviderId: {ProviderId}, ProviderName: {ProviderName}, RequestsPercentage: {RequestsPercentage}%, RequestsUsed: {RequestsUsed}%, Description: {Description}, IsAvailable: {IsAvailable}",
+        this._logger.LogInformation("Z.AI Provider Usage - ProviderId: {ProviderId}, ProviderName: {ProviderName}, RequestsPercentage: {RequestsPercentage}%, RequestsUsed: {RequestsUsed}%, Description: {Description}, IsAvailable: {IsAvailable}",
             ProviderId, $"Z.AI {planDescription}", finalRequestsPercentage, finalRequestsUsedReal, finalDescription, true);
         
         return new[] { new ProviderUsage
