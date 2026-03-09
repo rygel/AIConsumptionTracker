@@ -294,6 +294,32 @@ public sealed class MonitorStartupPathTests : IDisposable
     }
 
     [Fact]
+    public async Task GetAgentStatusInfoAsync_PreservesStartingMetadata_WhenProcessStillRunningAsync()
+    {
+        var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = 0,
+            ProcessId = 7788,
+            Errors = new List<string> { "Startup status: starting" },
+        });
+
+        using var _ = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: _ => Task.FromResult(false),
+            processRunningAsync: processId => Task.FromResult(processId == 7788));
+
+        var result = await MonitorLauncher.GetAgentStatusInfoAsync();
+
+        Assert.False(result.IsRunning);
+        Assert.True(result.HasMetadata);
+        Assert.Equal(5000, result.Port);
+        Assert.Equal("monitor-starting", result.Error);
+        Assert.Equal("Monitor is starting.", result.Message);
+        Assert.True(File.Exists(infoPath));
+        Assert.Empty(Directory.GetFiles(this._tempDirectory, "monitor.json.stale.*", SearchOption.TopDirectoryOnly));
+    }
+
+    [Fact]
     public async Task StopAgentAsync_InvalidatesMetadata_WhenKnownProcessStopsAsync()
     {
         var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo

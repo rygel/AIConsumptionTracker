@@ -87,6 +87,31 @@ public sealed class MonitorProcessServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetAgentStatusDetailedAsync_ReturnsStarting_WhenMonitorStartupIsInProgressAsync()
+    {
+        var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = 0,
+            ProcessId = 9999,
+            Errors = new List<string> { "Startup status: starting" },
+        }).ConfigureAwait(false);
+
+        using var overrides = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: _ => Task.FromResult(false),
+            processRunningAsync: processId => Task.FromResult(processId == 9999));
+
+        var service = this.CreateService();
+
+        var result = await service.GetAgentStatusDetailedAsync().ConfigureAwait(false);
+
+        Assert.False(result.IsRunning);
+        Assert.Equal(5000, result.Port);
+        Assert.Equal("monitor-starting", result.Error);
+        Assert.Equal("Monitor is starting.", result.Message);
+    }
+
+    [Fact]
     public async Task StopAgentDetailedAsync_ReturnsAlreadyStopped_WhenMonitorInfoIsAbsentAsync()
     {
         using var overrides = MonitorLauncher.PushTestOverrides(

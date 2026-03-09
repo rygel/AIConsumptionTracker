@@ -472,12 +472,17 @@ public partial class MainWindow : Window
                     // Refresh the monitor endpoint from authoritative metadata/health before first contact.
                     await this._monitorService.RefreshPortAsync();
 
+                    var monitorStatus = await MonitorLauncher.GetAgentStatusInfoAsync();
+
                     // Check if Monitor is running on the discovered port
-                    var isRunning = await this._monitorService.CheckHealthAsync();
+                    var isRunning = monitorStatus.IsRunning || await this._monitorService.CheckHealthAsync();
 
                     if (!isRunning)
                     {
-                        await this.Dispatcher.InvokeAsync(() => this.ShowStatus("Monitor not running. Starting monitor...", StatusType.Warning));
+                        var launchMessage = string.Equals(monitorStatus.Error, "monitor-starting", StringComparison.Ordinal)
+                            ? "Monitor is starting..."
+                            : "Monitor not running. Starting monitor...";
+                        await this.Dispatcher.InvokeAsync(() => this.ShowStatus(launchMessage, StatusType.Warning));
                         await this.Dispatcher.InvokeAsync(() => this.ShowStatus("Waiting for monitor...", StatusType.Warning));
                         var monitorReady = await MonitorLauncher.EnsureAgentRunningAsync();
                         if (!monitorReady)

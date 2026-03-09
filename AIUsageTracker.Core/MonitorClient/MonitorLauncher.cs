@@ -240,6 +240,12 @@ public class MonitorLauncher
                 return true;
             }
 
+            if (readyState.IsStarting)
+            {
+                MonitorService.LogDiagnostic($"Monitor startup already in progress on port {readyState.Port}; skipping duplicate launch.");
+                return true;
+            }
+
             var launchPlan = MonitorLauncherProcessController.TryResolveLaunchPlan(readyState.Port);
             if (launchPlan == null)
             {
@@ -268,6 +274,13 @@ public class MonitorLauncher
         {
             MonitorService.LogDiagnostic($"Monitor already ready on port {readyState.Port}; no startup needed.");
             return true;
+        }
+
+        if (readyState.IsStarting)
+        {
+            MonitorService.LogDiagnostic($"Monitor startup already in progress on port {readyState.Port}; waiting for readiness.");
+            var startingState = await WaitForReadyStateAsync(cancellationToken).ConfigureAwait(false);
+            return startingState.HasValue;
         }
 
         var started = await StartAgentAsync().ConfigureAwait(false);

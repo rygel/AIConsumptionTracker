@@ -21,7 +21,12 @@ namespace AIUsageTracker.Core.MonitorClient
             public int EffectivePort => this.Info?.Port > 0 ? this.Info.Port : MonitorLauncher.DefaultPort;
         }
 
-        internal readonly record struct MonitorReadyState(int Port, bool IsRunning, bool FromMetadata, string? StartupFailure = null);
+        internal readonly record struct MonitorReadyState(
+            int Port,
+            bool IsRunning,
+            bool FromMetadata,
+            string? StartupFailure = null,
+            bool IsStarting = false);
 
         public static async Task<(MonitorInfo? Info, string? Path)> ReadAgentInfoAsync(
             IEnumerable<string> candidatePaths,
@@ -89,9 +94,16 @@ namespace AIUsageTracker.Core.MonitorClient
             {
                 var healthOk = await checkHealthAsync(info.Port).ConfigureAwait(false);
                 var processRunning = await checkProcessRunningAsync(info.ProcessId).ConfigureAwait(false);
+                var startupStatus = GetStartupStatus(info.Errors);
 
                 if (healthOk && processRunning)
                 {
+                    return new MonitorMetadataState(info, path, healthOk, processRunning);
+                }
+
+                if (string.Equals(startupStatus, "starting", StringComparison.OrdinalIgnoreCase) && processRunning)
+                {
+                    MonitorService.LogDiagnostic("Monitor metadata indicates startup is still in progress.");
                     return new MonitorMetadataState(info, path, healthOk, processRunning);
                 }
 
@@ -112,6 +124,8 @@ namespace AIUsageTracker.Core.MonitorClient
             Func<int, Task<bool>> checkHealthAsync)
         {
             var metadataState = await readValidatedAgentInfoAsync().ConfigureAwait(false);
+            var startupStatus = GetStartupStatus(metadataState.Info?.Errors);
+            var startupFailure = GetStartupFailure(metadataState.Info?.Errors);
             if (metadataState.IsUsable)
             {
                 return new MonitorLauncher.MonitorStatusInfo(
@@ -120,6 +134,26 @@ namespace AIUsageTracker.Core.MonitorClient
                     HasMetadata: true,
                     Message: $"Healthy on port {metadataState.Info.Port}.",
                     Error: null);
+            }
+
+            if (string.Equals(startupStatus, "starting", StringComparison.OrdinalIgnoreCase) && metadataState.ProcessRunning)
+            {
+                return new MonitorLauncher.MonitorStatusInfo(
+                    IsRunning: false,
+                    Port: metadataState.EffectivePort,
+                    HasMetadata: true,
+                    Message: "Monitor is starting.",
+                    Error: "monitor-starting");
+            }
+
+            if (!string.IsNullOrWhiteSpace(startupFailure))
+            {
+                return new MonitorLauncher.MonitorStatusInfo(
+                    IsRunning: false,
+                    Port: metadataState.EffectivePort,
+                    HasMetadata: true,
+                    Message: startupFailure,
+                    Error: "monitor-startup-failed");
             }
 
             var port = metadataState.EffectivePort;
@@ -158,6 +192,7 @@ namespace AIUsageTracker.Core.MonitorClient
             Func<int, Task<bool>> checkHealthAsync)
         {
             var metadataState = await readValidatedAgentInfoAsync().ConfigureAwait(false);
+            var startupStatus = GetStartupStatus(metadataState.Info?.Errors);
             if (metadataState.IsUsable)
             {
                 return new MonitorReadyState(metadataState.Info!.Port, IsRunning: true, FromMetadata: true);
@@ -173,6 +208,15 @@ namespace AIUsageTracker.Core.MonitorClient
                     StartupFailure: startupFailure);
             }
 
+            if (string.Equals(startupStatus, "starting", StringComparison.OrdinalIgnoreCase) && metadataState.ProcessRunning)
+            {
+                return new MonitorReadyState(
+                    metadataState.EffectivePort,
+                    IsRunning: false,
+                    FromMetadata: false,
+                    IsStarting: true);
+            }
+
             var port = metadataState.EffectivePort;
             var isRunning = await checkHealthAsync(port).ConfigureAwait(false);
             return new MonitorReadyState(port, isRunning, FromMetadata: false);
@@ -186,6 +230,12 @@ namespace AIUsageTracker.Core.MonitorClient
             {
                 var source = readyState.FromMetadata ? "metadata" : "health check";
                 MonitorService.LogDiagnostic($"Monitor is running on port {readyState.Port} via {source}.");
+                return readyState;
+            }
+
+            if (readyState.IsStarting)
+            {
+                MonitorService.LogDiagnostic($"Monitor startup is still in progress on port {readyState.Port}.");
                 return readyState;
             }
 
@@ -249,7 +299,21 @@ namespace AIUsageTracker.Core.MonitorClient
                 !string.IsNullOrWhiteSpace(error) &&
                 error.StartsWith("Startup status:", StringComparison.OrdinalIgnoreCase) &&
                 !error.Contains("running", StringComparison.OrdinalIgnoreCase) &&
-                !error.Contains("starting", StringComparison.OrdinalIgnoreCase));
+                !error.Contains("starting", StringComparison.OrdinalIgnoreCase) &&
+                !error.Contains("stopped", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string? GetStartupStatus(IReadOnlyList<string>? errors)
+        {
+            var startupEntry = errors?.FirstOrDefault(error =>
+                !string.IsNullOrWhiteSpace(error) &&
+                error.StartsWith("Startup status:", StringComparison.OrdinalIgnoreCase));
+            if (string.IsNullOrWhiteSpace(startupEntry))
+            {
+                return null;
+            }
+
+            return startupEntry["Startup status:".Length..].Trim();
         }
     }
 }

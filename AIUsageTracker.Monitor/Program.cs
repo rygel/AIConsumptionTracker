@@ -97,6 +97,8 @@ public class Program
 
         try
         {
+            MonitorInfoPersistence.SaveMonitorInfo(0, isDebugMode, logger, pathProvider, startupStatus: "starting");
+
             if (isDebugMode)
             {
                 // Allocate a console window for debugging
@@ -240,6 +242,7 @@ public class Program
             // Update metadata only after successful bind/start.
             MonitorInfoPersistence.SaveMonitorInfo(port, isDebugMode, logger, pathProvider, startupStatus: "running");
             await app.WaitForShutdownAsync().ConfigureAwait(false);
+            MonitorInfoPersistence.SaveMonitorInfo(0, isDebugMode, logger, pathProvider, startupStatus: "stopped");
         }
         catch (Exception ex)
         {
