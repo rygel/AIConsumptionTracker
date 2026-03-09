@@ -33,14 +33,6 @@ using SharpVectors.Renderers.Wpf;
 
 namespace AIUsageTracker.UI.Slim;
 
-public enum StatusType
-{
-    Info,
-    Success,
-    Warning,
-    Error,
-}
-
 public partial class MainWindow : Window
 {
     private static readonly Regex MarkdownTokenRegex = new(
@@ -126,10 +118,10 @@ public partial class MainWindow : Window
     public MainWindow()
         : this(
             App.Host.Services.GetRequiredService<MainViewModel>(),
-               App.Host.Services.GetRequiredService<IMonitorService>(),
-               App.Host.Services.GetRequiredService<ILogger<MainWindow>>(),
-               App.Host.Services.GetRequiredService<IUpdateCheckerService>(),
-               App.Host.Services.GetRequiredService<UiPreferencesStore>())
+            App.Host.Services.GetRequiredService<IMonitorService>(),
+            App.Host.Services.GetRequiredService<ILogger<MainWindow>>(),
+            App.Host.Services.GetRequiredService<IUpdateCheckerService>(),
+            App.Host.Services.GetRequiredService<UiPreferencesStore>())
     {
     }
 
@@ -174,6 +166,7 @@ public partial class MainWindow : Window
             return;
         }
 
+#pragma warning disable VSTHRD101 // WPF event subscriptions intentionally use async lambdas for UI event handlers.
         this._updateCheckTimer.Tick += async (s, e) =>
         {
             try
@@ -243,6 +236,7 @@ public partial class MainWindow : Window
                 this._logger.LogError(ex, "SizeChanged handler failed");
             }
         };
+#pragma warning restore VSTHRD101
         this.Activated += (s, e) =>
         {
             this._topmostRecoveryGeneration++;
@@ -480,13 +474,12 @@ public partial class MainWindow : Window
 
                     if (!isRunning)
                     {
-                        this.Dispatcher.Invoke(() => this.ShowStatus("Monitor not running. Starting monitor...", StatusType.Warning));
-
-                        this.Dispatcher.Invoke(() => this.ShowStatus("Waiting for monitor...", StatusType.Warning));
+                        await this.Dispatcher.InvokeAsync(() => this.ShowStatus("Monitor not running. Starting monitor...", StatusType.Warning));
+                        await this.Dispatcher.InvokeAsync(() => this.ShowStatus("Waiting for monitor...", StatusType.Warning));
                         var monitorReady = await MonitorLauncher.EnsureAgentRunningAsync();
                         if (!monitorReady)
                         {
-                            this.Dispatcher.Invoke(() =>
+                            await this.Dispatcher.InvokeAsync(() =>
                             {
                                 this.ShowStatus("Monitor failed to start", StatusType.Error);
                                 this.ShowErrorState("Monitor failed to start.\n\nPlease ensure AIUsageTracker.Monitor is installed and try again.");
@@ -717,6 +710,7 @@ public partial class MainWindow : Window
 
     private void ScheduleTopmostRecovery(int generation, TimeSpan delay)
     {
+#pragma warning disable VSTHRD001 // Recovery runs from a background delay and must marshal back to the UI thread explicitly.
         _ = Task.Run(async () =>
         {
             await Task.Delay(delay).ConfigureAwait(false);
@@ -732,6 +726,7 @@ public partial class MainWindow : Window
                 this.LogWindowFocusTransition($"TopmostRecovery +{delay.TotalMilliseconds:0}ms");
             }, DispatcherPriority.Normal);
         });
+#pragma warning restore VSTHRD001
     }
 
     private void ReassertTopmostWithoutFocus()
@@ -857,7 +852,7 @@ public partial class MainWindow : Window
     {
         if (!this.Dispatcher.CheckAccess())
         {
-            this.Dispatcher.Invoke(() => this.OnPrivacyChanged(sender, e));
+            _ = this.Dispatcher.BeginInvoke(new Action(() => this.OnPrivacyChanged(sender, e)));
             return;
         }
 
@@ -1972,6 +1967,7 @@ public partial class MainWindow : Window
     }
 
     // Event Handlers
+#pragma warning disable VSTHRD100 // WPF event handlers require async void signatures.
     private async void RefreshBtn_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -2209,7 +2205,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task Compact_Checked(object sender, RoutedEventArgs e)
+    private async Task Compact_CheckedAsync(object sender, RoutedEventArgs e)
     {
         // No-op (Field removed from UI)
         await Task.CompletedTask;
@@ -2351,7 +2347,7 @@ public partial class MainWindow : Window
                         1 => 22,
                         2 => 18,
                         3 => 16,
-                        _ => 14
+                        _ => 14,
                     },
                 };
                 this.AddMarkdownInlines(header, headerText);
@@ -2621,7 +2617,7 @@ public partial class MainWindow : Window
                     {
                         new TextBlock { Text = $"Downloading version {this._latestUpdate.Version}...", Margin = new Thickness(0, 0, 0, 10) },
                         progressBar
-                    }
+                    },
                 },
             };
 
@@ -2721,6 +2717,7 @@ public partial class MainWindow : Window
             this.ShowStatus("Monitor toggle failed", StatusType.Error);
         }
     }
+#pragma warning restore VSTHRD100
 
     private void UpdateMonitorToggleButton(bool isRunning)
     {

@@ -78,6 +78,7 @@ public partial class SettingsWindow : Window
     {
     }
 
+#pragma warning disable VSTHRD100 // WPF event handlers require async void signatures.
     private async void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
     {
         try
@@ -156,6 +157,7 @@ public partial class SettingsWindow : Window
         }
     }
 
+#pragma warning disable VSTHRD001 // Headless screenshot capture intentionally waits for dispatcher idle before rendering.
     internal async Task PrepareForHeadlessScreenshotAsync(bool deterministic = false)
     {
         if (deterministic)
@@ -206,6 +208,7 @@ public partial class SettingsWindow : Window
 
         return capturedFiles;
     }
+#pragma warning restore VSTHRD001
 
     private void ApplyHeadlessCaptureWindowSize(string? tabHeader)
     {
@@ -336,7 +339,7 @@ public partial class SettingsWindow : Window
     {
         if (!this.Dispatcher.CheckAccess())
         {
-            this.Dispatcher.Invoke(() => this.OnPrivacyChanged(sender, e));
+            _ = this.Dispatcher.BeginInvoke(new Action(() => this.OnPrivacyChanged(sender, e)));
             return;
         }
 
@@ -813,7 +816,7 @@ public partial class SettingsWindow : Window
                     Id = model.Id,
                     Name = model.Name,
                     Matches = model.Matches.ToList(),
-                    Color = model.Color
+                    Color = model.Color,
                 })
                 .ToList(),
         };
@@ -1718,6 +1721,7 @@ public partial class SettingsWindow : Window
             this.NotificationTestStatusText.Text = $"Error: {ex.Message}";
         }
     }
+#pragma warning restore VSTHRD100
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
