@@ -88,23 +88,7 @@ namespace AIUsageTracker.Monitor.Services
             var isEmpty = await this._database.IsHistoryEmptyAsync();
             if (isEmpty)
             {
-                // First-time startup: scan for keys and populate the database.
-                // Fire as a background task so the HTTP server starts serving immediately.
-                // The Slim UI's rapid-poll will pick up the data once the refresh completes.
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        this._logger.LogInformation("First-time startup: scanning for keys and seeding database.");
-                        await this._configService.ScanForKeysAsync();
-                        await this.TriggerRefreshAsync(forceAll: true);
-                        this._logger.LogInformation("First-time data seeding complete.");
-                    }
-                    catch (Exception ex)
-                    {
-                        this._logger.LogError(ex, "Error during first-time data seeding.");
-                    }
-                }, stoppingToken);
+                this.StartInitialDataSeeding(stoppingToken);
             }
             else
             {
@@ -114,21 +98,7 @@ namespace AIUsageTracker.Monitor.Services
 
                 // Only do targeted refresh for system providers that need immediate correctness
                 // All other providers will be refreshed on the normal scheduled interval
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        this._logger.LogDebug("Startup: running targeted refresh for system providers...");
-                        await this.TriggerRefreshAsync(
-                            forceAll: true,
-                            includeProviderIds: ProviderMetadataCatalog.GetStartupRefreshProviderIds());
-                        this._logger.LogDebug("Startup: targeted refresh complete.");
-                    }
-                    catch (Exception ex)
-                    {
-                        this._logger.LogWarning(ex, "Startup targeted refresh failed");
-                    }
-                }, stoppingToken);
+                this.StartStartupTargetedRefresh(stoppingToken);
             }
 
             while (!stoppingToken.IsCancellationRequested)
@@ -150,6 +120,46 @@ namespace AIUsageTracker.Monitor.Services
             }
 
             this._logger.LogInformation("Stopping...");
+        }
+
+        private void StartInitialDataSeeding(CancellationToken stoppingToken)
+        {
+            // First-time startup: scan for keys and populate the database.
+            // Fire as a background task so the HTTP server starts serving immediately.
+            // The Slim UI's rapid-poll will pick up the data once the refresh completes.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    this._logger.LogInformation("First-time startup: scanning for keys and seeding database.");
+                    await this._configService.ScanForKeysAsync();
+                    await this.TriggerRefreshAsync(forceAll: true);
+                    this._logger.LogInformation("First-time data seeding complete.");
+                }
+                catch (Exception ex)
+                {
+                    this._logger.LogError(ex, "Error during first-time data seeding.");
+                }
+            }, stoppingToken);
+        }
+
+        private void StartStartupTargetedRefresh(CancellationToken stoppingToken)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    this._logger.LogDebug("Startup: running targeted refresh for system providers...");
+                    await this.TriggerRefreshAsync(
+                        forceAll: true,
+                        includeProviderIds: ProviderMetadataCatalog.GetStartupRefreshProviderIds());
+                    this._logger.LogDebug("Startup: targeted refresh complete.");
+                }
+                catch (Exception ex)
+                {
+                    this._logger.LogWarning(ex, "Startup targeted refresh failed");
+                }
+            }, stoppingToken);
         }
     
 
