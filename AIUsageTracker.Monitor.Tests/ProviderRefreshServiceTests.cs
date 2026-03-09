@@ -24,6 +24,7 @@ public class ProviderRefreshServiceTests
     private readonly Mock<IAppPathProvider> _mockPathProvider;
     private readonly Mock<ConfigService> _mockConfigService;
     private readonly UsageAlertsService _usageAlertsService;
+    private readonly ProviderRefreshCircuitBreakerService _providerRefreshCircuitBreakerService;
     private readonly ProviderRefreshService _service;
 
     public ProviderRefreshServiceTests()
@@ -44,6 +45,8 @@ public class ProviderRefreshServiceTests
             this._mockDatabase.Object,
             this._mockNotificationService.Object,
             this._mockConfigService.Object);
+        var circuitBreakerLogger = new Mock<ILogger<ProviderRefreshCircuitBreakerService>>();
+        this._providerRefreshCircuitBreakerService = new ProviderRefreshCircuitBreakerService(circuitBreakerLogger.Object);
 
         this._service = new ProviderRefreshService(
             this._mockLogger.Object,
@@ -54,7 +57,8 @@ public class ProviderRefreshServiceTests
             this._mockConfigService.Object,
             this._mockPathProvider.Object,
             Enumerable.Empty<IProviderService>(),
-            this._usageAlertsService);
+            this._usageAlertsService,
+            this._providerRefreshCircuitBreakerService);
     }
 
     [Fact]

@@ -179,6 +179,7 @@ public class Program
             builder.Services.AddSingleton<IGitHubAuthService, GitHubAuthService>();
             builder.Services.AddProvidersFromAssembly();
             builder.Services.AddSingleton<UsageAlertsService>();
+            builder.Services.AddSingleton<ProviderRefreshCircuitBreakerService>();
             builder.Services.AddSingleton<ProviderRefreshService>();
             builder.Services.AddHostedService(sp => sp.GetRequiredService<ProviderRefreshService>());
 
