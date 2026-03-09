@@ -1,19 +1,20 @@
-using System.Text.Json.Serialization;
-
-namespace AIUsageTracker.Core.Models;
-
-public class AIModelConfig
+namespace AIUsageTracker.Core.Models
 {
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    using System.Text.Json.Serialization;
 
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public class AIModelConfig
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
 
-    [JsonPropertyName("matches")]
-    public IReadOnlyList<string> Matches { get; set; } = [];
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
 
-    [JsonPropertyName("color")]
-    public string? Color { get; set; }
+        [JsonPropertyName("matches")]
+        public IReadOnlyList<string> Matches { get; set; } = [];
+
+        [JsonPropertyName("color")]
+        public string? Color { get; set; }
+    }
+
 }
-

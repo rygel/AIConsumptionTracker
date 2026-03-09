@@ -1,68 +1,69 @@
-using System.Text.Json;
-
-namespace AIUsageTracker.Core.Helpers;
-
-public static class JsonElementExtensions
+namespace AIUsageTracker.Core.Helpers
 {
-    public static string? ReadString(this JsonElement root, params string[] path)
+    using System.Text.Json;
+
+    public static class JsonElementExtensions
     {
-        var current = root;
-        foreach (var segment in path)
+        public static string? ReadString(this JsonElement root, params string[] path)
         {
-            if (!current.TryGetProperty(segment, out current))
+            var current = root;
+            foreach (var segment in path)
             {
-                return null;
+                if (!current.TryGetProperty(segment, out current))
+                {
+                    return null;
+                }
             }
+
+            return current.ValueKind == JsonValueKind.String ? current.GetString() : null;
         }
 
-        return current.ValueKind == JsonValueKind.String ? current.GetString() : null;
-    }
-
-    public static double? ReadDouble(this JsonElement root, params string[] path)
-    {
-        var current = root;
-        foreach (var segment in path)
+        public static double? ReadDouble(this JsonElement root, params string[] path)
         {
-            if (!current.TryGetProperty(segment, out current))
+            var current = root;
+            foreach (var segment in path)
             {
-                return null;
+                if (!current.TryGetProperty(segment, out current))
+                {
+                    return null;
+                }
             }
-        }
 
-        if (current.ValueKind == JsonValueKind.Number && current.TryGetDouble(out var number))
-        {
-            return number;
-        }
-
-        if (current.ValueKind == JsonValueKind.String)
-        {
-            var raw = current.GetString();
-            if (!string.IsNullOrWhiteSpace(raw) &&
-                double.TryParse(raw, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+            if (current.ValueKind == JsonValueKind.Number && current.TryGetDouble(out var number))
             {
-                return parsed;
+                return number;
             }
-        }
 
-        return null;
-    }
-
-    public static bool? ReadBool(this JsonElement root, params string[] path)
-    {
-        var current = root;
-        foreach (var segment in path)
-        {
-            if (!current.TryGetProperty(segment, out current))
+            if (current.ValueKind == JsonValueKind.String)
             {
-                return null;
+                var raw = current.GetString();
+                if (!string.IsNullOrWhiteSpace(raw) &&
+                    double.TryParse(raw, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                {
+                    return parsed;
+                }
             }
+
+            return null;
         }
 
-        return current.ValueKind switch
+        public static bool? ReadBool(this JsonElement root, params string[] path)
         {
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            _ => null
-        };
+            var current = root;
+            foreach (var segment in path)
+            {
+                if (!current.TryGetProperty(segment, out current))
+                {
+                    return null;
+                }
+            }
+
+            return current.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                _ => null
+            };
+        }
     }
 }

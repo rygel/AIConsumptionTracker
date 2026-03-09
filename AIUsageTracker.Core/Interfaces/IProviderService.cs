@@ -1,20 +1,21 @@
-using AIUsageTracker.Core.Models;
-
-namespace AIUsageTracker.Core.Interfaces;
-
-public interface IProviderService
+namespace AIUsageTracker.Core.Interfaces
 {
-    string ProviderId { get; }
+    using AIUsageTracker.Core.Models;
 
-    ProviderDefinition Definition { get; }
-
-    bool CanHandleProviderId(string providerId)
+    public interface IProviderService
     {
-        return this.Definition.HandlesProviderId(providerId);
+        string ProviderId { get; }
+
+        ProviderDefinition Definition { get; }
+
+        bool CanHandleProviderId(string providerId)
+        {
+            return this.Definition.HandlesProviderId(providerId);
+        }
+
+        Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null);
     }
 
-    Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null);
+
+
 }
-
-
-

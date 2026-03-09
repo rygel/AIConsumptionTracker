@@ -11,6 +11,8 @@ insert_new_line_at_end_of_file = true
 
 dot_diagnostic.IDE0005.severity = warning
 dot_diagnostic.IDE0055.severity = warning
+dot_diagnostic.IDE0065.severity = warning
+dot_diagnostic.IDE0009.severity = warning
 dot_diagnostic.CA1031.severity = suggestion
 dot_diagnostic.CA1062.severity = error
 dot_diagnostic.CA1307.severity = warning
@@ -71,6 +73,8 @@ dotnet_style_qualification_for_field = true:warning
 dotnet_style_qualification_for_property = true:warning
 dotnet_style_qualification_for_method = true:warning
 dotnet_style_qualification_for_event = true:warning
+csharp_using_directive_placement = inside_namespace:warning
+csharp_style_namespace_declarations = block_scoped:warning
 
 [AIUsageTracker.Tests/**/*.cs]
 dot_diagnostic.MA0074.severity = warning

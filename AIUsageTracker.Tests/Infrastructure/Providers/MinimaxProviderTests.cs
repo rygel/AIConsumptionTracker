@@ -1,48 +1,49 @@
-using System.Net;
-using System.Text.Json;
-using AIUsageTracker.Core.Models;
-using AIUsageTracker.Infrastructure.Providers;
-using AIUsageTracker.Tests.Infrastructure;
-using Xunit;
-
-namespace AIUsageTracker.Tests.Infrastructure.Providers;
-
-public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
+namespace AIUsageTracker.Tests.Infrastructure.Providers
 {
-    private readonly MinimaxProvider _provider;
+    using System.Net;
+    using System.Text.Json;
+    using AIUsageTracker.Core.Models;
+    using AIUsageTracker.Infrastructure.Providers;
+    using AIUsageTracker.Tests.Infrastructure;
+    using Xunit;
 
-    public MinimaxProviderTests()
+    public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
     {
-        _provider = new MinimaxProvider(HttpClient, Logger.Object);
-        Config.ApiKey = "test-key";
-    }
+        private readonly MinimaxProvider _provider;
 
-    [Fact]
-    public async Task GetUsageAsync_ValidResponse_ParsesUsageCorrectly()
-    {
-        // Arrange
-        var responseData = new
+        public MinimaxProviderTests()
         {
-            usage = new
+            this._provider = new MinimaxProvider(this.HttpClient, this.Logger.Object);
+            this.Config.ApiKey = "test-key";
+        }
+
+        [Fact]
+        public async Task GetUsageAsync_ValidResponse_ParsesUsageCorrectly()
+        {
+            // Arrange
+            var responseData = new
             {
-                tokens_used = 30.0,
-                tokens_limit = 100.0
-            }
-        };
+                usage = new
+                {
+                    tokens_used = 30.0,
+                    tokens_limit = 100.0
+                }
+            };
 
-        SetupHttpResponse("https://api.minimax.chat/v1/user/usage", new HttpResponseMessage
-        {
-            StatusCode = HttpStatusCode.OK,
-            Content = new StringContent(JsonSerializer.Serialize(responseData))
-        });
+            this.SetupHttpResponse("https://api.minimax.chat/v1/user/usage", new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(JsonSerializer.Serialize(responseData))
+            });
 
-        // Act
-        var result = await _provider.GetUsageAsync(Config);
+            // Act
+            var result = await this._provider.GetUsageAsync(this.Config);
 
-        // Assert
-        var usage = result.Single();
-        Assert.True(usage.IsAvailable);
-        Assert.Contains("30", usage.RequestsUsed.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Assert.Contains("100", usage.RequestsAvailable.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            // Assert
+            var usage = result.Single();
+            Assert.True(usage.IsAvailable);
+            Assert.Contains("30", usage.RequestsUsed.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Contains("100", usage.RequestsAvailable.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
     }
 }

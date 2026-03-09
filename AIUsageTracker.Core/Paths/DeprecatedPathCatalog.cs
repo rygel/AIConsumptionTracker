@@ -1,38 +1,39 @@
-using System.IO;
-
-namespace AIUsageTracker.Core.Paths;
-
-public static class DeprecatedPathCatalog
+namespace AIUsageTracker.Core.Paths
 {
-    // Deprecated paths are read-only migration fallbacks and should not be used for new writes.
-    public static IReadOnlyList<string> GetAuthFilePaths(string userProfileRoot)
-    {
-        return new[]
-        {
-            Path.Combine(userProfileRoot, ".ai-consumption-tracker", "auth.json"),
-        };
-    }
+    using System.IO;
 
-    // Deprecated paths are read-only migration fallbacks and should not be used for new writes.
-    public static IReadOnlyList<string> GetProviderConfigPaths(string userProfileRoot)
+    public static class DeprecatedPathCatalog
     {
-        return new[]
+        // Deprecated paths are read-only migration fallbacks and should not be used for new writes.
+        public static IReadOnlyList<string> GetAuthFilePaths(string userProfileRoot)
         {
-            Path.Combine(GetLegacyLocalAppDataRoot(userProfileRoot), "AIConsumptionTracker", "providers.json"),
-        };
-    }
+            return new[]
+            {
+                Path.Combine(userProfileRoot, ".ai-consumption-tracker", "auth.json"),
+            };
+        }
 
-    // Deprecated paths are read-only migration fallbacks and should not be used for new writes.
-    public static IReadOnlyList<string> GetPreferencesFilePaths(string userProfileRoot)
-    {
-        return new[]
+        // Deprecated paths are read-only migration fallbacks and should not be used for new writes.
+        public static IReadOnlyList<string> GetProviderConfigPaths(string userProfileRoot)
         {
-            Path.Combine(GetLegacyLocalAppDataRoot(userProfileRoot), "AIConsumptionTracker", "preferences.json"),
-        };
-    }
+            return new[]
+            {
+                Path.Combine(GetLegacyLocalAppDataRoot(userProfileRoot), "AIConsumptionTracker", "providers.json"),
+            };
+        }
 
-    private static string GetLegacyLocalAppDataRoot(string userProfileRoot)
-    {
-        return Path.Combine(userProfileRoot, "AppData", "Local");
+        // Deprecated paths are read-only migration fallbacks and should not be used for new writes.
+        public static IReadOnlyList<string> GetPreferencesFilePaths(string userProfileRoot)
+        {
+            return new[]
+            {
+                Path.Combine(GetLegacyLocalAppDataRoot(userProfileRoot), "AIConsumptionTracker", "preferences.json"),
+            };
+        }
+
+        private static string GetLegacyLocalAppDataRoot(string userProfileRoot)
+        {
+            return Path.Combine(userProfileRoot, "AppData", "Local");
+        }
     }
 }

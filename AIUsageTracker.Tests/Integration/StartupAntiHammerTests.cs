@@ -1,148 +1,149 @@
-using AIUsageTracker.Core.Interfaces;
-using AIUsageTracker.Core.Models;
-using AIUsageTracker.Monitor.Services;
-using Microsoft.Extensions.Logging;
-using Moq;
-using System.Linq;
-using Xunit;
-
-namespace AIUsageTracker.Tests.Core;
-
-public class StartupAntiHammerTests
+namespace AIUsageTracker.Tests.Core
 {
-    private sealed class TestableProviderRefreshService : ProviderRefreshService
+    using AIUsageTracker.Core.Interfaces;
+    using AIUsageTracker.Core.Models;
+    using AIUsageTracker.Monitor.Services;
+    using Microsoft.Extensions.Logging;
+    using Moq;
+    using System.Linq;
+    using Xunit;
+
+    public class StartupAntiHammerTests
     {
-        public TestableProviderRefreshService(
-            ILogger<ProviderRefreshService> logger,
-            ILoggerFactory loggerFactory,
-            IUsageDatabase database,
-            INotificationService notificationService,
-            IHttpClientFactory httpClientFactory,
-            IConfigService configService,
-            IAppPathProvider pathProvider,
-            System.Collections.Generic.IEnumerable<IProviderService> providers)
-            : base(logger, loggerFactory, database, notificationService, httpClientFactory, configService, pathProvider, providers)
+        private sealed class TestableProviderRefreshService : ProviderRefreshService
         {
-        }
-`n
-        public List<(bool ForceAll, IReadOnlyCollection<string>? IncludeProviderIds)> TriggerCalls { get; } = [];
+            public TestableProviderRefreshService(
+                ILogger<ProviderRefreshService> logger,
+                ILoggerFactory loggerFactory,
+                IUsageDatabase database,
+                INotificationService notificationService,
+                IHttpClientFactory httpClientFactory,
+                IConfigService configService,
+                IAppPathProvider pathProvider,
+                System.Collections.Generic.IEnumerable<IProviderService> providers)
+                : base(logger, loggerFactory, database, notificationService, httpClientFactory, configService, pathProvider, providers)
+            {
+            }
+    `n
+            public List<(bool ForceAll, IReadOnlyCollection<string>? IncludeProviderIds)> TriggerCalls { get; } = [];
 
-        public override Task TriggerRefreshAsync(
-            bool forceAll = false,
-            IReadOnlyCollection<string>? includeProviderIds = null,
-            bool bypassCircuitBreaker = false)
+            public override Task TriggerRefreshAsync(
+                bool forceAll = false,
+                IReadOnlyCollection<string>? includeProviderIds = null,
+                bool bypassCircuitBreaker = false)
+            {
+                this.TriggerCalls.Add((forceAll, includeProviderIds));
+                return Task.CompletedTask;
+            }
+    `n
+            public Task RunExecuteAsync(CancellationToken cancellationToken)
+            {
+                return this.ExecuteAsync(cancellationToken);
+            }
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_WhenDatabaseHasData_DoesNotTriggerFullRefresh()
         {
-            TriggerCalls.Add((forceAll, includeProviderIds));
-            return Task.CompletedTask;
+            var mockLogger = new Mock<ILogger<ProviderRefreshService>>();
+            var mockLoggerFactory = new Mock<ILoggerFactory>();
+            var mockDb = new Mock<IUsageDatabase>();
+            var mockNotificationService = new Mock<INotificationService>();
+            var mockHttpClientFactory = new Mock<IHttpClientFactory>();
+            var mockConfigService = new Mock<IConfigService>();
+            var mockPathProvider = new Mock<IAppPathProvider>();
+
+            mockDb.Setup(db => db.IsHistoryEmptyAsync())
+                .ReturnsAsync(false);
+
+            mockConfigService.Setup(cs => cs.ScanForKeysAsync())
+                .ReturnsAsync(new List<ProviderConfig>());
+
+            var service = new TestableProviderRefreshService(
+                mockLogger.Object,
+                mockLoggerFactory.Object,
+                mockDb.Object,
+                mockNotificationService.Object,
+                mockHttpClientFactory.Object,
+                mockConfigService.Object,
+                mockPathProvider.Object,
+                Enumerable.Empty<IProviderService>());
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+
+            await service.RunExecuteAsync(cts.Token);
+
+            mockDb.Verify(db => db.IsHistoryEmptyAsync(), Times.Once);
+            mockConfigService.Verify(cs => cs.ScanForKeysAsync(), Times.Never);
+            Assert.Single(service.TriggerCalls);
+            Assert.True(service.TriggerCalls[0].ForceAll);
+            Assert.NotNull(service.TriggerCalls[0].IncludeProviderIds);
+            Assert.Contains("antigravity", service.TriggerCalls[0].IncludeProviderIds!, StringComparer.OrdinalIgnoreCase);
         }
-`n
-        public Task RunExecuteAsync(CancellationToken cancellationToken)
+
+        [Fact]
+        public async Task ExecuteAsync_WhenDatabaseIsEmpty_TriggersFullRefresh()
         {
-            return ExecuteAsync(cancellationToken);
+            var mockLogger = new Mock<ILogger<ProviderRefreshService>>();
+            var mockLoggerFactory = new Mock<ILoggerFactory>();
+            var mockDb = new Mock<IUsageDatabase>();
+            var mockNotificationService = new Mock<INotificationService>();
+            var mockHttpClientFactory = new Mock<IHttpClientFactory>();
+            var mockConfigService = new Mock<IConfigService>();
+            var mockPathProvider = new Mock<IAppPathProvider>();
+
+            mockDb.Setup(db => db.IsHistoryEmptyAsync())
+                .ReturnsAsync(true);
+
+            mockConfigService.Setup(cs => cs.ScanForKeysAsync())
+                .ReturnsAsync(new List<ProviderConfig>())
+                .Verifiable();
+
+            var service = new TestableProviderRefreshService(
+                mockLogger.Object,
+                mockLoggerFactory.Object,
+                mockDb.Object,
+                mockNotificationService.Object,
+                mockHttpClientFactory.Object,
+                mockConfigService.Object,
+                mockPathProvider.Object,
+                Enumerable.Empty<IProviderService>());
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+
+            await service.RunExecuteAsync(cts.Token);
+
+            mockDb.Verify(db => db.IsHistoryEmptyAsync(), Times.Once);
+            mockConfigService.Verify(cs => cs.ScanForKeysAsync(), Times.Once);
+            Assert.Single(service.TriggerCalls);
+            Assert.True(service.TriggerCalls[0].ForceAll);
+            Assert.Null(service.TriggerCalls[0].IncludeProviderIds);
         }
-    }
 
-    [Fact]
-    public async Task ExecuteAsync_WhenDatabaseHasData_DoesNotTriggerFullRefresh()
-    {
-        var mockLogger = new Mock<ILogger<ProviderRefreshService>>();
-        var mockLoggerFactory = new Mock<ILoggerFactory>();
-        var mockDb = new Mock<IUsageDatabase>();
-        var mockNotificationService = new Mock<INotificationService>();
-        var mockHttpClientFactory = new Mock<IHttpClientFactory>();
-        var mockConfigService = new Mock<IConfigService>();
-        var mockPathProvider = new Mock<IAppPathProvider>();
+        [Fact]
+        public void ProviderRefreshService_HasExecuteAsyncMethod()
+        {
+            var type = typeof(ProviderRefreshService);
+            var executeMethod = type.GetMethod("ExecuteAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-        mockDb.Setup(db => db.IsHistoryEmptyAsync())
-            .ReturnsAsync(false);
+            Assert.NotNull(executeMethod);
+            Assert.True(executeMethod.ReturnType == typeof(Task),
+                "ExecuteAsync should return Task");
+        }
 
-        mockConfigService.Setup(cs => cs.ScanForKeysAsync())
-            .ReturnsAsync(new List<ProviderConfig>());
+        [Fact]
+        public void TriggerRefreshAsync_AcceptsIncludeProviderIdsParameter()
+        {
+            var type = typeof(ProviderRefreshService);
+            var method = type.GetMethod("TriggerRefreshAsync");
 
-        var service = new TestableProviderRefreshService(
-            mockLogger.Object,
-            mockLoggerFactory.Object,
-            mockDb.Object,
-            mockNotificationService.Object,
-            mockHttpClientFactory.Object,
-            mockConfigService.Object,
-            mockPathProvider.Object,
-            Enumerable.Empty<IProviderService>());
+            Assert.NotNull(method);
+            var parameters = method.GetParameters();
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-
-        await service.RunExecuteAsync(cts.Token);
-
-        mockDb.Verify(db => db.IsHistoryEmptyAsync(), Times.Once);
-        mockConfigService.Verify(cs => cs.ScanForKeysAsync(), Times.Never);
-        Assert.Single(service.TriggerCalls);
-        Assert.True(service.TriggerCalls[0].ForceAll);
-        Assert.NotNull(service.TriggerCalls[0].IncludeProviderIds);
-        Assert.Contains("antigravity", service.TriggerCalls[0].IncludeProviderIds!, StringComparer.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_WhenDatabaseIsEmpty_TriggersFullRefresh()
-    {
-        var mockLogger = new Mock<ILogger<ProviderRefreshService>>();
-        var mockLoggerFactory = new Mock<ILoggerFactory>();
-        var mockDb = new Mock<IUsageDatabase>();
-        var mockNotificationService = new Mock<INotificationService>();
-        var mockHttpClientFactory = new Mock<IHttpClientFactory>();
-        var mockConfigService = new Mock<IConfigService>();
-        var mockPathProvider = new Mock<IAppPathProvider>();
-
-        mockDb.Setup(db => db.IsHistoryEmptyAsync())
-            .ReturnsAsync(true);
-
-        mockConfigService.Setup(cs => cs.ScanForKeysAsync())
-            .ReturnsAsync(new List<ProviderConfig>())
-            .Verifiable();
-
-        var service = new TestableProviderRefreshService(
-            mockLogger.Object,
-            mockLoggerFactory.Object,
-            mockDb.Object,
-            mockNotificationService.Object,
-            mockHttpClientFactory.Object,
-            mockConfigService.Object,
-            mockPathProvider.Object,
-            Enumerable.Empty<IProviderService>());
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-
-        await service.RunExecuteAsync(cts.Token);
-
-        mockDb.Verify(db => db.IsHistoryEmptyAsync(), Times.Once);
-        mockConfigService.Verify(cs => cs.ScanForKeysAsync(), Times.Once);
-        Assert.Single(service.TriggerCalls);
-        Assert.True(service.TriggerCalls[0].ForceAll);
-        Assert.Null(service.TriggerCalls[0].IncludeProviderIds);
-    }
-
-    [Fact]
-    public void ProviderRefreshService_HasExecuteAsyncMethod()
-    {
-        var type = typeof(ProviderRefreshService);
-        var executeMethod = type.GetMethod("ExecuteAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-        Assert.NotNull(executeMethod);
-        Assert.True(executeMethod.ReturnType == typeof(Task),
-            "ExecuteAsync should return Task");
-    }
-
-    [Fact]
-    public void TriggerRefreshAsync_AcceptsIncludeProviderIdsParameter()
-    {
-        var type = typeof(ProviderRefreshService);
-        var method = type.GetMethod("TriggerRefreshAsync");
-
-        Assert.NotNull(method);
-        var parameters = method.GetParameters();
-
-        var includeProviderIdsParam = parameters.FirstOrDefault(p => p.Name == "includeProviderIds");
-        Assert.NotNull(includeProviderIdsParam);
-        Assert.True(includeProviderIdsParam.ParameterType == typeof(IReadOnlyCollection<string>),
-            "includeProviderIds should be IReadOnlyCollection<string>");
+            var includeProviderIdsParam = parameters.FirstOrDefault(p => p.Name == "includeProviderIds");
+            Assert.NotNull(includeProviderIdsParam);
+            Assert.True(includeProviderIdsParam.ParameterType == typeof(IReadOnlyCollection<string>),
+                "includeProviderIds should be IReadOnlyCollection<string>");
+        }
     }
 }

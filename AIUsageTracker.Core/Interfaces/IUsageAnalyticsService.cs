@@ -1,25 +1,26 @@
-using AIUsageTracker.Core.Models;
-
-namespace AIUsageTracker.Core.Interfaces;
-
-public interface IUsageAnalyticsService
+namespace AIUsageTracker.Core.Interfaces
 {
-    Task<IReadOnlyDictionary<string, BurnRateForecast>> GetBurnRateForecastsAsync(
-        IEnumerable<string> providerIds,
-        int lookbackHours = 72,
-        int maxSamplesPerProvider = 720);
+    using AIUsageTracker.Core.Models;
 
-    Task<IReadOnlyDictionary<string, ProviderReliabilitySnapshot>> GetProviderReliabilityAsync(
-        IEnumerable<string> providerIds,
-        int lookbackHours = 168,
-        int maxSamplesPerProvider = 1000);
+    public interface IUsageAnalyticsService
+    {
+        Task<IReadOnlyDictionary<string, BurnRateForecast>> GetBurnRateForecastsAsync(
+            IEnumerable<string> providerIds,
+            int lookbackHours = 72,
+            int maxSamplesPerProvider = 720);
 
-    Task<IReadOnlyDictionary<string, UsageAnomalySnapshot>> GetUsageAnomaliesAsync(
-        IEnumerable<string> providerIds,
-        int lookbackHours = 72,
-        int maxSamplesPerProvider = 720);
+        Task<IReadOnlyDictionary<string, ProviderReliabilitySnapshot>> GetProviderReliabilityAsync(
+            IEnumerable<string> providerIds,
+            int lookbackHours = 168,
+            int maxSamplesPerProvider = 1000);
 
-    Task<IReadOnlyList<BudgetStatus>> GetBudgetStatusesAsync(IEnumerable<string> providerIds);
+        Task<IReadOnlyDictionary<string, UsageAnomalySnapshot>> GetUsageAnomaliesAsync(
+            IEnumerable<string> providerIds,
+            int lookbackHours = 72,
+            int maxSamplesPerProvider = 720);
 
-    Task<IReadOnlyList<UsageComparison>> GetUsageComparisonsAsync(IEnumerable<string> providerIds);
+        Task<IReadOnlyList<BudgetStatus>> GetBudgetStatusesAsync(IEnumerable<string> providerIds);
+
+        Task<IReadOnlyList<UsageComparison>> GetUsageComparisonsAsync(IEnumerable<string> providerIds);
+    }
 }

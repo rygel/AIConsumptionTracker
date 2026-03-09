@@ -1,63 +1,64 @@
-using Microsoft.Extensions.Logging;
-using AIUsageTracker.Core.Interfaces;
-
-namespace AIUsageTracker.Infrastructure.Services;
-
-public class WindowsNotificationService : INotificationService
+namespace AIUsageTracker.Infrastructure.Services
 {
-    private readonly ILogger<WindowsNotificationService> _logger;
-    private bool _isInitialized;
+    using Microsoft.Extensions.Logging;
+    using AIUsageTracker.Core.Interfaces;
 
-    public WindowsNotificationService(ILogger<WindowsNotificationService> logger)
+    public class WindowsNotificationService : INotificationService
     {
-        this._logger = logger;
-    }
+        private readonly ILogger<WindowsNotificationService> _logger;
+        private bool _isInitialized;
 
-    public void Initialize()
-    {
-        if (this._isInitialized) return;
-
-        this._logger.LogInformation("Initializing notification service");
-        this._isInitialized = true;
-    }
-
-    public void Unregister()
-    {
-        if (!this._isInitialized) return;
-
-        this._isInitialized = false;
-    }
-
-    public void ShowNotification(string title, string message, string? action = null, string? argument = null)
-    {
-        this._logger.LogInformation("Notification: {Title} - {Message}", title, message);
-    }
-
-    public void ShowUsageAlert(string providerName, double usagePercentage)
-    {
-        var level = usagePercentage switch
+        public WindowsNotificationService(ILogger<WindowsNotificationService> logger)
         {
-            >= 90 => "Critical",
-            >= 75 => "Warning",
-            _ => "Info"
-        };
-        var message = usagePercentage >= 100
-            ? $"Quota exceeded at {usagePercentage:F1}%."
-            : $"Usage is {usagePercentage:F1}%";
+            this._logger = logger;
+        }
 
-        this.ShowNotification($"{providerName} - {level}", message, "showProvider", providerName);
+        public void Initialize()
+        {
+            if (this._isInitialized) return;
+
+            this._logger.LogInformation("Initializing notification service");
+            this._isInitialized = true;
+        }
+
+        public void Unregister()
+        {
+            if (!this._isInitialized) return;
+
+            this._isInitialized = false;
+        }
+
+        public void ShowNotification(string title, string message, string? action = null, string? argument = null)
+        {
+            this._logger.LogInformation("Notification: {Title} - {Message}", title, message);
+        }
+
+        public void ShowUsageAlert(string providerName, double usagePercentage)
+        {
+            var level = usagePercentage switch
+            {
+                >= 90 => "Critical",
+                >= 75 => "Warning",
+                _ => "Info"
+            };
+            var message = usagePercentage >= 100
+                ? $"Quota exceeded at {usagePercentage:F1}%."
+                : $"Usage is {usagePercentage:F1}%";
+
+            this.ShowNotification($"{providerName} - {level}", message, "showProvider", providerName);
+        }
+
+        public void ShowQuotaExceeded(string providerName, string details)
+        {
+            this.ShowNotification($"{providerName} Quota Exceeded", details, "showProvider", providerName);
+        }
+
+        public event EventHandler<NotificationClickedEventArgs>? OnNotificationClicked
+        {
+            add { }
+            remove { }
+        }
     }
 
-    public void ShowQuotaExceeded(string providerName, string details)
-    {
-        this.ShowNotification($"{providerName} Quota Exceeded", details, "showProvider", providerName);
-    }
 
-    public event EventHandler<NotificationClickedEventArgs>? OnNotificationClicked
-    {
-        add { }
-        remove { }
-    }
 }
-
-

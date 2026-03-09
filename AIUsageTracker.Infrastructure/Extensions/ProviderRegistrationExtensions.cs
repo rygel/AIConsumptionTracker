@@ -1,43 +1,44 @@
-using System.Reflection;
-using AIUsageTracker.Core.Interfaces;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-
-namespace AIUsageTracker.Infrastructure.Extensions;
-
-public static class ProviderRegistrationExtensions
+namespace AIUsageTracker.Infrastructure.Extensions
 {
-    /// <summary>
-    /// Automatically registers all IProviderService implementations from the Infrastructure assembly
-    /// </summary>
-    public static IServiceCollection AddProvidersFromAssembly(this IServiceCollection services)
+    using System.Reflection;
+    using AIUsageTracker.Core.Interfaces;
+    using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Logging;
+
+    public static class ProviderRegistrationExtensions
     {
-        // Get the Infrastructure assembly (where providers are located)
-        var assembly = Assembly.GetExecutingAssembly();
-
-        // Find all types that implement IProviderService
-        var providerTypes = assembly.GetTypes()
-            .Where(t => t.IsClass
-                && !t.IsAbstract
-                && typeof(IProviderService).IsAssignableFrom(t))
-            .ToList();
-
-        foreach (var providerType in providerTypes)
+        /// <summary>
+        /// Automatically registers all IProviderService implementations from the Infrastructure assembly
+        /// </summary>
+        public static IServiceCollection AddProvidersFromAssembly(this IServiceCollection services)
         {
-            // Register as singleton since providers are stateless and can be reused
-            services.AddSingleton(typeof(IProviderService), providerType);
+            // Get the Infrastructure assembly (where providers are located)
+            var assembly = Assembly.GetExecutingAssembly();
+
+            // Find all types that implement IProviderService
+            var providerTypes = assembly.GetTypes()
+                .Where(t => t.IsClass
+                    && !t.IsAbstract
+                    && typeof(IProviderService).IsAssignableFrom(t))
+                .ToList();
+
+            foreach (var providerType in providerTypes)
+            {
+                // Register as singleton since providers are stateless and can be reused
+                services.AddSingleton(typeof(IProviderService), providerType);
+            }
+
+            return services;
         }
 
-        return services;
-    }
-
-    /// <summary>
-    /// Registers a specific provider type
-    /// </summary>
-    public static IServiceCollection AddProvider<TProvider>(this IServiceCollection services)
-        where TProvider : class, IProviderService
-    {
-        services.AddSingleton<IProviderService, TProvider>();
-        return services;
+        /// <summary>
+        /// Registers a specific provider type
+        /// </summary>
+        public static IServiceCollection AddProvider<TProvider>(this IServiceCollection services)
+            where TProvider : class, IProviderService
+        {
+            services.AddSingleton<IProviderService, TProvider>();
+            return services;
+        }
     }
 }

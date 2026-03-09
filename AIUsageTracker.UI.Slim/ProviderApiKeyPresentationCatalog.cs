@@ -1,24 +1,25 @@
-namespace AIUsageTracker.UI.Slim;
-
-internal static class ProviderApiKeyPresentationCatalog
+namespace AIUsageTracker.UI.Slim
 {
-    public static string GetDisplayApiKey(string? apiKey, bool isPrivacyMode)
+    internal static class ProviderApiKeyPresentationCatalog
     {
-        if (string.IsNullOrEmpty(apiKey))
+        public static string GetDisplayApiKey(string? apiKey, bool isPrivacyMode)
         {
-            return apiKey ?? string.Empty;
-        }
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                return apiKey ?? string.Empty;
+            }
 
-        if (!isPrivacyMode)
-        {
-            return apiKey;
-        }
+            if (!isPrivacyMode)
+            {
+                return apiKey;
+            }
 
-        if (apiKey.Length > 8)
-        {
-            return apiKey[..4] + "****" + apiKey[^4..];
-        }
+            if (apiKey.Length > 8)
+            {
+                return apiKey[..4] + "****" + apiKey[^4..];
+            }
 
-        return "****";
+            return "****";
+        }
     }
 }

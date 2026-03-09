@@ -1,9 +1,10 @@
-namespace AIUsageTracker.Core.Models;
-
-public enum ProviderSettingsMode
+namespace AIUsageTracker.Core.Models
 {
-    StandardApiKey,
-    AutoDetectedStatus,
-    ExternalAuthStatus,
-    SessionAuthStatus,
+    public enum ProviderSettingsMode
+    {
+        StandardApiKey,
+        AutoDetectedStatus,
+        ExternalAuthStatus,
+        SessionAuthStatus,
+    }
 }

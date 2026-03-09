@@ -1,46 +1,47 @@
-using AIUsageTracker.Core.Models;
-using AIUsageTracker.Infrastructure.Providers;
-using AIUsageTracker.Tests.Infrastructure;
-using Xunit;
-
-namespace AIUsageTracker.Tests.Infrastructure.Providers;
-
-public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
+namespace AIUsageTracker.Tests.Infrastructure.Providers
 {
-    private readonly ClaudeCodeProvider _provider;
+    using AIUsageTracker.Core.Models;
+    using AIUsageTracker.Infrastructure.Providers;
+    using AIUsageTracker.Tests.Infrastructure;
+    using Xunit;
 
-    public ClaudeCodeProviderTests()
+    public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
     {
-        _provider = new ClaudeCodeProvider(Logger.Object, HttpClient);
-        Config.ApiKey = "test-key";
-    }
+        private readonly ClaudeCodeProvider _provider;
 
-    [Fact]
-    public async Task GetUsageAsync_ValidResponse_ParsesUsageCorrectly()
-    {
-        // Arrange
-        var responseData = new
+        public ClaudeCodeProviderTests()
         {
-            usage = new
+            this._provider = new ClaudeCodeProvider(this.Logger.Object, this.HttpClient);
+            this.Config.ApiKey = "test-key";
+        }
+
+        [Fact]
+        public async Task GetUsageAsync_ValidResponse_ParsesUsageCorrectly()
+        {
+            // Arrange
+            var responseData = new
             {
-                monthly_limit_tokens = 1000000,
-                monthly_usage_tokens = 250000
-            }
-        };
+                usage = new
+                {
+                    monthly_limit_tokens = 1000000,
+                    monthly_usage_tokens = 250000
+                }
+            };
 
-        SetupHttpResponse("https://api.anthropic.com/v1/messages/usage", new HttpResponseMessage
-        {
-            StatusCode = System.Net.HttpStatusCode.OK,
-            Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(responseData))
-        });
+            this.SetupHttpResponse("https://api.anthropic.com/v1/messages/usage", new HttpResponseMessage
+            {
+                StatusCode = System.Net.HttpStatusCode.OK,
+                Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(responseData))
+            });
 
-        // Act
-        var result = await _provider.GetUsageAsync(Config);
+            // Act
+            var result = await this._provider.GetUsageAsync(this.Config);
 
-        // Assert
-        var usage = result.Single();
-        // Since API returns null if headers are missing, and our mock doesn't have headers yet,
-        // it might fall back to CLI. We just want to check if the basic structure is there.
-        Assert.NotNull(usage);
+            // Assert
+            var usage = result.Single();
+            // Since API returns null if headers are missing, and our mock doesn't have headers yet,
+            // it might fall back to CLI. We just want to check if the basic structure is there.
+            Assert.NotNull(usage);
+        }
     }
 }

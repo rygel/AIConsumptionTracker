@@ -1,51 +1,52 @@
-using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.MonitorClient;
-
-namespace AIUsageTracker.Core.Interfaces;
-
-public interface IMonitorService
+namespace AIUsageTracker.Core.Interfaces
 {
-    string AgentUrl { get; set; }
+    using AIUsageTracker.Core.Models;
+    using AIUsageTracker.Core.MonitorClient;
 
-    IReadOnlyList<string> LastAgentErrors { get; }
+    public interface IMonitorService
+    {
+        string AgentUrl { get; set; }
 
-    Task RefreshAgentInfoAsync();
+        IReadOnlyList<string> LastAgentErrors { get; }
 
-    Task RefreshPortAsync();
+        Task RefreshAgentInfoAsync();
 
-    Task<IReadOnlyList<ProviderUsage>> GetUsageAsync();
+        Task RefreshPortAsync();
 
-    Task<ProviderUsage?> GetUsageByProviderAsync(string providerId);
+        Task<IReadOnlyList<ProviderUsage>> GetUsageAsync();
 
-    Task<IReadOnlyList<ProviderUsage>> GetHistoryAsync(int limit = 100);
+        Task<ProviderUsage?> GetUsageByProviderAsync(string providerId);
 
-    Task<IReadOnlyList<ProviderUsage>> GetHistoryByProviderAsync(string providerId, int limit = 100);
+        Task<IReadOnlyList<ProviderUsage>> GetHistoryAsync(int limit = 100);
 
-    Task<bool> TriggerRefreshAsync();
+        Task<IReadOnlyList<ProviderUsage>> GetHistoryByProviderAsync(string providerId, int limit = 100);
 
-    Task<IReadOnlyList<ProviderConfig>> GetConfigsAsync();
+        Task<bool> TriggerRefreshAsync();
 
-    Task<bool> SaveConfigAsync(ProviderConfig config);
+        Task<IReadOnlyList<ProviderConfig>> GetConfigsAsync();
 
-    Task<bool> RemoveConfigAsync(string providerId);
+        Task<bool> SaveConfigAsync(ProviderConfig config);
 
-    Task<AppPreferences> GetPreferencesAsync();
+        Task<bool> RemoveConfigAsync(string providerId);
 
-    Task<bool> SavePreferencesAsync(AppPreferences preferences);
+        Task<AppPreferences> GetPreferencesAsync();
 
-    Task<bool> SendTestNotificationAsync();
+        Task<bool> SavePreferencesAsync(AppPreferences preferences);
 
-    Task<AgentTestNotificationResult> SendTestNotificationDetailedAsync();
+        Task<bool> SendTestNotificationAsync();
 
-    Task<(int Count, IReadOnlyList<ProviderConfig> Configs)> ScanForKeysAsync();
+        Task<AgentTestNotificationResult> SendTestNotificationDetailedAsync();
 
-    Task<bool> CheckHealthAsync();
+        Task<(int Count, IReadOnlyList<ProviderConfig> Configs)> ScanForKeysAsync();
 
-    Task<AgentContractHandshakeResult> CheckApiContractAsync();
+        Task<bool> CheckHealthAsync();
 
-    Task<string> ExportDataAsync(string format);
+        Task<AgentContractHandshakeResult> CheckApiContractAsync();
 
-    Task<string> GetHealthDetailsAsync();
+        Task<string> ExportDataAsync(string format);
 
-    Task<string> GetDiagnosticsDetailsAsync();
+        Task<string> GetHealthDetailsAsync();
+
+        Task<string> GetDiagnosticsDetailsAsync();
+    }
 }

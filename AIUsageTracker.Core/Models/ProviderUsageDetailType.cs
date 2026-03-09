@@ -1,10 +1,11 @@
-namespace AIUsageTracker.Core.Models;
-
-public enum ProviderUsageDetailType
+namespace AIUsageTracker.Core.Models
 {
-    Unknown = 0,
-    QuotaWindow = 1,
-    Credit = 2,
-    Model = 3,
-    Other = 4,
+    public enum ProviderUsageDetailType
+    {
+        Unknown = 0,
+        QuotaWindow = 1,
+        Credit = 2,
+        Model = 3,
+        Other = 4,
+    }
 }

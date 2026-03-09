@@ -1,14 +1,15 @@
-using AIUsageTracker.Core.Models;
-
-namespace AIUsageTracker.Core.Interfaces;
-
-public interface IConfigLoader
+namespace AIUsageTracker.Core.Interfaces
 {
-    Task<IReadOnlyList<ProviderConfig>> LoadConfigAsync();
+    using AIUsageTracker.Core.Models;
 
-    Task SaveConfigAsync(IEnumerable<ProviderConfig> configs);
+    public interface IConfigLoader
+    {
+        Task<IReadOnlyList<ProviderConfig>> LoadConfigAsync();
 
-    Task<AppPreferences> LoadPreferencesAsync();
+        Task SaveConfigAsync(IEnumerable<ProviderConfig> configs);
 
-    Task SavePreferencesAsync(AppPreferences preferences);
+        Task<AppPreferences> LoadPreferencesAsync();
+
+        Task SavePreferencesAsync(AppPreferences preferences);
+    }
 }

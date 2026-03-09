@@ -1,6 +1,7 @@
-namespace AIUsageTracker.Tests.Integration;
-
-[CollectionDefinition("TokenDiscovery", DisableParallelization = true)]
-public sealed class TokenDiscoveryCollectionDefinition
+namespace AIUsageTracker.Tests.Integration
 {
+    [CollectionDefinition("TokenDiscovery", DisableParallelization = true)]
+    public sealed class TokenDiscoveryCollectionDefinition
+    {
+    }
 }

@@ -1,57 +1,58 @@
-using System.Text;
-using AIUsageTracker.Core.Models;
-
-namespace AIUsageTracker.UI.Slim;
-
-internal static class ProviderTooltipPresentationCatalog
+namespace AIUsageTracker.UI.Slim
 {
-    public static string? BuildContent(ProviderUsage usage, string friendlyName)
+    using System.Text;
+    using AIUsageTracker.Core.Models;
+
+    internal static class ProviderTooltipPresentationCatalog
     {
-        if (usage.Details?.Any() == true)
+        public static string? BuildContent(ProviderUsage usage, string friendlyName)
         {
-            var tooltipBuilder = new StringBuilder();
-            tooltipBuilder.AppendLine(friendlyName);
-            tooltipBuilder.AppendLine($"Status: {(usage.IsAvailable ? "Active" : "Inactive")}");
-            if (!string.IsNullOrEmpty(usage.Description))
+            if (usage.Details?.Any() == true)
             {
-                tooltipBuilder.AppendLine($"Description: {usage.Description}");
+                var tooltipBuilder = new StringBuilder();
+                tooltipBuilder.AppendLine(friendlyName);
+                tooltipBuilder.AppendLine($"Status: {(usage.IsAvailable ? "Active" : "Inactive")}");
+                if (!string.IsNullOrEmpty(usage.Description))
+                {
+                    tooltipBuilder.AppendLine($"Description: {usage.Description}");
+                }
+
+                tooltipBuilder.AppendLine();
+                tooltipBuilder.AppendLine("Rate Limits:");
+                foreach (var detail in usage.Details
+                             .OrderBy(GetDetailSortOrder)
+                             .ThenBy(GetDetailDisplayName, StringComparer.OrdinalIgnoreCase))
+                {
+                    tooltipBuilder.AppendLine($"  {GetDetailDisplayName(detail)}: {detail.Used}");
+                }
+
+                return tooltipBuilder.ToString().Trim();
             }
 
-            tooltipBuilder.AppendLine();
-            tooltipBuilder.AppendLine("Rate Limits:");
-            foreach (var detail in usage.Details
-                         .OrderBy(GetDetailSortOrder)
-                         .ThenBy(GetDetailDisplayName, StringComparer.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(usage.AuthSource))
             {
-                tooltipBuilder.AppendLine($"  {GetDetailDisplayName(detail)}: {detail.Used}");
+                return $"{friendlyName}\nSource: {usage.AuthSource}";
             }
 
-            return tooltipBuilder.ToString().Trim();
+            return null;
         }
-
-        if (!string.IsNullOrEmpty(usage.AuthSource))
+    `n
+        private static string GetDetailDisplayName(ProviderUsageDetail detail)
         {
-            return $"{friendlyName}\nSource: {usage.AuthSource}";
+            return detail.Name;
         }
-
-        return null;
-    }
-`n
-    private static string GetDetailDisplayName(ProviderUsageDetail detail)
-    {
-        return detail.Name;
-    }
-`n
-    private static int GetDetailSortOrder(ProviderUsageDetail detail)
-    {
-        return (detail.DetailType, detail.WindowKind) switch
+    `n
+        private static int GetDetailSortOrder(ProviderUsageDetail detail)
         {
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Primary) => 0,
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Secondary) => 1,
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Spark) => 2,
-            (ProviderUsageDetailType.Model, _) => 3,
-            (ProviderUsageDetailType.Credit, _) => 4,
-            _ => 5
-        };
+            return (detail.DetailType, detail.WindowKind) switch
+            {
+                (ProviderUsageDetailType.QuotaWindow, WindowKind.Primary) => 0,
+                (ProviderUsageDetailType.QuotaWindow, WindowKind.Secondary) => 1,
+                (ProviderUsageDetailType.QuotaWindow, WindowKind.Spark) => 2,
+                (ProviderUsageDetailType.Model, _) => 3,
+                (ProviderUsageDetailType.Credit, _) => 4,
+                _ => 5
+            };
+        }
     }
 }

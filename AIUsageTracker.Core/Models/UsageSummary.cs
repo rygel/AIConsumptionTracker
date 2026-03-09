@@ -1,10 +1,11 @@
-namespace AIUsageTracker.Core.Models;
-
-public class UsageSummary
+namespace AIUsageTracker.Core.Models
 {
-    public int ProviderCount { get; set; }
+    public class UsageSummary
+    {
+        public int ProviderCount { get; set; }
 
-    public double AverageUsage { get; set; }
+        public double AverageUsage { get; set; }
 
-    public string? LastUpdate { get; set; }
+        public string? LastUpdate { get; set; }
+    }
 }

@@ -1,7 +1,8 @@
-namespace AIUsageTracker.Core.Models;
-
-public enum UpdateChannel
+namespace AIUsageTracker.Core.Models
 {
-    Stable,
-    Beta,
+    public enum UpdateChannel
+    {
+        Stable,
+        Beta,
+    }
 }

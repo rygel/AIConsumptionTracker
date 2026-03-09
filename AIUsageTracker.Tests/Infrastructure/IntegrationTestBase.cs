@@ -1,39 +1,40 @@
-namespace AIUsageTracker.Tests.Infrastructure;
-
-public abstract class IntegrationTestBase : IDisposable
+namespace AIUsageTracker.Tests.Infrastructure
 {
-    protected string TestRootPath { get; }
-`n
-    protected IntegrationTestBase()
+    public abstract class IntegrationTestBase : IDisposable
     {
-        TestRootPath = Path.Combine(Path.GetTempPath(), "ai-tracker-int-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(TestRootPath);
-    }
-`n
-    protected string CreateFile(string relativePath, string content)
-    {
-        var fullPath = Path.Combine(TestRootPath, relativePath);
-        var directory = Path.GetDirectoryName(fullPath);
-        if (directory != null && !Directory.Exists(directory))
+        protected string TestRootPath { get; }
+    `n
+        protected IntegrationTestBase()
         {
-            Directory.CreateDirectory(directory);
+            this.TestRootPath = Path.Combine(Path.GetTempPath(), "ai-tracker-int-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(this.TestRootPath);
         }
-        File.WriteAllText(fullPath, content);
-        return fullPath;
-    }
-`n
-    public virtual void Dispose()
-    {
-        try
+    `n
+        protected string CreateFile(string relativePath, string content)
         {
-            if (Directory.Exists(TestRootPath))
+            var fullPath = Path.Combine(this.TestRootPath, relativePath);
+            var directory = Path.GetDirectoryName(fullPath);
+            if (directory != null && !Directory.Exists(directory))
             {
-                Directory.Delete(TestRootPath, true);
+                Directory.CreateDirectory(directory);
             }
+            File.WriteAllText(fullPath, content);
+            return fullPath;
         }
-        catch
+    `n
+        public virtual void Dispose()
         {
-            // Ignore cleanup errors in tests
+            try
+            {
+                if (Directory.Exists(this.TestRootPath))
+                {
+                    Directory.Delete(this.TestRootPath, true);
+                }
+            }
+            catch
+            {
+                // Ignore cleanup errors in tests
+            }
         }
     }
 }

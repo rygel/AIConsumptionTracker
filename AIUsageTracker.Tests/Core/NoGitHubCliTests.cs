@@ -1,62 +1,63 @@
-using System.IO;
-using System.Text.RegularExpressions;
-using Xunit;
-
-namespace AIUsageTracker.Tests.Core;
-
-public class NoGitHubCliTests
+namespace AIUsageTracker.Tests.Core
 {
-    private static readonly string[] ExcludedPaths = new[]
+    using System.IO;
+    using System.Text.RegularExpressions;
+    using Xunit;
+
+    public class NoGitHubCliTests
     {
-        "release-",
-        "ci-hang-",
-        "synthetic-hotfix-",
-        "appcast-sync-",
-        "node_modules",
-        ".git"
-    };
-
-    [Fact]
-    public void NoGitHubCliSpawnsInSourceCode()
-    {
-        var repoRoot = GetRepoRoot();
-        var csFiles = Directory.GetFiles(repoRoot, "*.cs", SearchOption.AllDirectories)
-            .Where(f => !ExcludedPaths.Any(e => f.Contains(e)))
-            .ToList();
-
-        var violations = new List<string>();
-
-        foreach (var file in csFiles)
+        private static readonly string[] ExcludedPaths = new[]
         {
-            var content = File.ReadAllText(file);
-            var lines = content.Split('\n');
+            "release-",
+            "ci-hang-",
+            "synthetic-hotfix-",
+            "appcast-sync-",
+            "node_modules",
+            ".git"
+        };
 
-            for (int i = 0; i < lines.Length; i++)
+        [Fact]
+        public void NoGitHubCliSpawnsInSourceCode()
+        {
+            var repoRoot = GetRepoRoot();
+            var csFiles = Directory.GetFiles(repoRoot, "*.cs", SearchOption.AllDirectories)
+                .Where(f => !ExcludedPaths.Any(e => f.Contains(e)))
+                .ToList();
+
+            var violations = new List<string>();
+
+            foreach (var file in csFiles)
             {
-                var line = lines[i];
+                var content = File.ReadAllText(file);
+                var lines = content.Split('\n');
 
-                if (Regex.IsMatch(line, @"FileName\s*=\s*[""']gh[""']", RegexOptions.IgnoreCase) ||
-                    Regex.IsMatch(line, @"Arguments\s*=\s*[""'].*gh.*[""']", RegexOptions.IgnoreCase) ||
-                    Regex.IsMatch(line, @"gh\s+auth\s+token", RegexOptions.IgnoreCase) ||
-                    Regex.IsMatch(line, @"Process\.Start.*gh", RegexOptions.IgnoreCase))
+                for (int i = 0; i < lines.Length; i++)
                 {
-                    violations.Add($"{file}:{i + 1}: {line.Trim()}");
+                    var line = lines[i];
+
+                    if (Regex.IsMatch(line, @"FileName\s*=\s*[""']gh[""']", RegexOptions.IgnoreCase) ||
+                        Regex.IsMatch(line, @"Arguments\s*=\s*[""'].*gh.*[""']", RegexOptions.IgnoreCase) ||
+                        Regex.IsMatch(line, @"gh\s+auth\s+token", RegexOptions.IgnoreCase) ||
+                        Regex.IsMatch(line, @"Process\.Start.*gh", RegexOptions.IgnoreCase))
+                    {
+                        violations.Add($"{file}:{i + 1}: {line.Trim()}");
+                    }
                 }
             }
-        }
 
-        Assert.Empty(violations);
-    }
-`n
-    private static string GetRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
-        while (dir != null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "Directory.Build.props")))
-                return dir.FullName;
-            dir = dir.Parent;
+            Assert.Empty(violations);
         }
-        throw new InvalidOperationException("Could not find repo root");
+    `n
+        private static string GetRepoRoot()
+        {
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "Directory.Build.props")))
+                    return dir.FullName;
+                dir = dir.Parent;
+            }
+            throw new InvalidOperationException("Could not find repo root");
+        }
     }
 }

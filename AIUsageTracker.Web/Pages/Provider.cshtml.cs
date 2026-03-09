@@ -1,53 +1,54 @@
-using AIUsageTracker.Core.Models;
-using AIUsageTracker.Web.Services;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-
-namespace AIUsageTracker.Web.Pages;
-
-public class ProviderModel : PageModel
+namespace AIUsageTracker.Web.Pages
 {
-    private readonly WebDatabaseService _dbService;
+    using AIUsageTracker.Core.Models;
+    using AIUsageTracker.Web.Services;
+    using Microsoft.AspNetCore.Mvc;
+    using Microsoft.AspNetCore.Mvc.RazorPages;
 
-    public ProviderModel(WebDatabaseService dbService)
+    public class ProviderModel : PageModel
     {
-        this._dbService = dbService;
-    }
+        private readonly WebDatabaseService _dbService;
 
-    [BindProperty(SupportsGet = true)]
-    public string Id { get; set; } = string.Empty;
-
-    [BindProperty(SupportsGet = true, Name = "providerId")]
-    public string? ProviderIdQuery { get; set; }
-
-    public string? ProviderName { get; set; }
-
-    public IReadOnlyList<ProviderUsage>? ProviderHistory { get; set; }
-
-    public IReadOnlyList<ResetEvent>? ResetEvents { get; set; }
-
-    public async Task<IActionResult> OnGetAsync()
-    {
-        if (string.IsNullOrWhiteSpace(this.Id) && !string.IsNullOrWhiteSpace(this.ProviderIdQuery))
+        public ProviderModel(WebDatabaseService dbService)
         {
-            this.Id = this.ProviderIdQuery;
+            this._dbService = dbService;
         }
 
-        if (string.IsNullOrEmpty(this.Id))
-        {
-            return this.RedirectToPage("/Providers");
-        }
+        [BindProperty(SupportsGet = true)]
+        public string Id { get; set; } = string.Empty;
 
-        this.ProviderHistory = await this._dbService.GetProviderHistoryAsync(this.Id, 100).ConfigureAwait(false);
+        [BindProperty(SupportsGet = true, Name = "providerId")]
+        public string? ProviderIdQuery { get; set; }
 
-        if (this.ProviderHistory?.Any() != true)
+        public string? ProviderName { get; set; }
+
+        public IReadOnlyList<ProviderUsage>? ProviderHistory { get; set; }
+
+        public IReadOnlyList<ResetEvent>? ResetEvents { get; set; }
+
+        public async Task<IActionResult> OnGetAsync()
         {
+            if (string.IsNullOrWhiteSpace(this.Id) && !string.IsNullOrWhiteSpace(this.ProviderIdQuery))
+            {
+                this.Id = this.ProviderIdQuery;
+            }
+
+            if (string.IsNullOrEmpty(this.Id))
+            {
+                return this.RedirectToPage("/Providers");
+            }
+
+            this.ProviderHistory = await this._dbService.GetProviderHistoryAsync(this.Id, 100).ConfigureAwait(false);
+
+            if (this.ProviderHistory?.Any() != true)
+            {
+                return this.Page();
+            }
+
+            this.ProviderName = this.ProviderHistory.First().ProviderName;
+            this.ResetEvents = await this._dbService.GetResetEventsAsync(this.Id, 50).ConfigureAwait(false);
+
             return this.Page();
         }
-
-        this.ProviderName = this.ProviderHistory.First().ProviderName;
-        this.ResetEvents = await this._dbService.GetResetEventsAsync(this.Id, 50).ConfigureAwait(false);
-
-        return this.Page();
     }
 }

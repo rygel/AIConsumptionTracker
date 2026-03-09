@@ -1,19 +1,19 @@
-using System;
-using System.Reflection;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.IO;
-using System.Threading.Tasks;
-using AIUsageTracker.Core.Interfaces;
-using AIUsageTracker.Core.Models;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace AIUsageTracker.UI.Slim
 {
+    using System;
+    using System.Reflection;
+    using System.Windows;
+    using System.Windows.Controls;
+    using System.Windows.Media;
+    using System.Diagnostics;
+    using System.Runtime.InteropServices;
+    using System.IO;
+    using System.Threading.Tasks;
+    using AIUsageTracker.Core.Interfaces;
+    using AIUsageTracker.Core.Models;
+    using Microsoft.Extensions.Logging;
+    using Microsoft.Extensions.DependencyInjection;
+
     public partial class InfoDialog : Window
     {
         private readonly ILogger<InfoDialog> _logger;
@@ -25,14 +25,14 @@ namespace AIUsageTracker.UI.Slim
 
         public InfoDialog()
         {
-            InitializeComponent();
-            _logger = App.CreateLogger<InfoDialog>();
-            _pathProvider = App.Host.Services.GetRequiredService<IAppPathProvider>();
+            this.InitializeComponent();
+            this._logger = App.CreateLogger<InfoDialog>();
+            this._pathProvider = App.Host.Services.GetRequiredService<IAppPathProvider>();
 
             // In Slim UI, we rely on App.Preferences or direct theme resources
             // No need for complex theme loading or IConfigLoader here
 
-            LoadInfo();
+            this.LoadInfo();
         }
 `n
         private void LoadInfo()
@@ -42,60 +42,60 @@ namespace AIUsageTracker.UI.Slim
             {
                 App.PrivacyChanged += (s, isPrivate) =>
                 {
-                    _isPrivacyMode = isPrivate;
-                    UpdatePrivacyUI();
+                    this._isPrivacyMode = isPrivate;
+                    this.UpdatePrivacyUI();
                 };
 
                 // Set initial privacy state
-                _isPrivacyMode = App.IsPrivacyMode;
+                this._isPrivacyMode = App.IsPrivacyMode;
             }
 
             // Application version
             var appVersion = Assembly.GetEntryAssembly()?.GetName().Version;
             if (appVersion != null)
             {
-                InternalVersionText.Text = $"v{appVersion.Major}.{appVersion.Minor}.{appVersion.Build}";
+                this.InternalVersionText.Text = $"v{appVersion.Major}.{appVersion.Minor}.{appVersion.Build}";
             }
 
             // .NET Runtime version
-            DotNetVersionText.Text = RuntimeInformation.FrameworkDescription;
+            this.DotNetVersionText.Text = RuntimeInformation.FrameworkDescription;
 
             // Operating System
-            OsVersionText.Text = $"{RuntimeInformation.OSDescription} ({RuntimeInformation.OSArchitecture})";
+            this.OsVersionText.Text = $"{RuntimeInformation.OSDescription} ({RuntimeInformation.OSArchitecture})";
 
             // Architecture
-            ArchitectureText.Text = RuntimeInformation.ProcessArchitecture.ToString();
+            this.ArchitectureText.Text = RuntimeInformation.ProcessArchitecture.ToString();
 
             // Machine name
-            MachineNameText.Text = Environment.MachineName;
+            this.MachineNameText.Text = Environment.MachineName;
 
             // Current user
-            _realUserName = Environment.UserName;
+            this._realUserName = Environment.UserName;
 
             // Configuration Directory path (without auth.json)
-            _realConfigDir = Path.GetDirectoryName(_pathProvider.GetAuthFilePath());
+            this._realConfigDir = Path.GetDirectoryName(this._pathProvider.GetAuthFilePath());
 
             // Data Directory path
-            _realDataDir = _pathProvider.GetAppDataRoot();
+            this._realDataDir = this._pathProvider.GetAppDataRoot();
 
-            UpdatePrivacyUI();
+            this.UpdatePrivacyUI();
         }
 `n
         private void UpdatePrivacyUI()
         {
-            if (_isPrivacyMode)
+            if (this._isPrivacyMode)
             {
-                UserNameText.Text = MaskString(_realUserName ?? "User");
-                ConfigDirText.Text = MaskPath(_realConfigDir ?? "Path");
-                DataDirText.Text = MaskPath(_realDataDir ?? "Path");
-                PrivacyBtn.Foreground = Brushes.Gold;
+                this.UserNameText.Text = this.MaskString(this._realUserName ?? "User");
+                this.ConfigDirText.Text = this.MaskPath(this._realConfigDir ?? "Path");
+                this.DataDirText.Text = this.MaskPath(this._realDataDir ?? "Path");
+                this.PrivacyBtn.Foreground = Brushes.Gold;
             }
             else
             {
-                UserNameText.Text = _realUserName;
-                ConfigDirText.Text = _realConfigDir;
-                DataDirText.Text = _realDataDir;
-                PrivacyBtn.Foreground = Brushes.Gray;
+                this.UserNameText.Text = this._realUserName;
+                this.ConfigDirText.Text = this._realConfigDir;
+                this.DataDirText.Text = this._realDataDir;
+                this.PrivacyBtn.Foreground = Brushes.Gray;
             }
         }
 
@@ -117,33 +117,33 @@ namespace AIUsageTracker.UI.Slim
 `n
         internal void PrepareForHeadlessScreenshot()
         {
-            _isPrivacyMode = true;
+            this._isPrivacyMode = true;
 
-            InternalVersionText.Text = "v2.1.2";
-            DotNetVersionText.Text = ".NET 8.0";
-            OsVersionText.Text = "Windows 10 (x64)";
-            ArchitectureText.Text = "X64";
-            MachineNameText.Text = "WORKSTATION";
-            UserNameText.Text = "d***r";
-            ConfigDirText.Text = @"C:\Users\***\...\.opencode";
-            DataDirText.Text = @"C:\Users\***\...\AIUsageTracker";
-            PrivacyBtn.Foreground = Brushes.Gold;
+            this.InternalVersionText.Text = "v2.1.2";
+            this.DotNetVersionText.Text = ".NET 8.0";
+            this.OsVersionText.Text = "Windows 10 (x64)";
+            this.ArchitectureText.Text = "X64";
+            this.MachineNameText.Text = "WORKSTATION";
+            this.UserNameText.Text = "d***r";
+            this.ConfigDirText.Text = @"C:\Users\***\...\.opencode";
+            this.DataDirText.Text = @"C:\Users\***\...\AIUsageTracker";
+            this.PrivacyBtn.Foreground = Brushes.Gold;
         }
 `n
-        private async void PrivacyBtn_Click(object sender, RoutedEventArgs e) => await PrivacyBtn_ClickAsync(sender, e);
+        private async void PrivacyBtn_Click(object sender, RoutedEventArgs e) => await this.PrivacyBtn_ClickAsync(sender, e);
 `n
         internal async Task PrivacyBtn_ClickAsync(object sender, RoutedEventArgs e)
         {
             try
             {
-                _isPrivacyMode = !_isPrivacyMode;
-                App.SetPrivacyMode(_isPrivacyMode);
+                this._isPrivacyMode = !this._isPrivacyMode;
+                App.SetPrivacyMode(this._isPrivacyMode);
                 // App.PrivacyChanged event will handle UI update
                 await Task.CompletedTask;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "PrivacyBtn_ClickAsync failed");
+                this._logger.LogError(ex, "PrivacyBtn_ClickAsync failed");
             }
         }
 `n
@@ -162,40 +162,40 @@ namespace AIUsageTracker.UI.Slim
 `n
         private void ConfigDir_Click(object sender, RoutedEventArgs e)
         {
-            if (Directory.Exists(_realConfigDir))
+            if (Directory.Exists(this._realConfigDir))
             {
                 try
                 {
                     Process.Start(new ProcessStartInfo
                     {
                         FileName = "explorer.exe",
-                        Arguments = $"\"{_realConfigDir}\"",
+                        Arguments = $"\"{this._realConfigDir}\"",
                         UseShellExecute = true
                     });
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to open config directory");
+                    this._logger.LogWarning(ex, "Failed to open config directory");
                 }
             }
         }
 `n
         private void DataDir_Click(object sender, RoutedEventArgs e)
         {
-            if (Directory.Exists(_realDataDir))
+            if (Directory.Exists(this._realDataDir))
             {
                 try
                 {
                     Process.Start(new ProcessStartInfo
                     {
                         FileName = "explorer.exe",
-                        Arguments = $"\"{_realDataDir}\"",
+                        Arguments = $"\"{this._realDataDir}\"",
                         UseShellExecute = true
                     });
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to open data directory");
+                    this._logger.LogWarning(ex, "Failed to open data directory");
                 }
             }
         }

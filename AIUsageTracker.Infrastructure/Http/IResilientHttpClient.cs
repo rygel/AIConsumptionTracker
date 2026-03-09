@@ -1,8 +1,9 @@
-using System.Net;
-
-namespace AIUsageTracker.Infrastructure.Http;
-
-public interface IResilientHttpClient
+namespace AIUsageTracker.Infrastructure.Http
 {
-    Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken = default);
+    using System.Net;
+
+    public interface IResilientHttpClient
+    {
+        Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken = default);
+    }
 }

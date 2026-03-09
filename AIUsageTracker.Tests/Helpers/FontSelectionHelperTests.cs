@@ -1,8 +1,8 @@
-using AIUsageTracker.Infrastructure.Helpers;
-using Xunit;
-
 namespace AIUsageTracker.Tests.Helpers
 {
+    using AIUsageTracker.Infrastructure.Helpers;
+    using Xunit;
+
     public class FontSelectionHelperTests
     {
         [Fact]
