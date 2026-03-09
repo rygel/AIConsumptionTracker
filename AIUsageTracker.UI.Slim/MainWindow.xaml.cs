@@ -927,8 +927,12 @@ public partial class MainWindow : Window
     }
 
     // UI Element Creation Helpers
-    private TextBlock CreateText(string text, double fontSize, Brush foreground,
-        FontWeight? fontWeight = null, Thickness? margin = null)
+    private TextBlock CreateText(
+        string text,
+        double fontSize,
+        Brush foreground,
+        FontWeight? fontWeight = null,
+        Thickness? margin = null)
     {
         return new TextBlock
         {
@@ -1158,8 +1162,12 @@ public partial class MainWindow : Window
     }
 
     private (UIElement Header, StackPanel Container) CreateCollapsibleHeader(
-        string title, Brush accent, bool isGroupHeader, string? groupKey,
-        Func<bool> getCollapsed, Action<bool> setCollapsed)
+        string title,
+        Brush accent,
+        bool isGroupHeader,
+        string? groupKey,
+        Func<bool> getCollapsed,
+        Action<bool> setCollapsed)
     {
         // Group header has larger margins, sub-header is indented
         var margin = isGroupHeader
@@ -2060,8 +2068,11 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             this._logger.LogError(ex, "Failed to open Web UI");
-            MessageBox.Show($"Failed to open Web UI: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                $"Failed to open Web UI: {ex.Message}",
+                "Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 

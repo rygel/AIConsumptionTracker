@@ -1097,21 +1097,27 @@ public partial class SettingsWindow : Window
             {
                 MessageBox.Show(
                     $"Found {count} new API key(s). They have been added to your configuration.",
-                    "Scan Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "Scan Complete",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
                 await this.LoadDataAsync();
             }
             else
             {
                 MessageBox.Show(
                     "No new API keys found.",
-                    "Scan Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "Scan Complete",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
         }
         catch (Exception ex)
         {
             MessageBox.Show(
                 $"Failed to scan for keys: {ex.Message}",
-                "Scan Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                "Scan Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
         finally
         {
@@ -1133,13 +1139,19 @@ public partial class SettingsWindow : Window
             // Reload data
             await this.LoadDataAsync();
 
-            MessageBox.Show("Data refreshed successfully.", "Refresh Complete",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(
+                "Data refreshed successfully.",
+                "Refresh Complete",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Failed to refresh data: {ex.Message}", "Refresh Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                $"Failed to refresh data: {ex.Message}",
+                "Refresh Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
@@ -1154,13 +1166,18 @@ public partial class SettingsWindow : Window
             {
                 MessageBox.Show(
                     "No history data available. The agent may not have collected any data yet.",
-                    "No Data", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "No Data",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Failed to load history: {ex.Message}", "History Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                $"Failed to load history: {ex.Message}",
+                "History Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
@@ -1177,8 +1194,11 @@ public partial class SettingsWindow : Window
             var csv = await this._monitorService.ExportDataAsync("csv");
             if (string.IsNullOrEmpty(csv))
             {
-                MessageBox.Show("No data to export or Monitor is not running.", "Export",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(
+                    "No data to export or Monitor is not running.",
+                    "Export",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
 
@@ -1192,14 +1212,20 @@ public partial class SettingsWindow : Window
             if (dialog.ShowDialog() == true)
             {
                 await File.WriteAllTextAsync(dialog.FileName, csv);
-                MessageBox.Show($"Exported to {dialog.FileName}", "Export Complete",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(
+                    $"Exported to {dialog.FileName}",
+                    "Export Complete",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Export failed: {ex.Message}", "Export Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                $"Export failed: {ex.Message}",
+                "Export Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
@@ -1211,8 +1237,11 @@ public partial class SettingsWindow : Window
             var json = await this._monitorService.ExportDataAsync("json");
             if (string.Equals(json, "[]", StringComparison.Ordinal) || string.IsNullOrEmpty(json))
             {
-                MessageBox.Show("No data to export or Monitor is not running.", "Export",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(
+                    "No data to export or Monitor is not running.",
+                    "Export",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
 
@@ -1226,14 +1255,20 @@ public partial class SettingsWindow : Window
             if (dialog.ShowDialog() == true)
             {
                 await File.WriteAllTextAsync(dialog.FileName, json);
-                MessageBox.Show($"Exported to {dialog.FileName}", "Export Complete",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(
+                    $"Exported to {dialog.FileName}",
+                    "Export Complete",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Export failed: {ex.Message}", "Export Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                $"Export failed: {ex.Message}",
+                "Export Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
@@ -1255,20 +1290,29 @@ public partial class SettingsWindow : Window
                 if (File.Exists(dbPath))
                 {
                     File.Copy(dbPath, dialog.FileName, true);
-                    MessageBox.Show($"Backup saved to {dialog.FileName}", "Backup Complete",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(
+                        $"Backup saved to {dialog.FileName}",
+                        "Backup Complete",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
                 }
                 else
                 {
-                    MessageBox.Show("Database file not found.", "Backup Error",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(
+                        "Database file not found.",
+                        "Backup Error",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
                 }
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Backup failed: {ex.Message}", "Backup Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                $"Backup failed: {ex.Message}",
+                "Backup Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
@@ -1295,19 +1339,28 @@ public partial class SettingsWindow : Window
             // Restart agent
             if (await MonitorLauncher.EnsureAgentRunningAsync())
             {
-                MessageBox.Show("Monitor restarted successfully.", "Restart Complete",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(
+                    "Monitor restarted successfully.",
+                    "Restart Complete",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
             else
             {
-                MessageBox.Show("Failed to restart Monitor.", "Restart Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(
+                    "Failed to restart Monitor.",
+                    "Restart Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Failed to restart Monitor: {ex.Message}", "Restart Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                $"Failed to restart Monitor: {ex.Message}",
+                "Restart Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
         finally
         {
@@ -1322,13 +1375,19 @@ public partial class SettingsWindow : Window
             var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync();
             var status = isRunning ? "Running" : "Not Running";
 
-            MessageBox.Show($"Monitor Status: {status}\n\nPort: {port}", "Health Check",
-                MessageBoxButton.OK, isRunning ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            MessageBox.Show(
+                $"Monitor Status: {status}\n\nPort: {port}",
+                "Health Check",
+                MessageBoxButton.OK,
+                isRunning ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Failed to check health: {ex.Message}", "Health Check Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                $"Failed to check health: {ex.Message}",
+                "Health Check Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
         finally
         {
