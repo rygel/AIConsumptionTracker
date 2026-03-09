@@ -40,7 +40,7 @@ public class ZaiProviderTests : HttpProviderTestBase<ZaiProvider>
                         usage = 135000000L, // Total limit
                         remaining = 108000000L
                     }
-                }
+                },
             },
         });
 
@@ -76,7 +76,7 @@ public class ZaiProviderTests : HttpProviderTestBase<ZaiProvider>
                         usage = (long?)null,
                         remaining = (long?)null
                     }
-                }
+                },
             },
         });
 
@@ -121,7 +121,7 @@ public class ZaiProviderTests : HttpProviderTestBase<ZaiProvider>
                         remaining = 100000000L,
                         nextResetTime = 4900000000L // Future
                     }
-                }
+                },
             },
         });
 
