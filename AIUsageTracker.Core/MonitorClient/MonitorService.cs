@@ -275,6 +275,7 @@ public class MonitorService : IMonitorService
         var stopwatch = Stopwatch.StartNew();
         try
         {
+            await this.RefreshPortAsync().ConfigureAwait(false);
             var usage = await this.GetUsageOnceAsync().ConfigureAwait(false);
             LogDiagnostic($"Successfully fetched usage from {this.AgentUrl}");
             stopwatch.Stop();
@@ -394,6 +395,7 @@ public class MonitorService : IMonitorService
     public async Task<bool> TriggerRefreshAsync()
     {
         var stopwatch = Stopwatch.StartNew();
+        await this.RefreshPortAsync().ConfigureAwait(false);
         var response = await this.SendMonitorRequestAsync(
             httpClient => httpClient.PostAsync(this.BuildMonitorUrl("/api/refresh"), null),
             nameof(this.TriggerRefreshAsync)).ConfigureAwait(false);
@@ -517,6 +519,7 @@ public class MonitorService : IMonitorService
     /// <inheritdoc/>
     public async Task<bool> CheckHealthAsync()
     {
+        await this.RefreshPortAsync().ConfigureAwait(false);
         var response = await this.SendMonitorRequestAsync(
             httpClient => httpClient.GetAsync(this.BuildMonitorUrl("/api/health")),
             nameof(this.CheckHealthAsync)).ConfigureAwait(false);
