@@ -253,11 +253,35 @@ public class ProviderRefreshServiceTests
     [Fact]
     public async Task TriggerRefreshAsync_UsesPipelinePrivacyFlagAndPersistsPipelineOutputAsync()
     {
+        var scenario = await CreatePipelinePrivacyScenarioAsync();
+        InvokeInitializeProviders(scenario.Service, 6);
+        try
+        {
+            await scenario.Service.TriggerRefreshAsync(forceAll: true);
+        }
+        finally
+        {
+            Directory.Delete(scenario.Files.Root, recursive: true);
+        }
+
+        scenario.Pipeline.Verify(
+            p => p.Process(
+                It.IsAny<IEnumerable<ProviderUsage>>(),
+                It.Is<IReadOnlyCollection<string>>(ids => ids.Contains("openai", StringComparer.OrdinalIgnoreCase)),
+                true),
+            Times.Once);
+
+        scenario.Database.Verify(
+            d => d.StoreHistoryAsync(It.Is<IEnumerable<ProviderUsage>>(items =>
+                items.Any(u => u.ProviderId == "openai" && Math.Abs(u.RequestsPercentage - 50) < 0.001))),
+            Times.Once);
+    }
+
+    private static async Task<PipelinePrivacyScenario> CreatePipelinePrivacyScenarioAsync()
+    {
+        var files = await CreatePipelineTestFilesAsync();
+        var loggerFactory = CreateLoggerFactory();
         var logger = new Mock<ILogger<ProviderRefreshService>>();
-        var loggerFactory = new Mock<ILoggerFactory>();
-        loggerFactory
-            .Setup(factory => factory.CreateLogger(It.IsAny<string>()))
-            .Returns(Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
         var database = new Mock<IUsageDatabase>();
         var notificationService = new Mock<INotificationService>();
         var httpClientFactory = new Mock<IHttpClientFactory>();
@@ -265,45 +289,82 @@ public class ProviderRefreshServiceTests
         var pathProvider = new Mock<IAppPathProvider>();
         var jobScheduler = new Mock<IMonitorJobScheduler>();
         var pipeline = new Mock<IProviderUsageProcessingPipeline>();
-        var testRoot = Path.Combine(Path.GetTempPath(), $"provider-refresh-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(testRoot);
-        var authPath = Path.Combine(testRoot, "auth.json");
-        var providersPath = Path.Combine(testRoot, "providers.json");
-        var preferencesPath = Path.Combine(testRoot, "preferences.json");
-        await File.WriteAllTextAsync(authPath, """
-        {
-          "openai": {
-            "key": "test-key",
-            "type": "pay-as-you-go"
-          }
-        }
-        """);
-        await File.WriteAllTextAsync(providersPath, "{}");
-        await File.WriteAllTextAsync(preferencesPath, "{}");
+        var provider = CreateOpenAiProvider();
+        ConfigurePipelinePrivacyMocks(files, database, configService, pathProvider, jobScheduler, pipeline);
+        var service = CreatePipelinePrivacyService(
+            logger.Object,
+            loggerFactory.Object,
+            database.Object,
+            notificationService.Object,
+            httpClientFactory.Object,
+            configService.Object,
+            pathProvider.Object,
+            provider.Object,
+            pipeline.Object);
 
-        var preferences = new AppPreferences
-        {
-            IsPrivacyMode = true,
-            MaxConcurrentProviderRequests = 6,
-        };
+        return new PipelinePrivacyScenario(service, database, pipeline, files);
+    }
 
+    private static Mock<ILoggerFactory> CreateLoggerFactory()
+    {
+        var loggerFactory = new Mock<ILoggerFactory>();
+        loggerFactory
+            .Setup(factory => factory.CreateLogger(It.IsAny<string>()))
+            .Returns(Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        return loggerFactory;
+    }
+
+    private static void ConfigurePipelinePrivacyMocks(
+        PipelineTestFiles files,
+        Mock<IUsageDatabase> database,
+        Mock<IConfigService> configService,
+        Mock<IAppPathProvider> pathProvider,
+        Mock<IMonitorJobScheduler> jobScheduler,
+        Mock<IProviderUsageProcessingPipeline> pipeline)
+    {
+        var preferences = new AppPreferences { IsPrivacyMode = true, MaxConcurrentProviderRequests = 6 };
         var configs = new List<ProviderConfig>
         {
-            new()
-            {
-                ProviderId = "openai",
-                ApiKey = "test-key",
-                Type = "pay-as-you-go",
-            },
+            new() { ProviderId = "openai", ApiKey = "test-key", Type = "pay-as-you-go" },
+        };
+        var processedOutput = new ProviderUsage
+        {
+            ProviderId = "openai",
+            ProviderName = "OpenAI",
+            RequestsUsed = 5,
+            RequestsAvailable = 10,
+            RequestsPercentage = 50,
+            IsAvailable = true,
         };
 
+        configService.Setup(c => c.GetPreferencesAsync()).ReturnsAsync(preferences);
+        configService.Setup(c => c.GetConfigsAsync()).ReturnsAsync(configs);
+        pathProvider.Setup(p => p.GetAppDataRoot()).Returns(files.Root);
+        pathProvider.Setup(p => p.GetDatabasePath()).Returns(Path.Combine(files.Root, "usage.db"));
+        pathProvider.Setup(p => p.GetLogDirectory()).Returns(files.Root);
+        pathProvider.Setup(p => p.GetAuthFilePath()).Returns(files.AuthPath);
+        pathProvider.Setup(p => p.GetProviderConfigFilePath()).Returns(files.ProvidersPath);
+        pathProvider.Setup(p => p.GetPreferencesFilePath()).Returns(files.PreferencesPath);
+        pathProvider.Setup(p => p.GetUserProfileRoot()).Returns(files.Root);
+        database.Setup(d => d.GetRecentHistoryAsync(It.IsAny<int>())).ReturnsAsync(new List<ProviderUsage>());
+        jobScheduler.Setup(s => s.Enqueue(
+                It.IsAny<string>(),
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<MonitorJobPriority>(),
+                It.IsAny<string?>()))
+            .Returns(true);
+        pipeline.Setup(p => p.Process(It.IsAny<IEnumerable<ProviderUsage>>(), It.IsAny<IReadOnlyCollection<string>>(), true))
+            .Returns(new ProviderUsageProcessingResult { Usages = new[] { processedOutput } });
+    }
+
+    private static Mock<IProviderService> CreateOpenAiProvider()
+    {
         var providerDefinition = new ProviderDefinition(
             providerId: "openai",
             displayName: "OpenAI",
             planType: PlanType.Usage,
             isQuotaBased: false,
             defaultConfigType: "pay-as-you-go");
-
         var provider = new Mock<IProviderService>();
         provider.SetupGet(p => p.ProviderId).Returns("openai");
         provider.SetupGet(p => p.Definition).Returns(providerDefinition);
@@ -320,89 +381,65 @@ public class ProviderRefreshServiceTests
                     IsAvailable = true,
                 },
             });
+        return provider;
+    }
 
-        var processedOutput = new ProviderUsage
-        {
-            ProviderId = "openai",
-            ProviderName = "OpenAI",
-            RequestsUsed = 5,
-            RequestsAvailable = 10,
-            RequestsPercentage = 50,
-            IsAvailable = true,
-        };
-
-        pipeline.Setup(p => p.Process(
-                It.IsAny<IEnumerable<ProviderUsage>>(),
-                It.IsAny<IReadOnlyCollection<string>>(),
-                true))
-            .Returns(new ProviderUsageProcessingResult
-            {
-                Usages = new[] { processedOutput },
-            });
-
-        configService.Setup(c => c.GetPreferencesAsync()).ReturnsAsync(preferences);
-        configService.Setup(c => c.GetConfigsAsync()).ReturnsAsync(configs);
-        pathProvider.Setup(p => p.GetAppDataRoot()).Returns(testRoot);
-        pathProvider.Setup(p => p.GetDatabasePath()).Returns(Path.Combine(testRoot, "usage.db"));
-        pathProvider.Setup(p => p.GetLogDirectory()).Returns(testRoot);
-        pathProvider.Setup(p => p.GetAuthFilePath()).Returns(authPath);
-        pathProvider.Setup(p => p.GetProviderConfigFilePath()).Returns(providersPath);
-        pathProvider.Setup(p => p.GetPreferencesFilePath()).Returns(preferencesPath);
-        pathProvider.Setup(p => p.GetUserProfileRoot()).Returns(testRoot);
-        database.Setup(d => d.GetRecentHistoryAsync(It.IsAny<int>())).ReturnsAsync(new List<ProviderUsage>());
-        jobScheduler
-            .Setup(s => s.Enqueue(
+    private static ProviderRefreshService CreatePipelinePrivacyService(
+        ILogger<ProviderRefreshService> logger,
+        ILoggerFactory loggerFactory,
+        IUsageDatabase database,
+        INotificationService notificationService,
+        IHttpClientFactory httpClientFactory,
+        IConfigService configService,
+        IAppPathProvider pathProvider,
+        IProviderService provider,
+        IProviderUsageProcessingPipeline pipeline)
+    {
+        var alertsLogger = new Mock<ILogger<UsageAlertsService>>();
+        var usageAlertsService = new UsageAlertsService(alertsLogger.Object, database, notificationService, configService);
+        var circuitBreakerLogger = new Mock<ILogger<ProviderRefreshCircuitBreakerService>>();
+        var circuitBreakerService = new ProviderRefreshCircuitBreakerService(circuitBreakerLogger.Object);
+        var jobScheduler = new Mock<IMonitorJobScheduler>();
+        jobScheduler.Setup(s => s.Enqueue(
                 It.IsAny<string>(),
                 It.IsAny<Func<CancellationToken, Task>>(),
                 It.IsAny<MonitorJobPriority>(),
                 It.IsAny<string?>()))
             .Returns(true);
 
-        var alertsLogger = new Mock<ILogger<UsageAlertsService>>();
-        var usageAlertsService = new UsageAlertsService(
-            alertsLogger.Object,
-            database.Object,
-            notificationService.Object,
-            configService.Object);
-
-        var circuitBreakerLogger = new Mock<ILogger<ProviderRefreshCircuitBreakerService>>();
-        var circuitBreakerService = new ProviderRefreshCircuitBreakerService(circuitBreakerLogger.Object);
-
-        var service = new ProviderRefreshService(
-            logger.Object,
-            loggerFactory.Object,
-            database.Object,
-            notificationService.Object,
-            httpClientFactory.Object,
-            configService.Object,
-            pathProvider.Object,
-            new[] { provider.Object },
+        return new ProviderRefreshService(
+            logger,
+            loggerFactory,
+            database,
+            notificationService,
+            httpClientFactory,
+            configService,
+            pathProvider,
+            new[] { provider },
             usageAlertsService,
             circuitBreakerService,
             jobScheduler.Object,
-            pipeline.Object);
+            pipeline);
+    }
 
-        InvokeInitializeProviders(service, 6);
-        try
+    private static async Task<PipelineTestFiles> CreatePipelineTestFilesAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"provider-refresh-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var authPath = Path.Combine(root, "auth.json");
+        var providersPath = Path.Combine(root, "providers.json");
+        var preferencesPath = Path.Combine(root, "preferences.json");
+        await File.WriteAllTextAsync(authPath, """
         {
-            await service.TriggerRefreshAsync(forceAll: true);
+          "openai": {
+            "key": "test-key",
+            "type": "pay-as-you-go"
+          }
         }
-        finally
-        {
-            Directory.Delete(testRoot, recursive: true);
-        }
-
-        pipeline.Verify(
-            p => p.Process(
-                It.IsAny<IEnumerable<ProviderUsage>>(),
-                It.Is<IReadOnlyCollection<string>>(ids => ids.Contains("openai", StringComparer.OrdinalIgnoreCase)),
-                true),
-            Times.Once);
-
-        database.Verify(
-            d => d.StoreHistoryAsync(It.Is<IEnumerable<ProviderUsage>>(items =>
-                items.Any(u => u.ProviderId == "openai" && Math.Abs(u.RequestsPercentage - 50) < 0.001))),
-            Times.Once);
+        """);
+        await File.WriteAllTextAsync(providersPath, "{}");
+        await File.WriteAllTextAsync(preferencesPath, "{}");
+        return new PipelineTestFiles(root, authPath, providersPath, preferencesPath);
     }
 
     private static void InvokeInitializeProviders(ProviderRefreshService service, int maxConcurrentRequests)
@@ -425,4 +462,12 @@ public class ProviderRefreshServiceTests
         Assert.NotNull(manager);
         return manager!.MaxConcurrentProviderRequests;
     }
+
+    private sealed record PipelineTestFiles(string Root, string AuthPath, string ProvidersPath, string PreferencesPath);
+
+    private sealed record PipelinePrivacyScenario(
+        ProviderRefreshService Service,
+        Mock<IUsageDatabase> Database,
+        Mock<IProviderUsageProcessingPipeline> Pipeline,
+        PipelineTestFiles Files);
 }
