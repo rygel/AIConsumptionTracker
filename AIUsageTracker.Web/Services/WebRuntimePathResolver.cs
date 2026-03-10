@@ -2,69 +2,67 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-namespace AIUsageTracker.Web.Services
+using AIUsageTracker.Core.Paths;
+
+namespace AIUsageTracker.Web.Services;
+
+internal static class WebRuntimePathResolver
 {
-    using AIUsageTracker.Core.Paths;
+    internal readonly record struct WebRuntimePaths(
+        string AppRoot,
+        string LogDirectory,
+        string DataProtectionKeyDirectory,
+        string DatabasePath);
 
-    internal static class WebRuntimePathResolver
+    public static WebRuntimePaths Resolve(string localAppDataRoot)
     {
-        internal readonly record struct WebRuntimePaths(
-            string AppRoot,
-            string LogDirectory,
-            string DataProtectionKeyDirectory,
-            string DatabasePath);
+        var appRoot = AppPathCatalog.GetCanonicalAppDataRoot(localAppDataRoot);
+        var logDirectory = AppPathCatalog.GetCanonicalLogDirectory(localAppDataRoot);
+        var runtimeFallbackRoot = Path.Combine(AppContext.BaseDirectory, ".runtime");
+        var writableAppRoot = EnsureWritableDirectory(appRoot, Path.Combine(runtimeFallbackRoot, "app-data"));
+        var writableLogDirectory = EnsureWritableDirectory(logDirectory, Path.Combine(runtimeFallbackRoot, "logs"));
+        var dataProtectionKeyDirectory = EnsureWritableDirectory(
+            Path.Combine(writableAppRoot, "web-data-protection"),
+            Path.Combine(runtimeFallbackRoot, "web-data-protection"));
+        var databasePath = ResolveDatabasePath(localAppDataRoot, Path.Combine(runtimeFallbackRoot, "db-snapshot"));
 
-        public static WebRuntimePaths Resolve(string localAppDataRoot)
+        return new WebRuntimePaths(
+            writableAppRoot,
+            writableLogDirectory,
+            dataProtectionKeyDirectory,
+            databasePath);
+    }
+
+    public static string EnsureWritableDirectory(string preferredPath, string fallbackPath)
+    {
+        if (TryEnsureDirectory(preferredPath))
         {
-            var appRoot = AppPathCatalog.GetCanonicalAppDataRoot(localAppDataRoot);
-            var logDirectory = AppPathCatalog.GetCanonicalLogDirectory(localAppDataRoot);
-            var runtimeFallbackRoot = Path.Combine(AppContext.BaseDirectory, ".runtime");
-            var writableAppRoot = EnsureWritableDirectory(appRoot, Path.Combine(runtimeFallbackRoot, "app-data"));
-            var writableLogDirectory = EnsureWritableDirectory(logDirectory, Path.Combine(runtimeFallbackRoot, "logs"));
-            var dataProtectionKeyDirectory = EnsureWritableDirectory(
-                Path.Combine(writableAppRoot, "web-data-protection"),
-                Path.Combine(runtimeFallbackRoot, "web-data-protection"));
-            var databasePath = ResolveDatabasePath(localAppDataRoot, Path.Combine(runtimeFallbackRoot, "db-snapshot"));
-
-            return new WebRuntimePaths(
-                writableAppRoot,
-                writableLogDirectory,
-                dataProtectionKeyDirectory,
-                databasePath);
+            return preferredPath;
         }
 
-        public static string EnsureWritableDirectory(string preferredPath, string fallbackPath)
+        Directory.CreateDirectory(fallbackPath);
+        return fallbackPath;
+    }
+
+    public static string ResolveDatabasePath(string localAppDataRoot, string snapshotRoot)
+    {
+        return WebDatabasePathResolver.Resolve(localAppDataRoot, snapshotRoot);
+    }
+
+    private static bool TryEnsureDirectory(string path)
+    {
+        try
         {
-            if (TryEnsureDirectory(preferredPath))
-            {
-                return preferredPath;
-            }
-
-            Directory.CreateDirectory(fallbackPath);
-            return fallbackPath;
+            Directory.CreateDirectory(path);
+            return true;
         }
-
-        public static string ResolveDatabasePath(string localAppDataRoot, string snapshotRoot)
+        catch (UnauthorizedAccessException)
         {
-            return WebDatabasePathResolver.Resolve(localAppDataRoot, snapshotRoot);
+            return false;
         }
-
-        private static bool TryEnsureDirectory(string path)
+        catch (IOException)
         {
-            try
-            {
-                Directory.CreateDirectory(path);
-                return true;
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return false;
-            }
-            catch (IOException)
-            {
-                return false;
-            }
+            return false;
         }
-
     }
 }
