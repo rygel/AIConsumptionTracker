@@ -49,7 +49,9 @@ public class ProviderRefreshService : BackgroundService
     private long _refreshTotalLatencyMs;
     private long _lastRefreshLatencyMs;
     private readonly object _telemetryLock = new();
+    private DateTime? _lastRefreshAttemptUtc;
     private DateTime? _lastRefreshCompletedUtc;
+    private DateTime? _lastSuccessfulRefreshUtc;
     private string? _lastRefreshError;
 
     public static void SetDebugMode(bool debug)
@@ -257,6 +259,7 @@ public class ProviderRefreshService : BackgroundService
         var refreshStopwatch = Stopwatch.StartNew();
         var refreshSucceeded = false;
         string? refreshError = null;
+        this.RecordRefreshAttemptStarted(DateTime.UtcNow);
 
         if (this._providerManager == null)
         {
@@ -513,10 +516,14 @@ public class ProviderRefreshService : BackgroundService
         var lastRefreshLatencyMs = Interlocked.Read(ref this._lastRefreshLatencyMs);
 
         DateTime? lastRefreshCompletedUtc;
+        DateTime? lastRefreshAttemptUtc;
+        DateTime? lastSuccessfulRefreshUtc;
         string? lastRefreshError;
         lock (this._telemetryLock)
         {
+            lastRefreshAttemptUtc = this._lastRefreshAttemptUtc;
             lastRefreshCompletedUtc = this._lastRefreshCompletedUtc;
+            lastSuccessfulRefreshUtc = this._lastSuccessfulRefreshUtc;
             lastRefreshError = this._lastRefreshError;
         }
 
@@ -532,9 +539,20 @@ public class ProviderRefreshService : BackgroundService
             ErrorRatePercent = errorRatePercent,
             AverageLatencyMs = averageLatencyMs,
             LastLatencyMs = lastRefreshLatencyMs,
+            LastRefreshAttemptUtc = lastRefreshAttemptUtc,
             LastRefreshCompletedUtc = lastRefreshCompletedUtc,
+            LastSuccessfulRefreshUtc = lastSuccessfulRefreshUtc,
             LastError = lastRefreshError,
+            ProviderDiagnostics = this._providerCircuitBreakerService.GetProviderDiagnostics(),
         };
+    }
+
+    private void RecordRefreshAttemptStarted(DateTime attemptUtc)
+    {
+        lock (this._telemetryLock)
+        {
+            this._lastRefreshAttemptUtc = attemptUtc;
+        }
     }
 
     private void RecordRefreshTelemetry(TimeSpan duration, bool success, string? errorMessage)
@@ -555,6 +573,11 @@ public class ProviderRefreshService : BackgroundService
         lock (this._telemetryLock)
         {
             this._lastRefreshCompletedUtc = DateTime.UtcNow;
+            if (success)
+            {
+                this._lastSuccessfulRefreshUtc = this._lastRefreshCompletedUtc;
+            }
+
             this._lastRefreshError = success ? null : errorMessage;
         }
     }

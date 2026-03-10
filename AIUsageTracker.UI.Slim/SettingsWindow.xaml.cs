@@ -1375,14 +1375,18 @@ public partial class SettingsWindow : Window
     {
         try
         {
+            await this._monitorService.RefreshPortAsync();
+            await this._monitorService.RefreshAgentInfoAsync();
+
             var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync();
+            var healthSnapshot = await this._monitorService.GetHealthSnapshotAsync();
             var status = isRunning ? "Running" : "Not Running";
 
             MessageBox.Show(
-                $"Monitor Status: {status}\n\nPort: {port}",
+                this.BuildHealthCheckMessage(status, port, healthSnapshot),
                 "Health Check",
                 MessageBoxButton.OK,
-                isRunning ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                this.GetHealthCheckIcon(isRunning, healthSnapshot));
         }
         catch (Exception ex)
         {
@@ -1398,6 +1402,61 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private string BuildHealthCheckMessage(string processStatus, int port, MonitorHealthSnapshot? healthSnapshot)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine($"Monitor Status: {processStatus}");
+        builder.AppendLine($"Port: {port}");
+
+        if (healthSnapshot == null)
+        {
+            return builder.ToString();
+        }
+
+        builder.AppendLine($"Service Health: {healthSnapshot.ServiceHealth}");
+        builder.AppendLine($"Monitor Version: {healthSnapshot.AgentVersion ?? "unknown"}");
+        builder.AppendLine($"API Contract: {healthSnapshot.ApiContractVersion ?? "unknown"}");
+        builder.AppendLine($"Last Health Ping: {FormatHealthTimestamp(healthSnapshot.Timestamp)}");
+        builder.AppendLine($"Refresh Status: {healthSnapshot.RefreshHealth.Status}");
+        builder.AppendLine($"Last Refresh Attempt: {FormatHealthTimestamp(healthSnapshot.RefreshHealth.LastRefreshAttemptUtc)}");
+        builder.AppendLine($"Last Successful Refresh: {FormatHealthTimestamp(healthSnapshot.RefreshHealth.LastSuccessfulRefreshUtc)}");
+        builder.AppendLine($"Providers In Backoff: {healthSnapshot.RefreshHealth.ProvidersInBackoff}");
+
+        if (healthSnapshot.RefreshHealth.FailingProviders.Count > 0)
+        {
+            builder.AppendLine($"Failing Providers: {string.Join(", ", healthSnapshot.RefreshHealth.FailingProviders)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(healthSnapshot.RefreshHealth.LastError))
+        {
+            builder.AppendLine($"Last Refresh Error: {healthSnapshot.RefreshHealth.LastError}");
+        }
+
+        return builder.ToString();
+    }
+
+    private MessageBoxImage GetHealthCheckIcon(bool isRunning, MonitorHealthSnapshot? healthSnapshot)
+    {
+        if (!isRunning)
+        {
+            return MessageBoxImage.Warning;
+        }
+
+        return string.Equals(healthSnapshot?.ServiceHealth, "degraded", StringComparison.OrdinalIgnoreCase)
+            ? MessageBoxImage.Warning
+            : MessageBoxImage.Information;
+    }
+
+    private static string FormatHealthTimestamp(DateTime? timestampUtc)
+    {
+        if (!timestampUtc.HasValue)
+        {
+            return "Never";
+        }
+
+        return $"{timestampUtc.Value.ToLocalTime():yyyy-MM-dd HH:mm:ss} (local)";
+    }
+
     private async void ExportDiagnosticsBtn_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -1406,6 +1465,7 @@ public partial class SettingsWindow : Window
             await this._monitorService.RefreshAgentInfoAsync();
 
             var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync();
+            var healthSnapshot = await this._monitorService.GetHealthSnapshotAsync();
             var healthDetails = await this._monitorService.GetHealthDetailsAsync();
             var diagnosticsDetails = await this._monitorService.GetDiagnosticsDetailsAsync();
 
@@ -1430,6 +1490,10 @@ public partial class SettingsWindow : Window
             bundle.AppendLine($"AgentUrl: {this._monitorService.AgentUrl}");
             bundle.AppendLine($"AgentRunning: {isRunning}");
             bundle.AppendLine($"AgentPort: {port.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+            bundle.AppendLine();
+
+            bundle.AppendLine("=== Monitor Health Summary ===");
+            bundle.AppendLine(this.BuildHealthCheckMessage(isRunning ? "Running" : "Not Running", port, healthSnapshot).TrimEnd());
             bundle.AppendLine();
 
             bundle.AppendLine("=== Monitor Health ===");

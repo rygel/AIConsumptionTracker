@@ -15,15 +15,41 @@ public sealed class KestrelWebApplicationFactory<TEntryPoint> : IDisposable
     private readonly object _syncRoot = new();
     private readonly StringBuilder _startupOutput = new();
     private readonly string _projectPath;
+    private readonly IReadOnlyDictionary<string, string>? _environmentOverrides;
+    private readonly string? _localAppDataRoot;
+    private readonly bool _ownsLocalAppDataRoot;
     private Process? _process;
     private string? _serverAddress;
     private bool _disposed;
     private bool _initialized;
 
     public KestrelWebApplicationFactory()
+        : this(localAppDataRoot: null, ownsLocalAppDataRoot: false, environmentOverrides: null)
+    {
+    }
+
+    public KestrelWebApplicationFactory(string localAppDataRoot)
+        : this(localAppDataRoot, ownsLocalAppDataRoot: true, environmentOverrides: null)
+    {
+    }
+
+    public KestrelWebApplicationFactory(IReadOnlyDictionary<string, string> environmentOverrides)
+        : this(localAppDataRoot: null, ownsLocalAppDataRoot: false, environmentOverrides)
+    {
+    }
+
+    public string? LocalAppDataRoot => this._localAppDataRoot;
+
+    private KestrelWebApplicationFactory(
+        string? localAppDataRoot,
+        bool ownsLocalAppDataRoot,
+        IReadOnlyDictionary<string, string>? environmentOverrides)
     {
         this._projectPath = Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AIUsageTracker.Web"));
+        this._environmentOverrides = environmentOverrides;
+        this._localAppDataRoot = localAppDataRoot;
+        this._ownsLocalAppDataRoot = ownsLocalAppDataRoot;
     }
 
     public string ServerAddress
@@ -43,15 +69,9 @@ public sealed class KestrelWebApplicationFactory<TEntryPoint> : IDisposable
         }
 
         this._disposed = true;
-
-        if (this._process == null)
-        {
-            return;
-        }
-
         try
         {
-            if (!this._process.HasExited)
+            if (this._process != null && !this._process.HasExited)
             {
                 this._process.CloseMainWindow();
                 if (!this._process.WaitForExit(5000))
@@ -67,8 +87,22 @@ public sealed class KestrelWebApplicationFactory<TEntryPoint> : IDisposable
         }
         finally
         {
-            this._process.Dispose();
+            this._process?.Dispose();
             this._process = null;
+
+            if (this._ownsLocalAppDataRoot &&
+                !string.IsNullOrWhiteSpace(this._localAppDataRoot) &&
+                Directory.Exists(this._localAppDataRoot))
+            {
+                try
+                {
+                    Directory.Delete(this._localAppDataRoot, recursive: true);
+                }
+                catch
+                {
+                    // Ignore cleanup failures.
+                }
+            }
         }
     }
 
@@ -125,6 +159,19 @@ public sealed class KestrelWebApplicationFactory<TEntryPoint> : IDisposable
         startInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
         startInfo.Environment["DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER"] = "1";
         startInfo.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
+        if (!string.IsNullOrWhiteSpace(this._localAppDataRoot))
+        {
+            Directory.CreateDirectory(this._localAppDataRoot);
+            startInfo.Environment["LOCALAPPDATA"] = this._localAppDataRoot;
+        }
+
+        if (this._environmentOverrides != null)
+        {
+            foreach (var pair in this._environmentOverrides)
+            {
+                startInfo.Environment[pair.Key] = pair.Value;
+            }
+        }
 
         this._process = new Process
         {

@@ -18,8 +18,15 @@ namespace AIUsageTracker.Monitor.Services
 
         public long LastLatencyMs { get; init; }
 
+        public DateTime? LastRefreshAttemptUtc { get; init; }
+
         public DateTime? LastRefreshCompletedUtc { get; init; }
 
+        public DateTime? LastSuccessfulRefreshUtc { get; init; }
+
         public string? LastError { get; init; }
+
+        public IReadOnlyList<ProviderRefreshDiagnostic> ProviderDiagnostics { get; init; } =
+            Array.Empty<ProviderRefreshDiagnostic>();
     }
 }

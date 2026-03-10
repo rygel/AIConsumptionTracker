@@ -3,10 +3,12 @@
 // </copyright>
 
 using System.Text.Json;
+using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Web.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace AIUsageTracker.Tests.Core;
 
@@ -39,6 +41,8 @@ public sealed class MonitorProcessServiceTests : IDisposable
         Assert.False(result.IsRunning);
         Assert.Equal(5000, result.Port);
         Assert.Equal("agent-info-missing", result.Error);
+        Assert.Null(result.StartupState);
+        Assert.Null(result.StartupFailureReason);
     }
 
     [Fact]
@@ -62,6 +66,8 @@ public sealed class MonitorProcessServiceTests : IDisposable
         Assert.False(result.IsRunning);
         Assert.Equal(6111, result.Port);
         Assert.Equal("monitor-unreachable", result.Error);
+        Assert.Null(result.StartupState);
+        Assert.Null(result.StartupFailureReason);
     }
 
     [Fact]
@@ -84,6 +90,51 @@ public sealed class MonitorProcessServiceTests : IDisposable
 
         Assert.True(result.Success);
         Assert.Equal("Monitor already running on port 6222.", result.Message);
+        Assert.Null(result.Error);
+        Assert.Null(result.StartupState);
+        Assert.Null(result.StartupFailureReason);
+    }
+
+    [Fact]
+    public async Task StartAgentDetailedAsync_ReturnsStartupFailureDetails_WhenStartupFailsWhileWaitingAsync()
+    {
+        var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = 0,
+            ProcessId = 9999,
+            Errors = new List<string> { "Startup status: starting" },
+        });
+
+        using var overrides = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: _ => Task.FromResult(false),
+            processRunningAsync: _ => Task.FromResult(true));
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(250).ConfigureAwait(false);
+            var replacementPath = Path.Combine(this._tempDirectory, $"monitor-{Guid.NewGuid():N}.json");
+            var replacementInfo = new MonitorInfo
+            {
+                Port = 5000,
+                ProcessId = 9999,
+                Errors = new List<string> { "Startup status: failed: port bind failed" },
+            };
+            await File.WriteAllTextAsync(
+                replacementPath,
+                JsonSerializer.Serialize(replacementInfo)).ConfigureAwait(false);
+            File.Replace(replacementPath, infoPath, destinationBackupFileName: null, ignoreMetadataErrors: true);
+        });
+
+        var service = this.CreateService();
+
+        var result = await service.StartAgentDetailedAsync();
+
+        Assert.False(result.Success);
+        Assert.Equal("monitor-startup-failed", result.Error);
+        Assert.Equal("failed", result.StartupState);
+        Assert.Equal("port bind failed", result.StartupFailureReason);
+        Assert.Equal("Monitor startup failed: port bind failed", result.Message);
     }
 
     [Fact]
@@ -108,7 +159,78 @@ public sealed class MonitorProcessServiceTests : IDisposable
         Assert.False(result.IsRunning);
         Assert.Equal(5000, result.Port);
         Assert.Equal("monitor-starting", result.Error);
+        Assert.Equal("starting", result.StartupState);
+        Assert.Null(result.StartupFailureReason);
         Assert.Equal("Monitor is starting.", result.Message);
+    }
+
+    [Fact]
+    public async Task GetAgentStatusDetailedAsync_ReturnsStartupFailureReason_WhenMonitorStartupFailsAsync()
+    {
+        var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = 5000,
+            ProcessId = 0,
+            Errors = new List<string> { "Startup status: failed: port 5000 is already in use" },
+        });
+
+        using var overrides = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: _ => Task.FromResult(false),
+            processRunningAsync: _ => Task.FromResult(false));
+
+        var service = this.CreateService();
+
+        var result = await service.GetAgentStatusDetailedAsync();
+
+        Assert.False(result.IsRunning);
+        Assert.Equal(5000, result.Port);
+        Assert.Equal("monitor-startup-failed", result.Error);
+        Assert.Equal("failed", result.StartupState);
+        Assert.Equal("port 5000 is already in use", result.StartupFailureReason);
+        Assert.Equal("Startup status: failed: port 5000 is already in use", result.Message);
+    }
+
+    [Fact]
+    public async Task GetAgentStatusDetailedAsync_ReturnsDegradedHealthSummary_WhenMonitorIsRunningAsync()
+    {
+        var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = 6333,
+            ProcessId = 7777,
+        });
+
+        using var overrides = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: port => Task.FromResult(port == 6333),
+            processRunningAsync: processId => Task.FromResult(processId == 7777));
+
+        var healthSnapshot = new MonitorHealthSnapshot
+        {
+            Status = "healthy",
+            ServiceHealth = "degraded",
+            RefreshHealth = new MonitorRefreshHealthSnapshot
+            {
+                Status = "degraded",
+                LastError = "ProviderManager not ready",
+                ProvidersInBackoff = 2,
+                FailingProviders = new[] { "openai", "anthropic" },
+            },
+        };
+        var service = this.CreateService(healthSnapshot);
+
+        var result = await service.GetAgentStatusDetailedAsync();
+
+        Assert.True(result.IsRunning);
+        Assert.Equal(6333, result.Port);
+        Assert.Equal("degraded", result.ServiceHealth);
+        Assert.Equal("ProviderManager not ready", result.LastRefreshError);
+        Assert.Equal(2, result.ProvidersInBackoff);
+        Assert.Equal(new[] { "openai", "anthropic" }, result.FailingProviders);
+        Assert.Null(result.StartupState);
+        Assert.Null(result.StartupFailureReason);
+        Assert.Contains("degraded", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("openai", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -135,9 +257,12 @@ public sealed class MonitorProcessServiceTests : IDisposable
         }
     }
 
-    private MonitorProcessService CreateService()
+    private MonitorProcessService CreateService(MonitorHealthSnapshot? healthSnapshot = null)
     {
-        return new MonitorProcessService(NullLogger<MonitorProcessService>.Instance);
+        var monitorService = new Mock<IMonitorService>();
+        monitorService.Setup(service => service.RefreshAgentInfoAsync()).Returns(Task.CompletedTask);
+        monitorService.Setup(service => service.GetHealthSnapshotAsync()).ReturnsAsync(healthSnapshot);
+        return new MonitorProcessService(NullLogger<MonitorProcessService>.Instance, monitorService.Object);
     }
 
     private async Task<string> CreateMonitorInfoAsync(MonitorInfo info)

@@ -41,6 +41,8 @@ namespace AIUsageTracker.Core.Interfaces
 
         Task<bool> CheckHealthAsync();
 
+        Task<MonitorHealthSnapshot?> GetHealthSnapshotAsync();
+
         Task<AgentContractHandshakeResult> CheckApiContractAsync();
 
         Task<string> ExportDataAsync(string format);

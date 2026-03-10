@@ -5,6 +5,7 @@
 namespace AIUsageTracker.Web.Services
 {
     using AIUsageTracker.Core.Interfaces;
+    using AIUsageTracker.Core.MonitorClient;
     using AIUsageTracker.Infrastructure.Configuration;
     using AIUsageTracker.Infrastructure.Helpers;
     using AIUsageTracker.Infrastructure.Services;
@@ -26,6 +27,15 @@ namespace AIUsageTracker.Web.Services
             });
             services.AddSingleton<IWebDatabaseRepository>(sp => sp.GetRequiredService<WebDatabaseService>());
             services.AddSingleton<IUsageAnalyticsService, UsageAnalyticsService>();
+            services.AddSingleton<IMonitorService, MonitorService>();
+            services.AddSingleton<IMonitorLauncherClient>(_ =>
+            {
+                var scenarioPath = Environment.GetEnvironmentVariable(
+                    ScenarioMonitorLauncherClient.ScenarioPathEnvironmentVariable);
+                return string.IsNullOrWhiteSpace(scenarioPath)
+                    ? new MonitorLauncherClient()
+                    : new ScenarioMonitorLauncherClient(scenarioPath);
+            });
             services.AddSingleton<IDataExportService>(sp =>
             {
                 var repo = sp.GetRequiredService<IWebDatabaseRepository>();
