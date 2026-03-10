@@ -2,119 +2,119 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-namespace AIUsageTracker.Web.Tests.Services
+using System.Globalization;
+using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Web.Services;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+namespace AIUsageTracker.Web.Tests.Services;
+
+[TestClass]
+public class WebDatabaseServiceTests
 {
-    using System.Globalization;
-    using AIUsageTracker.Core.Interfaces;
-    using AIUsageTracker.Web.Services;
-    using Microsoft.Data.Sqlite;
-    using Microsoft.Extensions.Caching.Memory;
-    using Microsoft.Extensions.Logging.Abstractions;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
+    private string _tempDirectory = string.Empty;
 
-    [TestClass]
-    public class WebDatabaseServiceTests
+    [TestInitialize]
+    public void Initialize()
     {
-        private string _tempDirectory = string.Empty;
+        this._tempDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "WebDatabaseServiceTests_" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
+        Directory.CreateDirectory(this._tempDirectory);
+    }
 
-        [TestInitialize]
-        public void Initialize()
+    [TestCleanup]
+    public void Cleanup()
+    {
+        if (Directory.Exists(this._tempDirectory))
         {
-            this._tempDirectory = Path.Combine(
-                Path.GetTempPath(),
-                "WebDatabaseServiceTests_" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
-            Directory.CreateDirectory(this._tempDirectory);
+            this.DeleteDirectoryWithRetry(this._tempDirectory);
         }
+    }
 
-        [TestCleanup]
-        public void Cleanup()
+    [TestMethod]
+    public async Task GetLatestUsageAsync_IncludeInactiveFalse_ReturnsOnlyAvailableActiveProvidersAsync()
+    {
+        var databasePath = this.CreateSeededDatabase();
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = this.CreateService(databasePath, cache);
+
+        var result = await service.GetLatestUsageAsync(includeInactive: false);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual("openai", result[0].ProviderId);
+        Assert.IsTrue(result[0].IsAvailable);
+    }
+
+    [TestMethod]
+    public async Task GetLatestUsageAsync_IncludeInactiveTrue_ReturnsAllLatestRowsAsync()
+    {
+        var databasePath = this.CreateSeededDatabase();
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = this.CreateService(databasePath, cache);
+
+        var result = await service.GetLatestUsageAsync(includeInactive: true);
+
+        Assert.AreEqual(2, result.Count);
+    }
+
+    [TestMethod]
+    public async Task GetUsageSummaryAsync_UsesCache_WhenDatabaseBecomesUnavailableAsync()
+    {
+        var databasePath = this.CreateSeededDatabase();
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = this.CreateService(databasePath, cache);
+
+        var summary = await service.GetUsageSummaryAsync();
+        Assert.AreEqual(2, summary.ProviderCount);
+        Assert.AreEqual(65.0, summary.AverageUsage, 0.01);
+
+        var unavailableService = this.CreateService(
+            Path.Combine(this._tempDirectory, "missing-after-cache.db"),
+            cache);
+
+        var cachedSummary = await unavailableService.GetUsageSummaryAsync();
+        Assert.AreEqual(summary.ProviderCount, cachedSummary.ProviderCount);
+        Assert.AreEqual(summary.AverageUsage, cachedSummary.AverageUsage, 0.01);
+    }
+
+    [TestMethod]
+    public async Task GetProvidersAsync_WhenDatabaseMissing_ReturnsEmptyListAsync()
+    {
+        var databasePath = Path.Combine(this._tempDirectory, "missing.db");
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = this.CreateService(databasePath, cache);
+
+        var providers = await service.GetProvidersAsync();
+
+        Assert.AreEqual(0, providers.Count);
+    }
+
+    private WebDatabaseService CreateService(string databasePath, IMemoryCache cache)
+    {
+        return new WebDatabaseService(
+            cache,
+            NullLogger<WebDatabaseService>.Instance,
+            new TestAppPathProvider(databasePath));
+    }
+
+    private string CreateSeededDatabase()
+    {
+        var databasePath = Path.Combine(this._tempDirectory, "usage.db");
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
-            if (Directory.Exists(this._tempDirectory))
-            {
-                this.DeleteDirectoryWithRetry(this._tempDirectory);
-            }
-        }
+            DataSource = databasePath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Cache = SqliteCacheMode.Private,
+            Pooling = false,
+        }.ToString());
+        connection.Open();
 
-        [TestMethod]
-        public async Task GetLatestUsageAsync_IncludeInactiveFalse_ReturnsOnlyAvailableActiveProviders()
-        {
-            var databasePath = this.CreateSeededDatabase();
-            using var cache = new MemoryCache(new MemoryCacheOptions());
-            var service = this.CreateService(databasePath, cache);
-
-            var result = await service.GetLatestUsageAsync(includeInactive: false);
-
-            Assert.AreEqual(1, result.Count);
-            Assert.AreEqual("openai", result[0].ProviderId);
-            Assert.IsTrue(result[0].IsAvailable);
-        }
-
-        [TestMethod]
-        public async Task GetLatestUsageAsync_IncludeInactiveTrue_ReturnsAllLatestRows()
-        {
-            var databasePath = this.CreateSeededDatabase();
-            using var cache = new MemoryCache(new MemoryCacheOptions());
-            var service = this.CreateService(databasePath, cache);
-
-            var result = await service.GetLatestUsageAsync(includeInactive: true);
-
-            Assert.AreEqual(2, result.Count);
-        }
-
-        [TestMethod]
-        public async Task GetUsageSummaryAsync_UsesCache_WhenDatabaseBecomesUnavailable()
-        {
-            var databasePath = this.CreateSeededDatabase();
-            using var cache = new MemoryCache(new MemoryCacheOptions());
-            var service = this.CreateService(databasePath, cache);
-
-            var summary = await service.GetUsageSummaryAsync();
-            Assert.AreEqual(2, summary.ProviderCount);
-            Assert.AreEqual(65.0, summary.AverageUsage, 0.01);
-
-            var unavailableService = this.CreateService(
-                Path.Combine(this._tempDirectory, "missing-after-cache.db"),
-                cache);
-
-            var cachedSummary = await unavailableService.GetUsageSummaryAsync();
-            Assert.AreEqual(summary.ProviderCount, cachedSummary.ProviderCount);
-            Assert.AreEqual(summary.AverageUsage, cachedSummary.AverageUsage, 0.01);
-        }
-
-        [TestMethod]
-        public async Task GetProvidersAsync_WhenDatabaseMissing_ReturnsEmptyList()
-        {
-            var databasePath = Path.Combine(this._tempDirectory, "missing.db");
-            using var cache = new MemoryCache(new MemoryCacheOptions());
-            var service = this.CreateService(databasePath, cache);
-
-            var providers = await service.GetProvidersAsync();
-
-            Assert.AreEqual(0, providers.Count);
-        }
-
-        private WebDatabaseService CreateService(string databasePath, IMemoryCache cache)
-        {
-            return new WebDatabaseService(
-                cache,
-                NullLogger<WebDatabaseService>.Instance,
-                new TestAppPathProvider(databasePath));
-        }
-
-        private string CreateSeededDatabase()
-        {
-            var databasePath = Path.Combine(this._tempDirectory, "usage.db");
-            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-            {
-                DataSource = databasePath,
-                Mode = SqliteOpenMode.ReadWriteCreate,
-                Cache = SqliteCacheMode.Private,
-                Pooling = false,
-            }.ToString());
-            connection.Open();
-
-            using var command = connection.CreateCommand();
-            command.CommandText = @"
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
 CREATE TABLE providers (
     provider_id TEXT PRIMARY KEY,
     provider_name TEXT NOT NULL,
@@ -135,30 +135,30 @@ CREATE TABLE provider_history (
     fetched_at TEXT NOT NULL,
     next_reset_time TEXT NULL
 );";
-            command.ExecuteNonQuery();
+        command.ExecuteNonQuery();
 
-            this.SeedProviderRows(connection);
-            this.SeedHistoryRows(connection);
+        this.SeedProviderRows(connection);
+        this.SeedHistoryRows(connection);
 
-            return databasePath;
-        }
+        return databasePath;
+    }
 
-        private void SeedProviderRows(SqliteConnection connection)
-        {
-            using var command = connection.CreateCommand();
-            command.CommandText = @"
+    private void SeedProviderRows(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
 INSERT INTO providers (provider_id, provider_name, is_active, auth_source, account_name)
 VALUES ('openai', 'OpenAI Raw', 1, 'api_key', 'acct-openai');
 
 INSERT INTO providers (provider_id, provider_name, is_active, auth_source, account_name)
 VALUES ('claude', 'Claude Raw', 1, 'api_key', 'acct-claude');";
-            command.ExecuteNonQuery();
-        }
+        command.ExecuteNonQuery();
+    }
 
-        private void SeedHistoryRows(SqliteConnection connection)
-        {
-            using var command = connection.CreateCommand();
-            command.CommandText = @"
+    private void SeedHistoryRows(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
 INSERT INTO provider_history (
     provider_id,
     requests_used,
@@ -200,53 +200,52 @@ VALUES (
     200,
     '2026-03-10 10:00:00',
     NULL);";
-            command.ExecuteNonQuery();
-        }
+        command.ExecuteNonQuery();
+    }
 
-        private void DeleteDirectoryWithRetry(string path)
+    private void DeleteDirectoryWithRetry(string path)
+    {
+        const int maxAttempts = 5;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            const int maxAttempts = 5;
-
-            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            try
             {
-                try
-                {
-                    Directory.Delete(path, true);
-                    return;
-                }
-                catch (IOException) when (attempt < maxAttempts)
-                {
-                    System.Threading.Thread.Sleep(100 * attempt);
-                }
-                catch (UnauthorizedAccessException) when (attempt < maxAttempts)
-                {
-                    System.Threading.Thread.Sleep(100 * attempt);
-                }
+                Directory.Delete(path, true);
+                return;
+            }
+            catch (IOException) when (attempt < maxAttempts)
+            {
+                System.Threading.Thread.Sleep(100 * attempt);
+            }
+            catch (UnauthorizedAccessException) when (attempt < maxAttempts)
+            {
+                System.Threading.Thread.Sleep(100 * attempt);
             }
         }
+    }
 
-        private sealed class TestAppPathProvider : IAppPathProvider
+    private sealed class TestAppPathProvider : IAppPathProvider
+    {
+        private readonly string _databasePath;
+
+        public TestAppPathProvider(string databasePath)
         {
-            private readonly string _databasePath;
-
-            public TestAppPathProvider(string databasePath)
-            {
-                this._databasePath = databasePath;
-            }
-
-            public string GetAppDataRoot() => Path.GetDirectoryName(this._databasePath) ?? string.Empty;
-
-            public string GetDatabasePath() => this._databasePath;
-
-            public string GetLogDirectory() => this.GetAppDataRoot();
-
-            public string GetAuthFilePath() => Path.Combine(this.GetAppDataRoot(), "auth.json");
-
-            public string GetPreferencesFilePath() => Path.Combine(this.GetAppDataRoot(), "preferences.json");
-
-            public string GetProviderConfigFilePath() => Path.Combine(this.GetAppDataRoot(), "providers.json");
-
-            public string GetUserProfileRoot() => this.GetAppDataRoot();
+            this._databasePath = databasePath;
         }
+
+        public string GetAppDataRoot() => Path.GetDirectoryName(this._databasePath) ?? string.Empty;
+
+        public string GetDatabasePath() => this._databasePath;
+
+        public string GetLogDirectory() => this.GetAppDataRoot();
+
+        public string GetAuthFilePath() => Path.Combine(this.GetAppDataRoot(), "auth.json");
+
+        public string GetPreferencesFilePath() => Path.Combine(this.GetAppDataRoot(), "preferences.json");
+
+        public string GetProviderConfigFilePath() => Path.Combine(this.GetAppDataRoot(), "providers.json");
+
+        public string GetUserProfileRoot() => this.GetAppDataRoot();
     }
 }
