@@ -1094,12 +1094,12 @@ public partial class SettingsWindow : Window
             this.ScanBtn.IsEnabled = false;
             this.ScanBtn.Content = "Scanning...";
 
-            var (count, configs) = await this._monitorService.ScanForKeysAsync();
+            var scanResult = await this._monitorService.ScanForKeysAsync();
 
-            if (count > 0)
+            if (scanResult.Count > 0)
             {
                 MessageBox.Show(
-                    $"Found {count} new API key(s). They have been added to your configuration.",
+                    $"Found {scanResult.Count} new API key(s). They have been added to your configuration.",
                     "Scan Complete",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);

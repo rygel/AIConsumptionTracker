@@ -37,7 +37,7 @@ public interface IMonitorService
 
     Task<AgentTestNotificationResult> SendTestNotificationDetailedAsync();
 
-    Task<(int Count, IReadOnlyList<ProviderConfig> Configs)> ScanForKeysAsync();
+    Task<AgentScanKeysResult> ScanForKeysAsync();
 
     Task<bool> CheckHealthAsync();
 

@@ -490,7 +490,7 @@ public class MonitorService : IMonitorService
 
     // Scan for keys endpoint
     /// <inheritdoc/>
-    public async Task<(int Count, IReadOnlyList<ProviderConfig> Configs)> ScanForKeysAsync()
+    public async Task<AgentScanKeysResult> ScanForKeysAsync()
     {
         using var response = await this.SendMonitorRequestAsync(
             httpClient => httpClient.PostAsync(this.BuildMonitorUrl("/api/scan-keys"), null),
@@ -502,11 +502,15 @@ public class MonitorService : IMonitorService
                 nameof(this.ScanForKeysAsync)).ConfigureAwait(false);
             if (result != null)
             {
-                return (result.Discovered, result.Configs ?? new List<ProviderConfig>());
+                return new AgentScanKeysResult
+                {
+                    Count = result.Discovered,
+                    Configs = result.Configs ?? [],
+                };
             }
         }
 
-        return (0, new List<ProviderConfig>());
+        return new AgentScanKeysResult();
     }
 
     // Health check

@@ -355,12 +355,12 @@ namespace AIUsageTracker.CLI
         private static async Task ScanKeys(MonitorService service)
         {
             Console.WriteLine("Scanning for API keys from known applications...");
-            var (count, configs) = await service.ScanForKeysAsync().ConfigureAwait(false);
+            var result = await service.ScanForKeysAsync().ConfigureAwait(false);
 
-            if (count > 0)
+            if (result.Count > 0)
             {
-                Console.WriteLine($"Found {count} new API keys:");
-                foreach (var config in configs)
+                Console.WriteLine($"Found {result.Count} new API keys:");
+                foreach (var config in result.Configs)
                 {
                     Console.WriteLine($" - {config.ProviderId}");
                 }
