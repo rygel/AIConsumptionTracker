@@ -139,10 +139,19 @@ public class MonitorService : IMonitorService
         return $"{this.AgentUrl}{relativePath}";
     }
 
-    private async Task<T?> GetFromMonitorJsonAsync<T>(string relativePath, string operationName, int? timeoutSeconds = null)
+    private async Task<T?> GetFromMonitorJsonAsync<T>(
+        string relativePath,
+        string operationName,
+        int? timeoutSeconds = null,
+        bool refreshPort = true)
     {
         try
         {
+            if (refreshPort)
+            {
+                await this.RefreshPortAsync().ConfigureAwait(false);
+            }
+
             if (timeoutSeconds.HasValue)
             {
                 using var requestTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds.Value));
@@ -175,10 +184,16 @@ public class MonitorService : IMonitorService
 
     private async Task<HttpResponseMessage?> SendMonitorRequestAsync(
         Func<HttpClient, Task<HttpResponseMessage>> requestFactory,
-        string operationName)
+        string operationName,
+        bool refreshPort = true)
     {
         try
         {
+            if (refreshPort)
+            {
+                await this.RefreshPortAsync().ConfigureAwait(false);
+            }
+
             return await requestFactory(this._httpClient).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -389,7 +404,6 @@ public class MonitorService : IMonitorService
     public async Task<bool> TriggerRefreshAsync()
     {
         var stopwatch = Stopwatch.StartNew();
-        await this.RefreshPortAsync().ConfigureAwait(false);
         var response = await this.SendMonitorRequestAsync(
             httpClient => httpClient.PostAsync(this.BuildMonitorUrl(MonitorApiRoutes.Refresh), null),
             nameof(this.TriggerRefreshAsync)).ConfigureAwait(false);
@@ -447,8 +461,18 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            await this.RefreshPortAsync().ConfigureAwait(false);
-            using var response = await this._httpClient.PostAsync(this.BuildMonitorUrl(MonitorApiRoutes.TestNotification), null).ConfigureAwait(false);
+            using var response = await this.SendMonitorRequestAsync(
+                httpClient => httpClient.PostAsync(this.BuildMonitorUrl(MonitorApiRoutes.TestNotification), null),
+                nameof(this.SendTestNotificationDetailedAsync),
+                refreshPort: true).ConfigureAwait(false);
+            if (response == null)
+            {
+                return new AgentTestNotificationResult
+                {
+                    Success = false,
+                    Message = "Could not reach Monitor. Ensure it is running and try again.",
+                };
+            }
 
             if (response.IsSuccessStatusCode)
             {
@@ -625,11 +649,10 @@ public class MonitorService : IMonitorService
 
     private async Task<HealthProbeResult> ProbeHealthAsync(string operationName)
     {
-        await this.RefreshPortAsync().ConfigureAwait(false);
-
         using var response = await this.SendMonitorRequestAsync(
             httpClient => httpClient.GetAsync(this.BuildMonitorUrl(MonitorApiRoutes.Health)),
-            operationName).ConfigureAwait(false);
+            operationName,
+            refreshPort: true).ConfigureAwait(false);
         if (response == null)
         {
             return new HealthProbeResult(false, false, null, null);
@@ -657,10 +680,10 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            await this.RefreshPortAsync().ConfigureAwait(false);
             using var response = await this.SendMonitorRequestAsync(
                 httpClient => httpClient.GetAsync(this.BuildMonitorUrl(MonitorApiRoutes.ProviderCheck(providerId))),
-                nameof(this.CheckProviderAsync)).ConfigureAwait(false);
+                nameof(this.CheckProviderAsync),
+                refreshPort: true).ConfigureAwait(false);
             if (response == null)
             {
                 return new AgentProviderCheckResult
