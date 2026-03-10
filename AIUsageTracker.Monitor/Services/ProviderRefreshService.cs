@@ -18,14 +18,6 @@ namespace AIUsageTracker.Monitor.Services;
 
 public class ProviderRefreshService : BackgroundService
 {
-    private const string ManualRefreshJobName = "manual-provider-refresh";
-    private const string ScheduledRefreshJobName = "scheduled-provider-refresh";
-    private const string StartupSeedingJobName = "startup-provider-seeding";
-    private const string StartupTargetedRefreshJobName = "startup-targeted-provider-refresh";
-    private const string ScheduledRefreshCoalesceKey = "scheduled-provider-refresh";
-    private const string StartupSeedingCoalesceKey = "startup-provider-seeding";
-    private const string StartupTargetedRefreshCoalesceKey = "startup-targeted-provider-refresh";
-
     private readonly ILogger<ProviderRefreshService> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IUsageDatabase _database;
@@ -40,7 +32,7 @@ public class ProviderRefreshService : BackgroundService
     private readonly ProviderRefreshTelemetryManager _refreshTelemetryManager = new();
     private readonly ProviderUsagePersistenceService _usagePersistenceService;
     private readonly ProviderConnectivityCheckService _connectivityCheckService;
-    private readonly IMonitorJobScheduler _jobScheduler;
+    private readonly ProviderRefreshJobScheduler _refreshJobScheduler;
     private readonly IProviderUsageProcessingPipeline _usageProcessingPipeline;
     private readonly IHubContext<UsageHub>? _hubContext;
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
@@ -86,7 +78,9 @@ public class ProviderRefreshService : BackgroundService
         this._usagePersistenceService = new ProviderUsagePersistenceService(
             database,
             loggerFactory.CreateLogger<ProviderUsagePersistenceService>());
-        this._jobScheduler = jobScheduler;
+        this._refreshJobScheduler = new ProviderRefreshJobScheduler(
+            jobScheduler,
+            loggerFactory.CreateLogger<ProviderRefreshJobScheduler>());
         this._usageProcessingPipeline = usageProcessingPipeline ??
             new ProviderUsageProcessingPipeline(this._loggerFactory.CreateLogger<ProviderUsageProcessingPipeline>());
         this._connectivityCheckService = new ProviderConnectivityCheckService(
@@ -103,13 +97,9 @@ public class ProviderRefreshService : BackgroundService
         var initialConcurrency = await this.GetConfiguredMaxConcurrentProviderRequestsAsync().ConfigureAwait(false);
         this.InitializeProviders(initialConcurrency);
 
-        this._jobScheduler.RegisterRecurringJob(
-            ScheduledRefreshJobName,
+        this._refreshJobScheduler.RegisterRecurringRefresh(
             this._refreshInterval,
-            _ => this.TriggerRefreshAsync(),
-            MonitorJobPriority.Low,
-            initialDelay: this._refreshInterval,
-            coalesceKey: ScheduledRefreshCoalesceKey);
+            _ => this.TriggerRefreshAsync());
 
         var isEmpty = await this._database.IsHistoryEmptyAsync().ConfigureAwait(false);
         if (isEmpty)
@@ -144,64 +134,48 @@ public class ProviderRefreshService : BackgroundService
         IReadOnlyCollection<string>? includeProviderIds = null,
         bool bypassCircuitBreaker = false)
     {
-        return this._jobScheduler.Enqueue(
-            ManualRefreshJobName,
-            _ => this.TriggerRefreshAsync(forceAll, includeProviderIds, bypassCircuitBreaker),
-            MonitorJobPriority.High);
+        return this._refreshJobScheduler.QueueManualRefresh(
+            _ => this.TriggerRefreshAsync(forceAll, includeProviderIds, bypassCircuitBreaker));
     }
 
     private void QueueInitialDataSeeding()
     {
-        var queued = this._jobScheduler.Enqueue(
-            StartupSeedingJobName,
-            async _ =>
-        {
-            try
-            {
-                this._logger.LogInformation("First-time startup: scanning for keys and seeding database.");
-                await this._configService.ScanForKeysAsync().ConfigureAwait(false);
-                await this.TriggerRefreshAsync(forceAll: true).ConfigureAwait(false);
-                this._logger.LogInformation("First-time data seeding complete.");
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogError(ex, "Error during first-time data seeding.");
-            }
-        },
-            MonitorJobPriority.High,
-            coalesceKey: StartupSeedingCoalesceKey);
-
-        if (!queued)
-        {
-            this._logger.LogDebug("Startup seeding job was already queued.");
-        }
+        this._refreshJobScheduler.QueueInitialDataSeeding(this.RunStartupSeedingAsync);
     }
 
     private void QueueStartupTargetedRefresh()
     {
-        var queued = this._jobScheduler.Enqueue(
-            StartupTargetedRefreshJobName,
-            async _ =>
-        {
-            try
-            {
-                this._logger.LogDebug("Startup: running targeted refresh for system providers...");
-                await this.TriggerRefreshAsync(
-                    forceAll: true,
-                    includeProviderIds: ProviderMetadataCatalog.GetStartupRefreshProviderIds()).ConfigureAwait(false);
-                this._logger.LogDebug("Startup: targeted refresh complete.");
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogWarning(ex, "Startup targeted refresh failed");
-            }
-        },
-            MonitorJobPriority.Low,
-            coalesceKey: StartupTargetedRefreshCoalesceKey);
+        this._refreshJobScheduler.QueueStartupTargetedRefresh(this.RunStartupTargetedRefreshAsync);
+    }
 
-        if (!queued)
+    private async Task RunStartupSeedingAsync(CancellationToken _)
+    {
+        try
         {
-            this._logger.LogDebug("Startup targeted refresh job was already queued.");
+            this._logger.LogInformation("First-time startup: scanning for keys and seeding database.");
+            await this._configService.ScanForKeysAsync().ConfigureAwait(false);
+            await this.TriggerRefreshAsync(forceAll: true).ConfigureAwait(false);
+            this._logger.LogInformation("First-time data seeding complete.");
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogError(ex, "Error during first-time data seeding.");
+        }
+    }
+
+    private async Task RunStartupTargetedRefreshAsync(CancellationToken _)
+    {
+        try
+        {
+            this._logger.LogDebug("Startup: running targeted refresh for system providers...");
+            await this.TriggerRefreshAsync(
+                forceAll: true,
+                includeProviderIds: ProviderMetadataCatalog.GetStartupRefreshProviderIds()).ConfigureAwait(false);
+            this._logger.LogDebug("Startup: targeted refresh complete.");
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogWarning(ex, "Startup targeted refresh failed");
         }
     }
 
