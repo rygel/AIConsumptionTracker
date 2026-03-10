@@ -21,6 +21,10 @@ public class ProviderRefreshCircuitBreakerService
 
         public DateTime? CircuitOpenUntilUtc { get; set; }
 
+        public DateTime? LastRefreshAttemptUtc { get; set; }
+
+        public DateTime? LastSuccessfulRefreshUtc { get; set; }
+
         public string? LastError { get; set; }
     }
 
@@ -78,6 +82,13 @@ public class ProviderRefreshCircuitBreakerService
             var now = DateTime.UtcNow;
             foreach (var config in queriedConfigs)
             {
+                if (!this._providerFailureStates.TryGetValue(config.ProviderId, out var state))
+                {
+                    state = new ProviderFailureState();
+                    this._providerFailureStates[config.ProviderId] = state;
+                }
+
+                state.LastRefreshAttemptUtc = now;
                 var providerUsages = usages
                     .Where(u => IsUsageForProvider(config.ProviderId, u.ProviderId))
                     .ToList();
@@ -85,18 +96,20 @@ public class ProviderRefreshCircuitBreakerService
 
                 if (isSuccess)
                 {
-                    if (this._providerFailureStates.Remove(config.ProviderId))
+                    var hadFailures = state.ConsecutiveFailures > 0 ||
+                        state.CircuitOpenUntilUtc.HasValue ||
+                        !string.IsNullOrWhiteSpace(state.LastError);
+                    state.ConsecutiveFailures = 0;
+                    state.CircuitOpenUntilUtc = null;
+                    state.LastError = null;
+                    state.LastSuccessfulRefreshUtc = now;
+
+                    if (hadFailures)
                     {
                         this._logger.LogDebug("Circuit reset for {ProviderId}", config.ProviderId);
                     }
 
                     continue;
-                }
-
-                if (!this._providerFailureStates.TryGetValue(config.ProviderId, out var state))
-                {
-                    state = new ProviderFailureState();
-                    this._providerFailureStates[config.ProviderId] = state;
                 }
 
                 state.ConsecutiveFailures++;
@@ -125,6 +138,27 @@ public class ProviderRefreshCircuitBreakerService
                         state.LastError);
                 }
             }
+        }
+    }
+
+    public IReadOnlyList<ProviderRefreshDiagnostic> GetProviderDiagnostics()
+    {
+        lock (this._providerFailureLock)
+        {
+            var now = DateTime.UtcNow;
+            return this._providerFailureStates
+                .OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(entry => new ProviderRefreshDiagnostic
+                {
+                    ProviderId = entry.Key,
+                    LastRefreshAttemptUtc = entry.Value.LastRefreshAttemptUtc,
+                    LastSuccessfulRefreshUtc = entry.Value.LastSuccessfulRefreshUtc,
+                    LastRefreshError = entry.Value.LastError,
+                    IsCircuitOpen = entry.Value.CircuitOpenUntilUtc.HasValue && entry.Value.CircuitOpenUntilUtc.Value > now,
+                    CircuitOpenUntilUtc = entry.Value.CircuitOpenUntilUtc,
+                    ConsecutiveFailures = entry.Value.ConsecutiveFailures,
+                })
+                .ToArray();
         }
     }
 
