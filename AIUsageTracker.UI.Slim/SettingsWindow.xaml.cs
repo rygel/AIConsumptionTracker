@@ -24,6 +24,12 @@ namespace AIUsageTracker.UI.Slim;
 
 public partial class SettingsWindow : Window
 {
+    private static readonly JsonSerializerOptions BundleJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        WriteIndented = true,
+    };
+
     private readonly IMonitorService _monitorService;
     private readonly ILogger<SettingsWindow> _logger;
     private readonly IAppPathProvider _pathProvider;
@@ -1406,17 +1412,14 @@ public partial class SettingsWindow : Window
             await this._monitorService.RefreshAgentInfoAsync();
 
             var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync();
-            var healthDetails = await this._monitorService.GetHealthDetailsAsync();
+            var healthSnapshot = await this._monitorService.GetHealthSnapshotAsync();
             var diagnosticsSnapshot = await this._monitorService.GetDiagnosticsSnapshotAsync();
-            var diagnosticsDetails = diagnosticsSnapshot == null
-                ? "Diagnostics payload unavailable."
-                : JsonSerializer.Serialize(
-                    diagnosticsSnapshot,
-                    new JsonSerializerOptions
-                    {
-                        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-                        WriteIndented = true,
-                    });
+            var healthDetails = this.SerializeBundlePayload(
+                healthSnapshot,
+                "Health payload unavailable.");
+            var diagnosticsDetails = this.SerializeBundlePayload(
+                diagnosticsSnapshot,
+                "Diagnostics payload unavailable.");
 
             var saveDialog = new SaveFileDialog
             {
@@ -1442,13 +1445,13 @@ public partial class SettingsWindow : Window
             bundle.AppendLine();
 
             bundle.AppendLine("=== Monitor Health ===");
-            bundle.AppendLine(this.FormatJsonForBundle(healthDetails));
+            bundle.AppendLine(healthDetails);
             bundle.AppendLine();
 
             bundle.AppendLine("=== Monitor Diagnostics ===");
             this.AppendMonitorDiagnosticsSummary(bundle, diagnosticsSnapshot);
             bundle.AppendLine();
-            bundle.AppendLine(this.FormatJsonForBundle(diagnosticsDetails));
+            bundle.AppendLine(diagnosticsDetails);
             bundle.AppendLine();
 
             bundle.AppendLine("=== Monitor Errors (monitor.json) ===");
@@ -1520,25 +1523,14 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private string FormatJsonForBundle(string content)
+    private string SerializeBundlePayload<T>(T? payload, string emptyFallback)
     {
-        if (string.IsNullOrWhiteSpace(content))
+        if (payload == null)
         {
-            return "(empty)";
+            return emptyFallback;
         }
 
-        try
-        {
-            using var document = JsonDocument.Parse(content);
-            return JsonSerializer.Serialize(document.RootElement, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-            });
-        }
-        catch
-        {
-            return content;
-        }
+        return JsonSerializer.Serialize(payload, BundleJsonOptions);
     }
 
     private void AppendMonitorDiagnosticsSummary(StringBuilder bundle, AgentDiagnosticsSnapshot? diagnostics)
