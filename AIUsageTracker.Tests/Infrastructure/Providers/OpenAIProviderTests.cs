@@ -22,7 +22,7 @@ public class OpenAIProviderTests : HttpProviderTestBase<OpenAIProvider>
 
     public OpenAIProviderTests()
     {
-        this._provider = new OpenAIProvider(this.HttpClient, this.Logger.Object, this._discoveryService.Object);
+        this._provider = new OpenAIProvider(this.ResilientHttpClient.Object, this._discoveryService.Object, this.Logger.Object);
     }
 
     [Fact]

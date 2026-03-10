@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Http;
 using AIUsageTracker.Core.Providers;
 using Microsoft.Extensions.Logging;
 
@@ -31,13 +32,13 @@ public class MistralProvider : ProviderBase
     /// <inheritdoc/>
     public override string ProviderId => StaticDefinition.ProviderId;
 
-    private readonly HttpClient _httpClient;
+    private readonly IResilientHttpClient _resilientHttpClient;
     private readonly ILogger<MistralProvider> _logger;
 
-    public MistralProvider(HttpClient httpClient, ILogger<MistralProvider> logger, IProviderDiscoveryService? discoveryService = null)
+    public MistralProvider(IResilientHttpClient resilientHttpClient, ILogger<MistralProvider> logger, IProviderDiscoveryService? discoveryService = null)
         : base(discoveryService)
     {
-        this._httpClient = httpClient;
+        this._resilientHttpClient = resilientHttpClient;
         this._logger = logger;
     }
 
@@ -63,7 +64,7 @@ public class MistralProvider : ProviderBase
             var request = new HttpRequestMessage(HttpMethod.Get, "https://api.mistral.ai/v1/models");
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 
-            var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
+            var response = await this._resilientHttpClient.SendAsync(request, this.ProviderId).ConfigureAwait(false);
             var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             if (response.IsSuccessStatusCode)

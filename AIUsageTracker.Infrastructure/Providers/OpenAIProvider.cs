@@ -11,6 +11,7 @@ using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Http;
 using AIUsageTracker.Core.Paths;
 using AIUsageTracker.Core.Providers;
 using Microsoft.Extensions.Logging;
@@ -57,13 +58,13 @@ public class OpenAIProvider : ProviderBase
     /// <inheritdoc/>
     public override string ProviderId => StaticDefinition.ProviderId;
 
-    private readonly HttpClient _httpClient;
+    private readonly IResilientHttpClient _resilientHttpClient;
     private readonly ILogger<OpenAIProvider> _logger;
 
-    public OpenAIProvider(HttpClient httpClient, ILogger<OpenAIProvider> logger, IProviderDiscoveryService? discoveryService = null)
+    public OpenAIProvider(IResilientHttpClient resilientHttpClient, IProviderDiscoveryService discoveryService, ILogger<OpenAIProvider> logger)
         : base(discoveryService)
     {
-        this._httpClient = httpClient;
+        this._resilientHttpClient = resilientHttpClient;
         this._logger = logger;
     }
 
@@ -126,7 +127,7 @@ public class OpenAIProvider : ProviderBase
         {
             var request = new HttpRequestMessage(HttpMethod.Get, "https://api.openai.com/v1/models");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
+            var response = await this._resilientHttpClient.SendAsync(request, this.ProviderId).ConfigureAwait(false);
 
             if (response.IsSuccessStatusCode)
             {
@@ -186,7 +187,7 @@ public class OpenAIProvider : ProviderBase
             request.Headers.TryAddWithoutValidation("ChatGPT-Account-Id", accountId);
         }
 
-        using var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
+        using var response = await this._resilientHttpClient.SendAsync(request, this.ProviderId).ConfigureAwait(false);
         var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
