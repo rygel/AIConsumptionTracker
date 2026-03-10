@@ -45,14 +45,23 @@ internal static class MonitorUsageEndpoints
             return result != null ? Results.Ok(result) : Results.NotFound();
         });
 
-        app.MapPost(MonitorApiRoutes.Refresh, ([FromServices] ProviderRefreshService refreshService, ILogger<Program> logger) =>
+        app.MapPost(MonitorApiRoutes.Refresh, ([FromServices] ProviderRefreshService refreshService, ILogger<Program> logger, [FromQuery] bool forceAll = false, [FromQuery] string? providerIds = null) =>
         {
-            logger.LogDebug("POST {Route}", MonitorApiRoutes.Refresh);
-            var queued = refreshService.QueueForceRefresh();
+            var includeProviderIds = ParseProviderIds(providerIds);
+            logger.LogDebug(
+                "POST {Route} forceAll={ForceAll} includeProviderCount={IncludeProviderCount}",
+                MonitorApiRoutes.Refresh,
+                forceAll,
+                includeProviderIds?.Count ?? 0);
+            var queued = refreshService.QueueForceRefresh(
+                forceAll: forceAll,
+                includeProviderIds: includeProviderIds);
             return Results.Ok(new
             {
                 message = queued ? "Refresh queued" : "Refresh already queued",
                 queued,
+                forceAll,
+                includeProviderCount = includeProviderIds?.Count ?? 0,
             });
         });
 
@@ -66,5 +75,20 @@ internal static class MonitorUsageEndpoints
                 "notifications");
             return Results.Ok(new { message = "Test notification sent" });
         });
+    }
+
+    private static IReadOnlyCollection<string>? ParseProviderIds(string? providerIds)
+    {
+        if (string.IsNullOrWhiteSpace(providerIds))
+        {
+            return null;
+        }
+
+        var parsed = providerIds
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return parsed.Length == 0 ? null : parsed;
     }
 }
