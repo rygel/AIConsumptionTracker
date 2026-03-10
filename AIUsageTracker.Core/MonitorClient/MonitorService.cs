@@ -532,43 +532,11 @@ public class MonitorService : IMonitorService
             nameof(this.GetHealthSnapshotAsync)).ConfigureAwait(false);
     }
 
-    /// <inheritdoc/>
-    public Task<string> GetHealthDetailsAsync()
-    {
-        return this.GetEndpointDetailsAsync("/api/health");
-    }
-
-    /// <inheritdoc/>
-    public Task<string> GetDiagnosticsDetailsAsync()
-    {
-        return this.GetEndpointDetailsAsync("/api/diagnostics");
-    }
-
     public async Task<AgentDiagnosticsSnapshot?> GetDiagnosticsSnapshotAsync()
     {
         return await this.GetFromMonitorJsonAsync<AgentDiagnosticsSnapshot>(
             "/api/diagnostics",
             nameof(this.GetDiagnosticsSnapshotAsync)).ConfigureAwait(false);
-    }
-
-    private async Task<string> GetEndpointDetailsAsync(string endpointPath)
-    {
-        var response = await this.SendMonitorRequestAsync(
-            httpClient => httpClient.GetAsync(this.BuildMonitorUrl(endpointPath)),
-            nameof(this.GetEndpointDetailsAsync)).ConfigureAwait(false);
-        if (response == null)
-        {
-            return "Request failed: no response from Monitor.";
-        }
-
-        var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            return $"HTTP {(int)response.StatusCode}: {body}";
-        }
-
-        return body;
     }
 
     /// <inheritdoc/>

@@ -47,9 +47,5 @@ public interface IMonitorService
 
     Task<string> ExportDataAsync(string format);
 
-    Task<string> GetHealthDetailsAsync();
-
-    Task<string> GetDiagnosticsDetailsAsync();
-
     Task<AgentDiagnosticsSnapshot?> GetDiagnosticsSnapshotAsync();
 }

@@ -517,43 +517,6 @@ public class MonitorServiceTests
     }
 
     [Fact]
-    public async Task GetHealthDetailsAsync_Success_ReturnsPayloadAsync()
-    {
-        // Arrange
-        var responseObj = new
-        {
-            status = "healthy",
-            apiContractVersion = MonitorService.ExpectedApiContractVersion,
-        };
-        this.SetupMockResponse(HttpStatusCode.OK, responseObj);
-
-        // Act
-        var result = await this._service.GetHealthDetailsAsync();
-
-        // Assert
-        Assert.Contains("healthy", result, StringComparison.OrdinalIgnoreCase);
-        this.VerifyPath("/api/health");
-    }
-
-    [Fact]
-    public async Task GetDiagnosticsDetailsAsync_RequestFails_ReturnsErrorMessageAsync()
-    {
-        // Arrange
-        this._mockHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.IsAny<HttpRequestMessage>(),
-                ItExpr.IsAny<CancellationToken>())
-            .ThrowsAsync(new HttpRequestException("network failure"));
-
-        // Act
-        var result = await this._service.GetDiagnosticsDetailsAsync();
-
-        // Assert
-        Assert.Contains("Request failed", result, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
     public async Task GetDiagnosticsSnapshotAsync_Success_ReturnsTypedTelemetryAsync()
     {
         this.SetupMockResponse(HttpStatusCode.OK, CreateDiagnosticsPayload());
