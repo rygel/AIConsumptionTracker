@@ -343,6 +343,69 @@ public class ProviderRefreshServiceTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task CheckProviderAsync_UsesPipelineOutputAndReturnsConnectedAsync()
+    {
+        var scenario = CreatePipelinePrivacyScenario();
+        InvokeInitializeProviders(scenario.Service, 6);
+        try
+        {
+            var (success, message, status) = await scenario.Service.CheckProviderAsync("openai");
+
+            Assert.True(success);
+            Assert.Equal("Connected", message);
+            Assert.Equal(200, status);
+            scenario.Pipeline.Verify(
+                p => p.Process(
+                    It.IsAny<IEnumerable<ProviderUsage>>(),
+                    It.Is<IReadOnlyCollection<string>>(ids => ids.Contains("openai", StringComparer.OrdinalIgnoreCase)),
+                    true),
+                Times.Once);
+        }
+        finally
+        {
+            Directory.Delete(scenario.Files.Root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task CheckProviderAsync_WhenPipelineMarksUnavailable_ReturnsServiceUnavailableAsync()
+    {
+        var scenario = CreatePipelinePrivacyScenario();
+        scenario.Pipeline.Setup(
+                p => p.Process(
+                    It.IsAny<IEnumerable<ProviderUsage>>(),
+                    It.IsAny<IReadOnlyCollection<string>>(),
+                    true))
+            .Returns(new ProviderUsageProcessingResult
+            {
+                Usages = new[]
+                {
+                    new ProviderUsage
+                    {
+                        ProviderId = "openai",
+                        ProviderName = "OpenAI",
+                        IsAvailable = false,
+                        Description = "Invalid detail contract",
+                    },
+                },
+            });
+
+        InvokeInitializeProviders(scenario.Service, 6);
+        try
+        {
+            var (success, message, status) = await scenario.Service.CheckProviderAsync("openai");
+
+            Assert.False(success);
+            Assert.Equal("Invalid detail contract", message);
+            Assert.Equal(503, status);
+        }
+        finally
+        {
+            Directory.Delete(scenario.Files.Root, recursive: true);
+        }
+    }
+
     private static PipelinePrivacyScenario CreatePipelinePrivacyScenario()
     {
         var files = CreatePipelineTestFiles();
@@ -430,7 +493,8 @@ public class ProviderRefreshServiceTests
             displayName: "OpenAI",
             planType: PlanType.Usage,
             isQuotaBased: false,
-            defaultConfigType: "pay-as-you-go");
+            defaultConfigType: "pay-as-you-go",
+            autoIncludeWhenUnconfigured: true);
         var provider = new Mock<IProviderService>();
         provider.SetupGet(p => p.ProviderId).Returns("openai");
         provider.SetupGet(p => p.Definition).Returns(providerDefinition);
