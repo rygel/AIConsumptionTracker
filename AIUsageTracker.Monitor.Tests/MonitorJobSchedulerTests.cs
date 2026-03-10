@@ -3,6 +3,7 @@
 // </copyright>
 
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using AIUsageTracker.Monitor.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -182,5 +183,52 @@ public class MonitorJobSchedulerTests
         await Task.Delay(150);
 
         Assert.Equal(executedAfterStop, scheduler.GetSnapshot().ExecutedJobs);
+    }
+
+    [Fact]
+    public async Task Enqueue_EmitsExecutionActivityWithJobMetadataAsync()
+    {
+        var logger = new Mock<ILogger<MonitorJobScheduler>>();
+        var scheduler = new MonitorJobScheduler(logger.Object);
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stoppedActivities = new ConcurrentQueue<Activity>();
+
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => string.Equals(source.Name, MonitorActivitySources.SchedulerSourceName, StringComparison.Ordinal),
+            Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            SampleUsingParentId = static (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity => stoppedActivities.Enqueue(activity),
+        };
+
+        ActivitySource.AddActivityListener(listener);
+
+        await scheduler.StartAsync(CancellationToken.None);
+        try
+        {
+            _ = scheduler.Enqueue(
+                "activity-job",
+                _ =>
+                {
+                    completion.TrySetResult(true);
+                    return Task.CompletedTask;
+                },
+                MonitorJobPriority.High);
+
+            var completed = await Task.WhenAny(completion.Task, Task.Delay(TimeSpan.FromSeconds(3))) == completion.Task;
+            Assert.True(completed, "Scheduled job did not complete within timeout.");
+        }
+        finally
+        {
+            await scheduler.StopAsync(CancellationToken.None);
+        }
+
+        var jobActivity = Assert.Single(
+            stoppedActivities,
+            activity => string.Equals(activity.OperationName, "monitor.scheduler.execute_job", StringComparison.Ordinal));
+        Assert.Equal("activity-job", jobActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "job.name", StringComparison.Ordinal)).Value);
+        Assert.Equal("High", jobActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "job.priority", StringComparison.Ordinal)).Value);
+        Assert.Equal(false, jobActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "job.coalesced", StringComparison.Ordinal)).Value);
+        Assert.Equal(ActivityStatusCode.Ok, jobActivity.Status);
     }
 }

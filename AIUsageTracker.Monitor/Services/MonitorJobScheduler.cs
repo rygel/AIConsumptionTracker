@@ -3,6 +3,7 @@
 // </copyright>
 
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -168,9 +169,17 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
                 Interlocked.Increment(ref this._inFlightJobs);
                 try
                 {
+                    using var activity = MonitorActivitySources.Scheduler.StartActivity(
+                        "monitor.scheduler.execute_job",
+                        ActivityKind.Internal);
+                    activity?.SetTag("job.name", job.Name);
+                    activity?.SetTag("job.priority", job.Priority.ToString());
+                    activity?.SetTag("job.coalesced", !string.IsNullOrWhiteSpace(job.CoalesceKey));
+
                     this._logger.LogDebug("Executing scheduled job {JobName} ({Priority})", job.Name, job.Priority);
                     await job.Work(stoppingToken).ConfigureAwait(false);
                     Interlocked.Increment(ref this._executedJobs);
+                    activity?.SetStatus(ActivityStatusCode.Ok);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -179,6 +188,9 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
                 catch (Exception ex)
                 {
                     Interlocked.Increment(ref this._failedJobs);
+                    Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                    Activity.Current?.SetTag("error.type", ex.GetType().FullName);
+                    Activity.Current?.SetTag("error.message", ex.Message);
                     this._logger.LogError(ex, "Scheduled job {JobName} failed", job.Name);
                 }
                 finally

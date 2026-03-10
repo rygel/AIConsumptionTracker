@@ -3,6 +3,7 @@
 // </copyright>
 
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -136,6 +137,30 @@ public class ProviderRefreshServiceTests
         Assert.Equal(1, telemetry.RefreshFailureCount);
         Assert.True(telemetry.ErrorRatePercent > 0);
         Assert.Equal("ProviderManager not ready", telemetry.LastError);
+    }
+
+    [Fact]
+    public async Task TriggerRefreshAsync_EmitsRefreshActivityWithErrorStatusWhenProviderManagerMissingAsync()
+    {
+        var stoppedActivities = new List<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => string.Equals(source.Name, MonitorActivitySources.RefreshSourceName, StringComparison.Ordinal),
+            Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            SampleUsingParentId = static (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity => stoppedActivities.Add(activity),
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        await this._service.TriggerRefreshAsync();
+
+        var refreshActivity = Assert.Single(
+            stoppedActivities,
+            activity => string.Equals(activity.OperationName, "monitor.refresh.cycle", StringComparison.Ordinal));
+        Assert.Equal(ActivityStatusCode.Error, refreshActivity.Status);
+        Assert.Equal(false, refreshActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "refresh.force_all", StringComparison.Ordinal)).Value);
+        Assert.Equal(0, refreshActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "refresh.include_provider_count", StringComparison.Ordinal)).Value);
+        Assert.Equal(false, refreshActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "refresh.bypass_circuit_breaker", StringComparison.Ordinal)).Value);
     }
 
     [Fact]
