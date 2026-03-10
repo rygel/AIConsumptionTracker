@@ -63,6 +63,48 @@ public class MonitorServiceTests
     }
 
     [Fact]
+    public async Task CheckProviderAsync_RevalidatesEndpointBeforeRequestAsync()
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), "monitor-service-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            var infoPath = await this.CreateMonitorInfoAsync(tempDirectory, new MonitorInfo
+            {
+                Port = 5777,
+                ProcessId = 7878,
+            });
+
+            using var overrides = MonitorLauncher.PushTestOverrides(
+                monitorInfoCandidatePaths: new[] { infoPath },
+                healthCheckAsync: port => Task.FromResult(port == 5777),
+                processRunningAsync: processId => Task.FromResult(processId == 7878));
+
+            this._service.AgentUrl = "http://localhost:5000";
+            this.SetupMockResponse(HttpStatusCode.OK, new { success = true, message = "Connected" });
+
+            var result = await this._service.CheckProviderAsync("openai");
+
+            Assert.True(result.Success);
+            Assert.Equal("Connected", result.Message);
+            Assert.Equal("http://localhost:5777", this._service.AgentUrl);
+            this._mockHandler.Protected().Verify(
+                "SendAsync",
+                Times.AtLeastOnce(),
+                ItExpr.Is<HttpRequestMessage>(req =>
+                    req.RequestUri != null &&
+                    req.RequestUri.ToString() == "http://localhost:5777/api/providers/openai/check" &&
+                    req.Method == HttpMethod.Get),
+                ItExpr.IsAny<CancellationToken>());
+        }
+        finally
+        {
+            Directory.Delete(tempDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ExportDataAsync_Success_ReturnsStreamAsync()
     {
         // Arrange

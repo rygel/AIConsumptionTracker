@@ -657,7 +657,19 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            using var response = await this._httpClient.GetAsync(this.BuildMonitorUrl(MonitorApiRoutes.ProviderCheck(providerId))).ConfigureAwait(false);
+            await this.RefreshPortAsync().ConfigureAwait(false);
+            using var response = await this.SendMonitorRequestAsync(
+                httpClient => httpClient.GetAsync(this.BuildMonitorUrl(MonitorApiRoutes.ProviderCheck(providerId))),
+                nameof(this.CheckProviderAsync)).ConfigureAwait(false);
+            if (response == null)
+            {
+                return new AgentProviderCheckResult
+                {
+                    Success = false,
+                    Message = "Could not reach Monitor. Ensure it is running and try again.",
+                };
+            }
+
             if (response.IsSuccessStatusCode)
             {
                 var result = await this.ReadMonitorResponseJsonAsync<AgentProviderCheckResponse>(
