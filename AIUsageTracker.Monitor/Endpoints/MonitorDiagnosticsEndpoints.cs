@@ -37,7 +37,7 @@ namespace AIUsageTracker.Monitor.Endpoints
                 });
             });
 
-            app.MapGet(MonitorApiRoutes.Diagnostics, (EndpointDataSource endpointDataSource, ProviderRefreshService refreshService, IMonitorJobScheduler scheduler, ILogger<Program> logger) =>
+            app.MapGet(MonitorApiRoutes.Diagnostics, (EndpointDataSource endpointDataSource, ProviderRefreshService refreshService, IMonitorJobScheduler scheduler, IProviderUsageProcessingPipeline usageProcessingPipeline, ILogger<Program> logger) =>
             {
                 if (isDebugMode)
                 {
@@ -77,6 +77,7 @@ namespace AIUsageTracker.Monitor.Endpoints
                     endpoints = apiEndpoints,
                     refreshTelemetry = refreshService.GetRefreshTelemetrySnapshot(),
                     schedulerTelemetry = scheduler.GetSnapshot(),
+                    pipelineTelemetry = usageProcessingPipeline.GetSnapshot(),
                 });
             });
         }

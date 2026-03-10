@@ -251,7 +251,7 @@ components:
 
     DiagnosticsResponse:
       type: object
-      required: [port, process_id, working_dir, base_dir, started_at, os, runtime, args, endpoints, refresh_telemetry]
+      required: [port, process_id, working_dir, base_dir, started_at, os, runtime, args, endpoints, refresh_telemetry, scheduler_telemetry, pipeline_telemetry]
       properties:
         port:
           type: integer
@@ -278,6 +278,10 @@ components:
             $ref: "#/components/schemas/EndpointDescriptor"
         refresh_telemetry:
           $ref: "#/components/schemas/RefreshTelemetrySnapshot"
+        scheduler_telemetry:
+          $ref: "#/components/schemas/MonitorJobSchedulerSnapshot"
+        pipeline_telemetry:
+          $ref: "#/components/schemas/ProviderUsageProcessingTelemetrySnapshot"
 
     EndpointDescriptor:
       type: object
@@ -319,6 +323,67 @@ components:
         last_error:
           type: string
           nullable: true
+
+    MonitorJobSchedulerSnapshot:
+      type: object
+      required: [high_priority_queued_jobs, normal_priority_queued_jobs, low_priority_queued_jobs, total_queued_jobs, recurring_jobs, executed_jobs, failed_jobs]
+      properties:
+        high_priority_queued_jobs:
+          type: integer
+        normal_priority_queued_jobs:
+          type: integer
+        low_priority_queued_jobs:
+          type: integer
+        total_queued_jobs:
+          type: integer
+        recurring_jobs:
+          type: integer
+        executed_jobs:
+          type: integer
+          format: int64
+        failed_jobs:
+          type: integer
+          format: int64
+
+    ProviderUsageProcessingTelemetrySnapshot:
+      type: object
+      required: [total_processed_entries, total_accepted_entries, total_rejected_entries, invalid_identity_count, inactive_provider_filtered_count, placeholder_filtered_count, detail_contract_adjusted_count, normalized_count, privacy_redacted_count, last_run_total_entries, last_run_accepted_entries]
+      properties:
+        total_processed_entries:
+          type: integer
+          format: int64
+        total_accepted_entries:
+          type: integer
+          format: int64
+        total_rejected_entries:
+          type: integer
+          format: int64
+        invalid_identity_count:
+          type: integer
+          format: int64
+        inactive_provider_filtered_count:
+          type: integer
+          format: int64
+        placeholder_filtered_count:
+          type: integer
+          format: int64
+        detail_contract_adjusted_count:
+          type: integer
+          format: int64
+        normalized_count:
+          type: integer
+          format: int64
+        privacy_redacted_count:
+          type: integer
+          format: int64
+        last_processed_at_utc:
+          type: string
+          format: date-time
+          nullable: true
+        last_run_total_entries:
+          type: integer
+        last_run_accepted_entries:
+          type: integer
 
     MessageResponse:
       type: object
