@@ -7,7 +7,6 @@ using System.Globalization;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using Microsoft.Extensions.Logging;
@@ -498,7 +497,7 @@ public class MonitorService : IMonitorService
             nameof(this.ScanForKeysAsync)).ConfigureAwait(false);
         if (response?.IsSuccessStatusCode == true)
         {
-            var result = await this.ReadMonitorResponseJsonAsync<ScanKeysResponse>(
+            var result = await this.ReadMonitorResponseJsonAsync<AgentScanKeysResponse>(
                 response,
                 nameof(this.ScanForKeysAsync)).ConfigureAwait(false);
             if (result != null)
@@ -652,15 +651,6 @@ public class MonitorService : IMonitorService
         }
     }
 
-    private class ScanKeysResponse
-    {
-        [JsonPropertyName("discovered")]
-        public int Discovered { get; set; }
-
-        [JsonPropertyName("configs")]
-        public IReadOnlyList<ProviderConfig>? Configs { get; set; }
-    }
-
     // Diagnostics & Export
     public async Task<(bool Success, string Message)> CheckProviderAsync(string providerId)
     {
@@ -669,14 +659,14 @@ public class MonitorService : IMonitorService
             using var response = await this._httpClient.GetAsync(this.BuildMonitorUrl($"/api/providers/{providerId}/check")).ConfigureAwait(false);
             if (response.IsSuccessStatusCode)
             {
-                var result = await this.ReadMonitorResponseJsonAsync<CheckResponse>(
+                var result = await this.ReadMonitorResponseJsonAsync<AgentProviderCheckResponse>(
                     response,
                     nameof(this.CheckProviderAsync)).ConfigureAwait(false);
                 return (result?.Success ?? false, result?.Message ?? "Unknown status");
             }
 
             // Try to read error message if available
-            var error = await this.ReadMonitorResponseJsonAsync<CheckResponse>(
+            var error = await this.ReadMonitorResponseJsonAsync<AgentProviderCheckResponse>(
                 response,
                 nameof(this.CheckProviderAsync)).ConfigureAwait(false);
             if (!string.IsNullOrEmpty(error?.Message))
@@ -718,12 +708,5 @@ public class MonitorService : IMonitorService
         }
 
         return null;
-    }
-
-    private class CheckResponse
-    {
-        public bool Success { get; set; }
-
-        public string Message { get; set; } = string.Empty;
     }
 }
