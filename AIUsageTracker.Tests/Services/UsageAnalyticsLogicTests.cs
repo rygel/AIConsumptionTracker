@@ -37,8 +37,7 @@ public class UsageAnalyticsLogicTests : DatabaseTestBase
         }
 
         var results = await this._analyticsService
-            .GetProviderReliabilityAsync(new[] { "p1" }, 24, 100)
-            .ConfigureAwait(false);
+            .GetProviderReliabilityAsync(new[] { "p1" }, 24, 100);
 
         Assert.True(results.TryGetValue("p1", out var stats));
         Assert.Equal(20.0, stats.FailureRatePercent);
