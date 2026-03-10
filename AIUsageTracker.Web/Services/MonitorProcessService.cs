@@ -25,7 +25,12 @@ public class MonitorProcessService
         string? StartupState,
         string? StartupFailureReason);
 
-    public readonly record struct MonitorActionResult(bool Success, string Message);
+    public readonly record struct MonitorActionResult(
+        bool Success,
+        string Message,
+        string? Error,
+        string? StartupState,
+        string? StartupFailureReason);
 
     public MonitorProcessService(ILogger<MonitorProcessService> logger, IMonitorService monitorService)
     {
@@ -71,23 +76,40 @@ public class MonitorProcessService
         var status = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
         if (status.IsRunning)
         {
-            return new MonitorActionResult(true, $"Monitor already running on port {status.Port}.");
+            return new MonitorActionResult(
+                true,
+                $"Monitor already running on port {status.Port}.",
+                null,
+                null,
+                null);
         }
 
         var started = await MonitorLauncher.EnsureAgentRunningAsync().ConfigureAwait(false);
         if (!started)
         {
             this._logger.LogWarning("Monitor failed to reach a healthy state after startup request.");
-            return new MonitorActionResult(false, "Failed to start monitor or monitor did not become healthy.");
+            var failedStatus = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
+            return CreateStartFailureResult(
+                failedStatus,
+                "Failed to start monitor or monitor did not become healthy.",
+                GetRecentStartupFailureReason());
         }
 
         var updated = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
         if (updated.IsRunning)
         {
-            return new MonitorActionResult(true, $"Monitor started on port {updated.Port}.");
+            return new MonitorActionResult(
+                true,
+                $"Monitor started on port {updated.Port}.",
+                null,
+                null,
+                null);
         }
 
-        return new MonitorActionResult(false, $"Start requested, but monitor status is still unavailable. {updated.Message}");
+        return CreateStartFailureResult(
+            updated,
+            $"Start requested, but monitor status is still unavailable. {updated.Message}",
+            GetRecentStartupFailureReason());
     }
 
     public async Task<bool> StopAgentAsync()
@@ -101,17 +123,27 @@ public class MonitorProcessService
         var status = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
         if (!status.IsRunning && string.Equals(status.Error, "agent-info-missing", StringComparison.Ordinal))
         {
-            return new MonitorActionResult(true, "Monitor already stopped (info file missing).");
+            return new MonitorActionResult(
+                true,
+                "Monitor already stopped (info file missing).",
+                null,
+                null,
+                null);
         }
 
         var stopped = await MonitorLauncher.StopAgentAsync().ConfigureAwait(false);
         if (stopped)
         {
-            return new MonitorActionResult(true, $"Monitor stopped on port {status.Port}.");
+            return new MonitorActionResult(
+                true,
+                $"Monitor stopped on port {status.Port}.",
+                null,
+                null,
+                null);
         }
 
         this._logger.LogWarning("Monitor stop request failed.");
-        return new MonitorActionResult(false, "Failed to stop monitor.");
+        return new MonitorActionResult(false, "Failed to stop monitor.", null, null, null);
     }
 
     private static string BuildRunningMessage(int port, MonitorHealthSnapshot healthSnapshot)
@@ -187,7 +219,74 @@ public class MonitorProcessService
             return null;
         }
 
-        var failureReason = status.Message?.Trim();
+        return NormalizeStartupFailureReason(status.Message);
+    }
+
+    private static MonitorActionResult CreateStartFailureResult(
+        MonitorLauncher.MonitorStatusInfo status,
+        string fallbackMessage,
+        string? preservedStartupFailureReason = null)
+    {
+        var startupState = GetStartupState(status.Error);
+        var startupFailureReason = GetStartupFailureReason(status) ?? NormalizeStartupFailureReason(preservedStartupFailureReason);
+        var error = status.Error;
+        if (!string.IsNullOrWhiteSpace(startupFailureReason))
+        {
+            startupState ??= "failed";
+            error = "monitor-startup-failed";
+        }
+
+        var message = status.Message;
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            message = fallbackMessage;
+        }
+        else if (!string.IsNullOrWhiteSpace(startupFailureReason))
+        {
+            message = $"Monitor startup failed: {startupFailureReason}";
+        }
+
+        return new MonitorActionResult(
+            false,
+            message,
+            error,
+            startupState,
+            startupFailureReason);
+    }
+
+    private static string? GetRecentStartupFailureReason()
+    {
+        var diagnostics = MonitorService.DiagnosticsLog;
+        const string startupFailurePrefix = "Monitor startup failed after";
+        const string reportedFailurePrefix = "Monitor startup reported failure:";
+        for (var index = diagnostics.Count - 1; index >= 0; index--)
+        {
+            var entry = diagnostics[index];
+            var reportedIndex = entry.IndexOf(reportedFailurePrefix, StringComparison.OrdinalIgnoreCase);
+            if (reportedIndex >= 0)
+            {
+                return entry[(reportedIndex + reportedFailurePrefix.Length)..].Trim();
+            }
+
+            var startupIndex = entry.IndexOf(startupFailurePrefix, StringComparison.OrdinalIgnoreCase);
+            if (startupIndex < 0)
+            {
+                continue;
+            }
+
+            var colonIndex = entry.IndexOf(':', startupIndex + startupFailurePrefix.Length);
+            if (colonIndex >= 0 && colonIndex + 1 < entry.Length)
+            {
+                return entry[(colonIndex + 1)..].Trim();
+            }
+        }
+
+        return null;
+    }
+
+    private static string? NormalizeStartupFailureReason(string? failureReason)
+    {
+        failureReason = failureReason?.Trim();
         if (string.IsNullOrWhiteSpace(failureReason))
         {
             return null;

@@ -225,7 +225,25 @@
                 try {
                     const res = await fetch('/api/monitor/start', { method: 'POST' });
                     const data = await res.json();
-                    setStatusDetail(data?.message || (res.ok ? 'Monitor started.' : 'Failed to start monitor.'), res.ok ? '' : 'error');
+                    const statusEl = document.getElementById('agent-status');
+                    const startupState = typeof data?.startupState === 'string' ? data.startupState.toLowerCase() : '';
+                    if (!res.ok && startupState === 'failed') {
+                        statusEl.textContent = 'Monitor: Startup Failed';
+                        setStatusTone(statusEl, 'error');
+                        setStatusDetail(data?.startupFailureReason || data?.message || 'Monitor startup failed.', 'error');
+                    } else if (!res.ok && startupState === 'starting') {
+                        statusEl.textContent = 'Monitor: Starting';
+                        setStatusTone(statusEl, 'starting');
+                        setStatusDetail(data?.message || 'Monitor is still starting.');
+                        setTimeout(checkMonitorStatus, 1000);
+                    } else if (!res.ok && data?.error === 'monitor-unreachable') {
+                        statusEl.textContent = 'Monitor: Unreachable';
+                        setStatusTone(statusEl, 'error');
+                        setStatusDetail(data?.message || 'Monitor is not reachable.', 'error');
+                    } else {
+                        setStatusDetail(data?.message || (res.ok ? 'Monitor started.' : 'Failed to start monitor.'), res.ok ? '' : 'error');
+                    }
+
                     if (res.ok) {
                         setTimeout(checkMonitorStatus, 2000);
                     }

@@ -90,6 +90,51 @@ public sealed class MonitorProcessServiceTests : IDisposable
 
         Assert.True(result.Success);
         Assert.Equal("Monitor already running on port 6222.", result.Message);
+        Assert.Null(result.Error);
+        Assert.Null(result.StartupState);
+        Assert.Null(result.StartupFailureReason);
+    }
+
+    [Fact]
+    public async Task StartAgentDetailedAsync_ReturnsStartupFailureDetails_WhenStartupFailsWhileWaitingAsync()
+    {
+        var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
+        {
+            Port = 0,
+            ProcessId = 9999,
+            Errors = new List<string> { "Startup status: starting" },
+        });
+
+        using var overrides = MonitorLauncher.PushTestOverrides(
+            monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: _ => Task.FromResult(false),
+            processRunningAsync: _ => Task.FromResult(true));
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(250).ConfigureAwait(false);
+            var replacementPath = Path.Combine(this._tempDirectory, $"monitor-{Guid.NewGuid():N}.json");
+            var replacementInfo = new MonitorInfo
+            {
+                Port = 5000,
+                ProcessId = 9999,
+                Errors = new List<string> { "Startup status: failed: port bind failed" },
+            };
+            await File.WriteAllTextAsync(
+                replacementPath,
+                JsonSerializer.Serialize(replacementInfo)).ConfigureAwait(false);
+            File.Replace(replacementPath, infoPath, destinationBackupFileName: null, ignoreMetadataErrors: true);
+        });
+
+        var service = this.CreateService();
+
+        var result = await service.StartAgentDetailedAsync();
+
+        Assert.False(result.Success);
+        Assert.Equal("monitor-startup-failed", result.Error);
+        Assert.Equal("failed", result.StartupState);
+        Assert.Equal("port bind failed", result.StartupFailureReason);
+        Assert.Equal("Monitor startup failed: port bind failed", result.Message);
     }
 
     [Fact]
