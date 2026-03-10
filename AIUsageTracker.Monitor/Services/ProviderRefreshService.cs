@@ -137,6 +137,16 @@ public class ProviderRefreshService : BackgroundService
             _ => this.TriggerRefreshAsync(forceAll, includeProviderIds, bypassCircuitBreaker));
     }
 
+    public bool QueueForceRefresh(
+        bool forceAll = false,
+        IReadOnlyCollection<string>? includeProviderIds = null)
+    {
+        return this.QueueManualRefresh(
+            forceAll: forceAll,
+            includeProviderIds: includeProviderIds,
+            bypassCircuitBreaker: true);
+    }
+
     private async Task<int> GetConfiguredMaxConcurrentProviderRequestsAsync()
     {
         return await this._providerManagerLifecycle.GetConfiguredMaxConcurrentProviderRequestsAsync().ConfigureAwait(false);

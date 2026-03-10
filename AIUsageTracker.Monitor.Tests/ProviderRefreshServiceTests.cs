@@ -232,6 +232,42 @@ public class ProviderRefreshServiceTests
     }
 
     [Fact]
+    public async Task QueueForceRefresh_QueuedWorkBypassesCircuitBreakerAsync()
+    {
+        Func<CancellationToken, Task>? queuedWork = null;
+        this._mockJobScheduler
+            .Setup(s => s.Enqueue(
+                It.IsAny<string>(),
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<MonitorJobPriority>(),
+                It.IsAny<string?>()))
+            .Callback<string, Func<CancellationToken, Task>, MonitorJobPriority, string?>((_, work, _, _) => queuedWork = work)
+            .Returns(true);
+
+        var stoppedActivities = new List<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => string.Equals(source.Name, MonitorActivitySources.RefreshSourceName, StringComparison.Ordinal),
+            Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            SampleUsingParentId = static (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity => stoppedActivities.Add(activity),
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var queued = this._service.QueueForceRefresh(forceAll: true);
+        Assert.True(queued);
+        Assert.NotNull(queuedWork);
+
+        await queuedWork!(CancellationToken.None);
+
+        var refreshActivity = Assert.Single(
+            stoppedActivities,
+            activity => string.Equals(activity.OperationName, "monitor.provider_refresh", StringComparison.Ordinal));
+        Assert.Equal(true, refreshActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "refresh.force_all", StringComparison.Ordinal)).Value);
+        Assert.Equal(true, refreshActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "refresh.bypass_circuit_breaker", StringComparison.Ordinal)).Value);
+    }
+
+    [Fact]
     public async Task StartAsync_WhenHistoryEmpty_QueuesStartupSeedingAndRecurringRefreshAsync()
     {
         this._mockDatabase.Setup(d => d.IsHistoryEmptyAsync()).ReturnsAsync(true);
