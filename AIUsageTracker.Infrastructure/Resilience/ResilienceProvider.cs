@@ -109,7 +109,7 @@ namespace AIUsageTracker.Infrastructure.Resilience
                 return outcome.Exception.Message;
             }
 
-            if (outcome.Result is HttpResponseMessage response)
+            if (outcome.Result is HttpResponseMessage response) // architecture-allow-sync-wait: Polly DelegateResult.Result is not sync-over-async.
             {
                 return $"HTTP {response.StatusCode}";
             }

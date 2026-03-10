@@ -44,6 +44,9 @@ namespace AIUsageTracker.Core.Models
 
         public int AutoRefreshInterval { get; set; } = 300; // In seconds, 0 = Disabled
 
+        // Global cap for concurrent provider API requests across all providers.
+        public int MaxConcurrentProviderRequests { get; set; } = 6;
+
         public bool IsPrivacyMode { get; set; } = false;
 
         public bool EnableNotifications { get; set; } = false; // Global notification switch - disabled by default

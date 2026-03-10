@@ -26,7 +26,8 @@ public class StartupAntiHammerTests
             IAppPathProvider pathProvider,
             System.Collections.Generic.IEnumerable<IProviderService> providers,
             UsageAlertsService usageAlertsService,
-            ProviderRefreshCircuitBreakerService providerCircuitBreakerService)
+            ProviderRefreshCircuitBreakerService providerCircuitBreakerService,
+            IMonitorJobScheduler jobScheduler)
             : base(
                 logger,
                 loggerFactory,
@@ -37,7 +38,8 @@ public class StartupAntiHammerTests
                 pathProvider,
                 providers,
                 usageAlertsService,
-                providerCircuitBreakerService)
+                providerCircuitBreakerService,
+                jobScheduler)
         {
         }
 
@@ -70,6 +72,7 @@ public class StartupAntiHammerTests
         var mockPathProvider = new Mock<IAppPathProvider>();
         var mockUsageAlertsLogger = new Mock<ILogger<UsageAlertsService>>();
         var mockCircuitBreakerLogger = new Mock<ILogger<ProviderRefreshCircuitBreakerService>>();
+        var mockJobScheduler = new Mock<IMonitorJobScheduler>();
         var usageAlertsService = new UsageAlertsService(
             mockUsageAlertsLogger.Object,
             mockDb.Object,
@@ -82,6 +85,22 @@ public class StartupAntiHammerTests
 
         mockConfigService.Setup(cs => cs.ScanForKeysAsync())
             .ReturnsAsync(new List<ProviderConfig>());
+        mockConfigService.Setup(cs => cs.GetPreferencesAsync())
+            .ReturnsAsync(new AppPreferences());
+        mockConfigService.Setup(cs => cs.GetConfigsAsync())
+            .ReturnsAsync(new List<ProviderConfig>());
+
+        mockJobScheduler.Setup(
+            scheduler => scheduler.Enqueue(
+                It.IsAny<string>(),
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<MonitorJobPriority>(),
+                It.IsAny<string?>()))
+            .Returns((string _jobName, Func<CancellationToken, Task> work, MonitorJobPriority _priority, string? _coalesceKey) =>
+            {
+                work(CancellationToken.None).GetAwaiter().GetResult();
+                return true;
+            });
 
         var service = new TestableProviderRefreshService(
             mockLogger.Object,
@@ -93,7 +112,8 @@ public class StartupAntiHammerTests
             mockPathProvider.Object,
             Enumerable.Empty<IProviderService>(),
             usageAlertsService,
-            providerCircuitBreakerService);
+            providerCircuitBreakerService,
+            mockJobScheduler.Object);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
@@ -119,6 +139,7 @@ public class StartupAntiHammerTests
         var mockPathProvider = new Mock<IAppPathProvider>();
         var mockUsageAlertsLogger = new Mock<ILogger<UsageAlertsService>>();
         var mockCircuitBreakerLogger = new Mock<ILogger<ProviderRefreshCircuitBreakerService>>();
+        var mockJobScheduler = new Mock<IMonitorJobScheduler>();
         var usageAlertsService = new UsageAlertsService(
             mockUsageAlertsLogger.Object,
             mockDb.Object,
@@ -132,6 +153,22 @@ public class StartupAntiHammerTests
         mockConfigService.Setup(cs => cs.ScanForKeysAsync())
             .ReturnsAsync(new List<ProviderConfig>())
             .Verifiable();
+        mockConfigService.Setup(cs => cs.GetPreferencesAsync())
+            .ReturnsAsync(new AppPreferences());
+        mockConfigService.Setup(cs => cs.GetConfigsAsync())
+            .ReturnsAsync(new List<ProviderConfig>());
+
+        mockJobScheduler.Setup(
+            scheduler => scheduler.Enqueue(
+                It.IsAny<string>(),
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<MonitorJobPriority>(),
+                It.IsAny<string?>()))
+            .Returns((string _jobName, Func<CancellationToken, Task> work, MonitorJobPriority _priority, string? _coalesceKey) =>
+            {
+                work(CancellationToken.None).GetAwaiter().GetResult();
+                return true;
+            });
 
         var service = new TestableProviderRefreshService(
             mockLogger.Object,
@@ -143,7 +180,8 @@ public class StartupAntiHammerTests
             mockPathProvider.Object,
             Enumerable.Empty<IProviderService>(),
             usageAlertsService,
-            providerCircuitBreakerService);
+            providerCircuitBreakerService,
+            mockJobScheduler.Object);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 

@@ -185,6 +185,10 @@ public class Program
             builder.Services.AddProvidersFromAssembly();
             builder.Services.AddSingleton<UsageAlertsService>();
             builder.Services.AddSingleton<ProviderRefreshCircuitBreakerService>();
+            builder.Services.AddSingleton<IProviderUsageProcessingPipeline, ProviderUsageProcessingPipeline>();
+            builder.Services.AddSingleton<MonitorJobScheduler>();
+            builder.Services.AddSingleton<IMonitorJobScheduler>(sp => sp.GetRequiredService<MonitorJobScheduler>());
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<MonitorJobScheduler>());
             builder.Services.AddSingleton<ProviderRefreshService>();
             builder.Services.AddHostedService(sp => sp.GetRequiredService<ProviderRefreshService>());
 

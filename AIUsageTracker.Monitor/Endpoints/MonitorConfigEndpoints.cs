@@ -51,20 +51,15 @@ namespace AIUsageTracker.Monitor.Endpoints
                 var discovered = await configService.ScanForKeysAsync().ConfigureAwait(false);
                 logger.LogDebug("Discovered {Count} keys", discovered.Count);
 
-                // Immediately refresh so newly discovered keys appear in /api/usage within seconds.
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await refreshService.TriggerRefreshAsync(forceAll: true).ConfigureAwait(false);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Background refresh after key scan failed");
-                    }
-                });
+                // Queue a high-priority refresh so newly discovered keys appear in /api/usage quickly.
+                var refreshQueued = refreshService.QueueManualRefresh(forceAll: true);
 
-                return Results.Ok(new { discovered = discovered.Count, configs = discovered });
+                return Results.Ok(new
+                {
+                    discovered = discovered.Count,
+                    refreshQueued,
+                    configs = discovered,
+                });
             });
         }
     }
