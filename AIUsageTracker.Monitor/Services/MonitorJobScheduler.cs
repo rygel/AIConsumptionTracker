@@ -21,6 +21,11 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
     private readonly List<Task> _recurringTasks = new();
     private long _executedJobs;
     private long _failedJobs;
+    private long _enqueuedJobs;
+    private long _dequeuedJobs;
+    private long _coalescedSkippedJobs;
+    private long _dispatchNoopSignals;
+    private long _inFlightJobs;
     private bool _isRunning;
     private CancellationToken _schedulerToken = CancellationToken.None;
 
@@ -40,6 +45,7 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
 
         if (!string.IsNullOrWhiteSpace(coalesceKey) && !this._coalescedKeys.TryAdd(coalesceKey, 0))
         {
+            Interlocked.Increment(ref this._coalescedSkippedJobs);
             this._logger.LogDebug("Skipped enqueue for coalesced job {JobName} ({CoalesceKey})", jobName, coalesceKey);
             return false;
         }
@@ -59,6 +65,7 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
         }
 
         this._queuedItemsSignal.Release();
+        Interlocked.Increment(ref this._enqueuedJobs);
         this._logger.LogDebug("Queued job {JobName} with priority {Priority}", jobName, priority);
         return true;
     }
@@ -124,6 +131,11 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
             RecurringJobs = recurringCount,
             ExecutedJobs = Interlocked.Read(ref this._executedJobs),
             FailedJobs = Interlocked.Read(ref this._failedJobs),
+            EnqueuedJobs = Interlocked.Read(ref this._enqueuedJobs),
+            DequeuedJobs = Interlocked.Read(ref this._dequeuedJobs),
+            CoalescedSkippedJobs = Interlocked.Read(ref this._coalescedSkippedJobs),
+            DispatchNoopSignals = Interlocked.Read(ref this._dispatchNoopSignals),
+            InFlightJobs = Interlocked.Read(ref this._inFlightJobs),
         };
     }
 
@@ -148,9 +160,12 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
                 await this._queuedItemsSignal.WaitAsync(stoppingToken).ConfigureAwait(false);
                 if (!this.TryDequeueNext(out var job))
                 {
+                    Interlocked.Increment(ref this._dispatchNoopSignals);
                     continue;
                 }
 
+                Interlocked.Increment(ref this._dequeuedJobs);
+                Interlocked.Increment(ref this._inFlightJobs);
                 try
                 {
                     this._logger.LogDebug("Executing scheduled job {JobName} ({Priority})", job.Name, job.Priority);
@@ -168,6 +183,7 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
                 }
                 finally
                 {
+                    Interlocked.Decrement(ref this._inFlightJobs);
                     if (!string.IsNullOrWhiteSpace(job.CoalesceKey))
                     {
                         this._coalescedKeys.TryRemove(job.CoalesceKey, out _);

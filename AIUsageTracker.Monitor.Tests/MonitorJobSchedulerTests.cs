@@ -48,6 +48,12 @@ public class MonitorJobSchedulerTests
 
             Assert.True(executionOrder.TryDequeue(out var first));
             Assert.Equal("high", first);
+
+            var snapshot = scheduler.GetSnapshot();
+            Assert.Equal(2, snapshot.EnqueuedJobs);
+            Assert.Equal(2, snapshot.DequeuedJobs);
+            Assert.Equal(0, snapshot.CoalescedSkippedJobs);
+            Assert.Equal(0, snapshot.InFlightJobs);
         }
         finally
         {
@@ -82,6 +88,8 @@ public class MonitorJobSchedulerTests
             var snapshot = scheduler.GetSnapshot();
             Assert.Equal(1, snapshot.RecurringJobs);
             Assert.True(snapshot.ExecutedJobs >= 1);
+            Assert.True(snapshot.EnqueuedJobs >= 1);
+            Assert.True(snapshot.DequeuedJobs >= 1);
         }
         finally
         {
@@ -129,6 +137,11 @@ public class MonitorJobSchedulerTests
             Assert.True(firstQueued);
             Assert.False(secondQueued);
             Assert.Equal(1, executionCount);
+
+            var snapshot = scheduler.GetSnapshot();
+            Assert.Equal(1, snapshot.EnqueuedJobs);
+            Assert.Equal(1, snapshot.DequeuedJobs);
+            Assert.Equal(1, snapshot.CoalescedSkippedJobs);
         }
         finally
         {

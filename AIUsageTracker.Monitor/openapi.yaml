@@ -326,7 +326,7 @@ components:
 
     MonitorJobSchedulerSnapshot:
       type: object
-      required: [high_priority_queued_jobs, normal_priority_queued_jobs, low_priority_queued_jobs, total_queued_jobs, recurring_jobs, executed_jobs, failed_jobs]
+      required: [high_priority_queued_jobs, normal_priority_queued_jobs, low_priority_queued_jobs, total_queued_jobs, recurring_jobs, executed_jobs, failed_jobs, enqueued_jobs, dequeued_jobs, coalesced_skipped_jobs, dispatch_noop_signals, in_flight_jobs]
       properties:
         high_priority_queued_jobs:
           type: integer
@@ -342,6 +342,21 @@ components:
           type: integer
           format: int64
         failed_jobs:
+          type: integer
+          format: int64
+        enqueued_jobs:
+          type: integer
+          format: int64
+        dequeued_jobs:
+          type: integer
+          format: int64
+        coalesced_skipped_jobs:
+          type: integer
+          format: int64
+        dispatch_noop_signals:
+          type: integer
+          format: int64
+        in_flight_jobs:
           type: integer
           format: int64
 
