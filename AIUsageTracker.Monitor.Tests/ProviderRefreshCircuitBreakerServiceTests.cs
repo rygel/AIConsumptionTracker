@@ -31,8 +31,8 @@ public class ProviderRefreshCircuitBreakerServiceTests
         var result = this._service.GetRefreshableConfigs(configs, forceAll: false);
 
         Assert.Equal(2, result.Count);
-        Assert.Contains(result, config => config.ProviderId == "openai");
-        Assert.Contains(result, config => config.ProviderId == "anthropic");
+        Assert.Contains(result, config => string.Equals(config.ProviderId, "openai", StringComparison.Ordinal));
+        Assert.Contains(result, config => string.Equals(config.ProviderId, "anthropic", StringComparison.Ordinal));
     }
 
     [Fact]

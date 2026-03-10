@@ -86,7 +86,7 @@ public class ProviderRefreshServiceTests
     }
 
     [Fact]
-    public async Task TriggerRefreshAsync_BroadcastsSignalRMessages()
+    public async Task TriggerRefreshAsync_BroadcastsSignalRMessagesAsync()
     {
         // Arrange
         this._mockConfigService.Setup(c => c.GetConfigsAsync()).ReturnsAsync(new List<ProviderConfig>());

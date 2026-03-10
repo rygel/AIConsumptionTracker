@@ -137,7 +137,7 @@ public class MonitorJobSchedulerTests
     }
 
     [Fact]
-    public async Task StopAsync_StopsRecurringJobExecution()
+    public async Task StopAsync_StopsRecurringJobExecutionAsync()
     {
         var logger = new Mock<ILogger<MonitorJobScheduler>>();
         var scheduler = new MonitorJobScheduler(logger.Object);
