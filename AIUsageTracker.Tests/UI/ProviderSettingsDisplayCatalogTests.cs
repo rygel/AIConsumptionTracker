@@ -24,7 +24,7 @@ public sealed class ProviderSettingsDisplayCatalogTests
 
         var items = ProviderSettingsDisplayCatalog.CreateDisplayItems(configs, usages);
 
-        var derived = Assert.Single(items.Where(item => item.IsDerived));
+        var derived = Assert.Single(items, item => item.IsDerived);
         Assert.Equal("codex.spark", derived.Config.ProviderId);
         Assert.Equal("quota-based", derived.Config.Type);
         Assert.Equal(PlanType.Coding, derived.Config.PlanType);
@@ -45,7 +45,7 @@ public sealed class ProviderSettingsDisplayCatalogTests
 
         var items = ProviderSettingsDisplayCatalog.CreateDisplayItems(configs, usages);
 
-        Assert.Single(items.Where(item => string.Equals(item.Config.ProviderId, "codex.spark", StringComparison.Ordinal)));
+        Assert.Single(items, item => string.Equals(item.Config.ProviderId, "codex.spark", StringComparison.Ordinal));
         Assert.False(items.Single(item => string.Equals(item.Config.ProviderId, "codex.spark", StringComparison.Ordinal)).IsDerived);
     }
 

@@ -38,8 +38,8 @@ public class ZaiProviderTests : HttpProviderTestBase<ZaiProvider>
                         type = "TOKENS_LIMIT",
                         currentValue = 27000000L, // 20% used
                         usage = 135000000L, // Total limit
-                        remaining = 108000000L
-                    }
+                        remaining = 108000000L,
+                    },
                 },
             },
         });
@@ -74,8 +74,8 @@ public class ZaiProviderTests : HttpProviderTestBase<ZaiProvider>
                         type = "TOKENS_LIMIT",
                         currentValue = 1000000L,
                         usage = (long?)null,
-                        remaining = (long?)null
-                    }
+                        remaining = (long?)null,
+                    },
                 },
             },
         });
@@ -111,7 +111,7 @@ public class ZaiProviderTests : HttpProviderTestBase<ZaiProvider>
                         currentValue = 100000000L, // 100M Used -> 0 Remaining (Exhausted)
                         usage = 100000000L,
                         remaining = 0L,
-                        nextResetTime = 1700000000L // Past
+                        nextResetTime = 1700000000L, // Past
                     },
                     new
                     {
@@ -119,8 +119,8 @@ public class ZaiProviderTests : HttpProviderTestBase<ZaiProvider>
                         currentValue = 0L, // 0 Used -> 100M Remaining (Active)
                         usage = 100000000L,
                         remaining = 100000000L,
-                        nextResetTime = 4900000000L // Future
-                    }
+                        nextResetTime = 4900000000L, // Future
+                    },
                 },
             },
         });

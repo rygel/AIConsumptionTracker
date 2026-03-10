@@ -20,8 +20,8 @@ namespace AIUsageTracker.Tests.UI
                     new() { Name = "Gemini 2.5 Flash", Used = "12% used", DetailType = ProviderUsageDetailType.Model },
                     new() { Name = "Gemini 2.5 Pro", Used = "50% used", DetailType = ProviderUsageDetailType.Model },
                     new() { Name = "[internal]", Used = "10% used", DetailType = ProviderUsageDetailType.Model },
-                    new() { Name = "Credits", Used = "Unlimited", DetailType = ProviderUsageDetailType.Credit }
-                }
+                    new() { Name = "Credits", Used = "Unlimited", DetailType = ProviderUsageDetailType.Credit },
+                },
             };
 
             var details = ProviderSubTrayCatalog.GetEligibleDetails(usage);

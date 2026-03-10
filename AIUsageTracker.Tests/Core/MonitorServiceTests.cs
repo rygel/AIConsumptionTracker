@@ -123,7 +123,7 @@ public class MonitorServiceTests
                 ProcessId = 4242,
             });
 
-            using var _ = MonitorLauncher.PushTestOverrides(
+            using var overrides = MonitorLauncher.PushTestOverrides(
                 monitorInfoCandidatePaths: new[] { infoPath },
                 healthCheckAsync: port => Task.FromResult(port == 5333),
                 processRunningAsync: processId => Task.FromResult(processId == 4242));
@@ -181,7 +181,7 @@ public class MonitorServiceTests
                 ProcessId = 4242,
             });
 
-            using var _ = MonitorLauncher.PushTestOverrides(
+            using var overrides = MonitorLauncher.PushTestOverrides(
                 monitorInfoCandidatePaths: new[] { infoPath },
                 healthCheckAsync: port => Task.FromResult(port == 5333),
                 processRunningAsync: processId => Task.FromResult(processId == 4242));
@@ -241,7 +241,7 @@ public class MonitorServiceTests
                 ProcessId = 4242,
             });
 
-            using var _ = MonitorLauncher.PushTestOverrides(
+            using var overrides = MonitorLauncher.PushTestOverrides(
                 monitorInfoCandidatePaths: new[] { infoPath },
                 healthCheckAsync: port => Task.FromResult(port == 5333),
                 processRunningAsync: processId => Task.FromResult(processId == 4242));
@@ -280,7 +280,7 @@ public class MonitorServiceTests
                 ProcessId = 5151,
             });
 
-            using var _ = MonitorLauncher.PushTestOverrides(
+            using var overrides = MonitorLauncher.PushTestOverrides(
                 monitorInfoCandidatePaths: new[] { infoPath },
                 healthCheckAsync: port => Task.FromResult(port == 5444),
                 processRunningAsync: processId => Task.FromResult(processId == 5151));
@@ -343,7 +343,7 @@ public class MonitorServiceTests
                 ProcessId = 6767,
             });
 
-            using var _ = MonitorLauncher.PushTestOverrides(
+            using var overrides = MonitorLauncher.PushTestOverrides(
                 monitorInfoCandidatePaths: new[] { infoPath },
                 healthCheckAsync: port => Task.FromResult(port == 5666),
                 processRunningAsync: processId => Task.FromResult(processId == 6767));
@@ -603,7 +603,7 @@ public class MonitorServiceTests
                 StatusCode = status,
                 Content = JsonContent.Create(body, options: new JsonSerializerOptions
                 {
-                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
                 }),
             });
     }
@@ -624,7 +624,7 @@ public class MonitorServiceTests
     {
         var path = Path.Combine(directory, "monitor.json");
         var json = JsonSerializer.Serialize(info);
-        await File.WriteAllTextAsync(path, json);
+        await File.WriteAllTextAsync(path, json).ConfigureAwait(false);
         return path;
     }
 }

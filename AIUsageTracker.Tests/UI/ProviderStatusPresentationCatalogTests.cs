@@ -16,7 +16,7 @@ namespace AIUsageTracker.Tests.UI
             var usage = new ProviderUsage
             {
                 IsAvailable = true,
-                NextResetTime = new DateTime(2026, 3, 7, 12, 0, 0)
+                NextResetTime = new DateTime(2026, 3, 7, 12, 0, 0),
             };
 
             var presentation = ProviderStatusPresentationCatalog.Create(
@@ -43,8 +43,8 @@ namespace AIUsageTracker.Tests.UI
                 {
                     new() { Name = "Gemini 2.5 Pro" },
                     new() { Name = "Gemini 2.5 Flash" },
-                    new() { Name = "[internal]" }
-                }
+                    new() { Name = "[internal]" },
+                },
             };
 
             var presentation = ProviderStatusPresentationCatalog.Create(

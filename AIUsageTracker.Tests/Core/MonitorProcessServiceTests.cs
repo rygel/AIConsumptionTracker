@@ -34,7 +34,7 @@ public sealed class MonitorProcessServiceTests : IDisposable
 
         var service = this.CreateService();
 
-        var result = await service.GetAgentStatusDetailedAsync().ConfigureAwait(false);
+        var result = await service.GetAgentStatusDetailedAsync();
 
         Assert.False(result.IsRunning);
         Assert.Equal(5000, result.Port);
@@ -48,7 +48,7 @@ public sealed class MonitorProcessServiceTests : IDisposable
         {
             Port = 6111,
             ProcessId = 7777,
-        }).ConfigureAwait(false);
+        });
 
         using var overrides = MonitorLauncher.PushTestOverrides(
             monitorInfoCandidatePaths: new[] { infoPath },
@@ -57,7 +57,7 @@ public sealed class MonitorProcessServiceTests : IDisposable
 
         var service = this.CreateService();
 
-        var result = await service.GetAgentStatusDetailedAsync().ConfigureAwait(false);
+        var result = await service.GetAgentStatusDetailedAsync();
 
         Assert.False(result.IsRunning);
         Assert.Equal(6111, result.Port);
@@ -71,7 +71,7 @@ public sealed class MonitorProcessServiceTests : IDisposable
         {
             Port = 6222,
             ProcessId = 8888,
-        }).ConfigureAwait(false);
+        });
 
         using var overrides = MonitorLauncher.PushTestOverrides(
             monitorInfoCandidatePaths: new[] { infoPath },
@@ -80,7 +80,7 @@ public sealed class MonitorProcessServiceTests : IDisposable
 
         var service = this.CreateService();
 
-        var result = await service.StartAgentDetailedAsync().ConfigureAwait(false);
+        var result = await service.StartAgentDetailedAsync();
 
         Assert.True(result.Success);
         Assert.Equal("Monitor already running on port 6222.", result.Message);
@@ -94,7 +94,7 @@ public sealed class MonitorProcessServiceTests : IDisposable
             Port = 0,
             ProcessId = 9999,
             Errors = new List<string> { "Startup status: starting" },
-        }).ConfigureAwait(false);
+        });
 
         using var overrides = MonitorLauncher.PushTestOverrides(
             monitorInfoCandidatePaths: new[] { infoPath },
@@ -103,7 +103,7 @@ public sealed class MonitorProcessServiceTests : IDisposable
 
         var service = this.CreateService();
 
-        var result = await service.GetAgentStatusDetailedAsync().ConfigureAwait(false);
+        var result = await service.GetAgentStatusDetailedAsync();
 
         Assert.False(result.IsRunning);
         Assert.Equal(5000, result.Port);
@@ -121,7 +121,7 @@ public sealed class MonitorProcessServiceTests : IDisposable
 
         var service = this.CreateService();
 
-        var result = await service.StopAgentDetailedAsync().ConfigureAwait(false);
+        var result = await service.StopAgentDetailedAsync();
 
         Assert.True(result.Success);
         Assert.Equal("Monitor already stopped (info file missing).", result.Message);

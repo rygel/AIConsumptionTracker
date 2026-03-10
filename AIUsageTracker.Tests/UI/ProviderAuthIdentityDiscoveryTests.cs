@@ -27,17 +27,19 @@ public sealed class ProviderAuthIdentityDiscoveryTests : IDisposable
     [Fact]
     public async Task TryGetGitHubUsernameAsync_ReadsHostsFileLoginAsync()
     {
-        var hostsPath = this.CreateFile(
-            "hosts.yml",
+        var hostsYaml =
             """
             github.com:
               user: octocat
-            """);
+            """;
+
+        var hostsPath = this.CreateFile(
+            "hosts.yml",
+            hostsYaml);
 
         var username = await ProviderAuthIdentityDiscovery.TryGetGitHubUsernameAsync(
                 this._logger,
-                new[] { hostsPath })
-            .ConfigureAwait(false);
+                new[] { hostsPath });
 
         Assert.Equal("octocat", username);
     }
@@ -45,20 +47,22 @@ public sealed class ProviderAuthIdentityDiscoveryTests : IDisposable
     [Fact]
     public async Task TryGetOpenAiUsernameAsync_ReadsOpenAiEmailClaimAsync()
     {
-        var authPath = this.CreateFile(
-            "openai-auth.json",
+        var openAiAuthJson =
             """
             {
               "openai": {
                 "email": "user@example.com"
               }
             }
-            """);
+            """;
+
+        var authPath = this.CreateFile(
+            "openai-auth.json",
+            openAiAuthJson);
 
         var username = await ProviderAuthIdentityDiscovery.TryGetOpenAiUsernameAsync(
                 this._logger,
-                new[] { authPath })
-            .ConfigureAwait(false);
+                new[] { authPath });
 
         Assert.Equal("user@example.com", username);
     }
@@ -66,20 +70,22 @@ public sealed class ProviderAuthIdentityDiscoveryTests : IDisposable
     [Fact]
     public async Task TryGetCodexUsernameAsync_ReadsNativeCodexJwtIdentityAsync()
     {
-        var authPath = this.CreateFile(
-            "codex-auth.json",
+        var nativeCodexAuthJson =
             $$"""
             {
               "tokens": {
                 "id_token": "{{this.CreateJwt(new { preferred_username = "codex@example.com" })}}"
               }
             }
-            """);
+            """;
+
+        var authPath = this.CreateFile(
+            "codex-auth.json",
+            nativeCodexAuthJson);
 
         var username = await ProviderAuthIdentityDiscovery.TryGetCodexUsernameAsync(
                 this._logger,
-                new[] { authPath })
-            .ConfigureAwait(false);
+                new[] { authPath });
 
         Assert.Equal("codex@example.com", username);
     }
@@ -87,20 +93,22 @@ public sealed class ProviderAuthIdentityDiscoveryTests : IDisposable
     [Fact]
     public async Task TryGetCodexUsernameAsync_ReadsOpenCodeCompatibilityTokenAsync()
     {
-        var authPath = this.CreateFile(
-            "opencode-auth.json",
+        var openCodeCompatibilityAuthJson =
             $$"""
             {
               "openai": {
                 "access": "{{this.CreateJwt(new { email = "openai@example.com" })}}"
               }
             }
-            """);
+            """;
+
+        var authPath = this.CreateFile(
+            "opencode-auth.json",
+            openCodeCompatibilityAuthJson);
 
         var username = await ProviderAuthIdentityDiscovery.TryGetCodexUsernameAsync(
                 this._logger,
-                new[] { authPath })
-            .ConfigureAwait(false);
+                new[] { authPath });
 
         Assert.Equal("openai@example.com", username);
     }

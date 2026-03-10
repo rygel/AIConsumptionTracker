@@ -72,12 +72,13 @@ All architecture streamlining tasks completed! See remaining feature backlog bel
   - Location: AIUsageTracker.Web.Tests/ViewTests.cs (new file)
   - **Completed**: `AIUsageTracker.Web.Tests/ViewTests.cs` covers route rendering, model-binding query parameters, and layout/navigation assertions.
 
-- [ ] Create Web service unit tests (Priority: P1, Effort: M)
+- [x] Create Web service unit tests (Priority: P1, Effort: M)
   - Currently: Web.Services have no test coverage
   - Action: Add unit tests for WebDatabaseService, usage calculation services
   - Action: Add tests for authentication/authorization (if any)
   - Benefit: Comprehensive service layer testing
   - Location: AIUsageTracker.Web.Tests/Services/ (new directory)
+  - **Completed**: Added `WebDatabaseServiceTests` covering database-unavailable behavior, latest-usage filtering, and usage-summary cache behavior.
 
 - [x] Create CI/CD workflow for Web tests (Priority: P1, Effort: M)
   - Currently: No CI/CD job builds or tests Web project

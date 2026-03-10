@@ -21,7 +21,7 @@ public class WebDatabaseServiceLogicTests : DatabaseTestBase
         this.SeedHistory("openai", 20, 100, now.AddHours(-1));
         this.SeedHistory("anthropic", 15, 50, now.AddHours(-1));
 
-        var results = await this.DatabaseService.GetLatestUsageAsync().ConfigureAwait(false);
+        var results = await this.DatabaseService.GetLatestUsageAsync();
 
         Assert.Equal(2, results.Count);
 
@@ -38,7 +38,7 @@ public class WebDatabaseServiceLogicTests : DatabaseTestBase
         this.SeedProvider("p1", "Provider 1", "account1", isActive: true);
         this.SeedProvider("p2", "Provider 2", "account2", isActive: false);
 
-        var providers = await this.DatabaseService.GetProvidersAsync().ConfigureAwait(false);
+        var providers = await this.DatabaseService.GetProvidersAsync();
 
         Assert.Single(providers);
         Assert.Equal("p1", providers[0].ProviderId);
@@ -54,7 +54,7 @@ public class WebDatabaseServiceLogicTests : DatabaseTestBase
         this.SeedHistory("p1", 10, 100, now);
         this.SeedHistory("p2", 50, 100, now);
 
-        var summary = await this.DatabaseService.GetUsageSummaryAsync().ConfigureAwait(false);
+        var summary = await this.DatabaseService.GetUsageSummaryAsync();
 
         Assert.Equal(2, summary.ProviderCount);
         Assert.Equal(70.0, summary.AverageUsage);

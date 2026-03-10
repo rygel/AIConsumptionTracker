@@ -57,15 +57,15 @@ public class DualProgressBarLogicTests
                     Name = "Hourly",
                     Used = "10% used",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    WindowKind = WindowKind.Primary
+                    WindowKind = WindowKind.Primary,
                 },
                 new ProviderUsageDetail
                 {
                     Name = "Weekly",
                     Used = "80% remaining",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    WindowKind = WindowKind.Secondary
-                }
+                    WindowKind = WindowKind.Secondary,
+                },
             },
         };
 
@@ -94,7 +94,7 @@ public class DualProgressBarLogicTests
                     Used = "96% remaining (4% used)",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
                     WindowKind = WindowKind.Primary,
-                    NextResetTime = hourlyReset
+                    NextResetTime = hourlyReset,
                 },
                 new ProviderUsageDetail
                 {
@@ -102,8 +102,8 @@ public class DualProgressBarLogicTests
                     Used = "49% remaining (51% used)",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
                     WindowKind = WindowKind.Secondary,
-                    NextResetTime = weeklyReset
-                }
+                    NextResetTime = weeklyReset,
+                },
             },
         };
 
