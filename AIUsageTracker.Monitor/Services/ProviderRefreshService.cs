@@ -9,6 +9,8 @@ using AIUsageTracker.Core.Services;
 using AIUsageTracker.Infrastructure.Configuration;
 using AIUsageTracker.Infrastructure.Providers;
 using AIUsageTracker.Infrastructure.Services;
+using AIUsageTracker.Monitor.Hubs;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -26,6 +28,7 @@ public class ProviderRefreshService : BackgroundService
     private readonly IEnumerable<IProviderService> _providers;
     private readonly UsageAlertsService _usageAlertsService;
     private readonly ProviderRefreshCircuitBreakerService _providerCircuitBreakerService;
+    private readonly IHubContext<UsageHub>? _hubContext;
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
     private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(5);
     private static bool _debugMode = false;
@@ -53,7 +56,8 @@ public class ProviderRefreshService : BackgroundService
         IAppPathProvider pathProvider,
         IEnumerable<IProviderService> providers,
         UsageAlertsService usageAlertsService,
-        ProviderRefreshCircuitBreakerService providerCircuitBreakerService)
+        ProviderRefreshCircuitBreakerService providerCircuitBreakerService,
+        IHubContext<UsageHub>? hubContext = null)
     {
         this._logger = logger;
         this._loggerFactory = loggerFactory;
@@ -65,6 +69,7 @@ public class ProviderRefreshService : BackgroundService
         this._providers = providers;
         this._usageAlertsService = usageAlertsService;
         this._providerCircuitBreakerService = providerCircuitBreakerService;
+        this._hubContext = hubContext;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -197,6 +202,11 @@ public class ProviderRefreshService : BackgroundService
         {
             this._logger.LogDebug("Starting data refresh - {Time}", DateTime.Now.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture));
 
+            if (this._hubContext != null)
+            {
+                await this._hubContext.Clients.All.SendAsync("RefreshStarted").ConfigureAwait(false);
+            }
+
             this._logger.LogInformation("Refreshing...");
             var (configs, activeConfigs) = await this.LoadConfigsForRefreshAsync(forceAll, includeProviderIds).ConfigureAwait(false);
             await this.PersistConfiguredProvidersAsync(configs).ConfigureAwait(false);
@@ -224,6 +234,11 @@ public class ProviderRefreshService : BackgroundService
             await this._database.OptimizeAsync().ConfigureAwait(false);
             this._logger.LogInformation("Cleanup complete");
             refreshSucceeded = true;
+
+            if (this._hubContext != null)
+            {
+                await this._hubContext.Clients.All.SendAsync("UsageUpdated").ConfigureAwait(false);
+            }
         }
         catch (Exception ex)
         {
