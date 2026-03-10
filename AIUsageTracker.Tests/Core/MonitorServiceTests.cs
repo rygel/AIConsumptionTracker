@@ -420,6 +420,44 @@ public class MonitorServiceTests
     }
 
     [Fact]
+    public async Task CheckApiContractAsync_SnakeCaseContractFields_ReturnsCompatibleResultAsync()
+    {
+        var responseObj = new
+        {
+            status = "healthy",
+            api_contract_version = MonitorService.ExpectedApiContractVersion,
+            agent_version = "3.0.0",
+        };
+        this.SetupMockResponse(HttpStatusCode.OK, responseObj);
+
+        var result = await this._service.CheckApiContractAsync();
+
+        Assert.True(result.IsReachable);
+        Assert.True(result.IsCompatible);
+        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.AgentContractVersion);
+        Assert.Equal("3.0.0", result.AgentVersion);
+    }
+
+    [Fact]
+    public async Task CheckApiContractAsync_LegacyVersionField_UsesVersionFallbackAsync()
+    {
+        var responseObj = new
+        {
+            status = "healthy",
+            apiContractVersion = "999",
+            version = "2.9.1",
+        };
+        this.SetupMockResponse(HttpStatusCode.OK, responseObj);
+
+        var result = await this._service.CheckApiContractAsync();
+
+        Assert.True(result.IsReachable);
+        Assert.False(result.IsCompatible);
+        Assert.Equal("999", result.AgentContractVersion);
+        Assert.Equal("2.9.1", result.AgentVersion);
+    }
+
+    [Fact]
     public async Task CheckApiContractAsync_RequestFails_ReturnsUnreachableResultAsync()
     {
         // Arrange

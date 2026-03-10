@@ -2,12 +2,11 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-namespace AIUsageTracker.Core.MonitorClient
-{
-    public sealed class AgentTestNotificationResult
-    {
-        public bool Success { get; init; }
+namespace AIUsageTracker.Core.MonitorClient;
 
-        public string Message { get; init; } = string.Empty;
-    }
+public sealed class AgentTestNotificationResult
+{
+    public bool Success { get; init; }
+
+    public string Message { get; init; } = string.Empty;
 }

@@ -570,7 +570,19 @@ public class MonitorService : IMonitorService
     {
         try
         {
-            using var response = await this._httpClient.GetAsync(this.BuildMonitorUrl("/api/health")).ConfigureAwait(false);
+            using var response = await this.SendMonitorRequestAsync(
+                httpClient => httpClient.GetAsync(this.BuildMonitorUrl("/api/health")),
+                nameof(this.CheckApiContractAsync)).ConfigureAwait(false);
+            if (response == null)
+            {
+                return new AgentContractHandshakeResult
+                {
+                    IsReachable = false,
+                    IsCompatible = false,
+                    Message = "Agent API handshake failed: no response from health endpoint.",
+                };
+            }
+
             if (!response.IsSuccessStatusCode)
             {
                 return new AgentContractHandshakeResult
@@ -581,57 +593,57 @@ public class MonitorService : IMonitorService
                 };
             }
 
-            var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-            await using (stream.ConfigureAwait(false))
+            var health = await this.ReadMonitorResponseJsonAsync<AgentHealthSnapshot>(
+                response,
+                nameof(this.CheckApiContractAsync)).ConfigureAwait(false);
+            if (health == null)
             {
-                using var document = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
-                var root = document.RootElement;
-
-                var contractVersion =
-                    TryGetJsonString(root, "apiContractVersion") ??
-                    TryGetJsonString(root, "api_contract_version");
-
-                var reportedAgentVersion =
-                    TryGetJsonString(root, "agentVersion") ??
-                    TryGetJsonString(root, "agent_version") ??
-                    TryGetJsonString(root, "version");
-
-                if (string.IsNullOrWhiteSpace(contractVersion))
-                {
-                    return new AgentContractHandshakeResult
-                    {
-                        IsReachable = true,
-                        IsCompatible = false,
-                        AgentVersion = reportedAgentVersion,
-                        Message = $"Agent API contract version is missing (expected {ExpectedApiContractVersion}).",
-                    };
-                }
-
-                if (string.Equals(contractVersion, ExpectedApiContractVersion, StringComparison.OrdinalIgnoreCase))
-                {
-                    return new AgentContractHandshakeResult
-                    {
-                        IsReachable = true,
-                        IsCompatible = true,
-                        AgentContractVersion = contractVersion,
-                        AgentVersion = reportedAgentVersion,
-                        Message = "Agent API contract is compatible.",
-                    };
-                }
-
-                var versionSuffix = string.IsNullOrWhiteSpace(reportedAgentVersion)
-                    ? string.Empty
-                    : $" (agent {reportedAgentVersion})";
-
                 return new AgentContractHandshakeResult
                 {
                     IsReachable = true,
                     IsCompatible = false,
-                    AgentContractVersion = contractVersion,
-                    AgentVersion = reportedAgentVersion,
-                    Message = $"Agent API contract mismatch: expected {ExpectedApiContractVersion}, got {contractVersion}{versionSuffix}.",
+                    Message = "Agent health payload could not be parsed.",
                 };
             }
+
+            var contractVersion = health.ResolveApiContractVersion();
+            var reportedAgentVersion = health.ResolveAgentVersion();
+
+            if (string.IsNullOrWhiteSpace(contractVersion))
+            {
+                return new AgentContractHandshakeResult
+                {
+                    IsReachable = true,
+                    IsCompatible = false,
+                    AgentVersion = reportedAgentVersion,
+                    Message = $"Agent API contract version is missing (expected {ExpectedApiContractVersion}).",
+                };
+            }
+
+            if (string.Equals(contractVersion, ExpectedApiContractVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                return new AgentContractHandshakeResult
+                {
+                    IsReachable = true,
+                    IsCompatible = true,
+                    AgentContractVersion = contractVersion,
+                    AgentVersion = reportedAgentVersion,
+                    Message = "Agent API contract is compatible.",
+                };
+            }
+
+            var versionSuffix = string.IsNullOrWhiteSpace(reportedAgentVersion)
+                ? string.Empty
+                : $" (agent {reportedAgentVersion})";
+
+            return new AgentContractHandshakeResult
+            {
+                IsReachable = true,
+                IsCompatible = false,
+                AgentContractVersion = contractVersion,
+                AgentVersion = reportedAgentVersion,
+                Message = $"Agent API contract mismatch: expected {ExpectedApiContractVersion}, got {contractVersion}{versionSuffix}.",
+            };
         }
         catch (Exception ex)
         {
@@ -643,23 +655,6 @@ public class MonitorService : IMonitorService
                 Message = $"Agent API handshake failed: {ex.Message}",
             };
         }
-    }
-
-    private static string? TryGetJsonString(JsonElement root, string propertyName)
-    {
-        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(propertyName, out var property))
-        {
-            return null;
-        }
-
-        return property.ValueKind switch
-        {
-            JsonValueKind.String => property.GetString(),
-            JsonValueKind.Number => property.GetRawText(),
-            JsonValueKind.True => bool.TrueString,
-            JsonValueKind.False => bool.FalseString,
-            _ => null,
-        };
     }
 
     private class ScanKeysResponse
