@@ -527,6 +527,23 @@ public class MonitorService : IMonitorService
     }
 
     /// <inheritdoc/>
+    public async Task<MonitorHealthSnapshot?> GetHealthSnapshotAsync()
+    {
+        await this.RefreshPortAsync().ConfigureAwait(false);
+        using var response = await this.SendMonitorRequestAsync(
+            httpClient => httpClient.GetAsync(this.BuildMonitorUrl("/api/health")),
+            nameof(this.GetHealthSnapshotAsync)).ConfigureAwait(false);
+        if (response?.IsSuccessStatusCode != true)
+        {
+            return null;
+        }
+
+        return await this.ReadMonitorResponseJsonAsync<MonitorHealthSnapshot>(
+            response,
+            nameof(this.GetHealthSnapshotAsync)).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
     public Task<string> GetHealthDetailsAsync()
     {
         return this.GetEndpointDetailsAsync("/api/health");
