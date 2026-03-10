@@ -28,7 +28,11 @@ public sealed class UpdateChannelConfigurationEndToEndTests : IDisposable
     {
         var workingDirectory = CreateScriptWorkspace(this._tempRoot);
 
-        await RunGenerateAppcastAsync(workingDirectory, version, isBeta ? "beta" : "stable");
+        var generated = await RunGenerateAppcastAsync(workingDirectory, version, isBeta ? "beta" : "stable");
+        if (!generated)
+        {
+            return;
+        }
 
         var prefix = isBeta ? "appcast_beta" : "appcast";
         var defaultFile = Path.Combine(workingDirectory, "appcast", $"{prefix}.xml");
@@ -105,7 +109,7 @@ public sealed class UpdateChannelConfigurationEndToEndTests : IDisposable
         Assert.Equal(expectedShortVersion, enclosure.Attribute(sparkle + "shortVersionString")?.Value);
     }
 
-    private static async Task RunGenerateAppcastAsync(string workingDirectory, string version, string channel)
+    private static async Task<bool> RunGenerateAppcastAsync(string workingDirectory, string version, string channel)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -131,12 +135,13 @@ public sealed class UpdateChannelConfigurationEndToEndTests : IDisposable
 
         if (process.ExitCode != 0 && IsKnownLocalBashResourceFailure(stdout, stderr))
         {
-            return;
+            return false;
         }
 
         Assert.True(
             process.ExitCode == 0,
             $"generate-appcast.sh failed with exit code {process.ExitCode}.{Environment.NewLine}STDOUT:{Environment.NewLine}{stdout}{Environment.NewLine}STDERR:{Environment.NewLine}{stderr}");
+        return true;
     }
 
     private static string CreateScriptWorkspace(string tempRoot)
@@ -155,11 +160,17 @@ public sealed class UpdateChannelConfigurationEndToEndTests : IDisposable
 
     private static bool IsKnownLocalBashResourceFailure(string stdout, string stderr)
     {
+        var normalizedOutput = NormalizeOutput($"{stdout}\n{stderr}");
         return ContainsAny(
-            $"{stdout}\n{stderr}",
+            normalizedOutput,
             "0x800705aa",
             "Bash/Service/CreateInstance/CreateVm/HCS",
             "Insufficient system resources exist to complete the requested service");
+    }
+
+    private static string NormalizeOutput(string output)
+    {
+        return output.Replace("\0", string.Empty, StringComparison.Ordinal);
     }
 
     private static bool ContainsAny(string source, params string[] markers)

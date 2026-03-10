@@ -352,7 +352,7 @@ public class ProviderRefreshService : BackgroundService
         return this._refreshTelemetryManager.GetSnapshot(this._providerCircuitBreakerService.GetProviderDiagnostics());
     }
 
-    public async Task<(bool success, string message, int status)> CheckProviderAsync(string providerId)
+    public async Task<(bool Success, string Message, int Status)> CheckProviderAsync(string providerId)
     {
         if (this.ProviderManager == null)
         {
