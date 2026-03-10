@@ -27,7 +27,7 @@ public class ProviderRefreshService : BackgroundService
     private readonly IAppPathProvider _pathProvider;
     private readonly IEnumerable<IProviderService> _providers;
     private readonly ProviderRefreshCircuitBreakerService _providerCircuitBreakerService;
-    private readonly ProviderRefreshConfigSelector _configSelector;
+    private readonly ProviderRefreshConfigLoadingService _configLoadingService;
     private readonly ProviderRefreshTelemetryManager _refreshTelemetryManager = new();
     private readonly ProviderUsagePersistenceService _usagePersistenceService;
     private readonly ProviderConnectivityCheckService _connectivityCheckService;
@@ -70,9 +70,14 @@ public class ProviderRefreshService : BackgroundService
         this._pathProvider = pathProvider;
         this._providers = providers;
         this._providerCircuitBreakerService = providerCircuitBreakerService;
-        this._configSelector = new ProviderRefreshConfigSelector(
+        var configSelector = new ProviderRefreshConfigSelector(
             providers,
             loggerFactory.CreateLogger<ProviderRefreshConfigSelector>());
+        this._configLoadingService = new ProviderRefreshConfigLoadingService(
+            configService,
+            database,
+            configSelector,
+            loggerFactory.CreateLogger<ProviderRefreshConfigLoadingService>());
         this._usagePersistenceService = new ProviderUsagePersistenceService(
             database,
             loggerFactory.CreateLogger<ProviderUsagePersistenceService>());
@@ -207,10 +212,12 @@ public class ProviderRefreshService : BackgroundService
             await this._refreshNotificationService.NotifyRefreshStartedAsync().ConfigureAwait(false);
 
             this._logger.LogInformation("Refreshing...");
-            var (configs, activeConfigs) = await this.LoadConfigsForRefreshAsync(forceAll, includeProviderIds).ConfigureAwait(false);
+            var (configs, activeConfigs) = await this._configLoadingService
+                .LoadConfigsForRefreshAsync(forceAll, includeProviderIds)
+                .ConfigureAwait(false);
             refreshActivity?.SetTag("refresh.configs.total", configs.Count);
             refreshActivity?.SetTag("refresh.configs.active", activeConfigs.Count);
-            await this.PersistConfiguredProvidersAsync(configs).ConfigureAwait(false);
+            await this._configLoadingService.PersistConfiguredProvidersAsync(configs).ConfigureAwait(false);
 
             var refreshableConfigs = bypassCircuitBreaker
                 ? activeConfigs
@@ -255,54 +262,6 @@ public class ProviderRefreshService : BackgroundService
             this._refreshTelemetryManager.RecordRefreshTelemetry(refreshStopwatch.Elapsed, refreshSucceeded, refreshError);
             refreshActivity?.SetTag("refresh.duration_ms", refreshStopwatch.Elapsed.TotalMilliseconds);
             this._refreshSemaphore.Release();
-        }
-    }
-
-    private async Task<(List<ProviderConfig> AllConfigs, List<ProviderConfig> ActiveConfigs)> LoadConfigsForRefreshAsync(
-        bool forceAll,
-        IReadOnlyCollection<string>? includeProviderIds)
-    {
-        this._logger.LogInformation("Loading provider configurations...");
-        var configs = await this._configService.GetConfigsAsync().ConfigureAwait(false);
-        this._logger.LogInformation("Found {Count} total configurations", configs.Count);
-
-        foreach (var config in configs)
-        {
-            var hasKey = !string.IsNullOrEmpty(config.ApiKey);
-            this._logger.LogInformation(
-                "Provider {ProviderId}: {Status}",
-                config.ProviderId,
-                hasKey ? $"Has API key ({config.ApiKey?.Length ?? 0} chars)" : "NO API KEY");
-        }
-
-        this._configSelector.EnsureAutoIncludedConfigs(configs);
-        var selection = this._configSelector.SelectActiveConfigs(configs, forceAll, includeProviderIds);
-        var activeConfigs = selection.ActiveConfigs;
-
-        if (selection.SuppressedConfigCount > 0)
-        {
-            this._logger.LogInformation(
-                "Suppressed duplicate session-backed provider while canonical provider is active (removed {Count}).",
-                selection.SuppressedConfigCount);
-        }
-
-        this._logger.LogInformation("Refreshing {Count} configured providers", activeConfigs.Count);
-        foreach (var activeConfig in activeConfigs.OrderBy(c => c.ProviderId, StringComparer.Ordinal))
-        {
-            this._logger.LogDebug(
-                "Active config: {ProviderId} (Key present: {HasKey})",
-                activeConfig.ProviderId,
-                !string.IsNullOrEmpty(activeConfig.ApiKey));
-        }
-
-        return (configs, activeConfigs);
-    }
-
-    private async Task PersistConfiguredProvidersAsync(IEnumerable<ProviderConfig> configs)
-    {
-        foreach (var config in configs)
-        {
-            await this._database.StoreProviderAsync(config).ConfigureAwait(false);
         }
     }
 
