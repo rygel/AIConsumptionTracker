@@ -35,11 +35,11 @@ public interface IMonitorService
 
     Task<bool> SendTestNotificationAsync();
 
-    Task<AgentTestNotificationResult> SendTestNotificationDetailedAsync();
+    Task<MonitorActionResult> SendTestNotificationDetailedAsync();
 
     Task<AgentScanKeysResult> ScanForKeysAsync();
 
-    Task<AgentProviderCheckResult> CheckProviderAsync(string providerId);
+    Task<MonitorActionResult> CheckProviderAsync(string providerId);
 
     Task<bool> CheckHealthAsync();
 

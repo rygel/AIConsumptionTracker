@@ -462,7 +462,7 @@ public class MonitorService : IMonitorService
     }
 
     /// <inheritdoc/>
-    public async Task<AgentTestNotificationResult> SendTestNotificationDetailedAsync()
+    public async Task<MonitorActionResult> SendTestNotificationDetailedAsync()
     {
         try
         {
@@ -472,7 +472,7 @@ public class MonitorService : IMonitorService
                 refreshPort: true).ConfigureAwait(false);
             if (response == null)
             {
-                return new AgentTestNotificationResult
+                return new MonitorActionResult
                 {
                     Success = false,
                     Message = "Could not reach Monitor. Ensure it is running and try again.",
@@ -481,10 +481,10 @@ public class MonitorService : IMonitorService
 
             if (response.IsSuccessStatusCode)
             {
-                var result = await this.ReadMonitorResponseJsonAsync<AgentTestNotificationResult>(
+                var result = await this.ReadMonitorResponseJsonAsync<MonitorActionResult>(
                     response,
                     nameof(this.SendTestNotificationDetailedAsync)).ConfigureAwait(false);
-                return result ?? new AgentTestNotificationResult
+                return result ?? new MonitorActionResult
                 {
                     Success = true,
                     Message = "Test sent. Check system notifications.",
@@ -493,14 +493,14 @@ public class MonitorService : IMonitorService
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                return new AgentTestNotificationResult
+                return new MonitorActionResult
                 {
                     Success = false,
                     Message = "Monitor endpoint not available. Restart Monitor and try again.",
                 };
             }
 
-            return new AgentTestNotificationResult
+            return new MonitorActionResult
             {
                 Success = false,
                 Message = $"Monitor returned {(int)response.StatusCode} ({response.ReasonPhrase}).",
@@ -509,7 +509,7 @@ public class MonitorService : IMonitorService
         catch (Exception ex)
         {
             this._logger?.LogWarning(ex, "SendTestNotificationAsync error");
-            return new AgentTestNotificationResult
+            return new MonitorActionResult
             {
                 Success = false,
                 Message = "Could not reach Monitor. Ensure it is running and try again.",
@@ -681,7 +681,7 @@ public class MonitorService : IMonitorService
         AgentHealthSnapshot? Snapshot);
 
     // Diagnostics & Export
-    public async Task<AgentProviderCheckResult> CheckProviderAsync(string providerId)
+    public async Task<MonitorActionResult> CheckProviderAsync(string providerId)
     {
         try
         {
@@ -691,7 +691,7 @@ public class MonitorService : IMonitorService
                 refreshPort: true).ConfigureAwait(false);
             if (response == null)
             {
-                return new AgentProviderCheckResult
+                return new MonitorActionResult
                 {
                     Success = false,
                     Message = "Could not reach Monitor. Ensure it is running and try again.",
@@ -703,7 +703,7 @@ public class MonitorService : IMonitorService
                 var result = await this.ReadMonitorResponseJsonAsync<AgentProviderCheckResponse>(
                     response,
                     nameof(this.CheckProviderAsync)).ConfigureAwait(false);
-                return new AgentProviderCheckResult
+                return new MonitorActionResult
                 {
                     Success = result?.Success ?? false,
                     Message = result?.Message ?? "Unknown status",
@@ -716,14 +716,14 @@ public class MonitorService : IMonitorService
                 nameof(this.CheckProviderAsync)).ConfigureAwait(false);
             if (!string.IsNullOrEmpty(error?.Message))
             {
-                return new AgentProviderCheckResult
+                return new MonitorActionResult
                 {
                     Success = false,
                     Message = error.Message,
                 };
             }
 
-            return new AgentProviderCheckResult
+            return new MonitorActionResult
             {
                 Success = false,
                 Message = $"HTTP {response.StatusCode}",
@@ -732,7 +732,7 @@ public class MonitorService : IMonitorService
         catch (Exception ex)
         {
             this._logger?.LogWarning(ex, "CheckProviderAsync failed for {ProviderId}", providerId);
-            return new AgentProviderCheckResult
+            return new MonitorActionResult
             {
                 Success = false,
                 Message = $"Connection error: {ex.Message}",
