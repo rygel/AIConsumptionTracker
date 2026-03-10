@@ -36,6 +36,8 @@ public class ProviderRefreshService : BackgroundService
     private readonly IEnumerable<IProviderService> _providers;
     private readonly UsageAlertsService _usageAlertsService;
     private readonly ProviderRefreshCircuitBreakerService _providerCircuitBreakerService;
+    private readonly ProviderRefreshConfigSelector _configSelector;
+    private readonly ProviderRefreshTelemetryManager _refreshTelemetryManager = new();
     private readonly IMonitorJobScheduler _jobScheduler;
     private readonly IProviderUsageProcessingPipeline _usageProcessingPipeline;
     private readonly IHubContext<UsageHub>? _hubContext;
@@ -44,16 +46,7 @@ public class ProviderRefreshService : BackgroundService
     private static bool _debugMode = false;
     private ProviderManager? _providerManager;
     private int _maxConcurrentProviderRequests = ProviderManager.DefaultMaxConcurrentProviderRequests;
-    private long _refreshCount;
-    private long _refreshFailureCount;
-    private long _refreshTotalLatencyMs;
-    private long _lastRefreshLatencyMs;
     private static readonly ActivitySource ActivitySource = MonitorActivitySources.Refresh;
-    private readonly object _telemetryLock = new();
-    private DateTime? _lastRefreshAttemptUtc;
-    private DateTime? _lastRefreshCompletedUtc;
-    private DateTime? _lastSuccessfulRefreshUtc;
-    private string? _lastRefreshError;
 
     public static void SetDebugMode(bool debug)
     {
@@ -85,6 +78,9 @@ public class ProviderRefreshService : BackgroundService
         this._providers = providers;
         this._usageAlertsService = usageAlertsService;
         this._providerCircuitBreakerService = providerCircuitBreakerService;
+        this._configSelector = new ProviderRefreshConfigSelector(
+            providers,
+            loggerFactory.CreateLogger<ProviderRefreshConfigSelector>());
         this._jobScheduler = jobScheduler;
         this._usageProcessingPipeline = usageProcessingPipeline ??
             new ProviderUsageProcessingPipeline(this._loggerFactory.CreateLogger<ProviderUsageProcessingPipeline>());
@@ -265,12 +261,12 @@ public class ProviderRefreshService : BackgroundService
         var refreshStopwatch = Stopwatch.StartNew();
         var refreshSucceeded = false;
         string? refreshError = null;
-        this.RecordRefreshAttemptStarted(DateTime.UtcNow);
+        this._refreshTelemetryManager.RecordRefreshAttemptStarted(DateTime.UtcNow);
 
         if (this._providerManager == null)
         {
             this._logger.LogWarning("ProviderManager not ready");
-            this.RecordRefreshTelemetry(refreshStopwatch.Elapsed, false, "ProviderManager not ready");
+            this._refreshTelemetryManager.RecordRefreshTelemetry(refreshStopwatch.Elapsed, false, "ProviderManager not ready");
             refreshActivity?.SetStatus(ActivityStatusCode.Error, "ProviderManager not ready");
             return;
         }
@@ -282,7 +278,7 @@ public class ProviderRefreshService : BackgroundService
             if (this._providerManager == null)
             {
                 this._logger.LogWarning("ProviderManager not ready");
-                this.RecordRefreshTelemetry(refreshStopwatch.Elapsed, false, "ProviderManager not ready");
+                this._refreshTelemetryManager.RecordRefreshTelemetry(refreshStopwatch.Elapsed, false, "ProviderManager not ready");
                 refreshActivity?.SetStatus(ActivityStatusCode.Error, "ProviderManager not ready");
                 return;
             }
@@ -343,7 +339,7 @@ public class ProviderRefreshService : BackgroundService
         finally
         {
             refreshStopwatch.Stop();
-            this.RecordRefreshTelemetry(refreshStopwatch.Elapsed, refreshSucceeded, refreshError);
+            this._refreshTelemetryManager.RecordRefreshTelemetry(refreshStopwatch.Elapsed, refreshSucceeded, refreshError);
             refreshActivity?.SetTag("refresh.duration_ms", refreshStopwatch.Elapsed.TotalMilliseconds);
             this._refreshSemaphore.Release();
         }
@@ -366,34 +362,15 @@ public class ProviderRefreshService : BackgroundService
                 hasKey ? $"Has API key ({config.ApiKey?.Length ?? 0} chars)" : "NO API KEY");
         }
 
-        this.EnsureAutoIncludedConfigs(configs);
+        this._configSelector.EnsureAutoIncludedConfigs(configs);
+        var selection = this._configSelector.SelectActiveConfigs(configs, forceAll, includeProviderIds);
+        var activeConfigs = selection.ActiveConfigs;
 
-        var activeConfigs = configs
-            .Where(c =>
-                forceAll ||
-                this.IsAutoIncludedProviderConfig(c.ProviderId) ||
-                !string.IsNullOrEmpty(c.ApiKey))
-            .ToList();
-
-        if (activeConfigs.Any(config => ProviderMetadataCatalog.ShouldSuppressConfig(activeConfigs, config)))
+        if (selection.SuppressedConfigCount > 0)
         {
-            var beforeCount = activeConfigs.Count;
-            activeConfigs = activeConfigs
-                .Where(c => !ProviderMetadataCatalog.ShouldSuppressConfig(activeConfigs, c))
-                .ToList();
             this._logger.LogInformation(
                 "Suppressed duplicate session-backed provider while canonical provider is active (removed {Count}).",
-                beforeCount - activeConfigs.Count);
-        }
-
-        if (includeProviderIds != null && includeProviderIds.Count > 0)
-        {
-            var includeSet = includeProviderIds
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            activeConfigs = activeConfigs
-                .Where(c => includeSet.Contains(c.ProviderId))
-                .ToList();
+                selection.SuppressedConfigCount);
         }
 
         this._logger.LogInformation("Refreshing {Count} configured providers", activeConfigs.Count);
@@ -526,111 +503,7 @@ public class ProviderRefreshService : BackgroundService
 
     public RefreshTelemetrySnapshot GetRefreshTelemetrySnapshot()
     {
-        var refreshCount = Interlocked.Read(ref this._refreshCount);
-        var refreshFailureCount = Interlocked.Read(ref this._refreshFailureCount);
-        var refreshTotalLatencyMs = Interlocked.Read(ref this._refreshTotalLatencyMs);
-        var lastRefreshLatencyMs = Interlocked.Read(ref this._lastRefreshLatencyMs);
-
-        DateTime? lastRefreshCompletedUtc;
-        DateTime? lastRefreshAttemptUtc;
-        DateTime? lastSuccessfulRefreshUtc;
-        string? lastRefreshError;
-        lock (this._telemetryLock)
-        {
-            lastRefreshAttemptUtc = this._lastRefreshAttemptUtc;
-            lastRefreshCompletedUtc = this._lastRefreshCompletedUtc;
-            lastSuccessfulRefreshUtc = this._lastSuccessfulRefreshUtc;
-            lastRefreshError = this._lastRefreshError;
-        }
-
-        var refreshSuccessCount = Math.Max(0, refreshCount - refreshFailureCount);
-        var averageLatencyMs = refreshCount == 0 ? 0 : refreshTotalLatencyMs / (double)refreshCount;
-        var errorRatePercent = refreshCount == 0 ? 0 : (refreshFailureCount / (double)refreshCount) * 100.0;
-
-        return new RefreshTelemetrySnapshot
-        {
-            RefreshCount = refreshCount,
-            RefreshSuccessCount = refreshSuccessCount,
-            RefreshFailureCount = refreshFailureCount,
-            ErrorRatePercent = errorRatePercent,
-            AverageLatencyMs = averageLatencyMs,
-            LastLatencyMs = lastRefreshLatencyMs,
-            LastRefreshAttemptUtc = lastRefreshAttemptUtc,
-            LastRefreshCompletedUtc = lastRefreshCompletedUtc,
-            LastSuccessfulRefreshUtc = lastSuccessfulRefreshUtc,
-            LastError = lastRefreshError,
-            ProviderDiagnostics = this._providerCircuitBreakerService.GetProviderDiagnostics(),
-        };
-    }
-
-    private void RecordRefreshAttemptStarted(DateTime attemptUtc)
-    {
-        lock (this._telemetryLock)
-        {
-            this._lastRefreshAttemptUtc = attemptUtc;
-        }
-    }
-
-    private void RecordRefreshTelemetry(TimeSpan duration, bool success, string? errorMessage)
-    {
-        var latencyMs = (long)Math.Max(0, duration.TotalMilliseconds);
-
-        Interlocked.Increment(ref this._refreshCount);
-
-        Interlocked.Add(ref this._refreshTotalLatencyMs, latencyMs);
-
-        Interlocked.Exchange(ref this._lastRefreshLatencyMs, latencyMs);
-
-        if (!success)
-        {
-            Interlocked.Increment(ref this._refreshFailureCount);
-        }
-
-        lock (this._telemetryLock)
-        {
-            this._lastRefreshCompletedUtc = DateTime.UtcNow;
-            if (success)
-            {
-                this._lastSuccessfulRefreshUtc = this._lastRefreshCompletedUtc;
-            }
-
-            this._lastRefreshError = success ? null : errorMessage;
-        }
-    }
-
-    private void EnsureAutoIncludedConfigs(List<ProviderConfig> configs)
-    {
-        var configuredProviderIds = configs
-            .Select(config => config.ProviderId)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var definition in this._providers
-                     .Select(provider => provider.Definition)
-                     .Where(definition => definition.AutoIncludeWhenUnconfigured))
-        {
-            if (configuredProviderIds.Contains(definition.ProviderId))
-            {
-                continue;
-            }
-
-            if (!ProviderMetadataCatalog.TryCreateDefaultConfig(definition.ProviderId, out var config))
-            {
-                this._logger.LogWarning(
-                    "Failed to create default config for auto-included provider {ProviderId}.",
-                    definition.ProviderId);
-                continue;
-            }
-
-            configs.Add(config);
-            configuredProviderIds.Add(config.ProviderId);
-        }
-    }
-
-    private bool IsAutoIncludedProviderConfig(string providerId)
-    {
-        return this._providers.Any(provider =>
-            provider.Definition.AutoIncludeWhenUnconfigured &&
-            provider.Definition.HandlesProviderId(providerId));
+        return this._refreshTelemetryManager.GetSnapshot(this._providerCircuitBreakerService.GetProviderDiagnostics());
     }
 
     private static bool IsDynamicChildOfAnyActiveProvider(HashSet<string> activeProviderIds, string usageProviderId)
