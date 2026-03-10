@@ -251,7 +251,7 @@ components:
 
     DiagnosticsResponse:
       type: object
-      required: [port, process_id, working_dir, base_dir, started_at, os, runtime, args, endpoints, refresh_telemetry, scheduler_telemetry, pipeline_telemetry]
+      required: [port, process_id, working_dir, base_dir, started_at, os, runtime, args, endpoints, refresh_telemetry, scheduler_telemetry, pipeline_telemetry, observability]
       properties:
         port:
           type: integer
@@ -282,6 +282,8 @@ components:
           $ref: "#/components/schemas/MonitorJobSchedulerSnapshot"
         pipeline_telemetry:
           $ref: "#/components/schemas/ProviderUsageProcessingTelemetrySnapshot"
+        observability:
+          $ref: "#/components/schemas/MonitorObservabilitySnapshot"
 
     EndpointDescriptor:
       type: object
@@ -290,6 +292,15 @@ components:
         route:
           type: string
         methods:
+          type: array
+          items:
+            type: string
+
+    MonitorObservabilitySnapshot:
+      type: object
+      required: [activity_source_names]
+      properties:
+        activity_source_names:
           type: array
           items:
             type: string

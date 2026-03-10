@@ -34,6 +34,9 @@ public class MonitorDiagnosticsSnapshotFactoryTests
         Assert.Equal(["POST"], snapshot.Endpoints[0].Methods);
         Assert.Equal("/api/usage", snapshot.Endpoints[1].Route);
         Assert.Equal(["GET", "POST"], snapshot.Endpoints[1].Methods);
+        Assert.Equal(
+            [MonitorActivitySources.RefreshSourceName, MonitorActivitySources.SchedulerSourceName],
+            snapshot.Observability.ActivitySourceNames);
     }
 
     [Fact]
@@ -74,6 +77,9 @@ public class MonitorDiagnosticsSnapshotFactoryTests
         Assert.Same(refreshTelemetry, snapshot.RefreshTelemetry);
         Assert.Same(schedulerTelemetry, snapshot.SchedulerTelemetry);
         Assert.Same(pipelineTelemetry, snapshot.PipelineTelemetry);
+        Assert.Equal(
+            [MonitorActivitySources.RefreshSourceName, MonitorActivitySources.SchedulerSourceName],
+            snapshot.Observability.ActivitySourceNames);
     }
 
     private static EndpointDataSource BuildDataSource(params RouteEndpoint[] endpoints)

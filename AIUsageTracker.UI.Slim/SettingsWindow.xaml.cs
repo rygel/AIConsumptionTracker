@@ -1602,6 +1602,14 @@ public partial class SettingsWindow : Window
                 pipeline.LastRunAcceptedEntries,
                 pipeline.LastRunTotalEntries);
         }
+
+        if (diagnostics.Observability?.ActivitySourceNames.Count > 0)
+        {
+            bundle.AppendFormat(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "- Observability: activity_sources={0}\r\n",
+                string.Join(", ", diagnostics.Observability.ActivitySourceNames));
+        }
     }
 
     private async Task PersistAllSettingsAsync(bool showErrorDialog)

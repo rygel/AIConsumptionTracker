@@ -38,6 +38,14 @@ internal static class MonitorDiagnosticsSnapshotFactory
             RefreshTelemetry = refreshTelemetry,
             SchedulerTelemetry = schedulerTelemetry,
             PipelineTelemetry = pipelineTelemetry,
+            Observability = new MonitorObservabilitySnapshot
+            {
+                ActivitySourceNames =
+                [
+                    MonitorActivitySources.RefreshSourceName,
+                    MonitorActivitySources.SchedulerSourceName,
+                ],
+            },
         };
     }
 

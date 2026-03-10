@@ -491,6 +491,8 @@ public class MonitorServiceTests
         Assert.Equal(5, diagnostics.RefreshTelemetry?.RefreshCount);
         Assert.Equal(45, diagnostics.SchedulerTelemetry?.EnqueuedJobs);
         Assert.Equal(3, diagnostics.PipelineTelemetry?.PlaceholderFilteredCount);
+        Assert.Equal(2, diagnostics.Observability?.ActivitySourceNames.Count);
+        Assert.Equal("AIUsageTracker.Monitor.Refresh", diagnostics.Observability?.ActivitySourceNames[0]);
         this.VerifyPath("/api/diagnostics");
     }
 
@@ -520,6 +522,9 @@ public class MonitorServiceTests
                             "port": 5099,
                             "process_id": 4321,
                             "runtime": ".NET 8",
+                            "observability": {
+                              "activity_source_names": [ "A", "B" ]
+                            },
                             "scheduler_telemetry": {
                               "total_queued_jobs": 7,
                               "enqueued_jobs": 15
@@ -533,6 +538,7 @@ public class MonitorServiceTests
         Assert.Equal(5099, diagnostics.Port);
         Assert.Equal(4321, diagnostics.ProcessId);
         Assert.Equal(".NET 8", diagnostics.Runtime);
+        Assert.Equal(["A", "B"], diagnostics.Observability?.ActivitySourceNames);
         Assert.Equal(7, diagnostics.SchedulerTelemetry?.TotalQueuedJobs);
         Assert.Equal(15, diagnostics.SchedulerTelemetry?.EnqueuedJobs);
     }
@@ -557,6 +563,9 @@ public class MonitorServiceTests
                                                                                       {
                                                                                         "port": 5100,
                                                                                         "process_id": 777,
+                                                                                        "observability": {
+                                                                                          "activity_source_names": [ "refresh" ]
+                                                                                        },
                                                                                         "pipeline_telemetry": {
                                                                                           "total_processed_entries": 123
                                                                                         }
@@ -566,6 +575,7 @@ public class MonitorServiceTests
         Assert.NotNull(diagnostics);
         Assert.Equal(5100, diagnostics.Port);
         Assert.Equal(777, diagnostics.ProcessId);
+        Assert.Equal(["refresh"], diagnostics.Observability?.ActivitySourceNames);
         Assert.Equal(123, diagnostics.PipelineTelemetry?.TotalProcessedEntries);
     }
 
@@ -787,6 +797,14 @@ public class MonitorServiceTests
                 privacy_redacted_count = 8,
                 last_run_total_entries = 6,
                 last_run_accepted_entries = 5,
+            },
+            observability = new
+            {
+                activity_source_names = new[]
+                {
+                    "AIUsageTracker.Monitor.Refresh",
+                    "AIUsageTracker.Monitor.Scheduler",
+                },
             },
         };
     }

@@ -43,6 +43,9 @@ public sealed class AgentDiagnosticsSnapshot
 
     [JsonPropertyName("pipeline_telemetry")]
     public AgentPipelineTelemetrySnapshot? PipelineTelemetry { get; init; }
+
+    [JsonPropertyName("observability")]
+    public AgentObservabilitySnapshot? Observability { get; init; }
 }
 
 public sealed class AgentEndpointDescriptor
@@ -157,4 +160,10 @@ public sealed class AgentPipelineTelemetrySnapshot
 
     [JsonPropertyName("last_run_accepted_entries")]
     public int LastRunAcceptedEntries { get; init; }
+}
+
+public sealed class AgentObservabilitySnapshot
+{
+    [JsonPropertyName("activity_source_names")]
+    public IReadOnlyList<string> ActivitySourceNames { get; init; } = [];
 }

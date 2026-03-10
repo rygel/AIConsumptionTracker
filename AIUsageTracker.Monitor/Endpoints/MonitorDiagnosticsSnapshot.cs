@@ -31,4 +31,6 @@ internal sealed class MonitorDiagnosticsSnapshot
     public MonitorJobSchedulerSnapshot SchedulerTelemetry { get; init; } = new();
 
     public ProviderUsageProcessingTelemetrySnapshot PipelineTelemetry { get; init; } = new();
+
+    public MonitorObservabilitySnapshot Observability { get; init; } = new();
 }
