@@ -35,10 +35,9 @@ namespace AIUsageTracker.Tests.Helpers
         public void GetSelectedFont_ReturnsPreference_WhenItDoesNotExistInList()
         {
             // User requested: "if in the settings dialog a different font is selected, that this font is supplied"
-            // If the user manually set a font (e.g. via config file) that isn't in the list, 
-            // we should probably preserve it or fallback. 
+            // If the user manually set a font (e.g. via config file) that isn't in the list,
+            // we should probably preserve it or fallback.
             // The Helper implementation returns the preference if not found.
-
             var available = new[] { "Arial", "Segoe UI" };
             var preference = "MyCustomFont";
 
@@ -69,4 +68,3 @@ namespace AIUsageTracker.Tests.Helpers
         }
     }
 }
-
