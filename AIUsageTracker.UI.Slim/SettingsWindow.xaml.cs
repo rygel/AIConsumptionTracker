@@ -1407,8 +1407,16 @@ public partial class SettingsWindow : Window
 
             var (isRunning, port) = await MonitorLauncher.IsAgentRunningWithPortAsync();
             var healthDetails = await this._monitorService.GetHealthDetailsAsync();
-            var diagnosticsDetails = await this._monitorService.GetDiagnosticsDetailsAsync();
             var diagnosticsSnapshot = await this._monitorService.GetDiagnosticsSnapshotAsync();
+            var diagnosticsDetails = diagnosticsSnapshot == null
+                ? "Diagnostics payload unavailable."
+                : JsonSerializer.Serialize(
+                    diagnosticsSnapshot,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+                        WriteIndented = true,
+                    });
 
             var saveDialog = new SaveFileDialog
             {
