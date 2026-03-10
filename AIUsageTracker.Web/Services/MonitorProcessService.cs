@@ -12,6 +12,7 @@ public class MonitorProcessService
 {
     private readonly ILogger<MonitorProcessService> _logger;
     private readonly IMonitorService _monitorService;
+    private readonly IMonitorLauncherClient _monitorLauncherClient;
 
     public readonly record struct MonitorStatusResult(
         bool IsRunning,
@@ -33,9 +34,18 @@ public class MonitorProcessService
         string? StartupFailureReason);
 
     public MonitorProcessService(ILogger<MonitorProcessService> logger, IMonitorService monitorService)
+        : this(logger, monitorService, new MonitorLauncherClient())
+    {
+    }
+
+    public MonitorProcessService(
+        ILogger<MonitorProcessService> logger,
+        IMonitorService monitorService,
+        IMonitorLauncherClient monitorLauncherClient)
     {
         this._logger = logger;
         this._monitorService = monitorService;
+        this._monitorLauncherClient = monitorLauncherClient;
     }
 
     public async Task<(bool IsRunning, int Port)> GetAgentStatusAsync()
@@ -46,7 +56,7 @@ public class MonitorProcessService
 
     public async Task<MonitorStatusResult> GetAgentStatusDetailedAsync()
     {
-        var status = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
+        var status = await this._monitorLauncherClient.GetAgentStatusInfoAsync().ConfigureAwait(false);
         if (!status.IsRunning)
         {
             return CreateStatusResult(status, healthSnapshot: null);
@@ -73,7 +83,7 @@ public class MonitorProcessService
 
     public async Task<MonitorActionResult> StartAgentDetailedAsync()
     {
-        var status = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
+        var status = await this._monitorLauncherClient.GetAgentStatusInfoAsync().ConfigureAwait(false);
         if (status.IsRunning)
         {
             return new MonitorActionResult(
@@ -84,18 +94,18 @@ public class MonitorProcessService
                 null);
         }
 
-        var started = await MonitorLauncher.EnsureAgentRunningAsync().ConfigureAwait(false);
+        var started = await this._monitorLauncherClient.EnsureAgentRunningAsync().ConfigureAwait(false);
         if (!started)
         {
             this._logger.LogWarning("Monitor failed to reach a healthy state after startup request.");
-            var failedStatus = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
+            var failedStatus = await this._monitorLauncherClient.GetAgentStatusInfoAsync().ConfigureAwait(false);
             return CreateStartFailureResult(
                 failedStatus,
                 "Failed to start monitor or monitor did not become healthy.",
                 GetRecentStartupFailureReason());
         }
 
-        var updated = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
+        var updated = await this._monitorLauncherClient.GetAgentStatusInfoAsync().ConfigureAwait(false);
         if (updated.IsRunning)
         {
             return new MonitorActionResult(
@@ -120,7 +130,7 @@ public class MonitorProcessService
 
     public async Task<MonitorActionResult> StopAgentDetailedAsync()
     {
-        var status = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
+        var status = await this._monitorLauncherClient.GetAgentStatusInfoAsync().ConfigureAwait(false);
         if (!status.IsRunning && string.Equals(status.Error, "agent-info-missing", StringComparison.Ordinal))
         {
             return new MonitorActionResult(
@@ -131,7 +141,7 @@ public class MonitorProcessService
                 null);
         }
 
-        var stopped = await MonitorLauncher.StopAgentAsync().ConfigureAwait(false);
+        var stopped = await this._monitorLauncherClient.StopAgentAsync().ConfigureAwait(false);
         if (stopped)
         {
             return new MonitorActionResult(

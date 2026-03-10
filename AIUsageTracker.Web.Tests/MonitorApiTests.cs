@@ -9,14 +9,30 @@ namespace AIUsageTracker.Web.Tests;
 
 [TestClass]
 [DoNotParallelize]
-public class MonitorApiTests : WebTestBase
+public class MonitorApiTests
 {
     [TestMethod]
     public async Task MonitorStatusEndpoint_ReturnsExpectedContractAsync()
     {
-        using var client = CreateClient();
-        using var response = await client.GetAsync("/api/monitor/status").ConfigureAwait(false);
-        var payload = await ReadBodyAsync(response).ConfigureAwait(false);
+        using var host = await TestWebHost.StartAsync(new
+        {
+            statusSequence = new[]
+            {
+                new
+                {
+                    isRunning = false,
+                    port = 5000,
+                    hasMetadata = false,
+                    message = "Monitor info file not found. Start Monitor to initialize it.",
+                    error = "agent-info-missing",
+                },
+            },
+            ensureAgentRunningResult = false,
+            stopAgentResult = false,
+        }).ConfigureAwait(false);
+
+        using var response = await host.Client.GetAsync("/api/monitor/status").ConfigureAwait(false);
+        var payload = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
 
@@ -25,7 +41,7 @@ public class MonitorApiTests : WebTestBase
 
         Assert.AreEqual(JsonValueKind.Object, root.ValueKind);
         Assert.IsTrue(root.TryGetProperty("isRunning", out var isRunning));
-        Assert.AreEqual(JsonValueKind.True, isRunning.ValueKind == JsonValueKind.True ? JsonValueKind.True : isRunning.ValueKind == JsonValueKind.False ? JsonValueKind.False : JsonValueKind.Undefined);
+        Assert.IsTrue(isRunning.ValueKind is JsonValueKind.True or JsonValueKind.False);
         Assert.IsTrue(root.TryGetProperty("port", out var port));
         Assert.AreEqual(JsonValueKind.Number, port.ValueKind);
         Assert.IsTrue(root.TryGetProperty("message", out var message));
