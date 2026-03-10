@@ -164,6 +164,16 @@ Run the pre-commit validation script:
 ```bash
 ./scripts/pre-commit-check.sh
 ```
+Default behavior checks formatting on staged files only. Use `--all` for full-solution formatting validation.
+
+To enable automatic pre-commit enforcement for this repo, configure local hooks once:
+```powershell
+./scripts/setup-git-hooks.ps1
+```
+
+```bash
+./scripts/setup-git-hooks.sh
+```
 
 For local Windows troubleshooting or hang investigation, use:
 ```powershell
@@ -171,26 +181,29 @@ For local Windows troubleshooting or hang investigation, use:
 ```
 
 This script performs:
-1. **Build Validation** - Ensures solution compiles without errors
-2. **Test Execution** - Runs all unit tests (162 tests)
-3. **Format Checking** - Verifies code matches `.editorconfig` rules
+1. **Format Validation** - Enforces `dotnet format whitespace --verify-no-changes`
+2. **Build Validation** - Ensures solution compiles without errors
+3. **Test Execution** - Runs core and monitor test suites
 
 **Manual validation** (if script unavailable):
 ```bash
+# Format check (required, full solution)
+./scripts/pre-commit-check.sh --all
+
 # Build
 dotnet build AIUsageTracker.sln --configuration Release
 
-# Test
+# Core tests
 dotnet test AIUsageTracker.Tests/AIUsageTracker.Tests.csproj --configuration Release --no-build
 
-# Format check
-dotnet format --verify-no-changes --severity warn
+# Monitor tests
+dotnet test AIUsageTracker.Monitor.Tests/AIUsageTracker.Monitor.Tests.csproj --configuration Release --no-build
 ```
 
 **Do NOT commit if:**
 - ❌ Build fails
 - ❌ Any tests fail
-- ❌ Format check shows errors (warnings are OK)
+- ❌ Format check fails
 
 **Why this matters:**
 - CI/CD pipelines will reject broken builds

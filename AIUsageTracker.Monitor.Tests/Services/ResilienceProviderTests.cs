@@ -19,44 +19,45 @@ public class ResilienceProviderTests
 
     public ResilienceProviderTests()
     {
-        _mockLogger = new Mock<ILogger<ResilienceProvider>>();
-        _provider = new ResilienceProvider(_mockLogger.Object);
+        this._mockLogger = new Mock<ILogger<ResilienceProvider>>();
+        this._provider = new ResilienceProvider(this._mockLogger.Object);
     }
 
     [Fact]
     public void GetPolicy_ReturnsWrappedPolicy()
     {
         // Act
-        var policy = _provider.GetPolicy<HttpResponseMessage>("test_policy");
+        var policy = this._provider.GetPolicy<HttpResponseMessage>("test_policy");
 
         // Assert
         Assert.NotNull(policy);
     }
 
     [Fact]
-    public async Task Policy_RetriesOnRetryableStatusCode()
+    public async Task Policy_RetriesOnRetryableStatusCodeAsync()
     {
         // Arrange
         var options = new ResilientHttpClientOptions
         {
             MaxRetryCount = 2,
             BackoffBase = 0.1, // Fast for tests
-            RetryStatusCodes = new[] { HttpStatusCode.TooManyRequests }
+            RetryStatusCodes = new[] { HttpStatusCode.TooManyRequests },
         };
-        var provider = new ResilienceProvider(_mockLogger.Object, options);
+        var provider = new ResilienceProvider(this._mockLogger.Object, options);
         var policy = provider.GetPolicy<HttpResponseMessage>("retry_test");
-        
+
         int callCount = 0;
 
         // Act
-        var result = await policy.ExecuteAsync(async () =>
+        var result = await policy.ExecuteAsync(() =>
         {
             callCount++;
             if (callCount < 3)
             {
-                return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests));
             }
-            return new HttpResponseMessage(HttpStatusCode.OK);
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
         });
 
         // Assert
@@ -65,7 +66,7 @@ public class ResilienceProviderTests
     }
 
     [Fact]
-    public async Task Policy_CircuitBreakerOpensOnFailures()
+    public async Task Policy_CircuitBreakerOpensOnFailuresAsync()
     {
         // Arrange
         var options = new ResilientHttpClientOptions
@@ -73,19 +74,20 @@ public class ResilienceProviderTests
             MaxRetryCount = 0, // No retries for this test
             CircuitBreakerFailureThreshold = 2,
             CircuitBreakerDuration = TimeSpan.FromSeconds(5),
-            CircuitBreakerStatusCodes = new[] { HttpStatusCode.InternalServerError }
+            CircuitBreakerStatusCodes = new[] { HttpStatusCode.InternalServerError },
         };
-        var provider = new ResilienceProvider(_mockLogger.Object, options);
+        var provider = new ResilienceProvider(this._mockLogger.Object, options);
         var policy = provider.GetPolicy<HttpResponseMessage>("circuit_test");
 
         // Act
         // 1st failure
         await policy.ExecuteAsync(() => Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError)));
+
         // 2nd failure - should trip
         await policy.ExecuteAsync(() => Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError)));
 
         // 3rd call - should throw BrokenCircuitException
-        await Assert.ThrowsAsync<Polly.CircuitBreaker.BrokenCircuitException<HttpResponseMessage>>(() => 
+        await Assert.ThrowsAsync<Polly.CircuitBreaker.BrokenCircuitException<HttpResponseMessage>>(() =>
             policy.ExecuteAsync(() => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))));
     }
 }
