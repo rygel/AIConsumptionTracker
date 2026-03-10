@@ -43,6 +43,7 @@ namespace AIUsageTracker.Web.Services
                 var dbPath = sp.GetRequiredService<WebDatabaseConnectionFactory>().GetDatabasePath();
                 return new DataExportService(repo, logger, dbPath);
             });
+            services.AddSingleton<IMonitorLifecycleService, MonitorLifecycleService>();
             services.AddSingleton<MonitorProcessService>();
             services.AddSingleton<IConfigLoader, JsonConfigLoader>();
             return services;

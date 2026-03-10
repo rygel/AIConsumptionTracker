@@ -3,6 +3,7 @@
 // </copyright>
 
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -21,6 +22,11 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
     private readonly List<Task> _recurringTasks = new();
     private long _executedJobs;
     private long _failedJobs;
+    private long _enqueuedJobs;
+    private long _dequeuedJobs;
+    private long _coalescedSkippedJobs;
+    private long _dispatchNoopSignals;
+    private long _inFlightJobs;
     private bool _isRunning;
     private CancellationToken _schedulerToken = CancellationToken.None;
 
@@ -40,6 +46,7 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
 
         if (!string.IsNullOrWhiteSpace(coalesceKey) && !this._coalescedKeys.TryAdd(coalesceKey, 0))
         {
+            Interlocked.Increment(ref this._coalescedSkippedJobs);
             this._logger.LogDebug("Skipped enqueue for coalesced job {JobName} ({CoalesceKey})", jobName, coalesceKey);
             return false;
         }
@@ -59,6 +66,7 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
         }
 
         this._queuedItemsSignal.Release();
+        Interlocked.Increment(ref this._enqueuedJobs);
         this._logger.LogDebug("Queued job {JobName} with priority {Priority}", jobName, priority);
         return true;
     }
@@ -124,6 +132,11 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
             RecurringJobs = recurringCount,
             ExecutedJobs = Interlocked.Read(ref this._executedJobs),
             FailedJobs = Interlocked.Read(ref this._failedJobs),
+            EnqueuedJobs = Interlocked.Read(ref this._enqueuedJobs),
+            DequeuedJobs = Interlocked.Read(ref this._dequeuedJobs),
+            CoalescedSkippedJobs = Interlocked.Read(ref this._coalescedSkippedJobs),
+            DispatchNoopSignals = Interlocked.Read(ref this._dispatchNoopSignals),
+            InFlightJobs = Interlocked.Read(ref this._inFlightJobs),
         };
     }
 
@@ -148,14 +161,25 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
                 await this._queuedItemsSignal.WaitAsync(stoppingToken).ConfigureAwait(false);
                 if (!this.TryDequeueNext(out var job))
                 {
+                    Interlocked.Increment(ref this._dispatchNoopSignals);
                     continue;
                 }
 
+                Interlocked.Increment(ref this._dequeuedJobs);
+                Interlocked.Increment(ref this._inFlightJobs);
                 try
                 {
+                    using var activity = MonitorActivitySources.Scheduler.StartActivity(
+                        "monitor.scheduler.execute_job",
+                        ActivityKind.Internal);
+                    activity?.SetTag("job.name", job.Name);
+                    activity?.SetTag("job.priority", job.Priority.ToString());
+                    activity?.SetTag("job.coalesced", !string.IsNullOrWhiteSpace(job.CoalesceKey));
+
                     this._logger.LogDebug("Executing scheduled job {JobName} ({Priority})", job.Name, job.Priority);
                     await job.Work(stoppingToken).ConfigureAwait(false);
                     Interlocked.Increment(ref this._executedJobs);
+                    activity?.SetStatus(ActivityStatusCode.Ok);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -164,10 +188,14 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
                 catch (Exception ex)
                 {
                     Interlocked.Increment(ref this._failedJobs);
+                    Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                    Activity.Current?.SetTag("error.type", ex.GetType().FullName);
+                    Activity.Current?.SetTag("error.message", ex.Message);
                     this._logger.LogError(ex, "Scheduled job {JobName} failed", job.Name);
                 }
                 finally
                 {
+                    Interlocked.Decrement(ref this._inFlightJobs);
                     if (!string.IsNullOrWhiteSpace(job.CoalesceKey))
                     {
                         this._coalescedKeys.TryRemove(job.CoalesceKey, out _);

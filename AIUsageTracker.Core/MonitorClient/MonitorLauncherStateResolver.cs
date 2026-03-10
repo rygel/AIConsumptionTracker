@@ -119,7 +119,7 @@ namespace AIUsageTracker.Core.MonitorClient
             return new MonitorMetadataState(null, path, HealthOk: false, ProcessRunning: false);
         }
 
-        public static async Task<MonitorLauncher.MonitorStatusInfo> GetAgentStatusInfoAsync(
+        public static async Task<MonitorAgentStatus> GetAgentStatusInfoAsync(
             Func<Task<MonitorMetadataState>> readValidatedAgentInfoAsync,
             Func<int, Task<bool>> checkHealthAsync)
         {
@@ -128,32 +128,38 @@ namespace AIUsageTracker.Core.MonitorClient
             var startupFailure = GetStartupFailure(metadataState.Info?.Errors);
             if (metadataState.IsUsable)
             {
-                return new MonitorLauncher.MonitorStatusInfo(
-                    IsRunning: true,
-                    Port: metadataState.Info!.Port,
-                    HasMetadata: true,
-                    Message: $"Healthy on port {metadataState.Info.Port}.",
-                    Error: null);
+                return new MonitorAgentStatus
+                {
+                    IsRunning = true,
+                    Port = metadataState.Info!.Port,
+                    HasMetadata = true,
+                    Message = $"Healthy on port {metadataState.Info.Port}.",
+                    Error = null,
+                };
             }
 
             if (string.Equals(startupStatus, "starting", StringComparison.OrdinalIgnoreCase) && metadataState.ProcessRunning)
             {
-                return new MonitorLauncher.MonitorStatusInfo(
-                    IsRunning: false,
-                    Port: metadataState.EffectivePort,
-                    HasMetadata: true,
-                    Message: "Monitor is starting.",
-                    Error: "monitor-starting");
+                return new MonitorAgentStatus
+                {
+                    IsRunning = false,
+                    Port = metadataState.EffectivePort,
+                    HasMetadata = true,
+                    Message = "Monitor is starting.",
+                    Error = "monitor-starting",
+                };
             }
 
             if (!string.IsNullOrWhiteSpace(startupFailure))
             {
-                return new MonitorLauncher.MonitorStatusInfo(
-                    IsRunning: false,
-                    Port: metadataState.EffectivePort,
-                    HasMetadata: true,
-                    Message: startupFailure,
-                    Error: "monitor-startup-failed");
+                return new MonitorAgentStatus
+                {
+                    IsRunning = false,
+                    Port = metadataState.EffectivePort,
+                    HasMetadata = true,
+                    Message = startupFailure,
+                    Error = "monitor-startup-failed",
+                };
             }
 
             var port = metadataState.EffectivePort;
@@ -161,30 +167,36 @@ namespace AIUsageTracker.Core.MonitorClient
             var hasMetadata = metadataState.Path != null;
             if (isRunning)
             {
-                return new MonitorLauncher.MonitorStatusInfo(
-                    IsRunning: true,
-                    Port: port,
-                    HasMetadata: hasMetadata,
-                    Message: $"Healthy on port {port}.",
-                    Error: null);
+                return new MonitorAgentStatus
+                {
+                    IsRunning = true,
+                    Port = port,
+                    HasMetadata = hasMetadata,
+                    Message = $"Healthy on port {port}.",
+                    Error = null,
+                };
             }
 
             if (hasMetadata)
             {
-                return new MonitorLauncher.MonitorStatusInfo(
-                    IsRunning: false,
-                    Port: port,
-                    HasMetadata: true,
-                    Message: $"Monitor not reachable on port {port}.",
-                    Error: "monitor-unreachable");
+                return new MonitorAgentStatus
+                {
+                    IsRunning = false,
+                    Port = port,
+                    HasMetadata = true,
+                    Message = $"Monitor not reachable on port {port}.",
+                    Error = "monitor-unreachable",
+                };
             }
 
-            return new MonitorLauncher.MonitorStatusInfo(
-                IsRunning: false,
-                Port: port,
-                HasMetadata: false,
-                Message: "Monitor info file not found. Start Monitor to initialize it.",
-                Error: "agent-info-missing");
+            return new MonitorAgentStatus
+            {
+                IsRunning = false,
+                Port = port,
+                HasMetadata = false,
+                Message = "Monitor info file not found. Start Monitor to initialize it.",
+                Error = "agent-info-missing",
+            };
         }
 
         public static async Task<MonitorReadyState> ResolveReadyStateAsync(

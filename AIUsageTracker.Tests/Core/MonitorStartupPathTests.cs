@@ -372,6 +372,7 @@ public sealed class MonitorStartupPathTests : IDisposable
         var secondProviderId = "provider-b";
 
         await using var firstEndpoint = await TestMonitorEndpoint.StartAsync(firstProviderId);
+        var activePort = firstEndpoint.Port;
         var infoPath = await this.CreateMonitorInfoAsync(new MonitorInfo
         {
             Port = firstEndpoint.Port,
@@ -380,6 +381,7 @@ public sealed class MonitorStartupPathTests : IDisposable
 
         using var overrides = MonitorLauncher.PushTestOverrides(
             monitorInfoCandidatePaths: new[] { infoPath },
+            healthCheckAsync: port => Task.FromResult(port == activePort),
             processRunningAsync: processId => Task.FromResult(processId == 1234 || processId == 5678));
 
         var service = new MonitorService(new HttpClient(), NullLogger<MonitorService>.Instance)
@@ -406,6 +408,7 @@ public sealed class MonitorStartupPathTests : IDisposable
         Assert.Equal(firstProviderId, preservedUsage.ProviderId);
 
         await using var secondEndpoint = await TestMonitorEndpoint.StartAsync(secondProviderId);
+        activePort = secondEndpoint.Port;
         await this.CreateMonitorInfoAsync(new MonitorInfo
         {
             Port = secondEndpoint.Port,

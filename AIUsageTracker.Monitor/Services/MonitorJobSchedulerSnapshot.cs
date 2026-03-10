@@ -19,4 +19,14 @@ public sealed class MonitorJobSchedulerSnapshot
     public long ExecutedJobs { get; init; }
 
     public long FailedJobs { get; init; }
+
+    public long EnqueuedJobs { get; init; }
+
+    public long DequeuedJobs { get; init; }
+
+    public long CoalescedSkippedJobs { get; init; }
+
+    public long DispatchNoopSignals { get; init; }
+
+    public long InFlightJobs { get; init; }
 }

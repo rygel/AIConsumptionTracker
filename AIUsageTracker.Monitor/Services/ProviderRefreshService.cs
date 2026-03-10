@@ -259,11 +259,18 @@ public class ProviderRefreshService : BackgroundService
         var refreshStopwatch = Stopwatch.StartNew();
         var refreshSucceeded = false;
         string? refreshError = null;
+        using var refreshActivity = MonitorActivitySources.Refresh.StartActivity(
+            "monitor.refresh.cycle",
+            ActivityKind.Internal);
+        refreshActivity?.SetTag("refresh.force_all", forceAll);
+        refreshActivity?.SetTag("refresh.include_provider_count", includeProviderIds?.Count ?? 0);
+        refreshActivity?.SetTag("refresh.bypass_circuit_breaker", bypassCircuitBreaker);
         this.RecordRefreshAttemptStarted(DateTime.UtcNow);
 
         if (this._providerManager == null)
         {
             this._logger.LogWarning("ProviderManager not ready");
+            refreshActivity?.SetStatus(ActivityStatusCode.Error, "ProviderManager not ready");
             this.RecordRefreshTelemetry(refreshStopwatch.Elapsed, false, "ProviderManager not ready");
             return;
         }
@@ -275,6 +282,7 @@ public class ProviderRefreshService : BackgroundService
             if (this._providerManager == null)
             {
                 this._logger.LogWarning("ProviderManager not ready");
+                refreshActivity?.SetStatus(ActivityStatusCode.Error, "ProviderManager not ready");
                 this.RecordRefreshTelemetry(refreshStopwatch.Elapsed, false, "ProviderManager not ready");
                 return;
             }
@@ -288,12 +296,16 @@ public class ProviderRefreshService : BackgroundService
 
             this._logger.LogInformation("Refreshing...");
             var (configs, activeConfigs) = await this.LoadConfigsForRefreshAsync(forceAll, includeProviderIds).ConfigureAwait(false);
+            refreshActivity?.SetTag("refresh.config_count", configs.Count);
+            refreshActivity?.SetTag("refresh.active_config_count", activeConfigs.Count);
             await this.PersistConfiguredProvidersAsync(configs).ConfigureAwait(false);
 
             var refreshableConfigs = bypassCircuitBreaker
                 ? activeConfigs
                 : this._providerCircuitBreakerService.GetRefreshableConfigs(activeConfigs, forceAll);
+            refreshActivity?.SetTag("refresh.refreshable_config_count", refreshableConfigs.Count);
             var circuitSkippedCount = activeConfigs.Count - refreshableConfigs.Count;
+            refreshActivity?.SetTag("refresh.circuit_skipped_count", circuitSkippedCount);
             if (circuitSkippedCount > 0)
             {
                 this._logger.LogInformation("Circuit breaker skipping {Count} provider(s) this cycle", circuitSkippedCount);
@@ -313,6 +325,7 @@ public class ProviderRefreshService : BackgroundService
             await this._database.OptimizeAsync().ConfigureAwait(false);
             this._logger.LogInformation("Cleanup complete");
             refreshSucceeded = true;
+            refreshActivity?.SetStatus(ActivityStatusCode.Ok);
 
             if (this._hubContext != null)
             {
@@ -321,6 +334,9 @@ public class ProviderRefreshService : BackgroundService
         }
         catch (Exception ex)
         {
+            refreshActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            refreshActivity?.SetTag("error.type", ex.GetType().FullName);
+            refreshActivity?.SetTag("error.message", ex.Message);
             this._logger.LogError(ex, "Refresh failed: {Message}", ex.Message);
             MonitorInfoPersistence.ReportError($"Refresh failed: {ex.Message}", this._pathProvider, this._logger);
             refreshError = ex.Message;
@@ -407,6 +423,12 @@ public class ProviderRefreshService : BackgroundService
             throw new InvalidOperationException("ProviderManager not initialized");
         }
 
+        using var providerQueryActivity = MonitorActivitySources.Refresh.StartActivity(
+            "monitor.refresh.query_providers",
+            ActivityKind.Internal);
+        providerQueryActivity?.SetTag("refresh.provider_query_count", refreshableConfigs.Count);
+        providerQueryActivity?.SetTag("refresh.all_config_count", allConfigs.Count);
+
         this._logger.LogDebug("Querying {Count} providers with API keys...", refreshableConfigs.Count);
         this._logger.LogInformation("Querying {Count} providers", refreshableConfigs.Count);
 
@@ -419,8 +441,9 @@ public class ProviderRefreshService : BackgroundService
             forceRefresh: true,
             progressCallback: _ => { },
             includeProviderIds: providerIdsToQuery).ConfigureAwait(false);
+        var totalUsageCount = usages.Count();
 
-        this._logger.LogDebug("Received {Count} total usage results", usages.Count());
+        this._logger.LogDebug("Received {Count} total usage results", totalUsageCount);
 
         var activeProviderIds = refreshableConfigs
             .Select(c => c.ProviderId)
@@ -432,11 +455,17 @@ public class ProviderRefreshService : BackgroundService
             activeProviderIds,
             prefs.IsPrivacyMode);
         var filteredUsages = processingResult.Usages.ToList();
+        providerQueryActivity?.SetTag("refresh.usages_total_count", totalUsageCount);
+        providerQueryActivity?.SetTag("refresh.usages_accepted_count", filteredUsages.Count);
+        providerQueryActivity?.SetTag("refresh.usages_rejected_count", Math.Max(0, totalUsageCount - filteredUsages.Count));
+        providerQueryActivity?.SetTag("refresh.privacy_mode", prefs.IsPrivacyMode);
+        providerQueryActivity?.SetTag("refresh.pipeline.normalized_count", processingResult.NormalizedCount);
+        providerQueryActivity?.SetTag("refresh.pipeline.placeholder_filtered_count", processingResult.PlaceholderFilteredCount);
 
         this._logger.LogDebug(
             "Usage pipeline accepted {Accepted}/{Total} items (invalidIdentity={InvalidIdentity}, inactiveFiltered={InactiveFiltered}, placeholderFiltered={PlaceholderFiltered}, detailAdjusted={DetailAdjusted}, normalized={Normalized}, redacted={Redacted})",
             filteredUsages.Count,
-            usages.Count(),
+            totalUsageCount,
             processingResult.InvalidIdentityCount,
             processingResult.InactiveProviderFilteredCount,
             processingResult.PlaceholderFilteredCount,
