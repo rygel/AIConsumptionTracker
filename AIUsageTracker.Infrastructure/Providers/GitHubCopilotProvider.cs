@@ -4,6 +4,7 @@
 
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Http;
 using AIUsageTracker.Core.Providers;
 using Microsoft.Extensions.Logging;
 
@@ -33,12 +34,13 @@ public class GitHubCopilotProvider : ProviderBase
     public override string ProviderId => StaticDefinition.ProviderId;
 
     private readonly IGitHubAuthService _authService;
-    private readonly HttpClient _httpClient;
+    private readonly IResilientHttpClient _resilientHttpClient;
     private readonly ILogger<GitHubCopilotProvider> _logger;
 
-    public GitHubCopilotProvider(HttpClient httpClient, ILogger<GitHubCopilotProvider> logger, IGitHubAuthService authService)
+    public GitHubCopilotProvider(IResilientHttpClient resilientHttpClient, ILogger<GitHubCopilotProvider> logger, IGitHubAuthService authService, IProviderDiscoveryService? discoveryService = null)
+        : base(discoveryService)
     {
-        this._httpClient = httpClient;
+        this._resilientHttpClient = resilientHttpClient;
         this._logger = logger;
         this._authService = authService;
     }
@@ -62,7 +64,7 @@ public class GitHubCopilotProvider : ProviderBase
         try
         {
             using var request = CreateBearerRequest("https://api.github.com/user", token);
-            using var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
+            using var response = await this._resilientHttpClient.SendAsync(request, this.ProviderId).ConfigureAwait(false);
             state.HttpStatus = (int)response.StatusCode;
 
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -148,7 +150,7 @@ public class GitHubCopilotProvider : ProviderBase
         try
         {
             using var internalRequest = CreateBearerRequest("https://api.github.com/copilot_internal/v2/token", token);
-            using var internalResponse = await this._httpClient.SendAsync(internalRequest).ConfigureAwait(false);
+            using var internalResponse = await this._resilientHttpClient.SendAsync(internalRequest, this.ProviderId).ConfigureAwait(false);
             if (internalResponse.IsSuccessStatusCode)
             {
                 var internalJson = await internalResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -192,7 +194,7 @@ public class GitHubCopilotProvider : ProviderBase
         try
         {
             using var quotaRequest = CreateQuotaRequest(token);
-            using var quotaResponse = await this._httpClient.SendAsync(quotaRequest).ConfigureAwait(false);
+            using var quotaResponse = await this._resilientHttpClient.SendAsync(quotaRequest, this.ProviderId).ConfigureAwait(false);
             if (!quotaResponse.IsSuccessStatusCode)
             {
                 return;

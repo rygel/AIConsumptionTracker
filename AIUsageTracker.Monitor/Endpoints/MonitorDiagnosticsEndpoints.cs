@@ -37,7 +37,7 @@ namespace AIUsageTracker.Monitor.Endpoints
                 });
             });
 
-            app.MapGet(MonitorApiRoutes.Diagnostics, (EndpointDataSource endpointDataSource, ProviderRefreshService refreshService, ILogger<Program> logger) =>
+            app.MapGet(MonitorApiRoutes.Diagnostics, (EndpointDataSource endpointDataSource, ProviderRefreshService refreshService, IMonitorJobScheduler scheduler, ILogger<Program> logger) =>
             {
                 if (isDebugMode)
                 {
@@ -76,6 +76,7 @@ namespace AIUsageTracker.Monitor.Endpoints
                     args,
                     endpoints = apiEndpoints,
                     refreshTelemetry = refreshService.GetRefreshTelemetrySnapshot(),
+                    schedulerTelemetry = scheduler.GetSnapshot(),
                 });
             });
         }

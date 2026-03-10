@@ -15,6 +15,7 @@ using AIUsageTracker.Infrastructure.Helpers;
 using AIUsageTracker.Infrastructure.Providers;
 using AIUsageTracker.Infrastructure.Services;
 using AIUsageTracker.Monitor.Endpoints;
+using AIUsageTracker.Monitor.Hubs;
 using AIUsageTracker.Monitor.Logging;
 using AIUsageTracker.Monitor.Services;
 using Microsoft.AspNetCore.Builder;
@@ -142,11 +143,14 @@ public class Program
             {
                 options.AddDefaultPolicy(policy =>
                 {
-                    policy.AllowAnyOrigin()
+                    policy.WithOrigins("http://localhost:5100", "http://localhost:5000") // Explicit origins for SignalR/CORS safety
                           .AllowAnyMethod()
-                          .AllowAnyHeader();
+                          .AllowAnyHeader()
+                          .AllowCredentials(); // Required for SignalR with WebSockets/Long Polling
                 });
             });
+
+            builder.Services.AddSignalR();
 
             // Configure JSON serialization with snake_case naming
             builder.Services.ConfigureHttpJsonOptions(options =>
@@ -177,9 +181,14 @@ public class Program
 
             builder.Services.AddSingleton<IConfigService, ConfigService>();
             builder.Services.AddSingleton<IGitHubAuthService, GitHubAuthService>();
+            builder.Services.AddSingleton<IProviderDiscoveryService, ProviderDiscoveryService>();
             builder.Services.AddProvidersFromAssembly();
             builder.Services.AddSingleton<UsageAlertsService>();
             builder.Services.AddSingleton<ProviderRefreshCircuitBreakerService>();
+            builder.Services.AddSingleton<IProviderUsageProcessingPipeline, ProviderUsageProcessingPipeline>();
+            builder.Services.AddSingleton<MonitorJobScheduler>();
+            builder.Services.AddSingleton<IMonitorJobScheduler>(sp => sp.GetRequiredService<MonitorJobScheduler>());
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<MonitorJobScheduler>());
             builder.Services.AddSingleton<ProviderRefreshService>();
             builder.Services.AddHostedService(sp => sp.GetRequiredService<ProviderRefreshService>());
 
@@ -203,6 +212,8 @@ public class Program
             }
 
             app.UseCors();
+
+            app.MapHub<UsageHub>("/hubs/usage");
 
             if (isDebugMode)
             {

@@ -28,6 +28,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Win32;
+using Microsoft.AspNetCore.SignalR.Client;
 using SharpVectors.Converters;
 using SharpVectors.Renderers.Wpf;
 
@@ -74,6 +75,7 @@ public partial class MainWindow : Window
     private DateTime _lastTrayConfigRefresh = DateTime.MinValue;
     private string? _monitorContractWarningMessage;
     private bool _isUpdateCheckInProgress;
+    private HubConnection? _hubConnection;
     private HwndSource? _windowSource;
     private UpdateInfo? _latestUpdate;
     private bool _preferencesLoaded;
@@ -193,6 +195,12 @@ public partial class MainWindow : Window
             this._updateCheckTimer.Stop();
             this._alwaysOnTopTimer.Stop();
             this.SourceInitialized -= this.OnSourceInitialized;
+
+            if (this._hubConnection != null)
+            {
+                _ = this._hubConnection.DisposeAsync();
+                this._hubConnection = null;
+            }
 
             if (this._windowSource is not null)
             {
@@ -522,6 +530,9 @@ public partial class MainWindow : Window
 
                 // Start polling timer - UI polls Agent every minute
                 this.StartPollingTimer();
+
+                // Initialize SignalR connection for push updates
+                _ = this.InitializeSignalRAsync();
 
                 this.ShowStatus("Connected", StatusType.Success);
             }
@@ -1781,9 +1792,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            this._isPollingInProgress = true;
-
-            // Poll monitor every minute for fresh data
+            // Poll monitor for fresh data
             try
             {
                 var usages = await this._monitorService.GetUsageAsync();
@@ -1792,15 +1801,10 @@ public partial class MainWindow : Window
                 if (usages.Any())
                 {
                     // Fresh data received - update UI
-                    this._usages = usages.ToList();
-                    this.RenderProviders();
-                    this._lastMonitorUpdate = DateTime.Now;
-                    this.ShowStatus($"{DateTime.Now:HH:mm:ss}", StatusType.Success);
-                    _ = this.UpdateTrayIconsAsync();
-                    if (this._pollingTimer != null && this._pollingTimer.Interval != NormalPollingInterval)
+                    await this.Dispatcher.InvokeAsync(async () =>
                     {
-                        this._pollingTimer.Interval = NormalPollingInterval;
-                    }
+                        await this.FetchDataAsync();
+                    });
                 }
                 else
                 {
@@ -1829,26 +1833,12 @@ public partial class MainWindow : Window
 
                     // Wait a moment and retry getting data
                     await Task.Delay(1000);
-                    var retryUsages = await this._monitorService.GetUsageAsync();
+                    await this.Dispatcher.InvokeAsync(async () =>
+                    {
+                        await this.FetchDataAsync(" (refreshed)");
+                    });
 
-                    if (retryUsages.Any())
-                    {
-                        this._usages = retryUsages.ToList();
-                        this.RenderProviders();
-                        this._lastMonitorUpdate = DateTime.Now;
-                        this.ShowStatus($"{DateTime.Now:HH:mm:ss} (refreshed)", StatusType.Success);
-                        _ = this.UpdateTrayIconsAsync();
-                        if (this._pollingTimer != null && this._pollingTimer.Interval != NormalPollingInterval)
-                        {
-                            this._pollingTimer.Interval = NormalPollingInterval;
-                        }
-                    }
-                    else if (this._usages.Any())
-                    {
-                        // Keep showing old data, show yellow warning
-                        this.ShowStatus("Last update: " + this._lastMonitorUpdate.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) + " (stale)", StatusType.Warning);
-                    }
-                    else
+                    if (!this._usages.Any())
                     {
                         // No current data and no previous data - show warning
                         this.ShowStatus("No data - waiting for Monitor", StatusType.Warning);
@@ -1856,6 +1846,11 @@ public partial class MainWindow : Window
                         {
                             this._pollingTimer.Interval = StartupPollingInterval;
                         }
+                    }
+                    else if ((DateTime.Now - this._lastMonitorUpdate).TotalMinutes > 5)
+                    {
+                        // Keep showing old data, show yellow warning
+                        this.ShowStatus("Last update: " + this._lastMonitorUpdate.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) + " (stale)", StatusType.Warning);
                     }
                 }
             }
@@ -1876,10 +1871,6 @@ public partial class MainWindow : Window
                         this._pollingTimer.Interval = StartupPollingInterval;
                     }
                 }
-            }
-            finally
-            {
-                this._isPollingInProgress = false;
             }
         };
 
@@ -1922,6 +1913,84 @@ public partial class MainWindow : Window
             stopwatch.Stop();
             this.LogDiagnostic($"[DIAGNOSTIC] UpdateTrayIconsAsync completed in {stopwatch.ElapsedMilliseconds}ms");
             this._isTrayIconUpdateInProgress = false;
+        }
+    }
+
+    private async Task InitializeSignalRAsync()
+    {
+        if (this._monitorService == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var hubUrl = $"{this._monitorService.AgentUrl.TrimEnd('/')}/hubs/usage";
+            this._logger.LogInformation("Initializing SignalR connection to {HubUrl}", hubUrl);
+
+            this._hubConnection = new HubConnectionBuilder()
+                .WithUrl(hubUrl)
+                .WithAutomaticReconnect()
+                .Build();
+
+            this._hubConnection.On("RefreshStarted", () =>
+            {
+                this.Dispatcher.Invoke(() =>
+                {
+                    this.ShowStatus("Monitor refreshing...", StatusType.Info);
+                });
+            });
+
+            this._hubConnection.On("UsageUpdated", async () =>
+            {
+                this._logger.LogInformation("SignalR: Received UsageUpdated event");
+                await this.Dispatcher.InvokeAsync(async () =>
+                {
+                    await this.FetchDataAsync(" (real-time)");
+                });
+            });
+
+            await this._hubConnection.StartAsync();
+            this._logger.LogInformation("SignalR connection established");
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogWarning(ex, "Failed to initialize SignalR connection. Falling back to polling only.");
+        }
+    }
+
+    private async Task FetchDataAsync(string statusSuffix = "")
+    {
+        if (this._isPollingInProgress)
+        {
+            return;
+        }
+
+        this._isPollingInProgress = true;
+        try
+        {
+            var usages = await this._monitorService.GetUsageAsync();
+            if (usages.Any())
+            {
+                this._usages = usages.ToList();
+                this.RenderProviders();
+                this._lastMonitorUpdate = DateTime.Now;
+                this.ShowStatus($"{DateTime.Now:HH:mm:ss}{statusSuffix}", StatusType.Success);
+                _ = this.UpdateTrayIconsAsync();
+
+                if (this._pollingTimer != null && this._pollingTimer.Interval != NormalPollingInterval)
+                {
+                    this._pollingTimer.Interval = NormalPollingInterval;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogWarning(ex, "FetchDataAsync failed");
+        }
+        finally
+        {
+            this._isPollingInProgress = false;
         }
     }
 

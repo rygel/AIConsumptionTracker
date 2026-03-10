@@ -12,12 +12,16 @@ namespace AIUsageTracker.Core.Services;
 public class ProviderManager : IDisposable
 {
     private static readonly TimeSpan ProviderRequestTimeout = TimeSpan.FromSeconds(25);
+    public const int DefaultMaxConcurrentProviderRequests = 6;
+    public const int MinMaxConcurrentProviderRequests = 1;
+    public const int MaxMaxConcurrentProviderRequests = 32;
+
     private readonly IReadOnlyList<IProviderService> _providers;
     private readonly IConfigLoader _configLoader;
     private readonly ILogger<ProviderManager> _logger;
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
     private readonly SemaphoreSlim _configSemaphore = new(1, 1);
-    private readonly SemaphoreSlim _httpSemaphore = new(6);
+    private readonly SemaphoreSlim _httpSemaphore;
     private readonly TimeSpan _configCacheValidity = TimeSpan.FromSeconds(5);
     private List<ProviderUsage> _lastUsages = new();
     private List<ProviderConfig>? _lastConfigs;
@@ -27,16 +31,27 @@ public class ProviderManager : IDisposable
     public ProviderManager(
         IEnumerable<IProviderService> providers,
         IConfigLoader configLoader,
-        ILogger<ProviderManager> logger)
+        ILogger<ProviderManager> logger,
+        int maxConcurrentProviderRequests = DefaultMaxConcurrentProviderRequests)
     {
         this._providers = providers.ToList();
         this._configLoader = configLoader;
         this._logger = logger;
+
+        this.MaxConcurrentProviderRequests = ClampMaxConcurrentProviderRequests(maxConcurrentProviderRequests);
+        this._httpSemaphore = new SemaphoreSlim(this.MaxConcurrentProviderRequests);
     }
 
     public IReadOnlyList<ProviderUsage> LastUsages => this._lastUsages;
 
     public IReadOnlyList<ProviderConfig>? LastConfigs => this._lastConfigs;
+
+    public int MaxConcurrentProviderRequests { get; }
+
+    public static int ClampMaxConcurrentProviderRequests(int value)
+    {
+        return Math.Clamp(value, MinMaxConcurrentProviderRequests, MaxMaxConcurrentProviderRequests);
+    }
 
     public async Task<IReadOnlyList<ProviderConfig>> GetConfigsAsync(bool forceRefresh = false)
     {

@@ -4,8 +4,11 @@
 
 namespace AIUsageTracker.Infrastructure.Extensions
 {
+    using AIUsageTracker.Core.Interfaces;
     using AIUsageTracker.Infrastructure.Http;
+    using AIUsageTracker.Infrastructure.Resilience;
     using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Logging;
     using Polly;
     using Polly.Extensions.Http;
 
@@ -16,6 +19,9 @@ namespace AIUsageTracker.Infrastructure.Extensions
         /// </summary>
         public static IServiceCollection AddResilientHttpClient(this IServiceCollection services)
         {
+            // Register ResilienceProvider as singleton
+            services.AddSingleton<IResilienceProvider, ResilienceProvider>();
+
             // Configure retry policy
             var retryPolicy = HttpPolicyExtensions
                 .HandleTransientHttpError()
@@ -51,8 +57,9 @@ namespace AIUsageTracker.Infrastructure.Extensions
             {
                 var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
                 var httpClient = httpClientFactory.CreateClient("ResilientClient");
-                var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ResilientHttpClient>>();
-                return new ResilientHttpClient(httpClient, logger);
+                var resilienceProvider = sp.GetRequiredService<IResilienceProvider>();
+                var logger = sp.GetRequiredService<ILogger<ResilientHttpClient>>();
+                return new ResilientHttpClient(httpClient, resilienceProvider, logger);
             });
 
             return services;

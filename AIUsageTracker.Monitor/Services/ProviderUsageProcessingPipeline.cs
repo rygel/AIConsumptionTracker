@@ -1,0 +1,333 @@
+// <copyright file="ProviderUsageProcessingPipeline.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
+using AIUsageTracker.Core.Models;
+using Microsoft.Extensions.Logging;
+
+namespace AIUsageTracker.Monitor.Services;
+
+public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
+{
+    private readonly ILogger<ProviderUsageProcessingPipeline> _logger;
+
+    public ProviderUsageProcessingPipeline(ILogger<ProviderUsageProcessingPipeline> logger)
+    {
+        this._logger = logger;
+    }
+
+    public ProviderUsageProcessingResult Process(
+        IEnumerable<ProviderUsage> usages,
+        IReadOnlyCollection<string> activeProviderIds,
+        bool isPrivacyMode)
+    {
+        ArgumentNullException.ThrowIfNull(usages);
+        ArgumentNullException.ThrowIfNull(activeProviderIds);
+
+        var accepted = new List<ProviderUsage>();
+        var activeSet = activeProviderIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var invalidIdentityCount = 0;
+        var inactiveProviderFilteredCount = 0;
+        var placeholderFilteredCount = 0;
+        var detailContractAdjustedCount = 0;
+        var normalizedCount = 0;
+        var privacyRedactedCount = 0;
+
+        foreach (var usage in usages)
+        {
+            var normalized = this.NormalizeUsage(
+                usage,
+                isPrivacyMode,
+                ref normalizedCount,
+                ref privacyRedactedCount);
+            if (string.IsNullOrWhiteSpace(normalized.ProviderId))
+            {
+                invalidIdentityCount++;
+                this._logger.LogWarning("Rejecting usage entry with empty provider id.");
+                continue;
+            }
+
+            if (!this.IsUsageForAnyActiveProvider(activeSet, normalized.ProviderId))
+            {
+                inactiveProviderFilteredCount++;
+                continue;
+            }
+
+            if (this.TryCreateDetailContractErrorUsage(normalized, out var contractErrorUsage))
+            {
+                normalized = contractErrorUsage;
+                detailContractAdjustedCount++;
+            }
+
+            if (this.IsPlaceholderUnavailableUsage(normalized))
+            {
+                placeholderFilteredCount++;
+                continue;
+            }
+
+            accepted.Add(normalized);
+        }
+
+        return new ProviderUsageProcessingResult
+        {
+            Usages = accepted,
+            InvalidIdentityCount = invalidIdentityCount,
+            InactiveProviderFilteredCount = inactiveProviderFilteredCount,
+            PlaceholderFilteredCount = placeholderFilteredCount,
+            DetailContractAdjustedCount = detailContractAdjustedCount,
+            NormalizedCount = normalizedCount,
+            PrivacyRedactedCount = privacyRedactedCount,
+        };
+    }
+
+    private ProviderUsage NormalizeUsage(
+        ProviderUsage usage,
+        bool isPrivacyMode,
+        ref int normalizedCount,
+        ref int privacyRedactedCount)
+    {
+        var providerId = usage.ProviderId?.Trim() ?? string.Empty;
+        var providerName = string.IsNullOrWhiteSpace(usage.ProviderName)
+            ? providerId
+            : usage.ProviderName.Trim();
+
+        var requestsUsed = this.SanitizeNonNegativeFinite(usage.RequestsUsed);
+        var requestsAvailable = this.SanitizeNonNegativeFinite(usage.RequestsAvailable);
+        var requestsPercentage = this.NormalizePercentage(usage, requestsUsed, requestsAvailable);
+        var responseLatencyMs = this.SanitizeNonNegativeFinite(usage.ResponseLatencyMs);
+        var fetchedAt = this.NormalizeFetchedAt(usage.FetchedAt);
+        var description = (usage.Description ?? string.Empty).Trim();
+        if (!usage.IsAvailable && string.IsNullOrWhiteSpace(description))
+        {
+            description = "Unavailable";
+        }
+
+        var httpStatus = usage.HttpStatus is >= 0 and <= 599 ? usage.HttpStatus : 0;
+
+        var details = this.NormalizeDetails(usage.Details);
+
+        var rawJson = usage.RawJson;
+        var accountName = usage.AccountName;
+        var configKey = usage.ConfigKey;
+        if (isPrivacyMode)
+        {
+            if (!string.IsNullOrWhiteSpace(rawJson) ||
+                !string.IsNullOrWhiteSpace(accountName) ||
+                !string.IsNullOrWhiteSpace(configKey))
+            {
+                privacyRedactedCount++;
+            }
+
+            rawJson = null;
+            accountName = string.Empty;
+            configKey = string.Empty;
+        }
+
+        if (!this.StringEquals(providerId, usage.ProviderId) ||
+            !this.StringEquals(providerName, usage.ProviderName) ||
+            requestsUsed != usage.RequestsUsed ||
+            requestsAvailable != usage.RequestsAvailable ||
+            requestsPercentage != usage.RequestsPercentage ||
+            responseLatencyMs != usage.ResponseLatencyMs ||
+            fetchedAt != usage.FetchedAt ||
+            !this.StringEquals(description, usage.Description) ||
+            httpStatus != usage.HttpStatus ||
+            !ReferenceEquals(details, usage.Details))
+        {
+            normalizedCount++;
+        }
+
+        return new ProviderUsage
+        {
+            ProviderId = providerId,
+            ProviderName = providerName,
+            RequestsUsed = requestsUsed,
+            RequestsAvailable = requestsAvailable,
+            RequestsPercentage = requestsPercentage,
+            PlanType = usage.PlanType,
+            UsageUnit = usage.UsageUnit,
+            IsQuotaBased = usage.IsQuotaBased,
+            DisplayAsFraction = usage.DisplayAsFraction,
+            IsAvailable = usage.IsAvailable,
+            Description = description,
+            AuthSource = usage.AuthSource,
+            Details = details,
+            AccountName = accountName ?? string.Empty,
+            ConfigKey = configKey ?? string.Empty,
+            NextResetTime = usage.NextResetTime?.ToUniversalTime(),
+            FetchedAt = fetchedAt,
+            ResponseLatencyMs = responseLatencyMs,
+            RawJson = rawJson,
+            HttpStatus = httpStatus,
+        };
+    }
+
+    private bool StringEquals(string? left, string? right)
+    {
+        return string.Equals(left, right, StringComparison.Ordinal);
+    }
+
+    private DateTime NormalizeFetchedAt(DateTime fetchedAt)
+    {
+        if (fetchedAt == default)
+        {
+            return DateTime.UtcNow;
+        }
+
+        return fetchedAt.Kind switch
+        {
+            DateTimeKind.Utc => fetchedAt,
+            DateTimeKind.Local => fetchedAt.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(fetchedAt, DateTimeKind.Utc),
+        };
+    }
+
+    private double SanitizeNonNegativeFinite(double value)
+    {
+        if (double.IsNaN(value) || double.IsInfinity(value) || value < 0)
+        {
+            return 0;
+        }
+
+        return value;
+    }
+
+    private double NormalizePercentage(ProviderUsage usage, double requestsUsed, double requestsAvailable)
+    {
+        var original = usage.RequestsPercentage;
+        var isFinite = !double.IsNaN(original) && !double.IsInfinity(original);
+        var isInRange = original is >= 0 and <= 100;
+
+        if (isFinite && isInRange)
+        {
+            return original;
+        }
+
+        return UsageMath.CalculateUtilizationPercent(requestsUsed, requestsAvailable, usage.IsQuotaBased);
+    }
+
+    private IReadOnlyList<ProviderUsageDetail>? NormalizeDetails(IReadOnlyList<ProviderUsageDetail>? details)
+    {
+        if (details == null || details.Count == 0)
+        {
+            return null;
+        }
+
+        var normalizedDetails = new List<ProviderUsageDetail>(details.Count);
+        foreach (var detail in details)
+        {
+            normalizedDetails.Add(new ProviderUsageDetail
+            {
+                Name = (detail.Name ?? string.Empty).Trim(),
+                ModelName = (detail.ModelName ?? string.Empty).Trim(),
+                GroupName = (detail.GroupName ?? string.Empty).Trim(),
+                Used = (detail.Used ?? string.Empty).Trim(),
+                Description = (detail.Description ?? string.Empty).Trim(),
+                NextResetTime = detail.NextResetTime?.ToUniversalTime(),
+                DetailType = detail.DetailType,
+                WindowKind = detail.WindowKind,
+            });
+        }
+
+        return normalizedDetails;
+    }
+
+    private bool IsUsageForAnyActiveProvider(HashSet<string> activeProviderIds, string usageProviderId)
+    {
+        return activeProviderIds.Any(providerId => this.IsUsageForProvider(providerId, usageProviderId));
+    }
+
+    private bool IsUsageForProvider(string providerId, string usageProviderId)
+    {
+        if (usageProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return usageProviderId.StartsWith($"{providerId}.", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsPlaceholderUnavailableUsage(ProviderUsage usage)
+    {
+        if (usage.RequestsAvailable != 0 ||
+            usage.RequestsUsed != 0 ||
+            usage.RequestsPercentage != 0 ||
+            usage.IsAvailable)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(usage.Description))
+        {
+            return true;
+        }
+
+        return usage.Description.Contains("API Key", StringComparison.OrdinalIgnoreCase) ||
+               usage.Description.Contains("configured", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool TryCreateDetailContractErrorUsage(
+        ProviderUsage usage,
+        out ProviderUsage invalidUsage)
+    {
+        invalidUsage = usage;
+        if (usage.Details == null)
+        {
+            return false;
+        }
+
+        var validationErrors = new List<string>();
+        foreach (var detail in usage.Details)
+        {
+            if (string.IsNullOrWhiteSpace(detail.Name))
+            {
+                validationErrors.Add("Detail Name is empty");
+            }
+
+            if (detail.DetailType == ProviderUsageDetailType.Unknown)
+            {
+                validationErrors.Add("DetailType is Unknown (must be QuotaWindow, Credit, Model, or Other)");
+            }
+
+            if (detail.DetailType == ProviderUsageDetailType.QuotaWindow &&
+                detail.WindowKind == WindowKind.None)
+            {
+                validationErrors.Add("QuotaWindow details must have WindowKind set (Primary, Secondary, or Spark)");
+            }
+        }
+
+        if (validationErrors.Count == 0)
+        {
+            return false;
+        }
+
+        invalidUsage = new ProviderUsage
+        {
+            ProviderId = usage.ProviderId,
+            ProviderName = usage.ProviderName,
+            RequestsUsed = 0,
+            RequestsAvailable = 0,
+            RequestsPercentage = 0,
+            PlanType = usage.PlanType,
+            UsageUnit = usage.UsageUnit,
+            IsQuotaBased = usage.IsQuotaBased,
+            DisplayAsFraction = usage.DisplayAsFraction,
+            IsAvailable = false,
+            Description = $"Invalid detail contract: {string.Join("; ", validationErrors)}",
+            AuthSource = usage.AuthSource,
+            Details = null,
+            AccountName = usage.AccountName,
+            ConfigKey = usage.ConfigKey,
+            NextResetTime = null,
+            FetchedAt = usage.FetchedAt,
+            ResponseLatencyMs = usage.ResponseLatencyMs,
+            RawJson = usage.RawJson,
+            HttpStatus = usage.HttpStatus,
+        };
+
+        return true;
+    }
+}

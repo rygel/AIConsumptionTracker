@@ -9,7 +9,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Helpers;
+using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Http;
 using AIUsageTracker.Core.Paths;
 using AIUsageTracker.Core.Providers;
 using Microsoft.Extensions.Logging;
@@ -56,21 +58,14 @@ public class OpenAIProvider : ProviderBase
     /// <inheritdoc/>
     public override string ProviderId => StaticDefinition.ProviderId;
 
-    private readonly HttpClient _httpClient;
+    private readonly IResilientHttpClient _resilientHttpClient;
     private readonly ILogger<OpenAIProvider> _logger;
-    private readonly string? _authFilePath;
 
-    public OpenAIProvider(HttpClient httpClient, ILogger<OpenAIProvider> logger)
+    public OpenAIProvider(IResilientHttpClient resilientHttpClient, IProviderDiscoveryService discoveryService, ILogger<OpenAIProvider> logger)
+        : base(discoveryService)
     {
-        this._httpClient = httpClient;
+        this._resilientHttpClient = resilientHttpClient;
         this._logger = logger;
-    }
-
-    public OpenAIProvider(HttpClient httpClient, ILogger<OpenAIProvider> logger, string? authFilePath)
-    {
-        this._httpClient = httpClient;
-        this._logger = logger;
-        this._authFilePath = authFilePath;
     }
 
     /// <inheritdoc/>
@@ -84,26 +79,18 @@ public class OpenAIProvider : ProviderBase
         var accessToken = config.ApiKey;
         string? accountId = null;
 
-        if (string.IsNullOrWhiteSpace(accessToken))
+        if (string.IsNullOrWhiteSpace(accessToken) && this.DiscoveryService != null)
         {
-            var nativeAuth = await this.LoadOpenCodeAuthAsync().ConfigureAwait(false);
-            accessToken = nativeAuth?.Access;
-            accountId = nativeAuth?.AccountId;
+            var auth = await this.DiscoveryService.DiscoverAuthAsync(this.Definition).ConfigureAwait(false);
+            accessToken = auth?.AccessToken;
+            accountId = auth?.AccountId;
         }
 
         if (string.IsNullOrWhiteSpace(accessToken))
         {
             return new[]
             {
-                new ProviderUsage
-                {
-                    ProviderId = this.ProviderId,
-                    ProviderName = "OpenAI",
-                    IsAvailable = false,
-                    Description = "OpenAI API key or OpenCode session not found.",
-                    IsQuotaBased = true,
-                    PlanType = PlanType.Coding,
-                },
+                this.CreateUnavailableUsage("OpenAI API key or OpenCode session not found.")
             };
         }
 
@@ -140,7 +127,7 @@ public class OpenAIProvider : ProviderBase
         {
             var request = new HttpRequestMessage(HttpMethod.Get, "https://api.openai.com/v1/models");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-            var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
+            var response = await this._resilientHttpClient.SendAsync(request, this.ProviderId).ConfigureAwait(false);
 
             if (response.IsSuccessStatusCode)
             {
@@ -200,7 +187,7 @@ public class OpenAIProvider : ProviderBase
             request.Headers.TryAddWithoutValidation("ChatGPT-Account-Id", accountId);
         }
 
-        using var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
+        using var response = await this._resilientHttpClient.SendAsync(request, this.ProviderId).ConfigureAwait(false);
         var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
@@ -248,82 +235,6 @@ public class OpenAIProvider : ProviderBase
     private static bool IsApiKey(string token)
     {
         return token.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private async Task<OpenCodeOpenAiAuth?> LoadOpenCodeAuthAsync()
-    {
-        foreach (var path in this.GetAuthFileCandidates())
-        {
-            if (!File.Exists(path))
-            {
-                continue;
-            }
-
-            try
-            {
-                var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
-                using var doc = JsonDocument.Parse(json);
-                var auth = TryReadOpenCodeAuth(doc.RootElement);
-                if (auth != null)
-                {
-                    return auth;
-                }
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogDebug(ex, "Failed to read OpenAI session auth file at {Path}", path);
-            }
-        }
-
-        return null;
-    }
-
-    private IEnumerable<string> GetAuthFileCandidates()
-    {
-        if (!string.IsNullOrWhiteSpace(this._authFilePath))
-        {
-            yield return this._authFilePath;
-            yield break;
-        }
-
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-        foreach (var pathTemplate in StaticDefinition.AuthIdentityCandidatePathTemplates)
-        {
-            var path = AuthPathTemplateResolver.Resolve(pathTemplate, userProfile);
-
-            if (!string.IsNullOrWhiteSpace(path))
-            {
-                yield return path;
-            }
-        }
-    }
-
-    private static OpenCodeOpenAiAuth? TryReadOpenCodeAuth(JsonElement root)
-    {
-        foreach (var schema in StaticDefinition.SessionAuthFileSchemas)
-        {
-            if (!root.TryGetProperty(schema.RootProperty, out var sessionRoot) || sessionRoot.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
-
-            var accessToken = sessionRoot.ReadString(schema.AccessTokenProperty);
-            if (string.IsNullOrWhiteSpace(accessToken))
-            {
-                continue;
-            }
-
-            return new OpenCodeOpenAiAuth
-            {
-                Access = accessToken,
-                AccountId = !string.IsNullOrWhiteSpace(schema.AccountIdProperty)
-                    ? sessionRoot.ReadString(schema.AccountIdProperty)
-                    : null,
-            };
-        }
-
-        return null;
     }
 
     private static List<ProviderUsageDetail> BuildOpenAiSessionDetails(JsonElement root)
@@ -437,12 +348,5 @@ public class OpenAIProvider : ProviderBase
         }
 
         return null;
-    }
-
-    private sealed class OpenCodeOpenAiAuth
-    {
-        public string? Access { get; set; }
-
-        public string? AccountId { get; set; }
     }
 }

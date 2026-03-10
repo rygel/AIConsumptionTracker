@@ -45,11 +45,15 @@ namespace AIUsageTracker.Monitor.Endpoints
                 return result != null ? Results.Ok(result) : Results.NotFound();
             });
 
-            app.MapPost(MonitorApiRoutes.Refresh, async ([FromServices] ProviderRefreshService refreshService, ILogger<Program> logger) =>
+            app.MapPost(MonitorApiRoutes.Refresh, ([FromServices] ProviderRefreshService refreshService, ILogger<Program> logger) =>
             {
                 logger.LogDebug("POST {Route}", MonitorApiRoutes.Refresh);
-                await refreshService.TriggerRefreshAsync().ConfigureAwait(false);
-                return Results.Ok(new { message = "Refresh triggered" });
+                var queued = refreshService.QueueManualRefresh();
+                return Results.Ok(new
+                {
+                    message = queued ? "Refresh queued" : "Refresh already queued",
+                    queued,
+                });
             });
 
             app.MapPost(MonitorApiRoutes.NotificationTest, ([FromServices] INotificationService notificationService, ILogger<Program> logger) =>

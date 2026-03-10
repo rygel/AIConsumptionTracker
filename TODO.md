@@ -44,29 +44,33 @@ All architecture streamlining tasks completed! See remaining feature backlog bel
 - [x] Burn-rate forecasting (Priority: P1, Effort: M): Estimate days until quota or budget exhaustion from recent usage trends.
 - [x] Anomaly detection (experimental) (Priority: P1, Effort: M): Detect and flag unusual spikes or drops in provider usage.
 - [x] Provider reliability panel (Priority: P2, Effort: M): Show provider latency, failure rate, and last successful sync timestamp.
-- [ ] OpenCode CLI local provider (Priority: P2, Effort: M): Read detailed usage data from `opencode stats` CLI (sessions, messages, per-model breakdown, daily history) instead of just API credits endpoint
+- [x] OpenCode CLI local provider (Priority: P2, Effort: M): Read detailed usage data from `opencode stats` CLI (sessions, messages, per-model breakdown, daily history) instead of just API credits endpoint
+  - **Completed**: Added `OpenCodeZenProvider` using `opencode stats --days 7 --models 10` with parsed detail rows and provider tests.
 - [ ] Budget policies (Priority: P2, Effort: M): Add weekly/monthly provider budget caps with warning levels and optional soft-lock behavior.
 - [ ] Comparison views (Priority: P3, Effort: S/M): Add period-over-period comparisons (day/week/month) and provider leaderboard by cost and growth.
 - [ ] Data portability (Priority: P3, Effort: S): Support CSV/JSON export and import, plus scheduled encrypted SQLite backups.
-- [ ] Plugin-style provider SDK (Priority: P3, Effort: L): Add a provider extension model with shared auth/HTTP/parsing helpers and conformance tests.
+- [x] Plugin-style provider SDK (Priority: P3, Effort: L): Add a provider extension model with shared auth/HTTP/parsing helpers and conformance tests.
+  - **Completed**: Implemented `ProviderDiscoveryService`/`IProviderDiscoveryService`, shared provider metadata/discovery models, and associated infrastructure tests.
 
 ---
 
 ## CI/CD Improvements: Web Testing Infrastructure
 
-- [ ] Add Web project reference to Web.Tests project (Priority: P1, Effort: M)
+- [x] Add Web project reference to Web.Tests project (Priority: P1, Effort: M)
   - Currently: Web.Tests does not reference AIUsageTracker.Web
   - Action: Add `<ProjectReference>` to Web.Tests.csproj
   - Benefit: Enables Razor view testing with Playwright
   - Files: AIUsageTracker.Web.Tests/AIUsageTracker.Web.Tests.csproj
+  - **Completed**: `AIUsageTracker.Web.Tests.csproj` now references `..\AIUsageTracker.Web\AIUsageTracker.Web.csproj`.
 
-- [ ] Create Razor view compilation tests (Priority: P1, Effort: M)
+- [x] Create Razor view compilation tests (Priority: P1, Effort: M)
   - Currently: Only screenshot tests exist for Web
   - Action: Add view rendering tests (Dashboard, Providers, Charts, History, Provider, Reliability)
   - Action: Add model binding tests
   - Action: Add layout partial tests
   - Benefit: Validates Razor syntax, model binding, and view compilation
   - Location: AIUsageTracker.Web.Tests/ViewTests.cs (new file)
+  - **Completed**: `AIUsageTracker.Web.Tests/ViewTests.cs` covers route rendering, model-binding query parameters, and layout/navigation assertions.
 
 - [ ] Create Web service unit tests (Priority: P1, Effort: M)
   - Currently: Web.Services have no test coverage
@@ -75,7 +79,7 @@ All architecture streamlining tasks completed! See remaining feature backlog bel
   - Benefit: Comprehensive service layer testing
   - Location: AIUsageTracker.Web.Tests/Services/ (new directory)
 
-- [ ] Create CI/CD workflow for Web tests (Priority: P1, Effort: M)
+- [x] Create CI/CD workflow for Web tests (Priority: P1, Effort: M)
   - Currently: No CI/CD job builds or tests Web project
   - Action: Create `test-web.yml` workflow
   - Action: Build Web.csproj in prepare job
@@ -83,14 +87,16 @@ All architecture streamlining tasks completed! See remaining feature backlog bel
   - Action: Upload test results
   - Benefit: Catches Razor/CSHTML errors before runtime
   - Location: .github/workflows/test-web.yml (new file)
+  - **Completed**: Implemented in consolidated `.github/workflows/tests.yml` (`web-tests-windows`) including build, web test suite, screenshot capture, and artifact upload.
 
-- [ ] Test infrastructure complete (Priority: P1, Effort: S)
+- [x] Test infrastructure complete (Priority: P1, Effort: S)
   - Currently: Web.Tests lacks proper setup and validation
   - Action: Add MSTestSettings.cs with proper configuration
   - Action: Validate TestFixture/TestContext setup
   - Action: Verify Playwright browser integration
   - Benefit: Comprehensive testing foundation for Web UI
   - Files: Complete Web.Tests project structure
+  - **Completed**: Added `MSTestSettings.cs`, `WebTestBase`/`KestrelWebApplicationFactory`, and Playwright-backed screenshot tests.
 
 ---
 
@@ -124,6 +130,18 @@ Identified during code review on 2026-03-03. These are areas where the codebase 
 
 ### High Priority Streamlining Tasks
 
+- [x] Implement Provider SDK Pattern (Priority: P1, Effort: M): Centralize authentication discovery (environment variables, auth files) into a dedicated `ProviderDiscoveryService` and refactor `ProviderBase` to use it.
+  - Benefit: Reduces boilerplate in concrete providers, standardizes auth resolution, simplifies adding new providers.
+  - **Completed**: Created `ProviderDiscoveryService`, refactored `ProviderBase`, and updated all core providers.
+
+- [x] Centralized Resilience & Observability Strategy (Priority: P1, Effort: M): Introduce a global `IResilienceProvider` managing named Polly policies (retry, circuit breaker) for all network requests.
+  - Benefit: Tailored retry strategies per provider, global circuit breaker, and enhanced failure observability.
+  - **Completed**: Implemented `ResilienceProvider` and integrated into `ResilientHttpClient`.
+
+- [x] Push-Based Updates (Priority: P2, Effort: M): Implement real-time notifications using SignalR to replace or augment polling-only data fetching in the Slim UI.
+  - Benefit: Instant UI updates upon successful refresh, reduced latency, and lower resource usage.
+  - **Completed**: Added `UsageHub` to Monitor and SignalR client to Slim UI.
+
 - [x] Create Provider Base Class (Priority: P1, Effort: M): Create `ProviderBase` abstract class in `AIUsageTracker.Core` to eliminate duplicate `CreateUnavailableUsage` methods (~300 lines across 15+ providers). Base class should provide standard error handling, logging, and unavailable usage creation.
   - Locations: All providers in `AIUsageTracker.Infrastructure/Providers/`
   - Pattern: Each provider has `CreateUnavailableUsage(string message)` with nearly identical implementation
@@ -135,6 +153,22 @@ Identified during code review on 2026-03-03. These are areas where the codebase 
   - Locations: All HTTP-dependent providers
   - Benefit: Consistent resilience, centralized configuration, better reliability
   - **Completed**: Created `ResilientHttpClient` with Polly policies, retry (3 attempts, exponential backoff), circuit breaker (5 failures, 30s break), timeout. Integrated into Monitor and CLI.
+
+### Future Architectural Enhancements
+
+- [x] Background Job Orchestration (Priority: P2, Effort: M): Introduce a formal internal job scheduler for periodic refreshes, data pruning, and maintenance tasks.
+  - Benefit: Support for job prioritization (manual "Force Refresh" vs background), better concurrency control, and easier task management.
+  - Location: `AIUsageTracker.Monitor/Services/`
+  - **Completed**: Added `MonitorJobScheduler` (priority queues + recurring registration), moved periodic refresh scheduling to scheduler, and routed manual refresh requests through high-priority queue paths.
+
+- [ ] Standardized Data Validation & Transformation (Pipe & Filter) (Priority: P2, Effort: M): Implement a "Pipe & Filter" architecture for processing usage data before it is stored in the database.
+  - Benefit: Rejects invalid data, normalizes units/percentages, and can handle privacy redacting centrally.
+  - Location: `AIUsageTracker.Core/Services/ProviderManager.cs`
+  - **Phase 1 Completed**: Added `ProviderUsageProcessingPipeline` in Monitor and routed refresh results through a centralized processing pass (active-provider filtering, detail-contract validation mapping, numeric/timestamp normalization, and privacy redaction of sensitive fields before persistence).
+
+- [ ] Observability & Distributed Tracing (Priority: P3, Effort: S/M): Leverage `System.Diagnostics.DiagnosticSource` and `Activity` to implement distributed tracing across the system.
+  - Benefit: Correlation of refresh requests across UI, Monitor, and specific provider services, making diagnosis of failures significantly easier.
+  - Location: Core components and infrastructure services.
 
 ### Medium Priority Streamlining Tasks
 

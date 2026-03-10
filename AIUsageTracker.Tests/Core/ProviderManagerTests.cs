@@ -99,4 +99,34 @@ public class ProviderManagerTests
         Assert.Contains(result, usage => string.Equals(usage.ProviderId, "openai", StringComparison.Ordinal));
         Assert.DoesNotContain(result, usage => string.Equals(usage.ProviderId, "gemini", StringComparison.Ordinal));
     }
+
+    [Theory]
+    [InlineData(-5, ProviderManager.MinMaxConcurrentProviderRequests)]
+    [InlineData(0, ProviderManager.MinMaxConcurrentProviderRequests)]
+    [InlineData(1, 1)]
+    [InlineData(6, 6)]
+    [InlineData(99, ProviderManager.MaxMaxConcurrentProviderRequests)]
+    public void ClampMaxConcurrentProviderRequests_ClampsWithinExpectedRange(int configured, int expected)
+    {
+        var clamped = ProviderManager.ClampMaxConcurrentProviderRequests(configured);
+        Assert.Equal(expected, clamped);
+    }
+
+    [Fact]
+    public void Constructor_UsesClampedMaxConcurrentProviderRequests()
+    {
+        var managerLow = new ProviderManager(
+            providers: [],
+            configLoader: this._mockConfigLoader.Object,
+            logger: this._mockLogger.Object,
+            maxConcurrentProviderRequests: -3);
+        Assert.Equal(ProviderManager.MinMaxConcurrentProviderRequests, managerLow.MaxConcurrentProviderRequests);
+
+        var managerHigh = new ProviderManager(
+            providers: [],
+            configLoader: this._mockConfigLoader.Object,
+            logger: this._mockLogger.Object,
+            maxConcurrentProviderRequests: 300);
+        Assert.Equal(ProviderManager.MaxMaxConcurrentProviderRequests, managerHigh.MaxConcurrentProviderRequests);
+    }
 }
