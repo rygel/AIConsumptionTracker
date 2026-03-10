@@ -34,6 +34,7 @@ public class ProviderRefreshService : BackgroundService
     private readonly ProviderConnectivityCheckService _connectivityCheckService;
     private readonly ProviderRefreshJobScheduler _refreshJobScheduler;
     private readonly ProviderManagerLifecycleService _providerManagerLifecycle;
+    private readonly StartupSequenceService _startupSequenceService;
     private readonly IProviderUsageProcessingPipeline _usageProcessingPipeline;
     private readonly IHubContext<UsageHub>? _hubContext;
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
@@ -86,6 +87,10 @@ public class ProviderRefreshService : BackgroundService
             configService,
             pathProvider,
             providers);
+        this._startupSequenceService = new StartupSequenceService(
+            this._refreshJobScheduler,
+            configService,
+            loggerFactory.CreateLogger<StartupSequenceService>());
         this._usageProcessingPipeline = usageProcessingPipeline ??
             new ProviderUsageProcessingPipeline(this._loggerFactory.CreateLogger<ProviderUsageProcessingPipeline>());
         this._connectivityCheckService = new ProviderConnectivityCheckService(
@@ -111,7 +116,8 @@ public class ProviderRefreshService : BackgroundService
         var isEmpty = await this._database.IsHistoryEmptyAsync().ConfigureAwait(false);
         if (isEmpty)
         {
-            this.QueueInitialDataSeeding();
+            this._startupSequenceService.QueueInitialDataSeeding(
+                () => this.TriggerRefreshAsync(forceAll: true));
         }
         else
         {
@@ -121,7 +127,8 @@ public class ProviderRefreshService : BackgroundService
 
             // Only do targeted refresh for system providers that need immediate correctness
             // All other providers will be refreshed on the normal scheduled interval
-            this.QueueStartupTargetedRefresh();
+            this._startupSequenceService.QueueStartupTargetedRefresh(
+                providerIds => this.TriggerRefreshAsync(forceAll: true, includeProviderIds: providerIds));
         }
 
         try
@@ -143,47 +150,6 @@ public class ProviderRefreshService : BackgroundService
     {
         return this._refreshJobScheduler.QueueManualRefresh(
             _ => this.TriggerRefreshAsync(forceAll, includeProviderIds, bypassCircuitBreaker));
-    }
-
-    private void QueueInitialDataSeeding()
-    {
-        this._refreshJobScheduler.QueueInitialDataSeeding(this.RunStartupSeedingAsync);
-    }
-
-    private void QueueStartupTargetedRefresh()
-    {
-        this._refreshJobScheduler.QueueStartupTargetedRefresh(this.RunStartupTargetedRefreshAsync);
-    }
-
-    private async Task RunStartupSeedingAsync(CancellationToken _)
-    {
-        try
-        {
-            this._logger.LogInformation("First-time startup: scanning for keys and seeding database.");
-            await this._configService.ScanForKeysAsync().ConfigureAwait(false);
-            await this.TriggerRefreshAsync(forceAll: true).ConfigureAwait(false);
-            this._logger.LogInformation("First-time data seeding complete.");
-        }
-        catch (Exception ex)
-        {
-            this._logger.LogError(ex, "Error during first-time data seeding.");
-        }
-    }
-
-    private async Task RunStartupTargetedRefreshAsync(CancellationToken _)
-    {
-        try
-        {
-            this._logger.LogDebug("Startup: running targeted refresh for system providers...");
-            await this.TriggerRefreshAsync(
-                forceAll: true,
-                includeProviderIds: ProviderMetadataCatalog.GetStartupRefreshProviderIds()).ConfigureAwait(false);
-            this._logger.LogDebug("Startup: targeted refresh complete.");
-        }
-        catch (Exception ex)
-        {
-            this._logger.LogWarning(ex, "Startup targeted refresh failed");
-        }
     }
 
     private async Task<int> GetConfiguredMaxConcurrentProviderRequestsAsync()
