@@ -19,8 +19,8 @@ namespace AIUsageTracker.Tests.UI
                     new() { Name = "Beta", DetailType = ProviderUsageDetailType.Other },
                     new() { Name = "Alpha", DetailType = ProviderUsageDetailType.Model },
                     new() { Name = "Ignored", DetailType = ProviderUsageDetailType.Credit },
-                    new() { Name = string.Empty, DetailType = ProviderUsageDetailType.Model }
-                }
+                    new() { Name = string.Empty, DetailType = ProviderUsageDetailType.Model },
+                },
             };
 
             var details = ProviderSubDetailPresentationCatalog.GetDisplayableDetails(usage);
@@ -34,7 +34,7 @@ namespace AIUsageTracker.Tests.UI
             var detail = new ProviderUsageDetail
             {
                 Used = "35% used",
-                NextResetTime = new DateTime(2026, 3, 7, 9, 0, 0)
+                NextResetTime = new DateTime(2026, 3, 7, 9, 0, 0),
             };
 
             var presentation = ProviderSubDetailPresentationCatalog.Create(
@@ -55,7 +55,7 @@ namespace AIUsageTracker.Tests.UI
         {
             var detail = new ProviderUsageDetail
             {
-                Used = "Unlimited"
+                Used = "Unlimited",
             };
 
             var presentation = ProviderSubDetailPresentationCatalog.Create(
