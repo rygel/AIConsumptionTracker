@@ -28,7 +28,7 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
             usage = new
             {
                 monthly_limit_tokens = 1000000,
-                monthly_usage_tokens = 250000
+                monthly_usage_tokens = 250000,
             },
         };
 

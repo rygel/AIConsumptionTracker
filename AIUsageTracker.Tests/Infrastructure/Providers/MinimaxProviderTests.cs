@@ -30,7 +30,7 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
             usage = new
             {
                 tokens_used = 30.0,
-                tokens_limit = 100.0
+                tokens_limit = 100.0,
             },
         };
 

@@ -31,7 +31,7 @@ public class XiaomiProviderTests : HttpProviderTestBase<XiaomiProvider>
             data = new
             {
                 balance = 800.0,
-                quota = 1000.0
+                quota = 1000.0,
             },
         };
 
