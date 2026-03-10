@@ -12,6 +12,7 @@ internal sealed class ProviderRefreshJobScheduler
     private const string ScheduledRefreshJobName = "scheduled-provider-refresh";
     private const string StartupSeedingJobName = "startup-provider-seeding";
     private const string StartupTargetedRefreshJobName = "startup-targeted-provider-refresh";
+    private const string ManualRefreshCoalesceKey = "manual-provider-refresh";
     private const string ScheduledRefreshCoalesceKey = "scheduled-provider-refresh";
     private const string StartupSeedingCoalesceKey = "startup-provider-seeding";
     private const string StartupTargetedRefreshCoalesceKey = "startup-targeted-provider-refresh";
@@ -42,10 +43,18 @@ internal sealed class ProviderRefreshJobScheduler
 
     public bool QueueManualRefresh(Func<CancellationToken, Task> refreshTask)
     {
-        return this._jobScheduler.Enqueue(
+        var queued = this._jobScheduler.Enqueue(
             ManualRefreshJobName,
             refreshTask,
-            MonitorJobPriority.High);
+            MonitorJobPriority.High,
+            coalesceKey: ManualRefreshCoalesceKey);
+
+        if (!queued)
+        {
+            this._logger.LogDebug("Manual refresh job was already queued.");
+        }
+
+        return queued;
     }
 
     public bool QueueInitialDataSeeding(Func<CancellationToken, Task> seedingTask)

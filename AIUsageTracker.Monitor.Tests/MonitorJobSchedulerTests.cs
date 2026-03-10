@@ -316,7 +316,20 @@ public class MonitorJobSchedulerTests
             var completed = await Task.WhenAny(completion.Task, Task.Delay(TimeSpan.FromSeconds(2))) == completion.Task;
             Assert.True(completed, "Timed job did not complete within timeout.");
 
-            var snapshot = scheduler.GetSnapshot();
+            MonitorJobSchedulerSnapshot snapshot;
+            var deadline = DateTime.UtcNow.AddSeconds(2);
+            do
+            {
+                snapshot = scheduler.GetSnapshot();
+                if (snapshot.LastExecutionDurationMs > 0 && string.Equals(snapshot.LastDequeuedPriority, "Normal", StringComparison.Ordinal))
+                {
+                    break;
+                }
+
+                await Task.Delay(10);
+            }
+            while (DateTime.UtcNow < deadline);
+
             Assert.True(snapshot.LastExecutionDurationMs >= 40);
             Assert.True(snapshot.AverageExecutionDurationMs >= 40);
             Assert.True(snapshot.MaxObservedQueueWaitMs >= 50);

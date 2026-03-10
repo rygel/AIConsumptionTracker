@@ -227,7 +227,7 @@ public class ProviderRefreshServiceTests
                 "manual-provider-refresh",
                 It.IsAny<Func<CancellationToken, Task>>(),
                 MonitorJobPriority.High,
-                null),
+                "manual-provider-refresh"),
             Times.Once);
     }
 

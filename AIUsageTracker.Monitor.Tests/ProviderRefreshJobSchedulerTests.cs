@@ -32,7 +32,7 @@ public class ProviderRefreshJobSchedulerTests
     }
 
     [Fact]
-    public void QueueManualRefresh_UsesHighPriorityWithoutCoalesceKey()
+    public void QueueManualRefresh_UsesHighPriorityWithCoalesceKey()
     {
         var scheduler = this.CreateScheduler();
         this._jobScheduler
@@ -51,7 +51,7 @@ public class ProviderRefreshJobSchedulerTests
                 "manual-provider-refresh",
                 It.IsAny<Func<CancellationToken, Task>>(),
                 MonitorJobPriority.High,
-                null),
+                "manual-provider-refresh"),
             Times.Once);
     }
 
