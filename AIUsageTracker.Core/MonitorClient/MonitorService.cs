@@ -17,6 +17,7 @@ public class MonitorService : IMonitorService
 {
     private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly IMonitorLifecycleService _monitorLifecycleService;
     private readonly ILogger<MonitorService>? _logger;
     private const int UsageRequestTimeoutSeconds = 8;
     private const int ConfigRequestTimeoutSeconds = 3;
@@ -29,7 +30,7 @@ public class MonitorService : IMonitorService
     private static HttpClient? _sharedHttpClient;
 
     public MonitorService()
-        : this(GetOrCreateHttpClient(), null)
+        : this(GetOrCreateHttpClient(), null, null)
     {
     }
 
@@ -43,10 +44,14 @@ public class MonitorService : IMonitorService
         return _sharedHttpClient;
     }
 
-    public MonitorService(HttpClient httpClient, ILogger<MonitorService>? logger)
+    public MonitorService(
+        HttpClient httpClient,
+        ILogger<MonitorService>? logger,
+        IMonitorLifecycleService? monitorLifecycleService = null)
     {
         this._httpClient = httpClient;
         this._logger = logger;
+        this._monitorLifecycleService = monitorLifecycleService ?? new MonitorLifecycleService();
         this._jsonOptions = MonitorJsonSerializer.DefaultOptions;
 
         // Note: Port discovery is now done explicitly via RefreshPortAsync()
@@ -235,7 +240,7 @@ public class MonitorService : IMonitorService
         LogDiagnostic("Refreshing Monitor Info from file...");
         try
         {
-            var metadata = await MonitorLauncher.GetMonitorMetadataSnapshotAsync().ConfigureAwait(false);
+            var metadata = await this._monitorLifecycleService.GetMonitorMetadataSnapshotAsync().ConfigureAwait(false);
             if (metadata.IsUsable && metadata.Info != null)
             {
                 var info = metadata.Info;
@@ -265,7 +270,7 @@ public class MonitorService : IMonitorService
     /// <inheritdoc/>
     public async Task RefreshPortAsync()
     {
-        var status = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
+        var status = await this._monitorLifecycleService.GetAgentStatusInfoAsync().ConfigureAwait(false);
         if (!status.IsRunning)
         {
             MonitorService.LogDiagnostic(

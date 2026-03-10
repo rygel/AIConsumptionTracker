@@ -23,4 +23,6 @@ public interface IMonitorLifecycleService
     Task<(bool IsRunning, int Port)> IsAgentRunningWithPortAsync();
 
     Task<MonitorLauncher.MonitorStatusInfo> GetAgentStatusInfoAsync();
+
+    Task<MonitorMetadataStatus> GetMonitorMetadataSnapshotAsync();
 }
