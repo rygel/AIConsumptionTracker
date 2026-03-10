@@ -48,12 +48,7 @@ public class MonitorService : IMonitorService
     {
         this._httpClient = httpClient;
         this._logger = logger;
-        this._jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) },
-        };
+        this._jsonOptions = MonitorJsonSerializer.DefaultOptions;
 
         // Note: Port discovery is now done explicitly via RefreshPortAsync()
         // to avoid race conditions where the Monitor port changes

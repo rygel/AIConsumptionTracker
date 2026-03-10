@@ -550,25 +550,26 @@ public class MonitorServiceTests
     }
 
     [Fact]
-    public async Task GetDiagnosticsSnapshotAsync_ExtensionForInterface_ParsesRawDiagnosticsAsync()
+    public async Task GetDiagnosticsSnapshotAsync_InterfaceContract_ReturnsTypedTelemetryAsync()
     {
         var monitorService = new Mock<IMonitorService>();
         monitorService
-            .Setup(service => service.GetDiagnosticsDetailsAsync())
-            .ReturnsAsync("""
-                          {
-                            "port": 5099,
-                            "process_id": 4321,
-                            "runtime": ".NET 8",
-                            "observability": {
-                              "activity_source_names": [ "A", "B" ]
-                            },
-                            "scheduler_telemetry": {
-                              "total_queued_jobs": 7,
-                              "enqueued_jobs": 15
-                            }
-                          }
-                          """);
+            .Setup(service => service.GetDiagnosticsSnapshotAsync())
+            .ReturnsAsync(new AgentDiagnosticsSnapshot
+            {
+                Port = 5099,
+                ProcessId = 4321,
+                Runtime = ".NET 8",
+                Observability = new AgentObservabilitySnapshot
+                {
+                    ActivitySourceNames = ["A", "B"],
+                },
+                SchedulerTelemetry = new AgentSchedulerTelemetrySnapshot
+                {
+                    TotalQueuedJobs = 7,
+                    EnqueuedJobs = 15,
+                },
+            });
 
         var diagnostics = await monitorService.Object.GetDiagnosticsSnapshotAsync();
 
@@ -582,45 +583,14 @@ public class MonitorServiceTests
     }
 
     [Fact]
-    public async Task GetDiagnosticsSnapshotAsync_ExtensionForInterface_InvalidJsonReturnsNullAsync()
+    public async Task GetDiagnosticsSnapshotAsync_InterfaceContract_NullPayloadReturnsNullAsync()
     {
         var monitorService = new Mock<IMonitorService>();
         monitorService
-            .Setup(service => service.GetDiagnosticsDetailsAsync())
-            .ReturnsAsync("{ invalid json }");
+            .Setup(service => service.GetDiagnosticsSnapshotAsync())
+            .ReturnsAsync((AgentDiagnosticsSnapshot?)null);
 
         var diagnostics = await monitorService.Object.GetDiagnosticsSnapshotAsync();
-
-        Assert.Null(diagnostics);
-    }
-
-    [Fact]
-    public void ParseDiagnosticsSnapshot_ValidPayload_ReturnsTypedSnapshot()
-    {
-        var diagnostics = MonitorServiceDiagnosticsExtensions.ParseDiagnosticsSnapshot("""
-                                                                                      {
-                                                                                        "port": 5100,
-                                                                                        "process_id": 777,
-                                                                                        "observability": {
-                                                                                          "activity_source_names": [ "refresh" ]
-                                                                                        },
-                                                                                        "pipeline_telemetry": {
-                                                                                          "total_processed_entries": 123
-                                                                                        }
-                                                                                      }
-                                                                                      """);
-
-        Assert.NotNull(diagnostics);
-        Assert.Equal(5100, diagnostics.Port);
-        Assert.Equal(777, diagnostics.ProcessId);
-        Assert.Equal(["refresh"], diagnostics.Observability?.ActivitySourceNames);
-        Assert.Equal(123, diagnostics.PipelineTelemetry?.TotalProcessedEntries);
-    }
-
-    [Fact]
-    public void ParseDiagnosticsSnapshot_InvalidPayload_ReturnsNull()
-    {
-        var diagnostics = MonitorServiceDiagnosticsExtensions.ParseDiagnosticsSnapshot("{ malformed");
 
         Assert.Null(diagnostics);
     }
