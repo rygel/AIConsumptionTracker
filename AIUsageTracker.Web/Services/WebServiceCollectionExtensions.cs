@@ -5,6 +5,7 @@
 namespace AIUsageTracker.Web.Services
 {
     using AIUsageTracker.Core.Interfaces;
+    using AIUsageTracker.Core.MonitorClient;
     using AIUsageTracker.Infrastructure.Configuration;
     using AIUsageTracker.Infrastructure.Helpers;
     using AIUsageTracker.Infrastructure.Services;
@@ -33,6 +34,7 @@ namespace AIUsageTracker.Web.Services
                 var dbPath = sp.GetRequiredService<WebDatabaseConnectionFactory>().GetDatabasePath();
                 return new DataExportService(repo, logger, dbPath);
             });
+            services.AddSingleton<IMonitorLifecycleService, MonitorLifecycleService>();
             services.AddSingleton<MonitorProcessService>();
             services.AddSingleton<IConfigLoader, JsonConfigLoader>();
             return services;

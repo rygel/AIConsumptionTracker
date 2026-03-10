@@ -137,7 +137,9 @@ public sealed class MonitorProcessServiceTests : IDisposable
 
     private MonitorProcessService CreateService()
     {
-        return new MonitorProcessService(NullLogger<MonitorProcessService>.Instance);
+        return new MonitorProcessService(
+            new MonitorLifecycleService(),
+            NullLogger<MonitorProcessService>.Instance);
     }
 
     private async Task<string> CreateMonitorInfoAsync(MonitorInfo info)
