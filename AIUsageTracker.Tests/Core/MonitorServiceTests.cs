@@ -573,9 +573,7 @@ public class MonitorServiceTests
             port = 5000,
             processId = 4242,
             contractVersion = MonitorService.ExpectedApiContractVersion,
-            apiContractVersion = MonitorService.ExpectedApiContractVersion,
             minClientContractVersion = MonitorService.ExpectedApiContractVersion,
-            minClientApiContractVersion = MonitorService.ExpectedApiContractVersion,
             agentVersion = "2.2.28",
             refreshHealth = new
             {
@@ -599,9 +597,13 @@ public class MonitorServiceTests
         Assert.Equal(4242, result.ProcessId);
         Assert.Equal("2.2.28", result.AgentVersion);
         Assert.Equal(MonitorService.ExpectedApiContractVersion, result.ContractVersion);
-        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.ApiContractVersion);
         Assert.Equal(MonitorService.ExpectedApiContractVersion, result.MinClientContractVersion);
-        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.MinClientApiContractVersion);
+#pragma warning disable CS0618
+        Assert.Null(result.ApiContractVersion);
+        Assert.Null(result.MinClientApiContractVersion);
+#pragma warning restore CS0618
+        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.EffectiveContractVersion);
+        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.EffectiveMinClientContractVersion);
         Assert.Equal("degraded", result.RefreshHealth.Status);
         Assert.Equal("ProviderManager not ready", result.RefreshHealth.LastError);
         Assert.Equal(2, result.RefreshHealth.ProvidersInBackoff);

@@ -110,9 +110,7 @@ internal static class MonitorDiagnosticsEndpoints
             ProcessId = Environment.ProcessId,
             AgentVersion = agentVersion,
             ContractVersion = contractVersion,
-            ApiContractVersion = contractVersion,
             MinClientContractVersion = minClientContractVersion,
-            MinClientApiContractVersion = minClientContractVersion,
             RefreshHealth = new MonitorRefreshHealthSnapshot
             {
                 Status = refreshStatus,
