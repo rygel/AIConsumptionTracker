@@ -102,4 +102,62 @@ public class ProviderRefreshCircuitBreakerServiceTests
         Assert.Single(result);
         Assert.Equal("openai", result[0].ProviderId);
     }
+
+    [Fact]
+    public void GetProviderDiagnostics_ReturnsFailureStateDetails()
+    {
+        var configs = new List<ProviderConfig>
+        {
+            new() { ProviderId = "openai" },
+        };
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            this._service.UpdateProviderFailureStates(configs, Array.Empty<ProviderUsage>());
+        }
+
+        var diagnostics = this._service.GetProviderDiagnostics();
+
+        var openAi = Assert.Single(diagnostics);
+        Assert.Equal("openai", openAi.ProviderId);
+        Assert.Equal(3, openAi.ConsecutiveFailures);
+        Assert.Equal("No usage data returned", openAi.LastRefreshError);
+        Assert.NotNull(openAi.LastRefreshAttemptUtc);
+        Assert.Null(openAi.LastSuccessfulRefreshUtc);
+        Assert.True(openAi.IsCircuitOpen);
+        Assert.NotNull(openAi.CircuitOpenUntilUtc);
+    }
+
+    [Fact]
+    public void GetProviderDiagnostics_TracksSuccessfulRefreshAfterFailure()
+    {
+        var configs = new List<ProviderConfig>
+        {
+            new() { ProviderId = "openai" },
+        };
+
+        this._service.UpdateProviderFailureStates(configs, Array.Empty<ProviderUsage>());
+        this._service.UpdateProviderFailureStates(
+            configs,
+            new[]
+            {
+                new ProviderUsage
+                {
+                    ProviderId = "openai",
+                    IsAvailable = true,
+                    HttpStatus = 200,
+                },
+            });
+
+        var diagnostics = this._service.GetProviderDiagnostics();
+
+        var openAi = Assert.Single(diagnostics);
+        Assert.Equal("openai", openAi.ProviderId);
+        Assert.Equal(0, openAi.ConsecutiveFailures);
+        Assert.Null(openAi.LastRefreshError);
+        Assert.False(openAi.IsCircuitOpen);
+        Assert.Null(openAi.CircuitOpenUntilUtc);
+        Assert.NotNull(openAi.LastRefreshAttemptUtc);
+        Assert.NotNull(openAi.LastSuccessfulRefreshUtc);
+    }
 }

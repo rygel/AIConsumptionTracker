@@ -410,8 +410,49 @@ public class MonitorServiceTests
         Assert.Equal("healthy", result.Status);
         Assert.Equal(5000, result.Port);
         Assert.Equal(100, result.ProcessId);
-        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.ResolveApiContractVersion());
-        Assert.Equal("3.1.0", result.ResolveAgentVersion());
+        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.ApiContractVersion);
+        Assert.Equal("3.1.0", result.AgentVersion);
+        this.VerifyPath("/api/health");
+    }
+
+    [Fact]
+    public async Task GetHealthSnapshotAsync_Success_ParsesRefreshSummaryAsync()
+    {
+        var responseObj = new
+        {
+            status = "healthy",
+            serviceHealth = "degraded",
+            timestamp = new DateTime(2026, 3, 10, 9, 0, 0, DateTimeKind.Utc),
+            port = 5000,
+            processId = 4242,
+            apiContractVersion = MonitorService.ExpectedApiContractVersion,
+            agentVersion = "2.2.28",
+            refreshHealth = new
+            {
+                status = "degraded",
+                lastRefreshAttemptUtc = new DateTime(2026, 3, 10, 8, 59, 0, DateTimeKind.Utc),
+                lastRefreshCompletedUtc = new DateTime(2026, 3, 10, 8, 59, 1, DateTimeKind.Utc),
+                lastSuccessfulRefreshUtc = new DateTime(2026, 3, 10, 8, 55, 0, DateTimeKind.Utc),
+                lastError = "ProviderManager not ready",
+                providersInBackoff = 2,
+                failingProviders = new[] { "openai", "anthropic" },
+            },
+        };
+        this.SetupMockResponse(HttpStatusCode.OK, responseObj);
+
+        var result = await this._service.GetHealthSnapshotAsync();
+
+        Assert.NotNull(result);
+        Assert.Equal("healthy", result!.Status);
+        Assert.Equal("degraded", result.ServiceHealth);
+        Assert.Equal(5000, result.Port);
+        Assert.Equal(4242, result.ProcessId);
+        Assert.Equal("2.2.28", result.AgentVersion);
+        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.ApiContractVersion);
+        Assert.Equal("degraded", result.RefreshHealth.Status);
+        Assert.Equal("ProviderManager not ready", result.RefreshHealth.LastError);
+        Assert.Equal(2, result.RefreshHealth.ProvidersInBackoff);
+        Assert.Equal(new[] { "openai", "anthropic" }, result.RefreshHealth.FailingProviders);
         this.VerifyPath("/api/health");
     }
 
@@ -423,7 +464,7 @@ public class MonitorServiceTests
                 "SendAsync",
                 ItExpr.IsAny<HttpRequestMessage>(),
                 ItExpr.IsAny<CancellationToken>())
-            .ThrowsAsync(new HttpRequestException("connection refused"));
+            .ThrowsAsync(new HttpRequestException("network failure"));
 
         var result = await this._service.GetHealthSnapshotAsync();
 

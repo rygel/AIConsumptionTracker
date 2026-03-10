@@ -123,7 +123,11 @@ public class ProviderRefreshServiceTests
         Assert.Equal(0, telemetry.RefreshFailureCount);
         Assert.Equal(0, telemetry.ErrorRatePercent);
         Assert.Equal(0, telemetry.AverageLatencyMs);
+        Assert.Null(telemetry.LastRefreshAttemptUtc);
+        Assert.Null(telemetry.LastRefreshCompletedUtc);
+        Assert.Null(telemetry.LastSuccessfulRefreshUtc);
         Assert.Null(telemetry.LastError);
+        Assert.Empty(telemetry.ProviderDiagnostics);
     }
 
     [Fact]
@@ -136,7 +140,44 @@ public class ProviderRefreshServiceTests
         Assert.Equal(0, telemetry.RefreshSuccessCount);
         Assert.Equal(1, telemetry.RefreshFailureCount);
         Assert.True(telemetry.ErrorRatePercent > 0);
+        Assert.NotNull(telemetry.LastRefreshAttemptUtc);
+        Assert.NotNull(telemetry.LastRefreshCompletedUtc);
+        Assert.Null(telemetry.LastSuccessfulRefreshUtc);
         Assert.Equal("ProviderManager not ready", telemetry.LastError);
+        Assert.Empty(telemetry.ProviderDiagnostics);
+    }
+
+    [Fact]
+    public async Task TriggerRefreshAsync_WhenRefreshSucceeds_RecordsSuccessTelemetryAndProviderDiagnosticsAsync()
+    {
+        var scenario = CreatePipelinePrivacyScenario();
+        InvokeInitializeProviders(scenario.Service, 6);
+        try
+        {
+            await scenario.Service.TriggerRefreshAsync(forceAll: true);
+        }
+        finally
+        {
+            Directory.Delete(scenario.Files.Root, recursive: true);
+        }
+
+        var telemetry = scenario.Service.GetRefreshTelemetrySnapshot();
+
+        Assert.Equal(1, telemetry.RefreshCount);
+        Assert.Equal(1, telemetry.RefreshSuccessCount);
+        Assert.Equal(0, telemetry.RefreshFailureCount);
+        Assert.NotNull(telemetry.LastRefreshAttemptUtc);
+        Assert.NotNull(telemetry.LastRefreshCompletedUtc);
+        Assert.NotNull(telemetry.LastSuccessfulRefreshUtc);
+        Assert.Null(telemetry.LastError);
+
+        var providerDiagnostic = Assert.Single(telemetry.ProviderDiagnostics);
+        Assert.Equal("openai", providerDiagnostic.ProviderId);
+        Assert.NotNull(providerDiagnostic.LastRefreshAttemptUtc);
+        Assert.NotNull(providerDiagnostic.LastSuccessfulRefreshUtc);
+        Assert.Null(providerDiagnostic.LastRefreshError);
+        Assert.Equal(0, providerDiagnostic.ConsecutiveFailures);
+        Assert.False(providerDiagnostic.IsCircuitOpen);
     }
 
     [Fact]

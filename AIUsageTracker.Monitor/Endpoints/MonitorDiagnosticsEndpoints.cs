@@ -19,21 +19,46 @@ namespace AIUsageTracker.Monitor.Endpoints
             string apiContractVersion,
             string[] args)
         {
-            app.MapGet(MonitorApiRoutes.Health, (ILogger<Program> logger) =>
+            app.MapGet(MonitorApiRoutes.Health, (ProviderRefreshService refreshService, ILogger<Program> logger) =>
             {
                 if (isDebugMode)
                 {
                     logger.LogDebug("GET {Route}", MonitorApiRoutes.Health);
                 }
 
+                var refreshTelemetry = refreshService.GetRefreshTelemetrySnapshot();
+                var failingProviders = refreshTelemetry.ProviderDiagnostics
+                    .Where(diagnostic => !string.IsNullOrWhiteSpace(diagnostic.LastRefreshError))
+                    .Select(diagnostic => diagnostic.ProviderId)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(providerId => providerId, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                var providersInBackoff = refreshTelemetry.ProviderDiagnostics.Count(diagnostic => diagnostic.IsCircuitOpen);
+                var refreshStatus = refreshTelemetry.LastRefreshAttemptUtc == null
+                    ? "idle"
+                    : (providersInBackoff > 0 || failingProviders.Length > 0 || !string.IsNullOrWhiteSpace(refreshTelemetry.LastError)
+                        ? "degraded"
+                        : "healthy");
+
                 return Results.Ok(new
                 {
                     status = "healthy",
+                    serviceHealth = refreshStatus,
                     timestamp = DateTime.UtcNow,
                     port,
                     processId = Environment.ProcessId,
                     agentVersion,
                     apiContractVersion,
+                    refreshHealth = new
+                    {
+                        status = refreshStatus,
+                        lastRefreshAttemptUtc = refreshTelemetry.LastRefreshAttemptUtc,
+                        lastRefreshCompletedUtc = refreshTelemetry.LastRefreshCompletedUtc,
+                        lastSuccessfulRefreshUtc = refreshTelemetry.LastSuccessfulRefreshUtc,
+                        lastError = refreshTelemetry.LastError,
+                        providersInBackoff,
+                        failingProviders,
+                    },
                 });
             });
 

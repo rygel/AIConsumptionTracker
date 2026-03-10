@@ -43,7 +43,7 @@ public interface IMonitorService
 
     Task<bool> CheckHealthAsync();
 
-    Task<AgentHealthSnapshot?> GetHealthSnapshotAsync();
+    Task<MonitorHealthSnapshot?> GetHealthSnapshotAsync();
 
     Task<AgentContractHandshakeResult> CheckApiContractAsync();
 

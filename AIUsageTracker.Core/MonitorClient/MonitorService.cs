@@ -551,7 +551,7 @@ public class MonitorService : IMonitorService
     }
 
     /// <inheritdoc/>
-    public async Task<AgentHealthSnapshot?> GetHealthSnapshotAsync()
+    public async Task<MonitorHealthSnapshot?> GetHealthSnapshotAsync()
     {
         var probe = await this.ProbeHealthAsync(nameof(this.GetHealthSnapshotAsync)).ConfigureAwait(false);
         return probe.Snapshot;
@@ -601,8 +601,10 @@ public class MonitorService : IMonitorService
                 };
             }
 
-            var contractVersion = health.ResolveApiContractVersion();
-            var reportedAgentVersion = health.ResolveAgentVersion();
+            var contractVersion = health.ApiContractVersion;
+            var reportedAgentVersion = string.IsNullOrWhiteSpace(health.AgentVersion)
+                ? health.Version
+                : health.AgentVersion;
 
             if (string.IsNullOrWhiteSpace(contractVersion))
             {
@@ -668,7 +670,7 @@ public class MonitorService : IMonitorService
             return new HealthProbeResult(true, false, (int)response.StatusCode, null);
         }
 
-        var snapshot = await this.ReadMonitorResponseJsonAsync<AgentHealthSnapshot>(
+        var snapshot = await this.ReadMonitorResponseJsonAsync<MonitorHealthSnapshot>(
             response,
             operationName).ConfigureAwait(false);
         return new HealthProbeResult(true, true, (int)response.StatusCode, snapshot);
@@ -678,7 +680,7 @@ public class MonitorService : IMonitorService
         bool HasResponse,
         bool IsSuccess,
         int? StatusCode,
-        AgentHealthSnapshot? Snapshot);
+        MonitorHealthSnapshot? Snapshot);
 
     // Diagnostics & Export
     public async Task<MonitorActionResult> CheckProviderAsync(string providerId)
