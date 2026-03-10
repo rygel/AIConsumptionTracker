@@ -10,6 +10,8 @@ public sealed class MonitorAgentStatus
 
     public int Port { get; init; }
 
+    public bool HasMetadata { get; init; }
+
     public string Message { get; init; } = string.Empty;
 
     public string? Error { get; init; }

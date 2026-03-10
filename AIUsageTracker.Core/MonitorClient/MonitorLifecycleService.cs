@@ -45,14 +45,7 @@ public sealed class MonitorLifecycleService : IMonitorLifecycleService
 
     public async Task<MonitorAgentStatus> GetAgentStatusInfoAsync()
     {
-        var status = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
-        return new MonitorAgentStatus
-        {
-            IsRunning = status.IsRunning,
-            Port = status.Port,
-            Message = status.Message,
-            Error = status.Error,
-        };
+        return await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
     }
 
     public async Task<MonitorMetadataStatus> GetMonitorMetadataSnapshotAsync()

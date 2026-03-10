@@ -22,13 +22,6 @@ public class MonitorLauncher
     private static Func<int, Task<bool>>? _stopProcessOverride;
     private static Func<Task<bool>>? _stopNamedProcessesOverride;
 
-    public readonly record struct MonitorStatusInfo(
-        bool IsRunning,
-        int Port,
-        bool HasMetadata,
-        string Message,
-        string? Error);
-
     internal readonly record struct MonitorMetadataSnapshot(
         MonitorInfo? Info,
         bool IsUsable,
@@ -110,7 +103,7 @@ public class MonitorLauncher
         return (status.IsRunning, status.Port, status.HasMetadata);
     }
 
-    public static async Task<MonitorStatusInfo> GetAgentStatusInfoAsync()
+    public static async Task<MonitorAgentStatus> GetAgentStatusInfoAsync()
     {
         return await MonitorLauncherStateResolver.GetAgentStatusInfoAsync(
             ReadValidatedAgentInfoAsync,
