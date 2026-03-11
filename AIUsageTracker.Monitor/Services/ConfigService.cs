@@ -18,6 +18,7 @@ public class ConfigService : IConfigService
     private readonly TokenDiscoveryService _tokenDiscovery;
     private readonly IAppPathProvider _pathProvider;
     private readonly ILogger<TokenDiscoveryService> _tokenDiscoveryLogger;
+    private int _startupAuthDiagnosticsLogged;
 
     public ConfigService(ILogger<ConfigService> logger, IAppPathProvider pathProvider)
         : this(logger, NullLoggerFactory.Instance, pathProvider)
@@ -41,6 +42,7 @@ public class ConfigService : IConfigService
         try
         {
             var configs = await this._configLoader.LoadConfigAsync().ConfigureAwait(false);
+            this.LogAuthDiagnosticsSnapshotOnceOnStartup(configs);
             return configs.ToList();
         }
         catch (Exception ex)
@@ -172,6 +174,8 @@ public class ConfigService : IConfigService
 
             ProviderMetadataCatalog.NormalizeCanonicalConfigurations(existing);
 
+            this.LogAuthDiagnosticsSnapshot(existing, "post-scan");
+
             this._logger.LogInformation(
                 "Auth scan summary: added={Added}, updated={Updated}, alreadyConfigured={AlreadyConfigured}, discoveredWithKeys={DiscoveredWithKeys}.",
                 addedWithKeys.Count,
@@ -201,6 +205,34 @@ public class ConfigService : IConfigService
         {
             this._logger.LogError(ex, "Failed to scan for keys: {Message}", ex.Message);
             return new List<ProviderConfig>();
+        }
+    }
+
+    private void LogAuthDiagnosticsSnapshotOnceOnStartup(IReadOnlyList<ProviderConfig> configs)
+    {
+        if (Interlocked.Exchange(ref this._startupAuthDiagnosticsLogged, 1) == 1)
+        {
+            return;
+        }
+
+        this.LogAuthDiagnosticsSnapshot(configs, "startup-config-load");
+    }
+
+    private void LogAuthDiagnosticsSnapshot(IReadOnlyList<ProviderConfig> configs, string phase)
+    {
+        var nowUtc = DateTimeOffset.UtcNow;
+        foreach (var config in configs.OrderBy(item => item.ProviderId, StringComparer.OrdinalIgnoreCase))
+        {
+            var snapshot = AuthDiagnosticsSnapshotBuilder.Build(config, nowUtc);
+            this._logger.LogInformation(
+                "Auth diagnostics [{Phase}] provider={ProviderId} configured={Configured} authSource={AuthSource} fallbackPathUsed={FallbackPathUsed} tokenAgeBucket={TokenAgeBucket} hasUserIdentity={HasUserIdentity}",
+                phase,
+                snapshot.ProviderId,
+                snapshot.Configured,
+                snapshot.AuthSource,
+                snapshot.FallbackPathUsed,
+                snapshot.TokenAgeBucket,
+                snapshot.HasUserIdentity);
         }
     }
 }
