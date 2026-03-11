@@ -121,6 +121,16 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
+    [InlineData("antigravity", true)]
+    [InlineData("antigravity.some-model", true)]
+    [InlineData("codex", false)]
+    [InlineData("codex.spark", false)]
+    public void ShouldCollapseDerivedChildrenInMainWindow_UsesProviderDefinitions(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.ShouldCollapseDerivedChildrenInMainWindow(providerId));
+    }
+
+    [Theory]
     [InlineData("OPENAI_API_KEY", "openai")]
     [InlineData("CODEX_API_KEY", "codex")]
     [InlineData("GEMINI_API_KEY", "gemini-cli")]

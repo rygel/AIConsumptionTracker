@@ -77,6 +77,11 @@ public static class ProviderMetadataCatalog
         return string.Equals(providerId, "antigravity", StringComparison.OrdinalIgnoreCase);
     }
 
+    public static bool ShouldCollapseDerivedChildrenInMainWindow(string providerId)
+    {
+        return TryGet(providerId, out var definition) && definition.CollapseDerivedChildrenInMainWindow;
+    }
+
     public static ProviderDefinition? FindByEnvironmentVariable(string environmentVariableName)
     {
         if (string.IsNullOrWhiteSpace(environmentVariableName))

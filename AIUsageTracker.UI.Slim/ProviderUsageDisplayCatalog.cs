@@ -13,9 +13,10 @@ internal static class ProviderUsageDisplayCatalog
     {
         var filteredUsages = usages.ToList();
         var hasAntigravityParent = filteredUsages.Any(IsAntigravityParent);
+        var collapsedParentProviderIds = ResolveCollapsedParentProviderIds(filteredUsages);
 
         filteredUsages = filteredUsages
-            .Where(ShouldDisplayUsage(hasAntigravityParent))
+            .Where(ShouldDisplayUsage(collapsedParentProviderIds))
             .GroupBy(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .ToList();
@@ -39,12 +40,28 @@ internal static class ProviderUsageDisplayCatalog
             .ToList();
     }
 
-    private static Func<ProviderUsage, bool> ShouldDisplayUsage(bool hasAntigravityParent)
+    private static HashSet<string> ResolveCollapsedParentProviderIds(IEnumerable<ProviderUsage> usages)
+    {
+        return usages
+            .Where(usage =>
+            {
+                var providerId = usage.ProviderId ?? string.Empty;
+                var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+                return string.Equals(providerId, canonicalProviderId, StringComparison.OrdinalIgnoreCase) &&
+                       ProviderMetadataCatalog.ShouldCollapseDerivedChildrenInMainWindow(providerId);
+            })
+            .Select(usage => usage.ProviderId ?? string.Empty)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Func<ProviderUsage, bool> ShouldDisplayUsage(IReadOnlySet<string> collapsedParentProviderIds)
     {
         return usage =>
         {
             var providerId = usage.ProviderId ?? string.Empty;
-            return !providerId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) || !hasAntigravityParent;
+            var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+            var isDerivedChild = !string.Equals(providerId, canonicalProviderId, StringComparison.OrdinalIgnoreCase);
+            return !isDerivedChild || !collapsedParentProviderIds.Contains(canonicalProviderId);
         };
     }
 
