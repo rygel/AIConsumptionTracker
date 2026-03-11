@@ -11,7 +11,6 @@ namespace AIUsageTracker.Infrastructure.Providers;
 public static class ProviderMetadataCatalog
 {
     private const string LegacyOpenAiProviderId = "openai";
-    private const string LegacyAnthropicProviderId = "anthropic";
     private static readonly Lazy<IReadOnlyList<ProviderDefinition>> DefinitionsValue = new(LoadDefinitions);
 
     public static IReadOnlyList<ProviderDefinition> Definitions => DefinitionsValue.Value;
@@ -126,10 +125,9 @@ public static class ProviderMetadataCatalog
             definition.VisibleDerivedProviderIds.Contains(providerId, StringComparer.OrdinalIgnoreCase));
     }
 
-    public static bool ShouldHideInSettings(string providerId)
+    public static bool ShouldShowInSettings(string providerId)
     {
-        return string.Equals(providerId, LegacyOpenAiProviderId, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(providerId, LegacyAnthropicProviderId, StringComparison.OrdinalIgnoreCase);
+        return TryGet(providerId, out var definition) && definition.ShowInSettings;
     }
 
     public static IReadOnlyList<string> GetStartupRefreshProviderIds()

@@ -14,15 +14,15 @@ internal static class ProviderSettingsDisplayCatalog
         IReadOnlyCollection<ProviderUsage> usages)
     {
         var displayItems = configs
-            .Where(config => !ProviderMetadataCatalog.ShouldHideInSettings(config.ProviderId))
+            .Where(config => ProviderMetadataCatalog.ShouldShowInSettings(config.ProviderId))
             .Select(config => new ProviderSettingsDisplayItem(config, IsDerived: false))
             .ToList();
-        var configuredProviderIds = configs
-            .Select(config => config.ProviderId)
+        var configuredProviderIds = displayItems
+            .Select(item => item.Config.ProviderId)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var defaultProviderIds = ProviderMetadataCatalog.Definitions
+            .Where(definition => definition.ShowInSettings)
             .Select(definition => definition.ProviderId)
-            .Where(providerId => !ProviderMetadataCatalog.ShouldHideInSettings(providerId))
             .Where(providerId => !configuredProviderIds.Contains(providerId))
             .ToList();
 

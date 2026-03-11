@@ -171,6 +171,15 @@ public class ProviderMetadataCatalogTests
         Assert.Equal(expected, ProviderMetadataCatalog.IsVisibleDerivedProviderId(providerId));
     }
 
+    [Theory]
+    [InlineData("codex", true)]
+    [InlineData("openai", false)]
+    [InlineData("anthropic", false)]
+    public void ShouldShowInSettings_UsesProviderDefinitions(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.ShouldShowInSettings(providerId));
+    }
+
     [Fact]
     public void GetStartupRefreshProviderIds_UsesProviderDefinitions()
     {
