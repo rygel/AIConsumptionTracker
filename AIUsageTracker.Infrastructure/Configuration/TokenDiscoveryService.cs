@@ -6,7 +6,6 @@ using System.Collections;
 using System.Text.Json;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.Paths;
 using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
 
@@ -16,11 +15,27 @@ public class TokenDiscoveryService
 {
     private readonly ILogger<TokenDiscoveryService> _logger;
     private readonly IAppPathProvider _pathProvider;
+    private readonly IReadOnlyList<ProviderSessionTokenResolver> _sessionResolvers;
 
     public TokenDiscoveryService(ILogger<TokenDiscoveryService> logger, IAppPathProvider pathProvider)
     {
         this._logger = logger;
         this._pathProvider = pathProvider;
+        this._sessionResolvers = new List<ProviderSessionTokenResolver>
+        {
+            new(
+                definition: ClaudeCodeProvider.StaticDefinition,
+                description: "Discovered in Claude Code credentials",
+                sourcePrefix: "Claude Code",
+                logger: this._logger,
+                pathProvider: this._pathProvider),
+            new(
+                definition: CodexProvider.StaticDefinition,
+                description: "Discovered in Codex auth",
+                sourcePrefix: "Config",
+                logger: this._logger,
+                pathProvider: this._pathProvider),
+        };
     }
 
     private string GetUserProfilePath() => this._pathProvider.GetUserProfileRoot();
@@ -54,76 +69,28 @@ public class TokenDiscoveryService
         // 4. Discover from Roo Code
         await this.DiscoverRooCodeTokensAsync(discoveredConfigs).ConfigureAwait(false);
 
-        // 5. Discover from Claude Code
-        await this.DiscoverClaudeCodeTokenAsync(discoveredConfigs).ConfigureAwait(false);
-
-        // 6. Discover native Codex session token
-        await this.DiscoverCodexSessionTokenAsync(discoveredConfigs).ConfigureAwait(false);
+        // 5. Discover provider-specific session tokens
+        await this.DiscoverSessionTokensAsync(discoveredConfigs).ConfigureAwait(false);
 
         return discoveredConfigs;
     }
 
-    private async Task DiscoverCodexSessionTokenAsync(List<ProviderConfig> configs)
+    private async Task DiscoverSessionTokensAsync(List<ProviderConfig> configs)
     {
-        try
+        foreach (var resolver in this._sessionResolvers)
         {
-            foreach (var path in this.GetCodexAuthCandidates())
+            var resolved = await resolver.TryResolveAsync().ConfigureAwait(false);
+            if (resolved == null)
             {
-                if (!File.Exists(path))
-                {
-                    continue;
-                }
-
-                var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
-                using var doc = JsonDocument.Parse(json);
-                var token = TryReadCodexAccessToken(doc.RootElement);
-
-                if (string.IsNullOrWhiteSpace(token))
-                {
-                    continue;
-                }
-
-                this.AddOrUpdate(configs, CodexProvider.StaticDefinition.ProviderId, token, "Discovered in Codex auth", $"Config: {path}");
-                return;
+                continue;
             }
-        }
-        catch (Exception ex)
-        {
-            this._logger.LogDebug("Codex session discovery failed: {Message}", ex.Message);
-        }
-    }
 
-    private async Task DiscoverClaudeCodeTokenAsync(List<ProviderConfig> configs)
-    {
-        try
-        {
-            foreach (var path in this.GetCandidatePaths(ClaudeCodeProvider.StaticDefinition))
-            {
-                if (!File.Exists(path))
-                {
-                    continue;
-                }
-
-                var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
-                using var doc = JsonDocument.Parse(json);
-                var token = TryReadAccessToken(doc.RootElement, ClaudeCodeProvider.StaticDefinition);
-                if (string.IsNullOrWhiteSpace(token))
-                {
-                    continue;
-                }
-
-                this.AddOrUpdate(
-                    configs,
-                    ClaudeCodeProvider.StaticDefinition.ProviderId,
-                    token,
-                    "Discovered in Claude Code credentials",
-                    $"Claude Code: {path}");
-                return;
-            }
-        }
-        catch (Exception ex)
-        {
-            this._logger.LogDebug("Claude Code discovery failed: {Message}", ex.Message);
+            this.AddOrUpdate(
+                configs,
+                resolved.ProviderId,
+                resolved.ApiKey,
+                resolved.Description,
+                resolved.AuthSource);
         }
     }
 
@@ -137,48 +104,6 @@ public class TokenDiscoveryService
         {
             this.AddIfNotExists(configs, id, string.Empty, "Well-known provider", "System Default");
         }
-    }
-
-    private IEnumerable<string> GetCodexAuthCandidates()
-    {
-        return this.GetCandidatePaths(CodexProvider.StaticDefinition);
-    }
-
-    private static string? TryReadCodexAccessToken(JsonElement root)
-    {
-        return TryReadAccessToken(root, CodexProvider.StaticDefinition);
-    }
-
-    private static string? TryReadAccessToken(JsonElement root, ProviderDefinition definition)
-    {
-        foreach (var schema in definition.SessionAuthFileSchemas)
-        {
-            if (!root.TryGetProperty(schema.RootProperty, out var element) || element.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
-
-            if (element.TryGetProperty(schema.AccessTokenProperty, out var accessElement) &&
-                accessElement.ValueKind == JsonValueKind.String)
-            {
-                return accessElement.GetString();
-            }
-        }
-
-        return null;
-    }
-
-    private IEnumerable<string> GetCandidatePaths(ProviderDefinition definition)
-    {
-        return definition.AuthIdentityCandidatePathTemplates
-            .Select(this.ResolvePathTemplate)
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Distinct(StringComparer.OrdinalIgnoreCase)!;
-    }
-
-    private string ResolvePathTemplate(string pathTemplate)
-    {
-        return AuthPathTemplateResolver.Resolve(pathTemplate, this.GetUserProfilePath());
     }
 
     private void AddOrUpdate(List<ProviderConfig> configs, string providerId, string key, string description, string source)
