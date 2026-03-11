@@ -3,12 +3,13 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
+using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Monitor.Services;
 
 internal static class AuthDiagnosticsSnapshotBuilder
 {
-    public static AuthDiagnosticsSnapshot Build(ProviderConfig config, DateTimeOffset nowUtc)
+    public static AuthDiagnosticsSnapshot Build(ProviderConfig config, DateTimeOffset nowUtc, ILogger? logger = null)
     {
         var rawAuthSource = string.IsNullOrWhiteSpace(config.AuthSource) ? "none" : config.AuthSource;
         var fallbackPath = ExtractFallbackPath(rawAuthSource);
@@ -20,7 +21,7 @@ internal static class AuthDiagnosticsSnapshotBuilder
             Configured: !string.IsNullOrWhiteSpace(config.ApiKey),
             AuthSource: authSource,
             FallbackPathUsed: fallbackPathUsed,
-            TokenAgeBucket: GetTokenAgeBucket(authSource, fallbackPath, nowUtc),
+            TokenAgeBucket: GetTokenAgeBucket(config.ProviderId, authSource, fallbackPath, nowUtc, logger),
             HasUserIdentity: HasUserIdentity(config.Description, authSource));
     }
 
@@ -95,7 +96,12 @@ internal static class AuthDiagnosticsSnapshotBuilder
             : fileName;
     }
 
-    private static string GetTokenAgeBucket(string authSource, string fallbackPath, DateTimeOffset nowUtc)
+    private static string GetTokenAgeBucket(
+        string providerId,
+        string authSource,
+        string fallbackPath,
+        DateTimeOffset nowUtc,
+        ILogger? logger)
     {
         if (authSource.StartsWith("Env:", StringComparison.OrdinalIgnoreCase))
         {
@@ -135,6 +141,10 @@ internal static class AuthDiagnosticsSnapshotBuilder
         }
         catch
         {
+            logger?.LogDebug(
+                "Auth diagnostics token age calculation failed for provider {ProviderId} and source {AuthSource}.",
+                providerId,
+                authSource);
             return "unknown";
         }
     }

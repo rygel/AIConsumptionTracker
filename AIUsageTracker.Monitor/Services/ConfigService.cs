@@ -223,7 +223,7 @@ public class ConfigService : IConfigService
         var nowUtc = DateTimeOffset.UtcNow;
         foreach (var config in configs.OrderBy(item => item.ProviderId, StringComparer.OrdinalIgnoreCase))
         {
-            var snapshot = AuthDiagnosticsSnapshotBuilder.Build(config, nowUtc);
+            var snapshot = AuthDiagnosticsSnapshotBuilder.Build(config, nowUtc, this._logger);
             this._logger.LogInformation(
                 "Auth diagnostics [{Phase}] provider={ProviderId} configured={Configured} authSource={AuthSource} fallbackPathUsed={FallbackPathUsed} tokenAgeBucket={TokenAgeBucket} hasUserIdentity={HasUserIdentity}",
                 phase,
