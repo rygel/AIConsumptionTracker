@@ -25,6 +25,23 @@ After file merge, `TokenDiscoveryService` fills missing keys from discovery sour
 
 Discovery augments missing keys; it does not overwrite already populated keys.
 
+## Gemini CLI Auth Flow
+
+`gemini-cli` supports two local auth sources, in this strict order:
+
+1. `%USERPROFILE%\.config\opencode\antigravity-accounts.json` (preferred when present; supports multiple accounts).
+2. `%USERPROFILE%\.gemini\oauth_creds.json` + `%USERPROFILE%\.gemini\projects.json` (fallback for native Gemini CLI installs).
+
+Gemini fallback details:
+
+- `oauth_creds.json` provides `refresh_token` and `id_token`.
+- Account identity is read from `id_token.email`; if missing, fallback to `%USERPROFILE%\.gemini\google_accounts.json` `active`.
+- Project ID is resolved from `%USERPROFILE%\.gemini\projects.json`:
+  - first choice: longest path match for the current working directory.
+  - fallback: first available mapped project value.
+
+If neither source yields a valid refresh token + project mapping, Gemini is shown as unavailable with `No Gemini accounts found`.
+
 ## Preferences (Read and Write)
 
 Preferences are stored separately from auth:
