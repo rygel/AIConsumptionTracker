@@ -442,7 +442,7 @@ public class ProviderRefreshServiceTests
         InvokeInitializeProviders(scenario.Service, 6);
         try
         {
-            var (success, message, status) = await scenario.Service.CheckProviderAsync("openai");
+            var (success, message, status) = await scenario.Service.CheckProviderAsync("codex");
 
             Assert.True(success);
             Assert.Equal("Connected", message);
@@ -450,7 +450,7 @@ public class ProviderRefreshServiceTests
             scenario.Pipeline.Verify(
                 p => p.Process(
                     It.IsAny<IEnumerable<ProviderUsage>>(),
-                    It.Is<IReadOnlyCollection<string>>(ids => ids.Contains("openai", StringComparer.OrdinalIgnoreCase)),
+                    It.Is<IReadOnlyCollection<string>>(ids => ids.Contains("codex", StringComparer.OrdinalIgnoreCase)),
                     true),
                 Times.Once);
         }
@@ -475,8 +475,8 @@ public class ProviderRefreshServiceTests
                 {
                     new ProviderUsage
                     {
-                        ProviderId = "openai",
-                        ProviderName = "OpenAI",
+                        ProviderId = "codex",
+                        ProviderName = "OpenAI (Codex)",
                         IsAvailable = false,
                         Description = "Invalid detail contract",
                     },
@@ -486,7 +486,7 @@ public class ProviderRefreshServiceTests
         InvokeInitializeProviders(scenario.Service, 6);
         try
         {
-            var (success, message, status) = await scenario.Service.CheckProviderAsync("openai");
+            var (success, message, status) = await scenario.Service.CheckProviderAsync("codex");
 
             Assert.False(success);
             Assert.Equal("Invalid detail contract", message);
