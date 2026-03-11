@@ -223,6 +223,42 @@ public class ProviderMetadataCatalogTests
     }
 
     [Fact]
+    public void Definitions_EnforceCriticalProviderFallbackMappings()
+    {
+        var codex = ProviderMetadataCatalog.Find("codex");
+        Assert.NotNull(codex);
+        Assert.Contains("CODEX_API_KEY", codex!.DiscoveryEnvironmentVariables);
+        Assert.Contains("%USERPROFILE%\\.codex\\auth.json", codex.AuthIdentityCandidatePathTemplates);
+        Assert.Contains("%APPDATA%\\codex\\auth.json", codex.AuthIdentityCandidatePathTemplates);
+        Assert.Contains(
+            codex.SessionAuthFileSchemas,
+            schema => string.Equals(schema.RootProperty, "tokens", StringComparison.Ordinal) &&
+                      string.Equals(schema.AccessTokenProperty, "access_token", StringComparison.Ordinal));
+
+        var gemini = ProviderMetadataCatalog.Find("gemini-cli");
+        Assert.NotNull(gemini);
+        Assert.Contains("GEMINI_API_KEY", gemini!.DiscoveryEnvironmentVariables);
+        Assert.Contains("GOOGLE_API_KEY", gemini.DiscoveryEnvironmentVariables);
+        Assert.Contains("geminiApiKey", gemini.RooConfigPropertyNames);
+
+        var deepSeek = ProviderMetadataCatalog.Find("deepseek");
+        Assert.NotNull(deepSeek);
+        Assert.Contains("DEEPSEEK_API_KEY", deepSeek!.DiscoveryEnvironmentVariables);
+        Assert.Contains("deepseekApiKey", deepSeek.RooConfigPropertyNames);
+
+        var synthetic = ProviderMetadataCatalog.Find("synthetic");
+        Assert.NotNull(synthetic);
+        Assert.Contains("SYNTHETIC_API_KEY", synthetic!.DiscoveryEnvironmentVariables);
+        Assert.Contains("syntheticApiKey", synthetic.RooConfigPropertyNames);
+
+        var zai = ProviderMetadataCatalog.Find("zai-coding-plan");
+        Assert.NotNull(zai);
+        Assert.Contains("ZAI_API_KEY", zai!.DiscoveryEnvironmentVariables);
+        Assert.Contains("Z_AI_API_KEY", zai.DiscoveryEnvironmentVariables);
+        Assert.Contains("zaiApiKey", zai.RooConfigPropertyNames);
+    }
+
+    [Fact]
     public void Find_ExposesClaudeSessionAuthDiscoveryMetadata()
     {
         var definition = ProviderMetadataCatalog.Find("claude-code");
