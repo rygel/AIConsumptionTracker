@@ -46,11 +46,6 @@ public class WebDatabaseService : IWebDatabaseRepository
                     : pathProvider.GetDatabasePath());
     }
 
-    public bool IsDatabaseAvailable()
-    {
-        return this._connectionFactory.IsDatabaseAvailable();
-    }
-
     private const string ProvidersSql = @"
             SELECT 
                 p.provider_id AS ProviderId, 
@@ -134,6 +129,11 @@ public class WebDatabaseService : IWebDatabaseRepository
             WHERE provider_id = @ProviderId
             ORDER BY timestamp DESC
             LIMIT @Limit";
+
+    public bool IsDatabaseAvailable()
+    {
+        return this._connectionFactory.IsDatabaseAvailable();
+    }
 
     public async Task<IReadOnlyList<ProviderInfo>> GetProvidersAsync()
     {
