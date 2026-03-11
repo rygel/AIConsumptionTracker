@@ -12,6 +12,16 @@
 - **Provider-Specific Fallback Coverage**: Added missing discovery fallback metadata for DeepSeek, Synthetic, and Z.AI (environment and Roo mappings), plus Gemini environment variable discovery parity.
 - **Auth Flow Documentation**: Updated data-flow and environment-variable docs to reflect actual per-provider fallback order and supported sources.
 
+## [2.2.28-beta.23] - 2026-03-11
+
+### Changed
+- **Auth Source Precedence**: Added app-local auth (`%LOCALAPPDATA%\\AIUsageTracker\\auth.json`) as a final auth source so app-owned keys are read last and override earlier auth sources.
+- **Config Path Deduplication**: Deduplicated config entries when auth paths resolve to the same file to prevent duplicate merges.
+- **Auth Flow Documentation**: Added a dedicated auth information flow reference in `docs/auth_information_flow.md`.
+
+### Tests
+- **Auth Flow Guardrails**: Added tests that lock config source ordering and verify app-owned auth precedence over earlier auth files.
+
 ## [2.2.28-beta.22] - 2026-03-11
 
 ### Changed

@@ -22,7 +22,6 @@ public static class ConfigPathCatalog
         {
             entries.Add(new ConfigPathEntry(Path.Combine(appDataRoot, "auth.json"), ConfigPathKind.Auth));
         }
-
         var distinctEntries = new List<ConfigPathEntry>(entries.Count);
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
