@@ -6,7 +6,15 @@ on:
     paths:
       - "Directory.Build.props"
       - ".editorconfig"
-      - "AIUsageTracker.*/**"
+      - "AIUsageTracker.Core/**"
+      - "AIUsageTracker.Infrastructure/**"
+      - "AIUsageTracker.CLI/**"
+      - "AIUsageTracker.UI.Slim/**"
+      - "AIUsageTracker.Monitor/**"
+      - "AIUsageTracker.Web/**"
+      - "AIUsageTracker.Tests/**"
+      - "AIUsageTracker.Monitor.Tests/**"
+      - "AIUsageTracker.Web.Tests/**"
       - "scripts/**"
       - ".github/workflows/tests.yml"
   pull_request:
@@ -14,13 +22,21 @@ on:
     paths:
       - "Directory.Build.props"
       - ".editorconfig"
-      - "AIUsageTracker.*/**"
+      - "AIUsageTracker.Core/**"
+      - "AIUsageTracker.Infrastructure/**"
+      - "AIUsageTracker.CLI/**"
+      - "AIUsageTracker.UI.Slim/**"
+      - "AIUsageTracker.Monitor/**"
+      - "AIUsageTracker.Web/**"
+      - "AIUsageTracker.Tests/**"
+      - "AIUsageTracker.Monitor.Tests/**"
+      - "AIUsageTracker.Web.Tests/**"
       - "scripts/**"
       - ".github/workflows/tests.yml"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
