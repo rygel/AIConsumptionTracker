@@ -17,6 +17,15 @@ public class MonitorContractGuardrailTests
     }
 
     [Fact]
+    public void MonitorService_DoesNotUseHardcodedApiRouteLiterals()
+    {
+        var monitorServicePath = GetRepoPath("AIUsageTracker.Core", "MonitorClient", "MonitorService.cs");
+        var source = File.ReadAllText(monitorServicePath);
+
+        Assert.DoesNotContain("\"/api/", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MonitorProject_DoesNotDuplicateRouteCatalog()
     {
         var duplicateRouteCatalogPath = GetRepoPath("AIUsageTracker.Monitor", "Endpoints", "MonitorApiRoutes.cs");
