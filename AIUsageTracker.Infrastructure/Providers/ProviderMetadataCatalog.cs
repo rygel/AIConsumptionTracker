@@ -170,42 +170,6 @@ public static class ProviderMetadataCatalog
             : ProviderSessionIdentitySource.None;
     }
 
-    public static bool ShouldSuppressUsageProviderId(IReadOnlyCollection<ProviderConfig> configs, string providerId)
-    {
-        if (string.Equals(providerId, LegacyOpenAiProviderId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (!TryGet(providerId, out var definition) ||
-            string.IsNullOrWhiteSpace(definition.SessionAuthCanonicalProviderId) ||
-            string.Equals(definition.SessionAuthCanonicalProviderId, definition.ProviderId, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!HasConfiguredCanonicalConfig(configs, definition.SessionAuthCanonicalProviderId))
-        {
-            return false;
-        }
-
-        var aliasConfigs = configs
-            .Where(config => string.Equals(config.ProviderId, providerId, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        if (aliasConfigs.Count == 0)
-        {
-            return true;
-        }
-
-        return aliasConfigs.All(config => IsSessionAuthConfig(config, definition));
-    }
-
-    public static bool ShouldSuppressConfig(IReadOnlyCollection<ProviderConfig> configs, ProviderConfig config)
-    {
-        return ShouldSuppressUsageProviderId(configs, config.ProviderId);
-    }
-
     public static bool TryCreateDefaultConfig(
         string providerId,
         out ProviderConfig config,
@@ -235,18 +199,6 @@ public static class ProviderMetadataCatalog
     public static void NormalizeCanonicalConfigurations(List<ProviderConfig> configs)
     {
         NormalizeConfigOwnership(configs);
-    }
-
-    public static bool ShouldSuppressOpenAiSession(IReadOnlyCollection<ProviderConfig> configs)
-    {
-        return configs.Any(config =>
-            IsSessionAuthConfig(config) &&
-            HasConfiguredCanonicalConfig(configs, GetCanonicalConfigOwnerId(config)));
-    }
-
-    public static bool IsOpenAiSessionConfig(ProviderConfig config)
-    {
-        return IsSessionAuthConfig(config);
     }
 
     private static IReadOnlyList<ProviderDefinition> LoadDefinitions()
@@ -323,13 +275,6 @@ public static class ProviderMetadataCatalog
         return defaultConfig;
     }
 
-    private static bool HasConfiguredCanonicalConfig(IEnumerable<ProviderConfig> configs, string providerId)
-    {
-        return configs.Any(config =>
-            string.Equals(config.ProviderId, providerId, StringComparison.OrdinalIgnoreCase) &&
-            !string.IsNullOrWhiteSpace(config.ApiKey));
-    }
-
     private static string GetCanonicalConfigOwnerId(ProviderConfig config)
     {
         if (TryGet(config.ProviderId, out var definition) && IsSessionAuthConfig(config, definition))
@@ -338,11 +283,6 @@ public static class ProviderMetadataCatalog
         }
 
         return GetCanonicalProviderId(config.ProviderId);
-    }
-
-    private static bool IsSessionAuthConfig(ProviderConfig config)
-    {
-        return TryGet(config.ProviderId, out var definition) && IsSessionAuthConfig(config, definition);
     }
 
     private static bool IsSessionAuthConfig(ProviderConfig config, ProviderDefinition definition)

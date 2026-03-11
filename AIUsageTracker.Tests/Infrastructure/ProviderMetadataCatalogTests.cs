@@ -279,53 +279,8 @@ string.Equals(schema.AccessTokenProperty, "accessToken", StringComparison.Ordina
     }
 
     [Fact]
-    public void ShouldSuppressUsageProviderId_ReturnsTrue_ForSessionBackedAliasWithCanonicalConfig()
+    public void UsageFilter_RemovesNonPersistedProviderIds_UsingPersistenceGate()
     {
-        var configs = new List<ProviderConfig>
-        {
-            new() { ProviderId = "codex", ApiKey = "codex-session" },
-            new() { ProviderId = "openai", ApiKey = "legacy-session-token" },
-        };
-
-        var result = ProviderMetadataCatalog.ShouldSuppressUsageProviderId(configs, "openai");
-
-        Assert.True(result);
-    }
-
-    [Fact]
-    public void ShouldSuppressUsageProviderId_ReturnsTrue_ForStaleSessionBackedAliasHistory_WhenCanonicalConfigExists()
-    {
-        var configs = new List<ProviderConfig>
-        {
-            new() { ProviderId = "codex", ApiKey = "codex-session" },
-        };
-
-        var result = ProviderMetadataCatalog.ShouldSuppressUsageProviderId(configs, "openai");
-
-        Assert.True(result);
-    }
-
-    [Fact]
-    public void ShouldSuppressUsageProviderId_ReturnsTrue_ForLegacyOpenAiAlias_EvenWithExplicitApiKeyConfig()
-    {
-        var configs = new List<ProviderConfig>
-        {
-            new() { ProviderId = "codex", ApiKey = "codex-session" },
-            new() { ProviderId = "openai", ApiKey = "sk-live-openai" },
-        };
-
-        var result = ProviderMetadataCatalog.ShouldSuppressUsageProviderId(configs, "openai");
-
-        Assert.True(result);
-    }
-
-    [Fact]
-    public void UsageFilter_RemovesStaleSessionAliasUsage_WhenCanonicalProviderIsConfigured()
-    {
-        var configs = new List<ProviderConfig>
-        {
-            new() { ProviderId = "codex", ApiKey = "codex-session" },
-        };
         var usages = new List<ProviderUsage>
         {
             new() { ProviderId = "codex", ProviderName = "OpenAI (Codex)" },
@@ -333,7 +288,7 @@ string.Equals(schema.AccessTokenProperty, "accessToken", StringComparison.Ordina
         };
 
         var visible = usages
-            .Where(usage => !ProviderMetadataCatalog.ShouldSuppressUsageProviderId(configs, usage.ProviderId))
+            .Where(usage => ProviderMetadataCatalog.ShouldPersistProviderId(usage.ProviderId))
             .ToList();
 
         Assert.Single(visible);
