@@ -10,6 +10,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$sparkleNamespace = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 
 function Assert-True {
     param(
@@ -85,7 +86,7 @@ foreach ($arch in $WindowsArchitectures) {
 
     $appcastFiles += [pscustomobject]@{
         Arch = $arch
-        Path = Join-Path $AppcastDir "$appcastPrefix" + "_$arch.xml"
+        Path = Join-Path $AppcastDir "$($appcastPrefix)_$arch.xml"
         IsDefault = $false
     }
 }
@@ -94,17 +95,23 @@ foreach ($entry in $appcastFiles) {
     Assert-True (Test-Path -LiteralPath $entry.Path) "Missing appcast file: $($entry.Path)"
 
     [xml]$xml = Get-Content -LiteralPath $entry.Path -Raw
-    $item = $xml.rss.channel.item
+    $nsManager = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+    $nsManager.AddNamespace("sparkle", $sparkleNamespace)
+
+    $item = $xml.SelectSingleNode("/rss/channel/item", $nsManager)
     Assert-True ($null -ne $item) "Appcast item missing in $($entry.Path)"
-    Assert-True ($null -ne $item.enclosure) "Appcast enclosure missing in $($entry.Path)"
+
+    $enclosure = $item.SelectSingleNode("enclosure", $nsManager)
+    Assert-True ($null -ne $enclosure) "Appcast enclosure missing in $($entry.Path)"
 
     $expectedInstallerName = "AIUsageTracker_Setup_v$Version" + "_win-$($entry.Arch).exe"
     $expectedUrl = "https://github.com/rygel/AIUsageTracker/releases/download/v$Version/$expectedInstallerName"
     $expectedReleaseNotes = "https://github.com/rygel/AIUsageTracker/releases/tag/v$Version"
 
-    $actualUrl = [string]$item.enclosure.url
-    $actualShortVersion = [string]$item.enclosure.'sparkle:shortVersionString'
-    $actualReleaseNotes = [string]$item.'sparkle:releaseNotesLink'
+    $actualUrl = [string]$enclosure.GetAttribute("url")
+    $actualShortVersion = [string]$enclosure.GetAttribute("shortVersionString", $sparkleNamespace)
+    $releaseNotesNode = $item.SelectSingleNode("sparkle:releaseNotesLink", $nsManager)
+    $actualReleaseNotes = [string]$releaseNotesNode.InnerText
 
     Assert-True ($actualUrl -eq $expectedUrl) "Unexpected enclosure url in $($entry.Path). Expected '$expectedUrl', got '$actualUrl'."
     Assert-True ($actualShortVersion -eq $Version) "Unexpected sparkle:shortVersionString in $($entry.Path). Expected '$Version', got '$actualShortVersion'."

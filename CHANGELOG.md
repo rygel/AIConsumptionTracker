@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [2.2.28-beta.22] - 2026-03-11
+
+### Changed
+- **Beta Version Bump**: Updated shared tracker version, README badge, and release packaging scripts for `2.2.28-beta.22`.
+- **Release Validation Reliability**: Fixed release script validation to generate appcasts for the correct channel and hardened appcast verification for namespaced Sparkle fields.
+
 ## [2.2.28-beta.21] - 2026-03-10
 
 ### Changed

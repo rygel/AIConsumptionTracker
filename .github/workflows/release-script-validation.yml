@@ -78,13 +78,13 @@ jobs:
             exit 1
           fi
 
-          bash scripts/validate-release-consistency.sh "$version"
-          bash scripts/generate-appcast.sh "$version"
-
           channel="stable"
           if [[ "$version" =~ -beta ]]; then
             channel="beta"
           fi
+
+          bash scripts/validate-release-consistency.sh "$version"
+          bash scripts/generate-appcast.sh "$version" "$channel"
 
           pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/verify-release-artifacts.ps1 -Version "$version" -Channel "$channel" -SkipArtifactChecks
 
