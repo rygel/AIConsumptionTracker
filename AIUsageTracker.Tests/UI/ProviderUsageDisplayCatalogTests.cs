@@ -42,6 +42,37 @@ namespace AIUsageTracker.Tests.UI
         }
 
         [Fact]
+        public void PrepareForMainWindow_HidesCodexChildren_WhenParentExists()
+        {
+            var usages = new List<ProviderUsage>
+            {
+                new() { ProviderId = "codex", IsAvailable = true },
+                new() { ProviderId = "codex.spark", IsAvailable = true },
+            };
+
+            var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
+
+            var displayable = Assert.Single(preparation.DisplayableUsages);
+            Assert.Equal("codex", displayable.ProviderId);
+        }
+
+        [Fact]
+        public void CreateCodexSubUsages_ReturnsCodexChildren()
+        {
+            var usages = new List<ProviderUsage>
+            {
+                new() { ProviderId = "codex.spark", ProviderName = "OpenAI (GPT-5.3-Codex-Spark)", IsAvailable = true },
+                new() { ProviderId = "codex.spark", ProviderName = "Duplicate", IsAvailable = true },
+                new() { ProviderId = "codex", ProviderName = "OpenAI (Codex)", IsAvailable = true },
+            };
+
+            var children = ProviderUsageDisplayCatalog.CreateCodexSubUsages(usages);
+
+            var child = Assert.Single(children);
+            Assert.Equal("codex.spark", child.ProviderId);
+        }
+
+        [Fact]
         public void CreateAntigravityModelUsages_DeduplicatesAndBuildsSyntheticChildren()
         {
             var parent = new ProviderUsage

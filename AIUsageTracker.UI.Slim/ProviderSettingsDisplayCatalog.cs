@@ -46,7 +46,9 @@ internal static class ProviderSettingsDisplayCatalog
         displayItems.AddRange(derivedItems);
 
         return displayItems
-            .OrderBy(item => ProviderMetadataCatalog.GetDisplayName(item.Config.ProviderId), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(item => ProviderMetadataCatalog.GetCanonicalProviderId(item.Config.ProviderId), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.IsDerived ? 1 : 0)
+            .ThenBy(item => ProviderMetadataCatalog.GetDisplayName(item.Config.ProviderId), StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.Config.ProviderId, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }

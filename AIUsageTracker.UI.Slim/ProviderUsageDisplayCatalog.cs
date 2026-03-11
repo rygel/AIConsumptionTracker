@@ -13,9 +13,10 @@ internal static class ProviderUsageDisplayCatalog
     {
         var filteredUsages = usages.ToList();
         var hasAntigravityParent = filteredUsages.Any(IsAntigravityParent);
+        var hasCodexParent = filteredUsages.Any(IsCodexParent);
 
         filteredUsages = filteredUsages
-            .Where(ShouldDisplayUsage(hasAntigravityParent))
+            .Where(ShouldDisplayUsage(hasAntigravityParent, hasCodexParent))
             .GroupBy(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .ToList();
@@ -39,13 +40,24 @@ internal static class ProviderUsageDisplayCatalog
             .ToList();
     }
 
-    private static Func<ProviderUsage, bool> ShouldDisplayUsage(bool hasAntigravityParent)
+    public static IReadOnlyList<ProviderUsage> CreateCodexSubUsages(IReadOnlyCollection<ProviderUsage> usages)
+    {
+        return usages
+            .Where(usage => IsCodexChild(usage.ProviderId ?? string.Empty))
+            .GroupBy(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(usage => ProviderMetadataCatalog.GetDisplayName(usage.ProviderId ?? string.Empty, usage.ProviderName), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static Func<ProviderUsage, bool> ShouldDisplayUsage(bool hasAntigravityParent, bool hasCodexParent)
     {
         return usage =>
         {
             var providerId = usage.ProviderId ?? string.Empty;
             return !IsUnavailableAntigravityParent(usage) &&
-                   (!providerId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) || !hasAntigravityParent);
+                   (!providerId.StartsWith("antigravity.", StringComparison.OrdinalIgnoreCase) || !hasAntigravityParent) &&
+                   (!IsCodexChild(providerId) || !hasCodexParent);
         };
     }
 
@@ -57,6 +69,23 @@ internal static class ProviderUsageDisplayCatalog
     private static bool IsAntigravityParent(ProviderUsage usage)
     {
         return ProviderMetadataCatalog.IsAggregateParentProviderId(usage.ProviderId ?? string.Empty);
+    }
+
+    private static bool IsCodexParent(ProviderUsage usage)
+    {
+        var providerId = usage.ProviderId ?? string.Empty;
+        return string.Equals(
+            ProviderMetadataCatalog.GetCanonicalProviderId(providerId),
+            CodexProvider.StaticDefinition.ProviderId,
+            StringComparison.OrdinalIgnoreCase) &&
+            !providerId.Contains('.', StringComparison.Ordinal);
+    }
+
+    private static bool IsCodexChild(string providerId)
+    {
+        return providerId.StartsWith(
+            $"{CodexProvider.StaticDefinition.ProviderId}.",
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private static ProviderUsage CreateAntigravityModelUsage(ProviderUsageDetail detail, ProviderUsage parentUsage)
