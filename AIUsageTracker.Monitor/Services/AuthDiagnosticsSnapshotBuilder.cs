@@ -10,57 +10,111 @@ internal static class AuthDiagnosticsSnapshotBuilder
 {
     public static AuthDiagnosticsSnapshot Build(ProviderConfig config, DateTimeOffset nowUtc)
     {
-        var authSource = string.IsNullOrWhiteSpace(config.AuthSource) ? "none" : config.AuthSource;
-        var fallbackPathUsed = GetFallbackPath(authSource);
+        var rawAuthSource = string.IsNullOrWhiteSpace(config.AuthSource) ? "none" : config.AuthSource;
+        var fallbackPath = ExtractFallbackPath(rawAuthSource);
+        var authSource = SanitizeAuthSource(rawAuthSource, fallbackPath);
+        var fallbackPathUsed = SanitizeFallbackPath(fallbackPath);
 
         return new AuthDiagnosticsSnapshot(
             ProviderId: config.ProviderId,
             Configured: !string.IsNullOrWhiteSpace(config.ApiKey),
             AuthSource: authSource,
             FallbackPathUsed: fallbackPathUsed,
-            TokenAgeBucket: GetTokenAgeBucket(authSource, fallbackPathUsed, nowUtc),
+            TokenAgeBucket: GetTokenAgeBucket(authSource, fallbackPath, nowUtc),
             HasUserIdentity: HasUserIdentity(config.Description, authSource));
     }
 
-    private static string GetFallbackPath(string authSource)
+    private static string ExtractFallbackPath(string authSource)
     {
         var separatorIndex = authSource.IndexOf(':');
         if (separatorIndex < 0 || separatorIndex == authSource.Length - 1)
         {
-            return "n/a";
+            return string.Empty;
         }
 
         var candidate = authSource[(separatorIndex + 1)..].Trim();
         if (string.IsNullOrWhiteSpace(candidate))
         {
-            return "n/a";
+            return string.Empty;
         }
 
         return candidate.Contains('\\') || candidate.Contains('/')
             ? candidate
-            : "n/a";
+            : string.Empty;
     }
 
-    private static string GetTokenAgeBucket(string authSource, string fallbackPathUsed, DateTimeOffset nowUtc)
+    private static string SanitizeAuthSource(string authSource, string fallbackPath)
+    {
+        if (string.Equals(authSource, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            return "none";
+        }
+
+        if (authSource.StartsWith("Env:", StringComparison.OrdinalIgnoreCase))
+        {
+            var variableSegment = authSource[4..].Trim();
+            var equalIndex = variableSegment.IndexOf('=');
+            if (equalIndex >= 0)
+            {
+                variableSegment = variableSegment[..equalIndex].Trim();
+            }
+
+            return $"Env: {variableSegment}";
+        }
+
+        if (string.IsNullOrWhiteSpace(fallbackPath))
+        {
+            return authSource;
+        }
+
+        var fileName = Path.GetFileName(fallbackPath);
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return authSource;
+        }
+
+        var separatorIndex = authSource.IndexOf(':');
+        if (separatorIndex < 0)
+        {
+            return fileName;
+        }
+
+        return $"{authSource[..separatorIndex]}: {fileName}";
+    }
+
+    private static string SanitizeFallbackPath(string fallbackPath)
+    {
+        if (string.IsNullOrWhiteSpace(fallbackPath))
+        {
+            return "n/a";
+        }
+
+        var fileName = Path.GetFileName(fallbackPath);
+        return string.IsNullOrWhiteSpace(fileName)
+            ? "n/a"
+            : fileName;
+    }
+
+    private static string GetTokenAgeBucket(string authSource, string fallbackPath, DateTimeOffset nowUtc)
     {
         if (authSource.StartsWith("Env:", StringComparison.OrdinalIgnoreCase))
         {
             return "runtime-env";
         }
 
-        if (string.Equals(fallbackPathUsed, "n/a", StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(fallbackPath))
         {
             return "unknown";
         }
 
         try
         {
-            if (!File.Exists(fallbackPathUsed))
+            if (!File.Exists(fallbackPath))
             {
                 return "missing";
             }
 
-            var lastWriteUtc = new DateTimeOffset(File.GetLastWriteTimeUtc(fallbackPathUsed), TimeSpan.Zero);
+            var lastWriteUtc = new DateTimeOffset(File.GetLastWriteTimeUtc(fallbackPath), TimeSpan.Zero);
             var age = nowUtc - lastWriteUtc;
             if (age <= TimeSpan.FromHours(1))
             {

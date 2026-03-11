@@ -28,8 +28,8 @@ public class AuthDiagnosticsSnapshotBuilderTests
 
             Assert.Equal("gemini-cli", snapshot.ProviderId);
             Assert.True(snapshot.Configured);
-            Assert.Equal($"Config: {tempFile}", snapshot.AuthSource);
-            Assert.Equal(tempFile, snapshot.FallbackPathUsed);
+            Assert.Equal($"Config: {Path.GetFileName(tempFile)}", snapshot.AuthSource);
+            Assert.Equal(Path.GetFileName(tempFile), snapshot.FallbackPathUsed);
             Assert.Equal("lt-1h", snapshot.TokenAgeBucket);
             Assert.True(snapshot.HasUserIdentity);
         }
@@ -69,7 +69,24 @@ public class AuthDiagnosticsSnapshotBuilderTests
 
         var snapshot = AuthDiagnosticsSnapshotBuilder.Build(config, DateTimeOffset.UtcNow);
 
-        Assert.Equal(missingPath, snapshot.FallbackPathUsed);
+        Assert.Equal(Path.GetFileName(missingPath), snapshot.FallbackPathUsed);
         Assert.Equal("missing", snapshot.TokenAgeBucket);
+    }
+
+    [Fact]
+    public void Build_WhenAuthSourceContainsInlineEnvironmentValue_RedactsValueFromDiagnostics()
+    {
+        var config = new ProviderConfig
+        {
+            ProviderId = "openai",
+            ApiKey = "token",
+            AuthSource = "Env: OPENAI_API_KEY=sk-super-secret-value",
+        };
+
+        var snapshot = AuthDiagnosticsSnapshotBuilder.Build(config, DateTimeOffset.UtcNow);
+
+        Assert.Equal("Env: OPENAI_API_KEY", snapshot.AuthSource);
+        Assert.Equal("n/a", snapshot.FallbackPathUsed);
+        Assert.Equal("runtime-env", snapshot.TokenAgeBucket);
     }
 }
