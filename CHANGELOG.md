@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [2.2.28-beta.27] - 2026-03-11
+
+### Changed
+- **Beta Version Bump**: Advanced beta release metadata and packaging references to `2.2.28-beta.27`.
+
 ## [2.2.28-beta.26] - 2026-03-11
 
 ### Changed
