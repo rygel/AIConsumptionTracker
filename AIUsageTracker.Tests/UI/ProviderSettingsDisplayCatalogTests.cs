@@ -96,6 +96,21 @@ public sealed class ProviderSettingsDisplayCatalogTests
     }
 
     [Fact]
+    public void CreateDisplayItems_HidesLegacyAnthropicConfigFromSettingsList()
+    {
+        var configs = new List<ProviderConfig>
+        {
+            new() { ProviderId = "anthropic" },
+            new() { ProviderId = "claude-code" },
+        };
+
+        var items = ProviderSettingsDisplayCatalog.CreateDisplayItems(configs, Array.Empty<ProviderUsage>());
+
+        Assert.DoesNotContain(items, item => string.Equals(item.Config.ProviderId, "anthropic", StringComparison.Ordinal));
+        Assert.Contains(items, item => string.Equals(item.Config.ProviderId, "claude-code", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void CreateDisplayItems_GroupsDerivedCodexSpark_UnderCodex()
     {
         var configs = new List<ProviderConfig>
