@@ -476,11 +476,7 @@ public partial class SettingsWindow : Window
 
     private void AddProviderCard(ProviderConfig config, ProviderUsage? usage, bool isDerived = false)
     {
-        var isCanonicalChild = !string.Equals(
-            ProviderMetadataCatalog.GetCanonicalProviderId(config.ProviderId),
-            config.ProviderId,
-            StringComparison.OrdinalIgnoreCase);
-        var isSubItem = isDerived || isCanonicalChild;
+        var isSubItem = ShouldRenderAsSettingsSubItem(config.ProviderId, isDerived);
 
         var card = new Border
         {
@@ -521,6 +517,26 @@ public partial class SettingsWindow : Window
 
         card.Child = grid;
         this.ProvidersStack.Children.Add(card);
+    }
+
+    internal static bool ShouldRenderAsSettingsSubItem(string providerId, bool isDerived)
+    {
+        if (!isDerived)
+        {
+            return false;
+        }
+
+        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+        var isCanonicalChild = !string.Equals(
+            canonicalProviderId,
+            providerId,
+            StringComparison.OrdinalIgnoreCase);
+        if (!isCanonicalChild)
+        {
+            return false;
+        }
+
+        return ProviderMetadataCatalog.IsAggregateParentProviderId(canonicalProviderId);
     }
 
     private FrameworkElement BuildProviderInputContent(ProviderConfig config, ProviderUsage? usage, ProviderSettingsBehavior settingsBehavior)
