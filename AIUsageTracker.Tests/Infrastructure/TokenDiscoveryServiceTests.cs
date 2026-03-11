@@ -252,4 +252,50 @@ public class TokenDiscoveryServiceTests
             TestTempPaths.CleanupPath(testRoot);
         }
     }
+
+    [Theory]
+    [InlineData("gemini-cli", "geminiApiKey")]
+    [InlineData("deepseek", "deepseekApiKey")]
+    [InlineData("synthetic", "syntheticApiKey")]
+    [InlineData("zai-coding-plan", "zaiApiKey")]
+    public async Task DiscoverTokensAsync_UsesRooFallbackWhenEnvironmentVariableIsMissingAsync(
+        string providerId,
+        string rooPropertyName)
+    {
+        var testRoot = TestTempPaths.CreateDirectory($"token-discovery-roo-fallback-{providerId}");
+        var rooValue = $"{providerId}-roo-only-key";
+
+        try
+        {
+            var rooPath = Path.Combine(testRoot, ".roo", "secrets.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(rooPath)!);
+            var rooJson = $$"""
+                            {
+                              "roo": {
+                                "apiConfigs": {
+                                  "default": {
+                                    "{{rooPropertyName}}": "{{rooValue}}"
+                                  }
+                                }
+                              }
+                            }
+                            """;
+            await File.WriteAllTextAsync(rooPath, rooJson);
+
+            var mockPathProvider = new Mock<IAppPathProvider>();
+            mockPathProvider.Setup(p => p.GetUserProfileRoot()).Returns(testRoot);
+
+            var discovery = new TokenDiscoveryService(NullLogger<TokenDiscoveryService>.Instance, mockPathProvider.Object);
+            var configs = await discovery.DiscoverTokensAsync();
+
+            var config = configs.FirstOrDefault(c => c.ProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase));
+            Assert.NotNull(config);
+            Assert.Equal(rooValue, config!.ApiKey);
+            Assert.Contains("Roo", config.AuthSource, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            TestTempPaths.CleanupPath(testRoot);
+        }
+    }
 }

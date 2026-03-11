@@ -13,6 +13,9 @@ namespace AIUsageTracker.Infrastructure.Configuration;
 
 public class TokenDiscoveryService
 {
+    private static readonly IReadOnlyList<IProviderAuthFallbackResolver> ExplicitProviderFallbackResolvers =
+        BuildExplicitProviderFallbackResolvers();
+
     private readonly ILogger<TokenDiscoveryService> _logger;
     private readonly IAppPathProvider _pathProvider;
     private readonly IReadOnlyList<ProviderSessionTokenResolver> _sessionResolvers;
@@ -40,27 +43,28 @@ public class TokenDiscoveryService
 
     private string GetUserProfilePath() => this._pathProvider.GetUserProfileRoot();
 
+    private static IReadOnlyList<IProviderAuthFallbackResolver> BuildExplicitProviderFallbackResolvers()
+    {
+        return ProviderMetadataCatalog.Definitions
+            .Where(definition => definition.DiscoveryEnvironmentVariables.Count > 0)
+            .Select(definition => (IProviderAuthFallbackResolver)new ProviderAuthFallbackResolver(
+                definition.ProviderId,
+                definition.DiscoveryEnvironmentVariables.ToArray()))
+            .ToArray();
+    }
+
     public async Task<IReadOnlyList<ProviderConfig>> DiscoverTokensAsync()
     {
         var discoveredConfigs = new List<ProviderConfig>();
+        var environmentVariables = this.GetNormalizedEnvironmentVariables();
 
         // 1. Start with well-known supported providers (ensure they show up in --all)
         this.AddWellKnownProviders(discoveredConfigs);
 
         // 2. Discover from environment variables
-        var envVars = Environment.GetEnvironmentVariables();
-
-        foreach (DictionaryEntry var in envVars)
+        foreach (var entry in environmentVariables)
         {
-            var key = var.Key.ToString()?.ToUpperInvariant();
-            var value = var.Value?.ToString();
-
-            if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(value))
-            {
-                continue;
-            }
-
-            this.TryAddEnvironmentVariable(discoveredConfigs, key, value);
+            this.TryAddEnvironmentVariable(discoveredConfigs, entry.Key, entry.Value);
         }
 
         // 3. Discover from Kilo Code
@@ -69,10 +73,53 @@ public class TokenDiscoveryService
         // 4. Discover from Roo Code
         await this.DiscoverRooCodeTokensAsync(discoveredConfigs).ConfigureAwait(false);
 
-        // 5. Discover provider-specific session tokens
+        // 5. Apply explicit provider fallback order (env -> provider-specific Roo/Kilo)
+        this.ApplyExplicitProviderFallbacks(discoveredConfigs, environmentVariables);
+
+        // 6. Discover provider-specific session tokens
         await this.DiscoverSessionTokensAsync(discoveredConfigs).ConfigureAwait(false);
 
         return discoveredConfigs;
+    }
+
+    private IReadOnlyDictionary<string, string> GetNormalizedEnvironmentVariables()
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var envVars = Environment.GetEnvironmentVariables();
+        foreach (DictionaryEntry entry in envVars)
+        {
+            var key = entry.Key.ToString();
+            var value = entry.Value?.ToString();
+            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            result[key.ToUpperInvariant()] = value;
+        }
+
+        return result;
+    }
+
+    private void ApplyExplicitProviderFallbacks(
+        List<ProviderConfig> discoveredConfigs,
+        IReadOnlyDictionary<string, string> environmentVariables)
+    {
+        foreach (var resolver in ExplicitProviderFallbackResolvers)
+        {
+            var resolved = resolver.Resolve(environmentVariables, discoveredConfigs);
+            if (resolved == null)
+            {
+                continue;
+            }
+
+            this.AddOrUpdate(
+                discoveredConfigs,
+                resolved.ProviderId,
+                resolved.ApiKey,
+                resolved.Description ?? "Discovered via explicit provider fallback",
+                resolved.AuthSource);
+        }
     }
 
     private async Task DiscoverSessionTokensAsync(List<ProviderConfig> configs)
@@ -340,9 +387,20 @@ public class TokenDiscoveryService
             return;
         }
 
-        if (!configs.Any(c => c.ProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase)))
+        var existing = configs.FirstOrDefault(c => c.ProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase));
+        if (existing == null)
         {
             configs.Add(defaultConfig);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(existing.ApiKey) && !string.IsNullOrWhiteSpace(key))
+        {
+            existing.ApiKey = key;
+            existing.AuthSource = source;
+            existing.Description = description;
+            existing.Type = defaultConfig.Type;
+            existing.PlanType = defaultConfig.PlanType;
         }
     }
 }
