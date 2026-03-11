@@ -133,8 +133,20 @@ public class ProviderRefreshService : BackgroundService
         IReadOnlyCollection<string>? includeProviderIds = null,
         bool bypassCircuitBreaker = false)
     {
+        var coalesceKey = BuildManualRefreshCoalesceKey(forceAll, includeProviderIds, bypassCircuitBreaker);
         return this._refreshJobScheduler.QueueManualRefresh(
-            _ => this.TriggerRefreshAsync(forceAll, includeProviderIds, bypassCircuitBreaker));
+            _ => this.TriggerRefreshAsync(forceAll, includeProviderIds, bypassCircuitBreaker),
+            coalesceKey);
+    }
+
+    public bool QueueForceRefresh(
+        bool forceAll = false,
+        IReadOnlyCollection<string>? includeProviderIds = null)
+    {
+        return this.QueueManualRefresh(
+            forceAll: forceAll,
+            includeProviderIds: includeProviderIds,
+            bypassCircuitBreaker: true);
     }
 
     private async Task<int> GetConfiguredMaxConcurrentProviderRequestsAsync()
@@ -150,6 +162,29 @@ public class ProviderRefreshService : BackgroundService
     private void InitializeProviders(int maxConcurrentProviderRequests)
     {
         this._providerManagerLifecycle.Initialize(maxConcurrentProviderRequests);
+    }
+
+    internal static string? BuildManualRefreshCoalesceKey(
+        bool forceAll,
+        IReadOnlyCollection<string>? includeProviderIds,
+        bool bypassCircuitBreaker)
+    {
+        var normalizedIds = (includeProviderIds ?? [])
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToArray();
+
+        if (!forceAll && !bypassCircuitBreaker && normalizedIds.Length == 0)
+        {
+            return null;
+        }
+
+        var includeSegment = normalizedIds.Length == 0
+            ? "all"
+            : string.Join(",", normalizedIds);
+        return $"manual-provider-refresh|forceAll={forceAll}|bypass={bypassCircuitBreaker}|include={includeSegment}";
     }
 
     public virtual async Task TriggerRefreshAsync(
@@ -317,7 +352,7 @@ public class ProviderRefreshService : BackgroundService
         return this._refreshTelemetryManager.GetSnapshot(this._providerCircuitBreakerService.GetProviderDiagnostics());
     }
 
-    public async Task<(bool success, string message, int status)> CheckProviderAsync(string providerId)
+    public async Task<(bool Success, string Message, int Status)> CheckProviderAsync(string providerId)
     {
         if (this.ProviderManager == null)
         {

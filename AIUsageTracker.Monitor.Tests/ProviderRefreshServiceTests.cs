@@ -227,8 +227,96 @@ public class ProviderRefreshServiceTests
                 "manual-provider-refresh",
                 It.IsAny<Func<CancellationToken, Task>>(),
                 MonitorJobPriority.High,
-                null),
+                "manual-provider-refresh"),
             Times.Once);
+    }
+
+    [Fact]
+    public void QueueManualRefresh_WithScopedRequest_UsesRequestAwareCoalesceKey()
+    {
+        this._mockJobScheduler
+            .Setup(s => s.Enqueue(
+                It.IsAny<string>(),
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<MonitorJobPriority>(),
+                It.IsAny<string?>()))
+            .Returns(true);
+
+        var queued = this._service.QueueManualRefresh(
+            includeProviderIds: new[] { "zai", "OpenAI" },
+            bypassCircuitBreaker: true);
+
+        Assert.True(queued);
+        this._mockJobScheduler.Verify(
+            s => s.Enqueue(
+                "manual-provider-refresh",
+                It.IsAny<Func<CancellationToken, Task>>(),
+                MonitorJobPriority.High,
+                "manual-provider-refresh|forceAll=False|bypass=True|include=openai,zai"),
+            Times.Once);
+    }
+
+    [Fact]
+    public void BuildManualRefreshCoalesceKey_EquivalentProviderScopes_ProducesSameKey()
+    {
+        var first = ProviderRefreshService.BuildManualRefreshCoalesceKey(
+            forceAll: false,
+            includeProviderIds: new[] { "OpenAI", "zai" },
+            bypassCircuitBreaker: true);
+        var second = ProviderRefreshService.BuildManualRefreshCoalesceKey(
+            forceAll: false,
+            includeProviderIds: new[] { "ZAI", "openai", "openai" },
+            bypassCircuitBreaker: true);
+
+        Assert.Equal(first, second);
+        Assert.Equal("manual-provider-refresh|forceAll=False|bypass=True|include=openai,zai", first);
+    }
+
+    [Fact]
+    public void BuildManualRefreshCoalesceKey_DefaultManualRefresh_ReturnsNull()
+    {
+        var key = ProviderRefreshService.BuildManualRefreshCoalesceKey(
+            forceAll: false,
+            includeProviderIds: null,
+            bypassCircuitBreaker: false);
+
+        Assert.Null(key);
+    }
+
+    [Fact]
+    public async Task QueueForceRefresh_QueuedWorkBypassesCircuitBreakerAsync()
+    {
+        Func<CancellationToken, Task>? queuedWork = null;
+        this._mockJobScheduler
+            .Setup(s => s.Enqueue(
+                It.IsAny<string>(),
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<MonitorJobPriority>(),
+                It.IsAny<string?>()))
+            .Callback<string, Func<CancellationToken, Task>, MonitorJobPriority, string?>((_, work, _, _) => queuedWork = work)
+            .Returns(true);
+
+        var stoppedActivities = new List<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => string.Equals(source.Name, MonitorActivitySources.RefreshSourceName, StringComparison.Ordinal),
+            Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            SampleUsingParentId = static (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity => stoppedActivities.Add(activity),
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var queued = this._service.QueueForceRefresh(forceAll: true);
+        Assert.True(queued);
+        Assert.NotNull(queuedWork);
+
+        await queuedWork!(CancellationToken.None);
+
+        var refreshActivity = Assert.Single(
+            stoppedActivities,
+            activity => string.Equals(activity.OperationName, "monitor.provider_refresh", StringComparison.Ordinal));
+        Assert.Equal(true, refreshActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "refresh.force_all", StringComparison.Ordinal)).Value);
+        Assert.Equal(true, refreshActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "refresh.bypass_circuit_breaker", StringComparison.Ordinal)).Value);
     }
 
     [Fact]

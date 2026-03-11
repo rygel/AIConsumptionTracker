@@ -117,7 +117,7 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
             this._recurringRegistrations.Add(registration);
             if (this._isRunning)
             {
-                this._recurringTasks.Add(this.StartRecurringLoop(registration, this._schedulerToken));
+                this._recurringTasks.Add(this.StartRecurringLoopAsync(registration, this._schedulerToken));
             }
         }
 
@@ -178,7 +178,7 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
             this._isRunning = true;
             foreach (var registration in this._recurringRegistrations)
             {
-                this._recurringTasks.Add(this.StartRecurringLoop(registration, stoppingToken));
+                this._recurringTasks.Add(this.StartRecurringLoopAsync(registration, stoppingToken));
             }
         }
 
@@ -282,7 +282,7 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
             : Task.Delay(initialDelay, cancellationToken);
     }
 
-    private Task StartRecurringLoop(RecurringJobRegistration registration, CancellationToken stoppingToken)
+    private Task StartRecurringLoopAsync(RecurringJobRegistration registration, CancellationToken stoppingToken)
     {
         return Task.Run(
             async () =>
@@ -387,22 +387,25 @@ public sealed class MonitorJobScheduler : BackgroundService, IMonitorJobSchedule
         switch (priority)
         {
             case MonitorJobPriority.High:
-                if (this._highPriorityQueue.TryDequeue(out job))
+                if (this._highPriorityQueue.TryDequeue(out var highJob) && highJob is not null)
                 {
+                    job = highJob;
                     return true;
                 }
 
                 break;
             case MonitorJobPriority.Low:
-                if (this._lowPriorityQueue.TryDequeue(out job))
+                if (this._lowPriorityQueue.TryDequeue(out var lowJob) && lowJob is not null)
                 {
+                    job = lowJob;
                     return true;
                 }
 
                 break;
             default:
-                if (this._normalPriorityQueue.TryDequeue(out job))
+                if (this._normalPriorityQueue.TryDequeue(out var normalJob) && normalJob is not null)
                 {
+                    job = normalJob;
                     return true;
                 }
 

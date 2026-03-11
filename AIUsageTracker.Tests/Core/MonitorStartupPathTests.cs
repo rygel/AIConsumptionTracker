@@ -393,11 +393,11 @@ public sealed class MonitorStartupPathTests : IDisposable
         Assert.Equal($"http://localhost:{firstEndpoint.Port}", service.AgentUrl);
 
         var firstUsage = await service.GetUsageAsync();
-        Assert.Contains(firstUsage, usage => usage.ProviderId == firstProviderId);
+        Assert.Contains(firstUsage, usage => string.Equals(usage.ProviderId, firstProviderId, StringComparison.Ordinal));
 
         await this.CreateMonitorInfoAsync(new MonitorInfo
         {
-            Port = GetUnusedPort(),
+            Port = this.GetUnusedPort(),
             ProcessId = 5678,
         });
 
@@ -405,7 +405,7 @@ public sealed class MonitorStartupPathTests : IDisposable
         Assert.Equal($"http://localhost:{firstEndpoint.Port}", service.AgentUrl);
 
         var preservedUsage = await service.GetUsageAsync();
-        Assert.Contains(preservedUsage, usage => usage.ProviderId == firstProviderId);
+        Assert.Contains(preservedUsage, usage => string.Equals(usage.ProviderId, firstProviderId, StringComparison.Ordinal));
 
         await using var secondEndpoint = await TestMonitorEndpoint.StartAsync(secondProviderId);
         healthyPorts.Add(secondEndpoint.Port);
@@ -419,7 +419,7 @@ public sealed class MonitorStartupPathTests : IDisposable
         Assert.Equal($"http://localhost:{secondEndpoint.Port}", service.AgentUrl);
 
         var secondUsage = await service.GetUsageAsync();
-        Assert.Contains(secondUsage, usage => usage.ProviderId == secondProviderId);
+        Assert.Contains(secondUsage, usage => string.Equals(usage.ProviderId, secondProviderId, StringComparison.Ordinal));
     }
 
     /// <inheritdoc/>
@@ -446,7 +446,7 @@ public sealed class MonitorStartupPathTests : IDisposable
         return path;
     }
 
-    private static int GetUnusedPort()
+    private int GetUnusedPort()
     {
         using var listener = new TcpListener(IPAddress.IPv6Any, 0);
         listener.Server.DualMode = true;
@@ -460,6 +460,7 @@ public sealed class MonitorStartupPathTests : IDisposable
         {
             PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         };
+
         private readonly TcpListener _listener;
         private readonly CancellationTokenSource _cancellationTokenSource = new();
         private readonly Task _acceptLoopTask;
@@ -490,7 +491,9 @@ public sealed class MonitorStartupPathTests : IDisposable
 
             try
             {
+#pragma warning disable VSTHRD003 // Awaiting a fixture-owned task in cleanup is intentional.
                 await this._acceptLoopTask.ConfigureAwait(false);
+#pragma warning restore VSTHRD003
             }
             catch (OperationCanceledException)
             {

@@ -113,7 +113,7 @@ public class MonitorServiceTests
     [Fact]
     public async Task GetUsageAsync_RevalidatesEndpointBeforeRequestAsync()
     {
-        var tempDirectory = CreateTempDirectory();
+        var tempDirectory = this.CreateTempDirectory();
 
         try
         {
@@ -170,7 +170,7 @@ public class MonitorServiceTests
     [Fact]
     public async Task GetUsageAsync_RequestTimesOut_RefreshesEndpointAndRetriesAsync()
     {
-        var tempDirectory = CreateTempDirectory();
+        var tempDirectory = this.CreateTempDirectory();
 
         try
         {
@@ -229,7 +229,7 @@ public class MonitorServiceTests
     [Fact]
     public async Task GetUsageAsync_RequestTimesOutTwice_ReturnsEmptyListAsync()
     {
-        var tempDirectory = CreateTempDirectory();
+        var tempDirectory = this.CreateTempDirectory();
 
         try
         {
@@ -267,7 +267,7 @@ public class MonitorServiceTests
     [Fact]
     public async Task TriggerRefreshAsync_RevalidatesEndpointBeforeRefreshRequestAsync()
     {
-        var tempDirectory = CreateTempDirectory();
+        var tempDirectory = this.CreateTempDirectory();
 
         try
         {
@@ -329,7 +329,7 @@ public class MonitorServiceTests
     [Fact]
     public async Task CheckHealthAsync_RevalidatesEndpointBeforeHealthRequestAsync()
     {
-        var tempDirectory = CreateTempDirectory();
+        var tempDirectory = this.CreateTempDirectory();
 
         try
         {
@@ -573,9 +573,7 @@ public class MonitorServiceTests
             port = 5000,
             processId = 4242,
             contractVersion = MonitorService.ExpectedApiContractVersion,
-            apiContractVersion = MonitorService.ExpectedApiContractVersion,
             minClientContractVersion = MonitorService.ExpectedApiContractVersion,
-            minClientApiContractVersion = MonitorService.ExpectedApiContractVersion,
             agentVersion = "2.2.28",
             refreshHealth = new
             {
@@ -599,9 +597,13 @@ public class MonitorServiceTests
         Assert.Equal(4242, result.ProcessId);
         Assert.Equal("2.2.28", result.AgentVersion);
         Assert.Equal(MonitorService.ExpectedApiContractVersion, result.ContractVersion);
-        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.ApiContractVersion);
         Assert.Equal(MonitorService.ExpectedApiContractVersion, result.MinClientContractVersion);
-        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.MinClientApiContractVersion);
+#pragma warning disable CS0618
+        Assert.Null(result.ApiContractVersion);
+        Assert.Null(result.MinClientApiContractVersion);
+#pragma warning restore CS0618
+        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.EffectiveContractVersion);
+        Assert.Equal(MonitorService.ExpectedApiContractVersion, result.EffectiveMinClientContractVersion);
         Assert.Equal("degraded", result.RefreshHealth.Status);
         Assert.Equal("ProviderManager not ready", result.RefreshHealth.LastError);
         Assert.Equal(2, result.RefreshHealth.ProvidersInBackoff);
@@ -787,16 +789,16 @@ public class MonitorServiceTests
             ItExpr.IsAny<CancellationToken>());
     }
 
+    private string CreateTempDirectory()
+    {
+        return TestTempPaths.CreateDirectory("monitor-service-tests");
+    }
+
     private async Task<string> CreateMonitorInfoAsync(string directory, MonitorInfo info)
     {
         var path = Path.Combine(directory, "monitor.json");
         var json = JsonSerializer.Serialize(info);
         await File.WriteAllTextAsync(path, json).ConfigureAwait(false);
         return path;
-    }
-
-    private static string CreateTempDirectory()
-    {
-        return TestTempPaths.CreateDirectory("monitor-service-tests");
     }
 }

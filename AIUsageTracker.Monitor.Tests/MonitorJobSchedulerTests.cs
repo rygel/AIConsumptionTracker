@@ -139,19 +139,7 @@ public class MonitorJobSchedulerTests
             Assert.False(secondQueued);
             Assert.Equal(1, executionCount);
 
-            MonitorJobSchedulerSnapshot snapshot;
-            var deadline = DateTime.UtcNow.AddSeconds(2);
-            do
-            {
-                snapshot = scheduler.GetSnapshot();
-                if (snapshot.CoalescedCompletedJobs == 1)
-                {
-                    break;
-                }
-
-                await Task.Delay(10);
-            }
-            while (DateTime.UtcNow < deadline);
+            var snapshot = await WaitForCoalescedCompletionAsync(scheduler, expectedCompletedJobs: 1);
 
             Assert.Equal(1, snapshot.EnqueuedJobs);
             Assert.Equal(1, snapshot.DequeuedJobs);
@@ -257,7 +245,7 @@ public class MonitorJobSchedulerTests
         Func<CancellationToken, Task>? highPriorityWork = null;
         highPriorityWork = async cancellationToken =>
         {
-            await Task.Delay(10, cancellationToken);
+            await Task.Delay(10, cancellationToken).ConfigureAwait(false);
             if (Interlocked.Decrement(ref remainingHighJobs) > 0)
             {
                 _ = scheduler.Enqueue("high-priority-loop", highPriorityWork!, MonitorJobPriority.High);
@@ -300,7 +288,7 @@ public class MonitorJobSchedulerTests
             "timing-job",
             async _ =>
             {
-                await Task.Delay(60);
+                await Task.Delay(60).ConfigureAwait(false);
                 completion.TrySetResult(true);
             },
             MonitorJobPriority.Normal);
@@ -316,7 +304,20 @@ public class MonitorJobSchedulerTests
             var completed = await Task.WhenAny(completion.Task, Task.Delay(TimeSpan.FromSeconds(2))) == completion.Task;
             Assert.True(completed, "Timed job did not complete within timeout.");
 
-            var snapshot = scheduler.GetSnapshot();
+            MonitorJobSchedulerSnapshot snapshot;
+            var deadline = DateTime.UtcNow.AddSeconds(2);
+            do
+            {
+                snapshot = scheduler.GetSnapshot();
+                if (snapshot.LastExecutionDurationMs > 0 && string.Equals(snapshot.LastDequeuedPriority, "Normal", StringComparison.Ordinal))
+                {
+                    break;
+                }
+
+                await Task.Delay(10);
+            }
+            while (DateTime.UtcNow < deadline);
+
             Assert.True(snapshot.LastExecutionDurationMs >= 40);
             Assert.True(snapshot.AverageExecutionDurationMs >= 40);
             Assert.True(snapshot.MaxObservedQueueWaitMs >= 50);
@@ -326,5 +327,26 @@ public class MonitorJobSchedulerTests
         {
             await scheduler.StopAsync(CancellationToken.None);
         }
+    }
+
+    private static async Task<MonitorJobSchedulerSnapshot> WaitForCoalescedCompletionAsync(
+        MonitorJobScheduler scheduler,
+        int expectedCompletedJobs)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        MonitorJobSchedulerSnapshot snapshot;
+        do
+        {
+            snapshot = scheduler.GetSnapshot();
+            if (snapshot.CoalescedCompletedJobs == expectedCompletedJobs)
+            {
+                return snapshot;
+            }
+
+            await Task.Delay(10).ConfigureAwait(false);
+        }
+        while (DateTime.UtcNow < deadline);
+
+        return snapshot;
     }
 }

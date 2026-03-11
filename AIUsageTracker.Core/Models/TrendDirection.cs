@@ -1,11 +1,12 @@
-// <copyright file="UpdateChannel.cs" company="AIUsageTracker">
+// <copyright file="TrendDirection.cs" company="AIUsageTracker">
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
 namespace AIUsageTracker.Core.Models;
 
-public enum UpdateChannel
+public enum TrendDirection
 {
+    Increasing,
+    Decreasing,
     Stable,
-    Beta,
 }

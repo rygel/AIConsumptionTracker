@@ -1,7 +1,7 @@
 ; AI Usage Tracker - Inno Setup Script
 
 #ifndef MyAppVersion
-  #define MyAppVersion "2.2.28-beta.21"
+  #define MyAppVersion "2.2.28-beta.22"
 #endif
 #ifndef SourcePath
   #define SourcePath "..\dist\publish-win-x64"
@@ -118,8 +118,8 @@ DefaultDirName={autopf}\AIUsageTracker
 DefaultGroupName=AI Usage Tracker
 OutputDir=..\dist
 OutputBaseFilename=AIUsageTracker_Setup_v{#MyAppVersion}_{#MyAppArch}
-Compression=lzma
-SolidCompression=yes
+Compression=zip
+SolidCompression=no
 CloseApplications=yes
 DisableDirPage=auto
 DirExistsWarning=no

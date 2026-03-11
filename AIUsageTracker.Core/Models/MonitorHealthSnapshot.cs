@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.ComponentModel;
+
 namespace AIUsageTracker.Core.Models;
 
 public sealed class MonitorHealthSnapshot
@@ -20,10 +22,12 @@ public sealed class MonitorHealthSnapshot
 
     public string? ContractVersion { get; set; }
 
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public string? ApiContractVersion { get; set; }
 
     public string? MinClientContractVersion { get; set; }
 
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public string? MinClientApiContractVersion { get; set; }
 
     public string? EffectiveContractVersion => this.ContractVersion ?? this.ApiContractVersion;

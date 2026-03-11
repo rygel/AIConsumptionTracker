@@ -162,6 +162,7 @@ Identified during code review on 2026-03-03. These are areas where the codebase 
   - Benefit: Support for job prioritization (manual "Force Refresh" vs background), better concurrency control, and easier task management.
   - Location: `AIUsageTracker.Monitor/Services/`
   - **Completed**: Added `MonitorJobScheduler` (priority queues + recurring registration), moved periodic refresh scheduling to scheduler, and routed manual refresh requests through high-priority queue paths.
+  - **Hardening update (2026-03-10)**: Added explicit `QueueForceRefresh` API path (manual refresh bypasses circuit breaker), request-aware manual refresh coalescing (dedupe identical requests while allowing distinct scopes), and stabilized scheduler timing tests.
 
 - [ ] Standardized Data Validation & Transformation (Pipe & Filter) (Priority: P2, Effort: M): Implement a "Pipe & Filter" architecture for processing usage data before it is stored in the database.
   - Benefit: Rejects invalid data, normalizes units/percentages, and can handle privacy redacting centrally.

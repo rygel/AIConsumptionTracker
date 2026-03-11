@@ -254,14 +254,14 @@ components:
           example: "1"
         api_contract_version:
           type: string
-          description: Legacy alias for contract_version. Kept for backward compatibility.
+          description: Legacy alias for contract_version. Accepted for backward-compatible deserialization and may be omitted in responses.
         min_client_contract_version:
           type: string
           description: Minimum client contract version accepted by this monitor.
           example: "1"
         min_client_api_contract_version:
           type: string
-          description: Legacy alias for min_client_contract_version. Kept for backward compatibility.
+          description: Legacy alias for min_client_contract_version. Accepted for backward-compatible deserialization and may be omitted in responses.
 
     DiagnosticsResponse:
       type: object

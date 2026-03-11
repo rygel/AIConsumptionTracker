@@ -20,7 +20,7 @@ internal sealed class ProviderConnectivityCheckService
         this._usageProcessingPipeline = usageProcessingPipeline;
     }
 
-    public async Task<(bool success, string message, int status)> EvaluateAsync(
+    public async Task<(bool Success, string Message, int Status)> EvaluateAsync(
         string providerId,
         IEnumerable<ProviderUsage> usages)
     {
