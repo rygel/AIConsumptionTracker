@@ -59,10 +59,6 @@ internal static class DeterministicProviderScenarioCatalog
             SettingsWindowUsage: new(63.0, 0, 0, "63.0% Remaining", 18),
             SettingsWindowHistory: new(31.1, 12.45, 40.0, "$12.45 / $40.00", new DateTime(2026, 2, 1, 12, 5, 0))),
         new(
-            OpenCodeProvider.StaticDefinition.ProviderId,
-            "oc-demo-key",
-            SettingsWindowUsage: new()),
-        new(
             OpenCodeZenProvider.StaticDefinition.ProviderId,
             "ocz-demo-key",
             SettingsWindowUsage: new()),
@@ -82,5 +78,4 @@ internal static class DeterministicProviderScenarioCatalog
             MainWindowUsage: new(82.0, 45, 250, "82.0% Remaining", 12),
             SettingsWindowUsage: new(88.0, 0, 0, "88.0% Remaining", 15)),
     ];
-
 }

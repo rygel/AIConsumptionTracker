@@ -192,7 +192,7 @@ internal static class ProviderAuthIdentityDiscovery
 
         return new[]
         {
-            Path.Combine(userProfile, ".config", OpenCodeProvider.StaticDefinition.ProviderId, "antigravity-accounts.json"),
+            Path.Combine(userProfile, ".config", "opencode", "antigravity-accounts.json"),
         };
     }
 
