@@ -184,7 +184,7 @@ jobs:
             scripts/run-vstest-with-retry.ps1
             .github/test-quarantine.txt
             test-fixtures/
-        retention-days: 3
+          retention-days: 3
 
   # Job 2: Core tests on Windows
   core-tests-windows:
