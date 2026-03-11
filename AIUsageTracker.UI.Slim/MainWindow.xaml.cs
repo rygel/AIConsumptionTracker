@@ -66,6 +66,7 @@ public partial class MainWindow : Window
     private AppPreferences _preferences = new();
     private List<ProviderUsage> _usages = new();
     private List<ProviderConfig> _configs = new();
+    private AgentProviderCapabilitiesSnapshot? _providerCapabilities;
     private bool _isPrivacyMode = App.IsPrivacyMode;
     private bool _isLoading;
     private DateTime _lastMonitorUpdate = DateTime.MinValue;
@@ -583,6 +584,7 @@ public partial class MainWindow : Window
                 this.LogDiagnostic("[DIAGNOSTIC] Calling GetUsageAsync...");
                 var usages = await this._monitorService.GetUsageAsync();
                 this.LogDiagnostic($"[DIAGNOSTIC] GetUsageAsync returned {usages.Count} providers");
+                this._providerCapabilities = await this._monitorService.GetProviderCapabilitiesAsync();
 
                 // Show all providers from monitor (filtering already done in database)
                 if (usages.Any())
@@ -955,6 +957,7 @@ public partial class MainWindow : Window
 
             // Get updated usage data
             var latestUsages = await this._monitorService.GetUsageAsync();
+            this._providerCapabilities = await this._monitorService.GetProviderCapabilitiesAsync();
             if (latestUsages.Any())
             {
                 this._usages = latestUsages.ToList();
@@ -1054,7 +1057,7 @@ public partial class MainWindow : Window
         {
             this.LogDiagnostic($"[DIAGNOSTIC] Rendering {this._usages.Count} providers...");
 
-            var renderPreparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(this._usages);
+            var renderPreparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(this._usages, this._providerCapabilities);
             var filteredUsages = renderPreparation.DisplayableUsages;
 
             this.LogDiagnostic(
@@ -1070,7 +1073,7 @@ public partial class MainWindow : Window
             // Render Quota Providers first, then PAYG
             var orderedUsages = filteredUsages
                 .OrderByDescending(u => u.IsQuotaBased)
-                .ThenBy(u => ProviderMetadataCatalog.GetDisplayName(u.ProviderId ?? string.Empty, u.ProviderName), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(u => ProviderCapabilityCatalog.GetDisplayName(u.ProviderId ?? string.Empty, u.ProviderName, this._providerCapabilities), StringComparer.OrdinalIgnoreCase)
                 .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase);
 
             UIElement? currentHeader = null;
@@ -1124,7 +1127,7 @@ public partial class MainWindow : Window
                 }
 
                 // Special handling for Antigravity
-                if (ProviderMetadataCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty))
+                if (ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty, this._providerCapabilities))
                 {
                     if (usage.Details?.Any() == true)
                     {
@@ -1296,9 +1299,9 @@ public partial class MainWindow : Window
     private void AddProviderCard(ProviderUsage usage, StackPanel container, bool isChild = false)
     {
         var providerId = usage.ProviderId ?? string.Empty;
-        var friendlyName = ProviderMetadataCatalog.GetDisplayName(providerId, usage.ProviderName);
+        var friendlyName = ProviderCapabilityCatalog.GetDisplayName(providerId, usage.ProviderName, this._providerCapabilities);
         var showUsed = this.ShowUsedToggle?.IsChecked ?? false;
-        var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed);
+        var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed, this._providerCapabilities);
 
         // Main Grid Container - single row layout
         var grid = new Grid
@@ -1620,8 +1623,9 @@ public partial class MainWindow : Window
         }
 
         // Create collapsible section for sub-providers
-        var useAntigravityCollapsePreference = ProviderMetadataCatalog.ShouldUseSharedSubDetailCollapsePreference(
-            usage.ProviderId ?? string.Empty);
+        var useAntigravityCollapsePreference = ProviderCapabilityCatalog.ShouldUseSharedSubDetailCollapsePreference(
+            usage.ProviderId ?? string.Empty,
+            this._providerCapabilities);
         var (subHeader, subContainer) = this.CreateCollapsibleHeader(
             $"{usage.ProviderName} Details",
             Brushes.DeepSkyBlue,
@@ -1801,6 +1805,7 @@ public partial class MainWindow : Window
             try
             {
                 var usages = await this._monitorService.GetUsageAsync();
+                this._providerCapabilities = await this._monitorService.GetProviderCapabilitiesAsync();
 
                 // Show all providers from monitor (filtering already done in database)
                 if (usages.Any())
@@ -1975,6 +1980,7 @@ public partial class MainWindow : Window
         try
         {
             var usages = await this._monitorService.GetUsageAsync();
+            this._providerCapabilities = await this._monitorService.GetProviderCapabilitiesAsync();
             if (usages.Any())
             {
                 this._usages = usages.ToList();

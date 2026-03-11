@@ -3,13 +3,16 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Infrastructure.Providers;
+using AIUsageTracker.Core.MonitorClient;
 
 namespace AIUsageTracker.UI.Slim;
 
 internal static class ProviderCardPresentationCatalog
 {
-    public static ProviderCardPresentation Create(ProviderUsage usage, bool showUsed)
+    public static ProviderCardPresentation Create(
+        ProviderUsage usage,
+        bool showUsed,
+        AgentProviderCapabilitiesSnapshot? capabilities = null)
     {
         var providerId = usage.ProviderId ?? string.Empty;
         var description = usage.Description ?? string.Empty;
@@ -17,7 +20,7 @@ internal static class ProviderCardPresentationCatalog
         var isConsoleCheck = description.Contains("Check Console", StringComparison.OrdinalIgnoreCase);
         var isError = description.Contains("[Error]", StringComparison.OrdinalIgnoreCase);
         var isUnknown = description.Contains("unknown", StringComparison.OrdinalIgnoreCase);
-        var isAntigravityParent = ProviderMetadataCatalog.ShouldRenderAggregateDetailsInMainWindow(providerId);
+        var isAntigravityParent = ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(providerId, capabilities);
         var isStatusOnlyProvider = string.Equals(usage.UsageUnit, "Status", StringComparison.OrdinalIgnoreCase);
         var hasDualWindowPresentation = ProviderDualWindowPresentationCatalog.TryGetPresentation(usage, out var dualWindowPresentation);
         var remainingPercent = usage.IsQuotaBased

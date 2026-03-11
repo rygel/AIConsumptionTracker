@@ -3,6 +3,7 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
@@ -11,16 +12,17 @@ internal static class ProviderSettingsDisplayCatalog
 {
     public static IReadOnlyList<ProviderSettingsDisplayItem> CreateDisplayItems(
         IReadOnlyCollection<ProviderConfig> configs,
-        IReadOnlyCollection<ProviderUsage> usages)
+        IReadOnlyCollection<ProviderUsage> usages,
+        AgentProviderCapabilitiesSnapshot? capabilities = null)
     {
         var displayItems = configs
-            .Where(config => ProviderMetadataCatalog.ShouldShowInSettings(config.ProviderId))
+            .Where(config => ProviderCapabilityCatalog.ShouldShowInSettings(config.ProviderId, capabilities))
             .Select(config => new ProviderSettingsDisplayItem(config, IsDerived: false))
             .ToList();
         var configuredProviderIds = displayItems
             .Select(item => item.Config.ProviderId)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var defaultProviderIds = ProviderMetadataCatalog.GetDefaultSettingsProviderIds()
+        var defaultProviderIds = ProviderCapabilityCatalog.GetDefaultSettingsProviderIds(capabilities)
             .Where(providerId => !configuredProviderIds.Contains(providerId))
             .ToList();
 
@@ -33,7 +35,7 @@ internal static class ProviderSettingsDisplayCatalog
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var derivedItems = usages
             .Where(usage =>
-                ProviderMetadataCatalog.IsVisibleDerivedProviderId(usage.ProviderId ?? string.Empty) &&
+                ProviderCapabilityCatalog.IsVisibleDerivedProviderId(usage.ProviderId ?? string.Empty, capabilities) &&
                 !explicitDisplayProviderIds.Contains(usage.ProviderId))
             .Select(usage => new ProviderSettingsDisplayItem(CreateDerivedConfig(usage), IsDerived: true));
 
@@ -41,9 +43,9 @@ internal static class ProviderSettingsDisplayCatalog
         displayItems.AddRange(derivedItems);
 
         return displayItems
-            .OrderBy(item => ProviderMetadataCatalog.GetCanonicalProviderId(item.Config.ProviderId), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(item => ProviderCapabilityCatalog.GetCanonicalProviderId(item.Config.ProviderId, capabilities), StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.IsDerived ? 1 : 0)
-            .ThenBy(item => ProviderMetadataCatalog.GetDisplayName(item.Config.ProviderId), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => ProviderCapabilityCatalog.GetDisplayName(item.Config.ProviderId, capabilities), StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.Config.ProviderId, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }

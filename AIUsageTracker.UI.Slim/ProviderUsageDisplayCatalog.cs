@@ -3,22 +3,24 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Infrastructure.Providers;
+using AIUsageTracker.Core.MonitorClient;
 
 namespace AIUsageTracker.UI.Slim;
 
 internal static class ProviderUsageDisplayCatalog
 {
-    public static ProviderRenderPreparation PrepareForMainWindow(IReadOnlyCollection<ProviderUsage> usages)
+    public static ProviderRenderPreparation PrepareForMainWindow(
+        IReadOnlyCollection<ProviderUsage> usages,
+        AgentProviderCapabilitiesSnapshot? capabilities = null)
     {
         var filteredUsages = usages
-            .Where(usage => ProviderMetadataCatalog.ShouldShowInMainWindow(usage.ProviderId ?? string.Empty))
+            .Where(usage => ProviderCapabilityCatalog.ShouldShowInMainWindow(usage.ProviderId ?? string.Empty, capabilities))
             .ToList();
-        var hasAntigravityParent = filteredUsages.Any(IsAntigravityParent);
-        var collapsedParentProviderIds = ResolveCollapsedParentProviderIds(filteredUsages);
+        var hasAntigravityParent = filteredUsages.Any(usage => IsAntigravityParent(usage, capabilities));
+        var collapsedParentProviderIds = ResolveCollapsedParentProviderIds(filteredUsages, capabilities);
 
         filteredUsages = filteredUsages
-            .Where(ShouldDisplayUsage(collapsedParentProviderIds))
+            .Where(ShouldDisplayUsage(collapsedParentProviderIds, capabilities))
             .GroupBy(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .ToList();
@@ -42,34 +44,38 @@ internal static class ProviderUsageDisplayCatalog
             .ToList();
     }
 
-    private static HashSet<string> ResolveCollapsedParentProviderIds(IEnumerable<ProviderUsage> usages)
+    private static HashSet<string> ResolveCollapsedParentProviderIds(
+        IEnumerable<ProviderUsage> usages,
+        AgentProviderCapabilitiesSnapshot? capabilities)
     {
         return usages
             .Where(usage =>
             {
                 var providerId = usage.ProviderId ?? string.Empty;
-                var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+                var canonicalProviderId = ProviderCapabilityCatalog.GetCanonicalProviderId(providerId, capabilities);
                 return string.Equals(providerId, canonicalProviderId, StringComparison.OrdinalIgnoreCase) &&
-                       ProviderMetadataCatalog.ShouldCollapseDerivedChildrenInMainWindow(providerId);
+                       ProviderCapabilityCatalog.ShouldCollapseDerivedChildrenInMainWindow(providerId, capabilities);
             })
             .Select(usage => usage.ProviderId ?? string.Empty)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    private static Func<ProviderUsage, bool> ShouldDisplayUsage(IReadOnlySet<string> collapsedParentProviderIds)
+    private static Func<ProviderUsage, bool> ShouldDisplayUsage(
+        IReadOnlySet<string> collapsedParentProviderIds,
+        AgentProviderCapabilitiesSnapshot? capabilities)
     {
         return usage =>
         {
             var providerId = usage.ProviderId ?? string.Empty;
-            var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+            var canonicalProviderId = ProviderCapabilityCatalog.GetCanonicalProviderId(providerId, capabilities);
             var isDerivedChild = !string.Equals(providerId, canonicalProviderId, StringComparison.OrdinalIgnoreCase);
             return !isDerivedChild || !collapsedParentProviderIds.Contains(canonicalProviderId);
         };
     }
 
-    private static bool IsAntigravityParent(ProviderUsage usage)
+    private static bool IsAntigravityParent(ProviderUsage usage, AgentProviderCapabilitiesSnapshot? capabilities)
     {
-        return ProviderMetadataCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty);
+        return ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty, capabilities);
     }
 
     private static ProviderUsage CreateAntigravityModelUsage(ProviderUsageDetail detail, ProviderUsage parentUsage)

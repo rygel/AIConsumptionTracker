@@ -3,6 +3,7 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.UI.Slim;
 
 namespace AIUsageTracker.Tests.UI;
@@ -97,5 +98,35 @@ public sealed class ProviderUsageDisplayCatalogTests
             children.Select(child => child.ProviderId).ToArray());
         Assert.All(children, child => Assert.Equal(PlanType.Coding, child.PlanType));
         Assert.All(children, child => Assert.True(child.IsQuotaBased));
+    }
+
+    [Fact]
+    public void PrepareForMainWindow_UsesCapabilitySnapshotPolicies_WhenProvided()
+    {
+        var usages = new List<ProviderUsage>
+        {
+            new() { ProviderId = "codex", IsAvailable = true },
+            new() { ProviderId = "codex.spark", IsAvailable = true },
+        };
+
+        var capabilities = new AgentProviderCapabilitiesSnapshot
+        {
+            Providers =
+            [
+                new AgentProviderCapabilityDefinition
+                {
+                    ProviderId = "codex",
+                    DisplayName = "OpenAI (Codex)",
+                    SupportsChildProviderIds = true,
+                    CollapseDerivedChildrenInMainWindow = true,
+                    HandledProviderIds = ["codex", "codex.spark"],
+                },
+            ],
+        };
+
+        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages, capabilities);
+
+        var displayable = Assert.Single(preparation.DisplayableUsages);
+        Assert.Equal("codex", displayable.ProviderId);
     }
 }

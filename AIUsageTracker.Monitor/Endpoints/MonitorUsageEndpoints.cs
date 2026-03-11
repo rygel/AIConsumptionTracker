@@ -4,6 +4,7 @@
 
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.MonitorClient;
+using AIUsageTracker.Infrastructure.Providers;
 using AIUsageTracker.Monitor.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
@@ -17,6 +18,7 @@ internal static class MonitorUsageEndpoints
     {
         MapGetUsage(app);
         MapGetUsageByProvider(app);
+        MapGetProviderCapabilities(app);
         MapPostRefresh(app);
         MapPostNotificationTest(app);
     }
@@ -49,6 +51,40 @@ internal static class MonitorUsageEndpoints
             var usage = await db.GetHistoryByProviderAsync(providerId, 1).ConfigureAwait(false);
             var result = usage.FirstOrDefault();
             return result != null ? Results.Ok(result) : Results.NotFound();
+        });
+    }
+
+    private static void MapGetProviderCapabilities(WebApplication app)
+    {
+        app.MapGet(MonitorApiRoutes.ProviderCapabilities, (ILogger<Program> logger) =>
+        {
+            var providers = ProviderMetadataCatalog.Definitions
+                .Select(definition => new AgentProviderCapabilityDefinition
+                {
+                    ProviderId = definition.ProviderId,
+                    DisplayName = definition.DisplayName,
+                    SupportsChildProviderIds = definition.SupportsChildProviderIds,
+                    ShowInSettings = definition.ShowInSettings,
+                    CollapseDerivedChildrenInMainWindow = definition.CollapseDerivedChildrenInMainWindow,
+                    RenderAggregateDetailsInMainWindow = ProviderMetadataCatalog.ShouldRenderAggregateDetailsInMainWindow(definition.ProviderId),
+                    HandledProviderIds = definition.HandledProviderIds.ToArray(),
+                    VisibleDerivedProviderIds = definition.VisibleDerivedProviderIds.ToArray(),
+                    SettingsAdditionalProviderIds = definition.SettingsAdditionalProviderIds.ToArray(),
+                })
+                .OrderBy(item => item.ProviderId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            logger.LogDebug(
+                "GET {Route} returning {Count} capability definitions",
+                MonitorApiRoutes.ProviderCapabilities,
+                providers.Count);
+
+            return Results.Ok(new AgentProviderCapabilitiesSnapshot
+            {
+                ContractVersion = MonitorApiContract.CurrentVersion,
+                GeneratedAtUtc = DateTime.UtcNow,
+                Providers = providers,
+            });
         });
     }
 

@@ -760,6 +760,42 @@ public class MonitorServiceTests
         this.VerifyPath("/api/scan-keys");
     }
 
+    [Fact]
+    public async Task GetProviderCapabilitiesAsync_Success_ReturnsCapabilitySnapshotAsync()
+    {
+        this.SetupMockResponse(
+            HttpStatusCode.OK,
+            new
+            {
+                contractVersion = MonitorService.ExpectedApiContractVersion,
+                generatedAtUtc = new DateTime(2026, 3, 11, 8, 0, 0, DateTimeKind.Utc),
+                providers = new[]
+                {
+                    new
+                    {
+                        providerId = "codex",
+                        displayName = "OpenAI (Codex)",
+                        supportsChildProviderIds = true,
+                        showInSettings = true,
+                        collapseDerivedChildrenInMainWindow = false,
+                        renderAggregateDetailsInMainWindow = false,
+                        handledProviderIds = new[] { "codex", "openai" },
+                        visibleDerivedProviderIds = new[] { "codex.spark" },
+                        settingsAdditionalProviderIds = new[] { "codex.spark" },
+                    },
+                },
+            });
+
+        var result = await this._service.GetProviderCapabilitiesAsync();
+
+        Assert.NotNull(result);
+        Assert.Equal(MonitorService.ExpectedApiContractVersion, result!.ContractVersion);
+        var provider = Assert.Single(result.Providers);
+        Assert.Equal("codex", provider.ProviderId);
+        Assert.Contains("openai", provider.HandledProviderIds);
+        this.VerifyPath("/api/providers/capabilities");
+    }
+
     private void SetupMockResponse(HttpStatusCode status, object body)
     {
         this._mockHandler.Protected()
