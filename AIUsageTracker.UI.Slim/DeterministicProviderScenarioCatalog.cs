@@ -44,7 +44,7 @@ internal static class DeterministicProviderScenarioCatalog
             "mm-cn-demo",
             SettingsWindowUsage: new(61.0, 0, 0, "61.0% Remaining", 11)),
         new(
-            MinimaxInternationalProviderId,
+            MinimaxProvider.InternationalProviderId,
             "mm-intl-demo",
             SettingsWindowUsage: new()),
         new(
@@ -83,8 +83,4 @@ internal static class DeterministicProviderScenarioCatalog
             SettingsWindowUsage: new(88.0, 0, 0, "88.0% Remaining", 15)),
     ];
 
-    private static string MinimaxInternationalProviderId =>
-        MinimaxProvider.StaticDefinition.DisplayNameOverrides.Keys
-            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
-            .First();
 }
