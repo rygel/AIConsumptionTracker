@@ -387,6 +387,9 @@ public class OpenCodeZenProvider : ProviderBase
             throw new InvalidOperationException("Failed to start OpenCode CLI");
         }
 
+        var standardOutputTask = process.StandardOutput.ReadToEndAsync();
+        var standardErrorTask = process.StandardError.ReadToEndAsync();
+
         using var cancellationTokenSource = new CancellationTokenSource(this._cliTimeout);
         try
         {
@@ -409,13 +412,13 @@ public class OpenCodeZenProvider : ProviderBase
             throw new TimeoutException($"OpenCode CLI timed out after {this._cliTimeout.TotalSeconds:F0}s");
         }
 
+        var standardError = await standardErrorTask.ConfigureAwait(false);
         if (process.ExitCode != 0)
         {
-            var standardError = await process.StandardError.ReadToEndAsync().ConfigureAwait(false);
             throw new InvalidOperationException($"CLI Error: {process.ExitCode} - {standardError}");
         }
 
-        return await process.StandardOutput.ReadToEndAsync().ConfigureAwait(false);
+        return await standardOutputTask.ConfigureAwait(false);
     }
 
     private ProviderUsage ParseOutput(string output, ProviderConfig config)
