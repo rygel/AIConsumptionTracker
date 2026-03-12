@@ -14,7 +14,7 @@ namespace AIUsageTracker.Tests.Infrastructure;
 public sealed class JsonConfigLoaderPersistenceTests : IntegrationTestBase
 {
     [Fact]
-    public async Task SaveConfigAsync_DoesNotPersistNonPersistedProviderIdsAsync()
+    public async Task SaveConfigAsync_PersistsCodexSparkAsDedicatedProviderAsync()
     {
         var authPath = this.CreateFile("config/auth.json", "{\"codex.spark\":{\"key\":\"legacy\"}}");
         var providersPath = this.CreateFile("config/providers.json", "{\"codex.spark\":{\"type\":\"quota-based\"}}");
@@ -60,8 +60,8 @@ public sealed class JsonConfigLoaderPersistenceTests : IntegrationTestBase
         Assert.NotNull(providers);
         Assert.Contains("codex", auth!.Keys);
         Assert.Contains("codex", providers!.Keys);
-        Assert.DoesNotContain("codex.spark", auth.Keys, StringComparer.OrdinalIgnoreCase);
-        Assert.DoesNotContain("codex.spark", providers.Keys, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("codex.spark", auth.Keys, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("codex.spark", providers.Keys, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -172,5 +172,47 @@ public sealed class JsonConfigLoaderPersistenceTests : IntegrationTestBase
         var configs = await loader.LoadConfigAsync();
 
         Assert.DoesNotContain(configs, c => string.Equals(c.BaseUrl, "https://legacy", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SaveConfigAsync_PreservesUnknownProviderEntriesInStorageAsync()
+    {
+        var authPath = this.CreateFile("config/auth.json", "{\"unknown-provider\":{\"key\":\"legacy\"},\"codex\":{\"key\":\"existing\"}}");
+        var providersPath = this.CreateFile("config/providers.json", "{\"unknown-provider\":{\"type\":\"quota-based\"},\"codex\":{\"type\":\"quota-based\"}}");
+
+        var mockPathProvider = new Mock<IAppPathProvider>();
+        mockPathProvider.Setup(p => p.GetAuthFilePath()).Returns(authPath);
+        mockPathProvider.Setup(p => p.GetProviderConfigFilePath()).Returns(providersPath);
+        mockPathProvider.Setup(p => p.GetUserProfileRoot()).Returns(this.TestRootPath);
+        mockPathProvider.Setup(p => p.GetPreferencesFilePath()).Returns(Path.Combine(this.TestRootPath, "preferences.json"));
+        mockPathProvider.Setup(p => p.GetAppDataRoot()).Returns(this.TestRootPath);
+        mockPathProvider.Setup(p => p.GetDatabasePath()).Returns(Path.Combine(this.TestRootPath, "usage.db"));
+        mockPathProvider.Setup(p => p.GetLogDirectory()).Returns(Path.Combine(this.TestRootPath, "logs"));
+
+        var loader = new JsonConfigLoader(
+            logger: NullLogger<JsonConfigLoader>.Instance,
+            tokenDiscoveryLogger: NullLogger<TokenDiscoveryService>.Instance,
+            pathProvider: mockPathProvider.Object);
+
+        var configs = new List<ProviderConfig>
+        {
+            new()
+            {
+                ProviderId = "codex",
+                ApiKey = "new-codex-key",
+                Type = "quota-based",
+                PlanType = PlanType.Coding,
+            },
+        };
+
+        await loader.SaveConfigAsync(configs);
+
+        var auth = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(await File.ReadAllTextAsync(authPath));
+        var providers = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(await File.ReadAllTextAsync(providersPath));
+
+        Assert.NotNull(auth);
+        Assert.NotNull(providers);
+        Assert.Contains("unknown-provider", auth!.Keys);
+        Assert.Contains("unknown-provider", providers!.Keys);
     }
 }

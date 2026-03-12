@@ -3,15 +3,20 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
 
 internal static class ProviderSettingsCatalog
 {
-    public static ProviderSettingsBehavior Resolve(ProviderConfig config, ProviderUsage? usage, bool isDerived)
+    public static ProviderSettingsBehavior Resolve(
+        ProviderConfig config,
+        ProviderUsage? usage,
+        bool isDerived,
+        AgentProviderCapabilitiesSnapshot? capabilities = null)
     {
-        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(config.ProviderId);
+        var canonicalProviderId = ProviderCapabilityCatalog.GetCanonicalProviderId(config.ProviderId, capabilities);
         var hasSessionToken = IsSessionToken(config.ApiKey);
         var inputMode = isDerived
             ? ProviderInputMode.DerivedReadOnly
@@ -33,7 +38,7 @@ internal static class ProviderSettingsCatalog
         return new ProviderSettingsBehavior(
             InputMode: inputMode,
             IsInactive: isInactive,
-            IsDerivedVisible: ProviderMetadataCatalog.IsVisibleDerivedProviderId(config.ProviderId ?? string.Empty),
+            IsDerivedVisible: ProviderCapabilityCatalog.IsVisibleDerivedProviderId(config.ProviderId ?? string.Empty, capabilities),
             SessionProviderLabel: sessionProviderLabel,
             PreferCodexIdentity: preferCodexIdentity);
     }

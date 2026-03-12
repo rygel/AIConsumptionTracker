@@ -39,4 +39,10 @@ public class MonitorApiRoutesTests
 
         Assert.Equal("/api/export?format=json%2Bpretty&days=30", route);
     }
+
+    [Fact]
+    public void ProviderCapabilities_UsesStableContractRoute()
+    {
+        Assert.Equal("/api/providers/capabilities", MonitorApiRoutes.ProviderCapabilities);
+    }
 }

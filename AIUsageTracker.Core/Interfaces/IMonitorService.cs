@@ -29,6 +29,8 @@ public interface IMonitorService
 
     Task<IReadOnlyList<ProviderConfig>> GetConfigsAsync();
 
+    Task<AgentProviderCapabilitiesSnapshot?> GetProviderCapabilitiesAsync();
+
     Task<bool> SaveConfigAsync(ProviderConfig config);
 
     Task<bool> RemoveConfigAsync(string providerId);

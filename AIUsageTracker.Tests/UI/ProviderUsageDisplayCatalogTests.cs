@@ -3,6 +3,7 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.UI.Slim;
 
 namespace AIUsageTracker.Tests.UI;
@@ -10,7 +11,7 @@ namespace AIUsageTracker.Tests.UI;
 public sealed class ProviderUsageDisplayCatalogTests
 {
     [Fact]
-    public void PrepareForMainWindow_FiltersUnavailableParentAndDuplicateProviders()
+    public void PrepareForMainWindow_KeepsUnavailableAntigravityParentAndDeduplicatesProviders()
     {
         var usages = new List<ProviderUsage>
         {
@@ -21,8 +22,9 @@ public sealed class ProviderUsageDisplayCatalogTests
 
         var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
 
-        var displayable = Assert.Single(preparation.DisplayableUsages);
-        Assert.Equal("openai", displayable.ProviderId);
+        Assert.Equal(2, preparation.DisplayableUsages.Count);
+        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "openai", StringComparison.Ordinal));
+        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "antigravity", StringComparison.Ordinal));
         Assert.True(preparation.HasAntigravityParent);
     }
 
@@ -58,6 +60,21 @@ public sealed class ProviderUsageDisplayCatalogTests
     }
 
     [Fact]
+    public void PrepareForMainWindow_HidesUnknownProviders_ButKeepsKnownProviders()
+    {
+        var usages = new List<ProviderUsage>
+        {
+            new() { ProviderId = "codex", IsAvailable = true },
+            new() { ProviderId = "legacy-unknown-provider", IsAvailable = true },
+        };
+
+        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
+
+        Assert.Single(preparation.DisplayableUsages);
+        Assert.Equal("codex", preparation.DisplayableUsages[0].ProviderId);
+    }
+
+    [Fact]
     public void CreateAntigravityModelUsages_DeduplicatesAndBuildsSyntheticChildren()
     {
         var parent = new ProviderUsage
@@ -81,5 +98,35 @@ public sealed class ProviderUsageDisplayCatalogTests
             children.Select(child => child.ProviderId).ToArray());
         Assert.All(children, child => Assert.Equal(PlanType.Coding, child.PlanType));
         Assert.All(children, child => Assert.True(child.IsQuotaBased));
+    }
+
+    [Fact]
+    public void PrepareForMainWindow_UsesCapabilitySnapshotPolicies_WhenProvided()
+    {
+        var usages = new List<ProviderUsage>
+        {
+            new() { ProviderId = "codex", IsAvailable = true },
+            new() { ProviderId = "codex.spark", IsAvailable = true },
+        };
+
+        var capabilities = new AgentProviderCapabilitiesSnapshot
+        {
+            Providers =
+            [
+                new AgentProviderCapabilityDefinition
+                {
+                    ProviderId = "codex",
+                    DisplayName = "OpenAI (Codex)",
+                    SupportsChildProviderIds = true,
+                    CollapseDerivedChildrenInMainWindow = true,
+                    HandledProviderIds = ["codex", "codex.spark"],
+                },
+            ],
+        };
+
+        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages, capabilities);
+
+        var displayable = Assert.Single(preparation.DisplayableUsages);
+        Assert.Equal("codex", displayable.ProviderId);
     }
 }

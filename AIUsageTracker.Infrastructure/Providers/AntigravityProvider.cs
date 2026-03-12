@@ -31,6 +31,7 @@ public class AntigravityProvider : ProviderBase
         supportsChildProviderIds: true,
         settingsMode: ProviderSettingsMode.AutoDetectedStatus,
         refreshOnStartupWithCachedData: true,
+        collapseDerivedChildrenInMainWindow: true,
         iconAssetName: "google",
         fallbackBadgeColorHex: "#1E90FF",
         fallbackBadgeInitial: "G");

@@ -43,6 +43,16 @@ public class MonitorContractGuardrailTests
         Assert.Contains("new AgentScanKeysResponse", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void MonitorUsageEndpoints_ExposeSharedProviderCapabilitiesRoute()
+    {
+        var endpointPath = GetRepoPath("AIUsageTracker.Monitor", "Endpoints", "MonitorUsageEndpoints.cs");
+        var source = File.ReadAllText(endpointPath);
+
+        Assert.Contains("MonitorApiRoutes.ProviderCapabilities", source, StringComparison.Ordinal);
+        Assert.Contains("AgentProviderCapabilitiesSnapshot", source, StringComparison.Ordinal);
+    }
+
     private static string GetRepoPath(params string[] segments)
     {
         var root = GetRepoRoot();

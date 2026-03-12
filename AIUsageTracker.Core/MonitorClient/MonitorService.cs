@@ -447,6 +447,15 @@ public class MonitorService : IMonitorService
     }
 
     /// <inheritdoc/>
+    public async Task<AgentProviderCapabilitiesSnapshot?> GetProviderCapabilitiesAsync()
+    {
+        return await this.GetFromMonitorJsonAsync<AgentProviderCapabilitiesSnapshot>(
+            MonitorApiRoutes.ProviderCapabilities,
+            nameof(this.GetProviderCapabilitiesAsync),
+            ConfigRequestTimeoutSeconds).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
     public async Task<bool> SaveConfigAsync(ProviderConfig config)
     {
         return await this.SendMonitorStatusRequestAsync(

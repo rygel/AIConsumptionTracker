@@ -77,6 +77,35 @@ public static class ProviderMetadataCatalog
         return string.Equals(providerId, "antigravity", StringComparison.OrdinalIgnoreCase);
     }
 
+    public static bool ShouldCollapseDerivedChildrenInMainWindow(string providerId)
+    {
+        return TryGet(providerId, out var definition) && definition.CollapseDerivedChildrenInMainWindow;
+    }
+
+    public static bool ShouldShowInMainWindow(string providerId)
+    {
+        return TryGet(providerId, out _);
+    }
+
+    public static bool ShouldRenderAggregateDetailsInMainWindow(string providerId)
+    {
+        var canonicalProviderId = GetCanonicalProviderId(providerId);
+        return IsAggregateParentProviderId(canonicalProviderId);
+    }
+
+    public static bool ShouldUseSharedSubDetailCollapsePreference(string providerId)
+    {
+        var canonicalProviderId = GetCanonicalProviderId(providerId);
+        return ShouldCollapseDerivedChildrenInMainWindow(canonicalProviderId);
+    }
+
+    public static bool ShouldRenderAsSettingsSubItem(string providerId)
+    {
+        var canonicalProviderId = GetCanonicalProviderId(providerId);
+        var isCanonicalChild = !string.Equals(canonicalProviderId, providerId, StringComparison.OrdinalIgnoreCase);
+        return isCanonicalChild && ShouldUseSharedSubDetailCollapsePreference(canonicalProviderId);
+    }
+
     public static ProviderDefinition? FindByEnvironmentVariable(string environmentVariableName)
     {
         if (string.IsNullOrWhiteSpace(environmentVariableName))
@@ -286,12 +315,22 @@ public static class ProviderMetadataCatalog
 
     private static string GetCanonicalConfigOwnerId(ProviderConfig config)
     {
+        if (ShouldRetainDedicatedConfig(config.ProviderId))
+        {
+            return config.ProviderId;
+        }
+
         if (TryGet(config.ProviderId, out var definition) && IsSessionAuthConfig(config, definition))
         {
             return definition.SessionAuthCanonicalProviderId!;
         }
 
         return GetCanonicalProviderId(config.ProviderId);
+    }
+
+    private static bool ShouldRetainDedicatedConfig(string providerId)
+    {
+        return ShouldPersistProviderId(providerId) && IsVisibleDerivedProviderId(providerId);
     }
 
     private static bool IsSessionAuthConfig(ProviderConfig config, ProviderDefinition definition)

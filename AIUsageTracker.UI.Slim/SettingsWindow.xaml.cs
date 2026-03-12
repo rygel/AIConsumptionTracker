@@ -40,6 +40,7 @@ public partial class SettingsWindow : Window
 
     private List<ProviderConfig> _configs = new();
     private List<ProviderUsage> _usages = new();
+    private AgentProviderCapabilitiesSnapshot? _providerCapabilities;
     private string? _gitHubAuthUsername;
     private string? _openAiAuthUsername;
     private string? _codexAuthUsername;
@@ -119,6 +120,7 @@ public partial class SettingsWindow : Window
 
             this._configs = (await this._monitorService.GetConfigsAsync().ConfigureAwait(true)).ToList();
             this._usages = (await this._monitorService.GetUsageAsync().ConfigureAwait(true)).ToList();
+            this._providerCapabilities = await this._monitorService.GetProviderCapabilitiesAsync().ConfigureAwait(true);
 
             if (this._configs.Count == 0)
             {
@@ -269,6 +271,7 @@ public partial class SettingsWindow : Window
         var fixture = SettingsWindowDeterministicFixture.Create();
         this._configs = fixture.Configs;
         this._usages = fixture.Usages;
+        this._providerCapabilities = null;
 
         this.PopulateProviders();
         this.PopulateLayoutSettings();
@@ -464,7 +467,7 @@ public partial class SettingsWindow : Window
     {
         this.ProvidersStack.Children.Clear();
 
-        var displayItems = ProviderSettingsDisplayCatalog.CreateDisplayItems(this._configs, this._usages);
+        var displayItems = ProviderSettingsDisplayCatalog.CreateDisplayItems(this._configs, this._usages, this._providerCapabilities);
         var usageByProviderId = this._usages.ToDictionary(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in displayItems)
@@ -476,11 +479,7 @@ public partial class SettingsWindow : Window
 
     private void AddProviderCard(ProviderConfig config, ProviderUsage? usage, bool isDerived = false)
     {
-        var isCanonicalChild = !string.Equals(
-            ProviderMetadataCatalog.GetCanonicalProviderId(config.ProviderId),
-            config.ProviderId,
-            StringComparison.OrdinalIgnoreCase);
-        var isSubItem = isDerived || isCanonicalChild;
+        var isSubItem = this.ShouldRenderAsSettingsSubItem(config.ProviderId, isDerived);
 
         var card = new Border
         {
@@ -496,7 +495,7 @@ public partial class SettingsWindow : Window
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Inputs
 
-        var settingsBehavior = ProviderSettingsCatalog.Resolve(config, usage, isDerived);
+        var settingsBehavior = ProviderSettingsCatalog.Resolve(config, usage, isDerived, this._providerCapabilities);
         var headerPanel = this.BuildProviderHeader(config, settingsBehavior, isSubItem);
 
         grid.Children.Add(headerPanel);
@@ -521,6 +520,24 @@ public partial class SettingsWindow : Window
 
         card.Child = grid;
         this.ProvidersStack.Children.Add(card);
+    }
+
+    internal static bool ShouldRenderAsSettingsSubItem(
+        string providerId,
+        bool isDerived,
+        AgentProviderCapabilitiesSnapshot? capabilities = null)
+    {
+        if (!isDerived)
+        {
+            return false;
+        }
+
+        return ProviderCapabilityCatalog.ShouldRenderAsSettingsSubItem(providerId, capabilities);
+    }
+
+    private bool ShouldRenderAsSettingsSubItem(string providerId, bool isDerived)
+    {
+        return ShouldRenderAsSettingsSubItem(providerId, isDerived, this._providerCapabilities);
     }
 
     private FrameworkElement BuildProviderInputContent(ProviderConfig config, ProviderUsage? usage, ProviderSettingsBehavior settingsBehavior)
@@ -593,8 +610,8 @@ public partial class SettingsWindow : Window
         var title = new TextBlock
         {
             Text = isDerived
-                ? $"-> {ProviderMetadataCatalog.GetDisplayName(config.ProviderId)}"
-                : ProviderMetadataCatalog.GetDisplayName(config.ProviderId),
+                ? $"-> {ProviderCapabilityCatalog.GetDisplayName(config.ProviderId, this._providerCapabilities)}"
+                : ProviderCapabilityCatalog.GetDisplayName(config.ProviderId, this._providerCapabilities),
             FontWeight = FontWeights.SemiBold,
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center,

@@ -17,6 +17,7 @@ public static class MonitorApiRoutes
     public const string Health = "/api/health";
     public const string Diagnostics = "/api/diagnostics";
     public const string Export = "/api/export";
+    public const string ProviderCapabilities = "/api/providers/capabilities";
     public const string UsageByProviderTemplate = "/api/usage/{providerId}";
     public const string HistoryByProviderTemplate = "/api/history/{providerId}";
     public const string ConfigByProviderTemplate = "/api/config/{providerId}";

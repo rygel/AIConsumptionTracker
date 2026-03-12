@@ -121,6 +121,53 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
+    [InlineData("antigravity", true)]
+    [InlineData("antigravity.some-model", true)]
+    [InlineData("codex", false)]
+    [InlineData("codex.spark", false)]
+    public void ShouldCollapseDerivedChildrenInMainWindow_UsesProviderDefinitions(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.ShouldCollapseDerivedChildrenInMainWindow(providerId));
+    }
+
+    [Theory]
+    [InlineData("codex", true)]
+    [InlineData("codex.spark", true)]
+    [InlineData("antigravity.some-model", true)]
+    [InlineData("unknown-provider", false)]
+    public void ShouldShowInMainWindow_UsesCatalogVisibility(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.ShouldShowInMainWindow(providerId));
+    }
+
+    [Theory]
+    [InlineData("antigravity", true)]
+    [InlineData("antigravity.some-model", true)]
+    [InlineData("codex", false)]
+    public void ShouldRenderAggregateDetailsInMainWindow_UsesCatalogPolicy(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.ShouldRenderAggregateDetailsInMainWindow(providerId));
+    }
+
+    [Theory]
+    [InlineData("antigravity", true)]
+    [InlineData("antigravity.some-model", true)]
+    [InlineData("codex", false)]
+    public void ShouldUseSharedSubDetailCollapsePreference_UsesCatalogPolicy(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.ShouldUseSharedSubDetailCollapsePreference(providerId));
+    }
+
+    [Theory]
+    [InlineData("antigravity.some-model", true)]
+    [InlineData("codex.spark", false)]
+    [InlineData("codex", false)]
+    public void ShouldRenderAsSettingsSubItem_UsesCatalogPolicy(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.ShouldRenderAsSettingsSubItem(providerId));
+    }
+
+    [Theory]
     [InlineData("OPENAI_API_KEY", "openai")]
     [InlineData("CODEX_API_KEY", "codex")]
     [InlineData("GEMINI_API_KEY", "gemini-cli")]
@@ -154,7 +201,7 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("codex.spark", false)]
+    [InlineData("codex.spark", true)]
     [InlineData("codex", true)]
     [InlineData("openai", false)]
     public void ShouldPersistProviderId_UsesProviderDefinitions(string providerId, bool expected)
@@ -194,6 +241,7 @@ public class ProviderMetadataCatalogTests
     {
         var providerIds = ProviderMetadataCatalog.GetDefaultSettingsProviderIds();
 
+        Assert.Contains("codex.spark", providerIds);
         Assert.Contains("minimax", providerIds);
         Assert.Contains("minimax-io", providerIds);
         Assert.DoesNotContain("openai", providerIds);

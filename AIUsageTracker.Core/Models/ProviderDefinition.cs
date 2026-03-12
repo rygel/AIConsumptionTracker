@@ -31,6 +31,7 @@ public sealed class ProviderDefinition
         string? sessionStatusLabel = null,
         ProviderSessionIdentitySource sessionIdentitySource = ProviderSessionIdentitySource.None,
         bool refreshOnStartupWithCachedData = false,
+        bool collapseDerivedChildrenInMainWindow = false,
         bool showInSettings = true,
         IEnumerable<string>? settingsAdditionalProviderIds = null,
         string? iconAssetName = null,
@@ -69,6 +70,7 @@ public sealed class ProviderDefinition
         this.SessionStatusLabel = sessionStatusLabel;
         this.SessionIdentitySource = sessionIdentitySource;
         this.RefreshOnStartupWithCachedData = refreshOnStartupWithCachedData;
+        this.CollapseDerivedChildrenInMainWindow = collapseDerivedChildrenInMainWindow;
         this.ShowInSettings = showInSettings;
         this.SettingsAdditionalProviderIds = NormalizeValues(settingsAdditionalProviderIds);
         this.IconAssetName = iconAssetName;
@@ -145,6 +147,8 @@ public sealed class ProviderDefinition
     public ProviderSessionIdentitySource SessionIdentitySource { get; }
 
     public bool RefreshOnStartupWithCachedData { get; }
+
+    public bool CollapseDerivedChildrenInMainWindow { get; }
 
     public bool ShowInSettings { get; }
 
