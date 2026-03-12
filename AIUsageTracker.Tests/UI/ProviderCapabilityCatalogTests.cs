@@ -99,6 +99,17 @@ public sealed class ProviderCapabilityCatalogTests
     }
 
     [Fact]
+    public void GetDisplayName_PreservesRuntimeName_ForGeminiDerivedProvider()
+    {
+        var result = ProviderCapabilityCatalog.GetDisplayName(
+            "gemini-cli.minute",
+            "Gemini 2.5 Flash Lite [Gemini CLI]",
+            snapshot: null);
+
+        Assert.Equal("Gemini 2.5 Flash Lite [Gemini CLI]", result);
+    }
+
+    [Fact]
     public void SupportsAccountIdentity_UsesProviderMetadata_WhenSnapshotTriesToOverride()
     {
         var snapshot = new AgentProviderCapabilitiesSnapshot

@@ -1079,11 +1079,9 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Render Quota Providers first, then PAYG
-            var orderedUsages = filteredUsages
-                .OrderByDescending(u => u.IsQuotaBased)
-                .ThenBy(u => ProviderCapabilityCatalog.GetDisplayName(u.ProviderId ?? string.Empty, u.ProviderName, this._providerCapabilities), StringComparer.OrdinalIgnoreCase)
-                .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase);
+            var orderedUsages = ProviderMainWindowOrderingCatalog.OrderForMainWindow(
+                filteredUsages,
+                this._providerCapabilities);
 
             UIElement? currentHeader = null;
             StackPanel? currentContainer = null;

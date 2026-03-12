@@ -207,9 +207,11 @@ public class GeminiProvider : ProviderBase
                             }
                         }
 
+                        var modelId = ResolveQuotaWindowModelId(bucket, allBuckets, quotaId);
                         quotaWindowDetails.Add(new ProviderUsageDetail
                         {
                             Name = name,
+                            ModelName = modelId,
                             Used = $"{bucketRemainingPercentage:F1}%",
                             Description = $"{bucket.RemainingFraction:P1} remaining{resetStr}",
                             NextResetTime = itemResetDt,
@@ -681,14 +683,11 @@ public class GeminiProvider : ProviderBase
             .Where(bucket => IsKnownQuotaWindow(TryGetQuotaId(bucket)))
             .GroupBy(bucket => TryGetQuotaId(bucket), StringComparer.OrdinalIgnoreCase)
             .Select(group => group
-                .OrderBy(bucket => bucket.ResetTime, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(bucket => string.IsNullOrWhiteSpace(TryGetModelId(bucket)) ? 1 : 0)
+                .ThenBy(bucket => bucket.ResetTime, StringComparer.OrdinalIgnoreCase)
                 .First())
+            .OrderBy(bucket => GetKnownQuotaWindowSortOrder(TryGetQuotaId(bucket)))
             .ToList();
-
-        if (knownWindows.Count > 0)
-        {
-            return knownWindows;
-        }
 
         var resetClustered = prioritized
             .GroupBy(GetResetClusterKey, StringComparer.Ordinal)
@@ -698,6 +697,37 @@ public class GeminiProvider : ProviderBase
                 .First())
             .OrderBy(bucket => bucket.ResetTime, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        if (knownWindows.Count > 0)
+        {
+            if (knownWindows.Count >= 3)
+            {
+                return knownWindows.Take(3).ToList();
+            }
+
+            var knownWindowKeys = knownWindows
+                .Select(GetBucketIdentityKey)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var fallbackBucket in resetClustered)
+            {
+                if (knownWindows.Count >= 3)
+                {
+                    break;
+                }
+
+                if (!knownWindowKeys.Add(GetBucketIdentityKey(fallbackBucket)))
+                {
+                    continue;
+                }
+
+                knownWindows.Add(fallbackBucket);
+            }
+
+            return knownWindows
+                .OrderBy(bucket => bucket.ResetTime, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
 
         if (resetClustered.Count <= 3)
         {
@@ -732,6 +762,39 @@ public class GeminiProvider : ProviderBase
         return string.IsNullOrWhiteSpace(quotaId) ? null : quotaId;
     }
 
+    private static int GetKnownQuotaWindowSortOrder(string? quotaId)
+    {
+        if (string.IsNullOrWhiteSpace(quotaId))
+        {
+            return 99;
+        }
+
+        if (quotaId.Contains("RequestsPerMinute", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (quotaId.Contains("RequestsPerHour", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        if (quotaId.Contains("RequestsPerDay", StringComparison.OrdinalIgnoreCase))
+        {
+            return 2;
+        }
+
+        return 99;
+    }
+
+    private static string GetBucketIdentityKey(Bucket bucket)
+    {
+        var quotaId = TryGetQuotaId(bucket) ?? "unknown";
+        var reset = bucket.ResetTime ?? string.Empty;
+        var fraction = bucket.RemainingFraction.ToString("F6", CultureInfo.InvariantCulture);
+        return $"{quotaId}|{reset}|{fraction}";
+    }
+
     private static bool IsKnownQuotaWindow(string? quotaId)
     {
         if (string.IsNullOrWhiteSpace(quotaId))
@@ -753,8 +816,8 @@ public class GeminiProvider : ProviderBase
                 : bucket.ResetTime!;
         }
 
-        var clusterMinutes = (long)Math.Floor(reset.ToUniversalTime().TimeOfDay.TotalMinutes / 10.0) * 10L;
-        return $"reset:{clusterMinutes}";
+        var utcReset = reset.ToUniversalTime();
+        return $"reset:{utcReset:yyyyMMddHHmm}";
     }
 
     private static string GetQuotaBucketName(string? quotaId)
@@ -812,6 +875,53 @@ public class GeminiProvider : ProviderBase
         };
     }
 
+    private static string? ResolveQuotaWindowModelId(
+        Bucket bucket,
+        IReadOnlyCollection<Bucket> allBuckets,
+        string? quotaId)
+    {
+        var directModelId = TryGetModelId(bucket);
+        if (!string.IsNullOrWhiteSpace(directModelId))
+        {
+            return directModelId;
+        }
+
+        IEnumerable<Bucket> candidates = allBuckets;
+        if (!string.IsNullOrWhiteSpace(quotaId))
+        {
+            candidates = candidates.Where(candidate =>
+                string.Equals(
+                    TryGetQuotaId(candidate),
+                    quotaId,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            var resetClusterKey = GetResetClusterKey(bucket);
+            candidates = candidates.Where(candidate =>
+                string.Equals(
+                    GetResetClusterKey(candidate),
+                    resetClusterKey,
+                    StringComparison.Ordinal));
+        }
+
+        return candidates
+            .OrderBy(candidate => candidate.RemainingFraction)
+            .ThenBy(candidate => candidate.ResetTime, StringComparer.OrdinalIgnoreCase)
+            .Select(TryGetModelId)
+            .FirstOrDefault(modelId => !string.IsNullOrWhiteSpace(modelId));
+    }
+
+    private static string ResolveQuotaWindowDisplayName(string fallbackDisplayName, ProviderUsageDetail detail)
+    {
+        if (string.IsNullOrWhiteSpace(detail.ModelName))
+        {
+            return fallbackDisplayName;
+        }
+
+        return $"{FormatGeminiModelDisplayName(detail.ModelName)} [Gemini CLI]";
+    }
+
     private static IReadOnlyList<ProviderUsage> CreateQuotaWindowUsages(
         ProviderUsage summaryUsage,
         IReadOnlyCollection<ProviderUsageDetail> quotaWindowDetails)
@@ -843,10 +953,11 @@ public class GeminiProvider : ProviderBase
 
             var clampedUsedPercent = UsageMath.ClampPercent(usedPercent.Value);
             var remainingPercent = UsageMath.ClampPercent(100.0 - clampedUsedPercent);
+            var resolvedDisplayName = ResolveQuotaWindowDisplayName(childDisplayName, detail);
             children.Add(new ProviderUsage
             {
                 ProviderId = childProviderId,
-                ProviderName = childDisplayName,
+                ProviderName = resolvedDisplayName,
                 RequestsPercentage = remainingPercent,
                 RequestsUsed = clampedUsedPercent,
                 RequestsAvailable = 100,

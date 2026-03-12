@@ -42,6 +42,15 @@ public static class ProviderMetadataCatalog
     {
         if (TryGet(providerId, out var definition))
         {
+            var isDerivedProviderId = !string.Equals(
+                providerId,
+                definition.ProviderId,
+                StringComparison.OrdinalIgnoreCase);
+            if (isDerivedProviderId && !string.IsNullOrWhiteSpace(providerName))
+            {
+                return providerName;
+            }
+
             var mapped = definition.ResolveDisplayName(providerId);
             if (!string.IsNullOrWhiteSpace(mapped))
             {
