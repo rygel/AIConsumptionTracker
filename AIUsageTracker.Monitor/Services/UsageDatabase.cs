@@ -14,6 +14,7 @@ namespace AIUsageTracker.Monitor.Services;
 
 public class UsageDatabase : IUsageDatabase
 {
+    private static readonly TimeSpan DetailFadeWindow = TimeSpan.FromDays(7);
     private readonly string _dbPath;
     private readonly string _connectionString;
     private readonly ILogger<UsageDatabase> _logger;
@@ -122,11 +123,7 @@ public class UsageDatabase : IUsageDatabase
     public async Task StoreHistoryAsync(IEnumerable<ProviderUsage> usages)
     {
         var validUsages = usages.Where(u =>
-            ProviderMetadataCatalog.ShouldPersistProviderId(u.ProviderId) &&
-            !(u.RequestsAvailable == 0 &&
-              u.RequestsUsed == 0 &&
-              u.RequestsPercentage == 0 &&
-              !u.IsAvailable)).ToList();
+            ProviderMetadataCatalog.ShouldPersistProviderId(u.ProviderId)).ToList();
 
         if (!validUsages.Any())
         {
@@ -336,6 +333,8 @@ public class UsageDatabase : IUsageDatabase
                 }
             }
 
+            await this.MergeRecentlySeenDetailsAsync(connection, results, DateTime.UtcNow - DetailFadeWindow).ConfigureAwait(false);
+
             foreach (var usage in results)
             {
                 if (ProviderMetadataCatalog.TryGet(usage.ProviderId, out var definition))
@@ -363,6 +362,192 @@ public class UsageDatabase : IUsageDatabase
             this._semaphore.Release();
         }
     }
+
+    private async Task MergeRecentlySeenDetailsAsync(
+        SqliteConnection connection,
+        IReadOnlyCollection<ProviderUsage> latestUsages,
+        DateTime cutoffUtc)
+    {
+        if (latestUsages.Count == 0)
+        {
+            return;
+        }
+
+        const string sql = @"
+                SELECT provider_id AS ProviderId,
+                       details_json AS DetailsJson,
+                       fetched_at AS FetchedAt
+                FROM provider_history
+                WHERE fetched_at >= @CutoffUtc
+                  AND details_json IS NOT NULL
+                  AND details_json != ''
+                ORDER BY provider_id, fetched_at DESC";
+
+        var rows = await connection.QueryAsync<RecentProviderDetailsRow>(sql, new
+        {
+            CutoffUtc = cutoffUtc.ToString("O"),
+        }).ConfigureAwait(false);
+
+        var latestByProvider = latestUsages.ToDictionary(
+            usage => usage.ProviderId,
+            StringComparer.OrdinalIgnoreCase);
+
+        var recentByProvider = new Dictionary<string, Dictionary<string, RecentDetailSnapshot>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in rows)
+        {
+            if (string.IsNullOrWhiteSpace(row.ProviderId) || string.IsNullOrWhiteSpace(row.DetailsJson))
+            {
+                continue;
+            }
+
+            List<ProviderUsageDetail>? parsedDetails;
+            try
+            {
+                parsedDetails = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(row.DetailsJson);
+            }
+            catch (JsonException ex)
+            {
+                this._logger.LogWarning(ex, "Failed to parse historical details_json for provider {ProviderId}", row.ProviderId);
+                continue;
+            }
+
+            if (parsedDetails == null || parsedDetails.Count == 0)
+            {
+                continue;
+            }
+
+            if (!DateTime.TryParse(row.FetchedAt, out var parsedFetchedAt))
+            {
+                continue;
+            }
+
+            var fetchedAtUtc = parsedFetchedAt.ToUniversalTime();
+            if (fetchedAtUtc < cutoffUtc)
+            {
+                continue;
+            }
+
+            if (!recentByProvider.TryGetValue(row.ProviderId, out var detailMap))
+            {
+                detailMap = new Dictionary<string, RecentDetailSnapshot>(StringComparer.OrdinalIgnoreCase);
+                recentByProvider[row.ProviderId] = detailMap;
+            }
+
+            foreach (var detail in parsedDetails)
+            {
+                if (detail == null || string.IsNullOrWhiteSpace(detail.Name))
+                {
+                    continue;
+                }
+
+                var key = BuildDetailMergeKey(detail);
+                if (!detailMap.ContainsKey(key))
+                {
+                    detailMap[key] = new RecentDetailSnapshot(detail, fetchedAtUtc);
+                }
+            }
+        }
+
+        foreach (var usage in latestByProvider.Values)
+        {
+            if (!recentByProvider.TryGetValue(usage.ProviderId, out var recentDetails) || recentDetails.Count == 0)
+            {
+                continue;
+            }
+
+            var currentDetails = usage.Details?.ToList() ?? new List<ProviderUsageDetail>();
+            var currentKeys = currentDetails
+                .Where(detail => detail != null)
+                .Select(BuildDetailMergeKey)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var snapshot in recentDetails.Values.OrderByDescending(x => x.FetchedAtUtc))
+            {
+                var key = BuildDetailMergeKey(snapshot.Detail);
+                if (currentKeys.Contains(key))
+                {
+                    continue;
+                }
+
+                var staleDetail = CloneDetail(snapshot.Detail);
+                staleDetail.Description = AppendStaleSuffix(staleDetail.Description, snapshot.FetchedAtUtc);
+                currentDetails.Add(staleDetail);
+                currentKeys.Add(key);
+            }
+
+            usage.Details = currentDetails;
+            if (!usage.NextResetTime.HasValue)
+            {
+                usage.NextResetTime = InferNextResetFromDetails(currentDetails);
+            }
+        }
+    }
+
+    private static DateTime? InferNextResetFromDetails(IReadOnlyList<ProviderUsageDetail> details)
+    {
+        if (details.Count == 0)
+        {
+            return null;
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        DateTime? bestFuture = null;
+        DateTime? lastKnown = null;
+        foreach (var detail in details)
+        {
+            if (!detail.NextResetTime.HasValue)
+            {
+                continue;
+            }
+
+            var resetUtc = detail.NextResetTime.Value.ToUniversalTime();
+            if (!lastKnown.HasValue || resetUtc > lastKnown.Value)
+            {
+                lastKnown = resetUtc;
+            }
+
+            if (resetUtc > nowUtc && (!bestFuture.HasValue || resetUtc < bestFuture.Value))
+            {
+                bestFuture = resetUtc;
+            }
+        }
+
+        return bestFuture ?? lastKnown;
+    }
+
+    private static string BuildDetailMergeKey(ProviderUsageDetail detail)
+    {
+        return $"{detail.DetailType}|{detail.WindowKind}|{detail.Name.Trim()}|{detail.ModelName.Trim()}|{detail.GroupName.Trim()}";
+    }
+
+    private static ProviderUsageDetail CloneDetail(ProviderUsageDetail source)
+    {
+        return new ProviderUsageDetail
+        {
+            Name = source.Name,
+            ModelName = source.ModelName,
+            GroupName = source.GroupName,
+            Used = source.Used,
+            Description = source.Description,
+            NextResetTime = source.NextResetTime,
+            DetailType = source.DetailType,
+            WindowKind = source.WindowKind,
+        };
+    }
+
+    private static string AppendStaleSuffix(string description, DateTime lastSeenUtc)
+    {
+        var baseDescription = description ?? string.Empty;
+        var staleSuffix = $"(stale; last seen {lastSeenUtc:yyyy-MM-dd})";
+        return string.IsNullOrWhiteSpace(baseDescription)
+            ? staleSuffix
+            : $"{baseDescription} {staleSuffix}";
+    }
+
+    private sealed record RecentProviderDetailsRow(string ProviderId, string DetailsJson, string FetchedAt);
+
+    private sealed record RecentDetailSnapshot(ProviderUsageDetail Detail, DateTime FetchedAtUtc);
 
     public async Task<List<ProviderUsage>> GetHistoryAsync(int limit = 100)
     {

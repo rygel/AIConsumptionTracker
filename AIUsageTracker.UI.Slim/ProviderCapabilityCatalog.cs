@@ -21,6 +21,13 @@ internal static class ProviderCapabilityCatalog
             : ProviderMetadataCatalog.ShouldShowInSettings(providerId);
     }
 
+    public static bool SupportsAccountIdentity(string providerId, AgentProviderCapabilitiesSnapshot? snapshot)
+    {
+        return TryGetCapability(providerId, snapshot, out var capability)
+            ? capability.SupportsAccountIdentity
+            : ProviderMetadataCatalog.SupportsAccountIdentity(providerId);
+    }
+
     public static bool IsVisibleDerivedProviderId(string providerId, AgentProviderCapabilitiesSnapshot? snapshot)
     {
         if (string.IsNullOrWhiteSpace(providerId))
@@ -66,10 +73,18 @@ internal static class ProviderCapabilityCatalog
         string? providerName,
         AgentProviderCapabilitiesSnapshot? snapshot)
     {
-        if (TryGetCapability(providerId, snapshot, out var capability) &&
-            !string.IsNullOrWhiteSpace(capability.DisplayName))
+        if (TryGetCapability(providerId, snapshot, out var capability))
         {
-            return capability.DisplayName;
+            var isDerivedProviderId = !string.Equals(providerId, capability.ProviderId, StringComparison.OrdinalIgnoreCase);
+            if (isDerivedProviderId && !string.IsNullOrWhiteSpace(providerName))
+            {
+                return providerName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(capability.DisplayName))
+            {
+                return capability.DisplayName;
+            }
         }
 
         return ProviderMetadataCatalog.GetDisplayName(providerId, providerName);
@@ -111,6 +126,17 @@ internal static class ProviderCapabilityCatalog
         var canonicalProviderId = GetCanonicalProviderId(providerId, snapshot);
         var isCanonicalChild = !string.Equals(canonicalProviderId, providerId, StringComparison.OrdinalIgnoreCase);
         return isCanonicalChild && ShouldUseSharedSubDetailCollapsePreference(canonicalProviderId, snapshot);
+    }
+
+    public static bool HasVisibleDerivedProviders(string providerId, AgentProviderCapabilitiesSnapshot? snapshot)
+    {
+        if (TryGetCapability(providerId, snapshot, out var capability))
+        {
+            return capability.VisibleDerivedProviderIds.Count > 0;
+        }
+
+        return ProviderMetadataCatalog.TryGet(providerId, out var definition) &&
+               definition.VisibleDerivedProviderIds.Count > 0;
     }
 
     private static bool TryGetCapability(
