@@ -220,7 +220,6 @@ public partial class MainWindow : Window
         {
             try
             {
-                this.PositionWindowNearTray();
                 await this.InitializeAsync();
                 _ = this.CheckForUpdatesAsync();
             }
@@ -445,11 +444,20 @@ public partial class MainWindow : Window
         }
 
         // Only save if position has changed meaningfully
-        if (Math.Abs(this._preferences.WindowLeft.GetValueOrDefault() - this.Left) > 1 ||
-            Math.Abs(this._preferences.WindowTop.GetValueOrDefault() - this.Top) > 1)
+        var positionChanged =
+            Math.Abs(this._preferences.WindowLeft.GetValueOrDefault() - this.Left) > 1 ||
+            Math.Abs(this._preferences.WindowTop.GetValueOrDefault() - this.Top) > 1;
+
+        var sizeChanged =
+            Math.Abs(this._preferences.WindowWidth - this.Width) > 1 ||
+            Math.Abs(this._preferences.WindowHeight - this.Height) > 1;
+
+        if (positionChanged || sizeChanged)
         {
             this._preferences.WindowLeft = this.Left;
             this._preferences.WindowTop = this.Top;
+            this._preferences.WindowWidth = this.Width;
+            this._preferences.WindowHeight = this.Height;
             await this.SaveUiPreferencesAsync();
         }
     }
@@ -473,6 +481,7 @@ public partial class MainWindow : Window
                 App.SetPrivacyMode(this._isPrivacyMode);
                 this._preferencesLoaded = true;
                 this.ApplyPreferences();
+                this.PositionWindowNearTray();
             }
 
             this.ShowStatus("Checking monitor status...", StatusType.Info);
@@ -1375,13 +1384,13 @@ public partial class MainWindow : Window
         };
 
         // Reset time display (if available) - shown with muted golden color
-        if (!presentation.SuppressSingleResetTime && usage.NextResetTime.HasValue)
+        var resetBadgeText = this.BuildResetBadgeText(usage);
+        if (!string.IsNullOrWhiteSpace(resetBadgeText))
         {
-            var relative = this.GetRelativeTimeString(usage.NextResetTime.Value);
             this.AddDockedElement(
                 contentPanel,
                 this.CreateDockedTextBlock(
-                    $"(Resets: {relative})",
+                    resetBadgeText,
                     fontSize: 10,
                     foreground: this.GetResourceBrush("StatusTextWarning", Brushes.Goldenrod),
                     fontWeight: FontWeights.SemiBold,
@@ -1400,17 +1409,18 @@ public partial class MainWindow : Window
             Dock.Right);
 
         // Name (gets remaining space)
-        var accountPart = string.IsNullOrWhiteSpace(usage.AccountName)
-            ? string.Empty
-            : $" [{(this._isPrivacyMode ? ProviderStatusPresentationCatalog.MaskAccountIdentifier(usage.AccountName) : usage.AccountName)}]";
+        var accountName = ProviderAccountDisplayCatalog.ResolveDisplayAccountName(
+            providerId,
+            usage.AccountName,
+            this._isPrivacyMode,
+            this._providerCapabilities);
         this.AddDockedElement(
             contentPanel,
-            this.CreateDockedTextBlock(
-                $"{friendlyName}{accountPart}",
-                fontSize: 11,
-                foreground: presentation.IsMissing ? this.GetResourceBrush("TertiaryText", Brushes.Gray) : this.GetResourceBrush("PrimaryText", Brushes.White),
-                fontWeight: isChild ? FontWeights.Normal : FontWeights.SemiBold,
-                textTrimming: TextTrimming.CharacterEllipsis),
+            this.CreateProviderNameTextBlock(
+                friendlyName,
+                accountName,
+                presentation.IsMissing,
+                isChild),
             Dock.Left);
 
         grid.Children.Add(contentPanel);
@@ -1423,6 +1433,35 @@ public partial class MainWindow : Window
         }
 
         container.Children.Add(grid);
+    }
+
+    private string? BuildResetBadgeText(ProviderUsage usage)
+    {
+        if (ProviderDualWindowPresentationCatalog.TryGetPresentation(usage, out var dualWindow))
+        {
+            var resetParts = new List<string>(2);
+            if (dualWindow.PrimaryResetTime.HasValue)
+            {
+                resetParts.Add(this.GetRelativeTimeString(dualWindow.PrimaryResetTime.Value));
+            }
+
+            if (dualWindow.SecondaryResetTime.HasValue)
+            {
+                resetParts.Add(this.GetRelativeTimeString(dualWindow.SecondaryResetTime.Value));
+            }
+
+            if (resetParts.Count > 0)
+            {
+                return $"({string.Join(" | ", resetParts)})";
+            }
+        }
+
+        if (usage.NextResetTime.HasValue)
+        {
+            return $"({this.GetRelativeTimeString(usage.NextResetTime.Value)})";
+        }
+
+        return null;
     }
 
     private void AddAntigravityModels(ProviderUsage usage, StackPanel container)
@@ -1509,6 +1548,41 @@ public partial class MainWindow : Window
             Margin = new Thickness(2, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center,
         };
+    }
+
+    private TextBlock CreateProviderNameTextBlock(
+        string providerName,
+        string accountName,
+        bool isMissing,
+        bool isChild)
+    {
+        var primaryTextBrush = isMissing
+            ? this.GetResourceBrush("TertiaryText", Brushes.Gray)
+            : this.GetResourceBrush("PrimaryText", Brushes.White);
+        var secondaryTextBrush = this.GetResourceBrush("SecondaryText", Brushes.Gray);
+
+        var textBlock = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = primaryTextBrush,
+            FontWeight = isChild ? FontWeights.Normal : FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        textBlock.Inlines.Add(new Run(providerName));
+
+        if (!string.IsNullOrWhiteSpace(accountName))
+        {
+            textBlock.Inlines.Add(new Run($" [{accountName}]")
+            {
+                Foreground = secondaryTextBrush,
+                FontWeight = FontWeights.Normal,
+                FontStyle = FontStyles.Italic,
+            });
+        }
+
+        return textBlock;
     }
 
     private void ConfigureCardToolTip(FrameworkElement target)
@@ -1615,7 +1689,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        var displayableDetails = ProviderSubDetailPresentationCatalog.GetDisplayableDetails(usage);
+        var displayableDetails = ProviderSubDetailPresentationCatalog.GetDisplayableDetails(
+            usage,
+            this._providerCapabilities);
 
         if (!displayableDetails.Any())
         {

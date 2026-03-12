@@ -1,0 +1,267 @@
+// <copyright file="UsageDatabaseDetailFadeTests.cs" company="AIUsageTracker">
+// Copyright (c) AIUsageTracker. All rights reserved.
+// </copyright>
+
+using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Core.Models;
+using AIUsageTracker.Monitor.Services;
+using AIUsageTracker.Tests.Infrastructure;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace AIUsageTracker.Tests.Services;
+
+public sealed class UsageDatabaseDetailFadeTests : IDisposable
+{
+    private readonly string _dbPath;
+
+    public UsageDatabaseDetailFadeTests()
+    {
+        this._dbPath = TestTempPaths.CreateFilePath("usage-db-fade-tests", "usage.db");
+    }
+
+    [Fact]
+    public async Task GetLatestHistoryAsync_IncludesMissingDetail_WhenSeenWithinSevenDays()
+    {
+        var database = await this.CreateDatabaseAsync();
+        var providerId = "antigravity";
+
+        await database.StoreHistoryAsync(new[]
+        {
+            CreateUsage(
+                providerId,
+                fetchedAtUtc: DateTime.UtcNow.AddDays(-2),
+                new ProviderUsageDetail
+                {
+                    Name = "GPT OSS",
+                    DetailType = ProviderUsageDetailType.Model,
+                    Used = "100%",
+                    Description = "exhausted",
+                }),
+        });
+
+        await database.StoreHistoryAsync(new[]
+        {
+            CreateUsage(
+                providerId,
+                fetchedAtUtc: DateTime.UtcNow,
+                new ProviderUsageDetail
+                {
+                    Name = "Gemini 3 Flash",
+                    DetailType = ProviderUsageDetailType.Model,
+                    Used = "20%",
+                }),
+        });
+
+        var latest = await database.GetLatestHistoryAsync();
+        var antigravity = Assert.Single(latest.Where(x => x.ProviderId == providerId));
+        Assert.NotNull(antigravity.Details);
+
+        var names = antigravity.Details!.Select(d => d.Name).ToList();
+        Assert.Contains("Gemini 3 Flash", names);
+        Assert.Contains("GPT OSS", names);
+
+        var restored = antigravity.Details.First(d => d.Name == "GPT OSS");
+        Assert.Contains("stale; last seen", restored.Description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetLatestHistoryAsync_DoesNotIncludeMissingDetail_WhenOlderThanSevenDays()
+    {
+        var database = await this.CreateDatabaseAsync();
+        var providerId = "antigravity";
+
+        await database.StoreHistoryAsync(new[]
+        {
+            CreateUsage(
+                providerId,
+                fetchedAtUtc: DateTime.UtcNow.AddDays(-8),
+                new ProviderUsageDetail
+                {
+                    Name = "GPT OSS",
+                    DetailType = ProviderUsageDetailType.Model,
+                    Used = "100%",
+                    Description = "exhausted",
+                }),
+        });
+
+        await database.StoreHistoryAsync(new[]
+        {
+            CreateUsage(
+                providerId,
+                fetchedAtUtc: DateTime.UtcNow,
+                new ProviderUsageDetail
+                {
+                    Name = "Gemini 3 Flash",
+                    DetailType = ProviderUsageDetailType.Model,
+                    Used = "20%",
+                }),
+        });
+
+        var latest = await database.GetLatestHistoryAsync();
+        var antigravity = Assert.Single(latest.Where(x => x.ProviderId == providerId));
+        Assert.NotNull(antigravity.Details);
+
+        var names = antigravity.Details!.Select(d => d.Name).ToList();
+        Assert.Contains("Gemini 3 Flash", names);
+        Assert.DoesNotContain("GPT OSS", names);
+    }
+
+    [Fact]
+    public async Task StoreHistoryAsync_PersistsUnavailableUsage_WithNonPlaceholderDescriptionAndAccountName()
+    {
+        var database = await this.CreateDatabaseAsync();
+        var providerId = "github-copilot";
+
+        await database.StoreHistoryAsync(new[]
+        {
+            new ProviderUsage
+            {
+                ProviderId = providerId,
+                ProviderName = "GitHub Copilot",
+                RequestsUsed = 0,
+                RequestsAvailable = 0,
+                RequestsPercentage = 0,
+                IsAvailable = false,
+                Description = "Not authenticated. Please login in Settings.",
+                AccountName = "rygel",
+                FetchedAt = DateTime.UtcNow,
+            },
+        });
+
+        var latest = await database.GetLatestHistoryAsync();
+        var copilot = Assert.Single(latest.Where(x => x.ProviderId == providerId));
+        Assert.False(copilot.IsAvailable);
+        Assert.Equal("rygel", copilot.AccountName);
+        Assert.Contains("Not authenticated", copilot.Description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task StoreHistoryAsync_PersistsPlaceholderUnavailableUsage_WhenPassedByCaller()
+    {
+        var database = await this.CreateDatabaseAsync();
+
+        await database.StoreHistoryAsync(new[]
+        {
+            new ProviderUsage
+            {
+                ProviderId = "github-copilot",
+                ProviderName = "GitHub Copilot",
+                RequestsUsed = 0,
+                RequestsAvailable = 0,
+                RequestsPercentage = 0,
+                IsAvailable = false,
+                Description = "API Key missing",
+                FetchedAt = DateTime.UtcNow,
+            },
+        });
+
+        var latest = await database.GetLatestHistoryAsync();
+        var copilot = Assert.Single(latest, x => string.Equals(x.ProviderId, "github-copilot", StringComparison.Ordinal));
+        Assert.False(copilot.IsAvailable);
+        Assert.Contains("API Key missing", copilot.Description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetLatestHistoryAsync_RestoresTopLevelResetTime_FromStaleDetailWhenCurrentIsMissing()
+    {
+        var database = await this.CreateDatabaseAsync();
+        var providerId = "github-copilot";
+        var weeklyReset = DateTime.UtcNow.AddDays(3);
+
+        await database.StoreHistoryAsync(new[]
+        {
+            new ProviderUsage
+            {
+                ProviderId = providerId,
+                ProviderName = "GitHub Copilot",
+                IsAvailable = true,
+                Description = "Authenticated",
+                NextResetTime = weeklyReset,
+                FetchedAt = DateTime.UtcNow.AddHours(-2),
+                Details = new List<ProviderUsageDetail>
+                {
+                    new()
+                    {
+                        Name = "Weekly Quota",
+                        Used = "14% used",
+                        DetailType = ProviderUsageDetailType.QuotaWindow,
+                        WindowKind = WindowKind.Secondary,
+                        NextResetTime = weeklyReset,
+                    },
+                },
+            },
+        });
+
+        await database.StoreHistoryAsync(new[]
+        {
+            new ProviderUsage
+            {
+                ProviderId = providerId,
+                ProviderName = "GitHub Copilot",
+                IsAvailable = false,
+                Description = "Not authenticated. Please login in Settings.",
+                NextResetTime = null,
+                FetchedAt = DateTime.UtcNow,
+                Details = null,
+            },
+        });
+
+        var latest = await database.GetLatestHistoryAsync();
+        var copilot = Assert.Single(latest, x => string.Equals(x.ProviderId, providerId, StringComparison.Ordinal));
+        Assert.NotNull(copilot.Details);
+        Assert.NotNull(copilot.NextResetTime);
+        Assert.Equal(weeklyReset.ToUniversalTime(), copilot.NextResetTime!.Value.ToUniversalTime(), TimeSpan.FromSeconds(1));
+    }
+
+    public void Dispose()
+    {
+        TestTempPaths.CleanupPath(this._dbPath);
+    }
+
+    private async Task<UsageDatabase> CreateDatabaseAsync()
+    {
+        var database = new UsageDatabase(NullLogger<UsageDatabase>.Instance, new TestDbPathProvider(this._dbPath));
+        await database.InitializeAsync();
+        return database;
+    }
+
+    private static ProviderUsage CreateUsage(string providerId, DateTime fetchedAtUtc, ProviderUsageDetail detail)
+    {
+        return new ProviderUsage
+        {
+            ProviderId = providerId,
+            ProviderName = "Google Antigravity",
+            RequestsUsed = 10,
+            RequestsAvailable = 100,
+            RequestsPercentage = 90,
+            IsAvailable = true,
+            Description = "ok",
+            FetchedAt = fetchedAtUtc,
+            Details = new List<ProviderUsageDetail> { detail },
+        };
+    }
+
+    private sealed class TestDbPathProvider : IAppPathProvider
+    {
+        private readonly string _dbPath;
+
+        public TestDbPathProvider(string dbPath)
+        {
+            this._dbPath = dbPath;
+        }
+
+        public string GetAppDataRoot() => Path.GetDirectoryName(this._dbPath)!;
+
+        public string GetDatabasePath() => this._dbPath;
+
+        public string GetLogDirectory() => Path.Combine(this.GetAppDataRoot(), "logs");
+
+        public string GetAuthFilePath() => Path.Combine(this.GetAppDataRoot(), "auth.json");
+
+        public string GetPreferencesFilePath() => Path.Combine(this.GetAppDataRoot(), "preferences.json");
+
+        public string GetProviderConfigFilePath() => Path.Combine(this.GetAppDataRoot(), "providers.json");
+
+        public string GetUserProfileRoot() => this.GetAppDataRoot();
+    }
+}
