@@ -4,6 +4,7 @@
 
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
+using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
 
@@ -28,9 +29,14 @@ internal static class ProviderSubDetailPresentationCatalog
             return Array.Empty<ProviderUsageDetail>();
         }
 
+        if (ShouldSuppressSubDetailsForTooltipOnlyProvider(usage.ProviderId))
+        {
+            return Array.Empty<ProviderUsageDetail>();
+        }
+
         return usage.Details
             .Where(IsDisplayableDetail)
-            .OrderBy(detail => detail.Name, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(GetDetailSortOrder)
             .ThenBy(detail => detail.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -71,5 +77,28 @@ internal static class ProviderSubDetailPresentationCatalog
 
         return detail.DetailType == ProviderUsageDetailType.Model ||
                detail.DetailType == ProviderUsageDetailType.Other;
+    }
+
+    private static bool ShouldSuppressSubDetailsForTooltipOnlyProvider(string? providerId)
+    {
+        if (string.IsNullOrWhiteSpace(providerId))
+        {
+            return false;
+        }
+
+        return OpenCodeZenProvider.StaticDefinition.HandledProviderIds.Contains(providerId, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static int GetDetailSortOrder(ProviderUsageDetail detail)
+    {
+        return (detail.DetailType, detail.WindowKind) switch
+        {
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Primary) => 0,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Secondary) => 1,
+            (ProviderUsageDetailType.QuotaWindow, _) => 2,
+            (ProviderUsageDetailType.Model, _) => 3,
+            (ProviderUsageDetailType.Other, _) => 4,
+            _ => 5,
+        };
     }
 }

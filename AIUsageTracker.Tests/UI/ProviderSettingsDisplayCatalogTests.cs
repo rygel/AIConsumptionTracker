@@ -152,7 +152,7 @@ public sealed class ProviderSettingsDisplayCatalogTests
     }
 
     [Fact]
-    public void CreateDisplayItems_UsesCapabilitySnapshotToHideProviderInSettings()
+    public void CreateDisplayItems_UsesProviderMetadata_WhenSnapshotTriesToHideProvider()
     {
         var configs = new List<ProviderConfig>
         {
@@ -186,6 +186,6 @@ public sealed class ProviderSettingsDisplayCatalogTests
         var items = ProviderSettingsDisplayCatalog.CreateDisplayItems(configs, Array.Empty<ProviderUsage>(), capabilities);
 
         Assert.Contains(items, item => string.Equals(item.Config.ProviderId, "codex", StringComparison.Ordinal));
-        Assert.DoesNotContain(items, item => string.Equals(item.Config.ProviderId, "codex.spark", StringComparison.Ordinal));
+        Assert.Contains(items, item => string.Equals(item.Config.ProviderId, "codex.spark", StringComparison.Ordinal));
     }
 }

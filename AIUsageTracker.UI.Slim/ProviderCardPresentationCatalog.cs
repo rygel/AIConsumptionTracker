@@ -2,8 +2,10 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Globalization;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
+using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
 
@@ -151,6 +153,11 @@ internal static class ProviderCardPresentationCatalog
             return (string.IsNullOrWhiteSpace(description) ? "Per-model quotas" : description, false);
         }
 
+        if (ShouldUseTooltipOnlyInfoStatus(usage))
+        {
+            return (GetTooltipOnlyCompactStatus(usage, description), false);
+        }
+
         if (hasDualWindowPresentation)
         {
             return (BuildDualWindowStatusText(dualWindowPresentation, showUsed), true);
@@ -176,6 +183,33 @@ internal static class ProviderCardPresentationCatalog
         }
 
         return (description, false);
+    }
+
+    private static bool ShouldUseTooltipOnlyInfoStatus(ProviderUsage usage)
+    {
+        var providerId = usage.ProviderId ?? string.Empty;
+        return OpenCodeZenProvider.StaticDefinition.HandledProviderIds.Contains(providerId, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string GetTooltipOnlyCompactStatus(ProviderUsage usage, string description)
+    {
+        if (!usage.IsAvailable)
+        {
+            return description;
+        }
+
+        if (usage.PlanType == PlanType.Usage && usage.RequestsUsed >= 0)
+        {
+            if (string.Equals(usage.UsageUnit, "USD", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"${usage.RequestsUsed.ToString("F2", CultureInfo.InvariantCulture)}";
+            }
+
+            var unit = string.IsNullOrWhiteSpace(usage.UsageUnit) ? string.Empty : $" {usage.UsageUnit}";
+            return $"{usage.RequestsUsed.ToString("F2", CultureInfo.InvariantCulture)}{unit}";
+        }
+
+        return description;
     }
 
     private static ProviderCardPresentation CreatePresentation(

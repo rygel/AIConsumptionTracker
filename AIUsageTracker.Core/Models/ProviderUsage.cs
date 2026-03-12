@@ -51,4 +51,8 @@ public class ProviderUsage
     public string? RawJson { get; set; }
 
     public int HttpStatus { get; set; } = 200;
+
+    public UpstreamResponseValidity UpstreamResponseValidity { get; set; } = UpstreamResponseValidity.Unknown;
+
+    public string UpstreamResponseNote { get; set; } = string.Empty;
 }

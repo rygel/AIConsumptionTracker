@@ -59,7 +59,7 @@ public sealed class ProviderAccountDisplayCatalogTests
     }
 
     [Fact]
-    public void ResolveDisplayAccountName_UsesSnapshotCapabilities_ForIdentitySupport()
+    public void ResolveDisplayAccountName_UsesProviderMetadata_ForIdentitySupport()
     {
         var snapshot = new AgentProviderCapabilitiesSnapshot
         {
@@ -81,6 +81,6 @@ public sealed class ProviderAccountDisplayCatalogTests
             isPrivacyMode: false,
             snapshot);
 
-        Assert.Equal("octocat", result);
+        Assert.Equal(string.Empty, result);
     }
 }

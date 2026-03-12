@@ -28,7 +28,13 @@ internal static class ProviderTooltipPresentationCatalog
                          .OrderBy(GetDetailSortOrder)
                          .ThenBy(GetDetailDisplayName, StringComparer.OrdinalIgnoreCase))
             {
-                tooltipBuilder.AppendLine($"  {GetDetailDisplayName(detail)}: {detail.Used}");
+                var detailValue = ResolveDetailDisplayValue(detail);
+                if (string.IsNullOrWhiteSpace(detailValue))
+                {
+                    continue;
+                }
+
+                tooltipBuilder.AppendLine($"  {GetDetailDisplayName(detail)}: {detailValue}");
             }
 
             return tooltipBuilder.ToString().Trim();
@@ -45,6 +51,21 @@ internal static class ProviderTooltipPresentationCatalog
     private static string GetDetailDisplayName(ProviderUsageDetail detail)
     {
         return detail.Name;
+    }
+
+    private static string ResolveDetailDisplayValue(ProviderUsageDetail detail)
+    {
+        if (!string.IsNullOrWhiteSpace(detail.Used))
+        {
+            return detail.Used;
+        }
+
+        if (!string.IsNullOrWhiteSpace(detail.Description))
+        {
+            return detail.Description;
+        }
+
+        return string.Empty;
     }
 
     private static int GetDetailSortOrder(ProviderUsageDetail detail)

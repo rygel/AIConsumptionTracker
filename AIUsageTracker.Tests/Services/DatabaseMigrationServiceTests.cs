@@ -36,6 +36,11 @@ public sealed class DatabaseMigrationServiceTests : IDisposable
         Assert.Contains("config_json", providerColumns, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("auth_source", providerColumns, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("plan_type", providerColumns, StringComparer.OrdinalIgnoreCase);
+
+        var historyColumns = this.GetColumnNames("provider_history");
+        Assert.Contains("http_status", historyColumns, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("upstream_response_validity", historyColumns, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("upstream_response_note", historyColumns, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]

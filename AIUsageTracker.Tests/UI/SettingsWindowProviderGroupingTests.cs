@@ -26,7 +26,7 @@ public sealed class SettingsWindowProviderGroupingTests
     }
 
     [Fact]
-    public void ShouldRenderAsSettingsSubItem_UsesCapabilitySnapshotPolicies()
+    public void ShouldRenderAsSettingsSubItem_UsesProviderMetadata_WhenSnapshotTriesToOverride()
     {
         var capabilities = new AgentProviderCapabilitiesSnapshot
         {
@@ -48,6 +48,6 @@ public sealed class SettingsWindowProviderGroupingTests
             isDerived: true,
             capabilities);
 
-        Assert.True(result);
+        Assert.False(result);
     }
 }

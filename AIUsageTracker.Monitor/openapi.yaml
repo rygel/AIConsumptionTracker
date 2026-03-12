@@ -532,6 +532,11 @@ components:
           nullable: true
         http_status:
           type: integer
+        upstream_response_validity:
+          type: string
+          enum: [unknown, not_attempted, valid, invalid]
+        upstream_response_note:
+          type: string
       required:
         - provider_id
         - provider_name

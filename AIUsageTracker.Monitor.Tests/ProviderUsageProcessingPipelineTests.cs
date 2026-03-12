@@ -50,7 +50,52 @@ public class ProviderUsageProcessingPipelineTests
         var processed = Assert.Single(result.Usages);
         Assert.False(processed.IsAvailable);
         Assert.True(processed.Description.Contains("Invalid detail contract:", StringComparison.Ordinal));
+        Assert.Equal(UpstreamResponseValidity.Invalid, processed.UpstreamResponseValidity);
         Assert.Equal(1, result.DetailContractAdjustedCount);
+    }
+
+    [Fact]
+    public void Process_WhenHttpStatusIsSuccess_MarksUpstreamResponseValid()
+    {
+        var usage = new ProviderUsage
+        {
+            ProviderId = "openai",
+            ProviderName = "OpenAI",
+            IsAvailable = true,
+            Description = "Connected",
+            HttpStatus = 200,
+        };
+
+        var result = this._pipeline.Process(
+            new[] { usage },
+            new[] { "openai" },
+            isPrivacyMode: false);
+
+        var processed = Assert.Single(result.Usages);
+        Assert.Equal(UpstreamResponseValidity.Valid, processed.UpstreamResponseValidity);
+        Assert.Equal("HTTP 200", processed.UpstreamResponseNote);
+    }
+
+    [Fact]
+    public void Process_WhenNoUpstreamMetadata_MarksResponseAsNotAttempted()
+    {
+        var usage = new ProviderUsage
+        {
+            ProviderId = "antigravity",
+            ProviderName = "Antigravity",
+            IsAvailable = false,
+            Description = "Application not running",
+            HttpStatus = 0,
+            RawJson = null,
+        };
+
+        var result = this._pipeline.Process(
+            new[] { usage },
+            new[] { "antigravity" },
+            isPrivacyMode: false);
+
+        var processed = Assert.Single(result.Usages);
+        Assert.Equal(UpstreamResponseValidity.NotAttempted, processed.UpstreamResponseValidity);
     }
 
     [Fact]

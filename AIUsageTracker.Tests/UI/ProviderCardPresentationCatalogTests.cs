@@ -135,4 +135,24 @@ public sealed class ProviderCardPresentationCatalogTests
         Assert.Equal("5-hour 96% remaining | Weekly 49% remaining", presentation.StatusText);
         Assert.True(presentation.SuppressSingleResetTime);
     }
+
+    [Theory]
+    [InlineData("opencode-zen")]
+    [InlineData("opencode-go")]
+    public void Create_UsesCompactInlineStatus_ForOpenCodeProviders(string providerId)
+    {
+        var usage = new ProviderUsage
+        {
+            ProviderId = providerId,
+            IsAvailable = true,
+            PlanType = PlanType.Usage,
+            UsageUnit = "USD",
+            RequestsUsed = 12.34,
+            Description = "$12.34 (4 sessions, 198 msgs, 7 days)",
+        };
+
+        var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: false);
+
+        Assert.Equal("$12.34", presentation.StatusText);
+    }
 }

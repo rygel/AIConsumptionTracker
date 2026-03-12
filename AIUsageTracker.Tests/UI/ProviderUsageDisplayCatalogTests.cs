@@ -106,7 +106,7 @@ public sealed class ProviderUsageDisplayCatalogTests
     }
 
     [Fact]
-    public void PrepareForMainWindow_UsesCapabilitySnapshotPolicies_WhenProvided()
+    public void PrepareForMainWindow_UsesProviderMetadata_WhenSnapshotTriesToOverride()
     {
         var usages = new List<ProviderUsage>
         {
@@ -131,7 +131,178 @@ public sealed class ProviderUsageDisplayCatalogTests
 
         var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages, capabilities);
 
-        var displayable = Assert.Single(preparation.DisplayableUsages);
-        Assert.Equal("codex", displayable.ProviderId);
+        Assert.Equal(2, preparation.DisplayableUsages.Count);
+        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
+        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "codex.spark", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void PrepareForMainWindow_DoesNotExpandGeminiDetailsInUiLayer()
+    {
+        var usages = new List<ProviderUsage>
+        {
+            new()
+            {
+                ProviderId = "gemini-cli",
+                ProviderName = "Gemini CLI",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                Details = new List<ProviderUsageDetail>
+                {
+                    new()
+                    {
+                        Name = "Requests / Minute",
+                        Used = "67.9%",
+                        DetailType = ProviderUsageDetailType.QuotaWindow,
+                        WindowKind = WindowKind.Primary,
+                        NextResetTime = new DateTime(2026, 3, 12, 14, 38, 28),
+                    },
+                    new()
+                    {
+                        Name = "Requests / Day",
+                        Used = "97.5%",
+                        DetailType = ProviderUsageDetailType.QuotaWindow,
+                        WindowKind = WindowKind.Secondary,
+                        NextResetTime = new DateTime(2026, 3, 12, 14, 35, 2),
+                    },
+                    new()
+                    {
+                        Name = "Requests / Hour",
+                        Used = "88.0%",
+                        DetailType = ProviderUsageDetailType.QuotaWindow,
+                        WindowKind = WindowKind.Spark,
+                        NextResetTime = new DateTime(2026, 3, 12, 15, 10, 0),
+                    },
+                },
+            },
+        };
+
+        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
+
+        var displayable = Assert.Single(preparation.DisplayableUsages);
+        Assert.Equal("gemini-cli", displayable.ProviderId);
+        Assert.Equal("Gemini CLI", displayable.ProviderName);
+    }
+
+    [Fact]
+    public void PrepareForMainWindow_KeepsExplicitGeminiChildBarsOnTopLevel()
+    {
+        var usages = new List<ProviderUsage>
+        {
+            new()
+            {
+                ProviderId = "gemini-cli",
+                ProviderName = "Gemini CLI",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                Details = new List<ProviderUsageDetail>
+                {
+                    new()
+                    {
+                        Name = "Requests / Minute",
+                        Used = "67.9%",
+                        DetailType = ProviderUsageDetailType.QuotaWindow,
+                        WindowKind = WindowKind.Primary,
+                    },
+                    new()
+                    {
+                        Name = "Requests / Hour",
+                        Used = "88.0%",
+                        DetailType = ProviderUsageDetailType.QuotaWindow,
+                        WindowKind = WindowKind.Secondary,
+                    },
+                    new()
+                    {
+                        Name = "Gemini 3.1 Pro Preview",
+                        ModelName = "gemini-3.1-pro-preview",
+                        Used = "0.0%",
+                        DetailType = ProviderUsageDetailType.Model,
+                        WindowKind = WindowKind.None,
+                    },
+                },
+            },
+            new()
+            {
+                ProviderId = "gemini-cli.minute",
+                ProviderName = "Gemini CLI (Minute)",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+            },
+            new()
+            {
+                ProviderId = "gemini-cli.hourly",
+                ProviderName = "Gemini CLI (Hourly)",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+            },
+        };
+
+        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
+
+        Assert.Equal(3, preparation.DisplayableUsages.Count);
+        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "gemini-cli", StringComparison.Ordinal));
+        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "gemini-cli.minute", StringComparison.Ordinal));
+        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "gemini-cli.hourly", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void PrepareForMainWindow_PrefersGeminiUsageWithDetails_WhenDuplicateProviderEntriesExist()
+    {
+        var stale = new ProviderUsage
+        {
+            ProviderId = "gemini-cli",
+            ProviderName = "Gemini CLI",
+            IsAvailable = true,
+            IsQuotaBased = true,
+            PlanType = PlanType.Coding,
+            FetchedAt = new DateTime(2026, 3, 12, 10, 0, 0),
+            Details = null,
+        };
+
+        var fresh = new ProviderUsage
+        {
+            ProviderId = "gemini-cli",
+            ProviderName = "Gemini CLI",
+            IsAvailable = true,
+            IsQuotaBased = true,
+            PlanType = PlanType.Coding,
+            FetchedAt = new DateTime(2026, 3, 12, 10, 5, 0),
+            Details = new List<ProviderUsageDetail>
+            {
+                new()
+                {
+                    Name = "Requests / Minute",
+                    Used = "67.9%",
+                    DetailType = ProviderUsageDetailType.QuotaWindow,
+                    WindowKind = WindowKind.Primary,
+                },
+                new()
+                {
+                    Name = "Requests / Hour",
+                    Used = "88.0%",
+                    DetailType = ProviderUsageDetailType.QuotaWindow,
+                    WindowKind = WindowKind.Secondary,
+                },
+                new()
+                {
+                    Name = "Requests / Day",
+                    Used = "97.5%",
+                    DetailType = ProviderUsageDetailType.QuotaWindow,
+                    WindowKind = WindowKind.Spark,
+                },
+            },
+        };
+
+        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(new[] { stale, fresh });
+
+        var gemini = Assert.Single(preparation.DisplayableUsages);
+        Assert.Equal("gemini-cli", gemini.ProviderId);
+        Assert.NotNull(gemini.Details);
+        Assert.Equal(3, gemini.Details!.Count);
+    }
+
 }

@@ -74,4 +74,24 @@ public sealed class ProviderTooltipPresentationCatalogTests
 
         Assert.Null(content);
     }
+
+    [Fact]
+    public void BuildContent_UsesDetailDescription_WhenUsedValueMissing()
+    {
+        var usage = new ProviderUsage
+        {
+            IsAvailable = true,
+            Details = new List<ProviderUsageDetail>
+            {
+                new() { Name = "Sessions", Used = string.Empty, Description = "4 sessions", DetailType = ProviderUsageDetailType.Other },
+                new() { Name = "Messages", Used = string.Empty, Description = "198 messages", DetailType = ProviderUsageDetailType.Other },
+            },
+        };
+
+        var content = ProviderTooltipPresentationCatalog.BuildContent(usage, "OpenCode Zen");
+        var normalized = content?.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("Sessions: 4 sessions", normalized, StringComparison.Ordinal);
+        Assert.Contains("Messages: 198 messages", normalized, StringComparison.Ordinal);
+    }
 }

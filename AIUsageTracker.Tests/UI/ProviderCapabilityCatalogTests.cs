@@ -10,7 +10,7 @@ namespace AIUsageTracker.Tests.UI;
 public sealed class ProviderCapabilityCatalogTests
 {
     [Fact]
-    public void ShouldShowInSettings_UsesSnapshotOverride_WhenPresent()
+    public void ShouldShowInSettings_UsesProviderMetadata_WhenSnapshotTriesToOverride()
     {
         var snapshot = new AgentProviderCapabilitiesSnapshot
         {
@@ -28,11 +28,11 @@ public sealed class ProviderCapabilityCatalogTests
 
         var result = ProviderCapabilityCatalog.ShouldShowInSettings("codex", snapshot);
 
-        Assert.False(result);
+        Assert.True(result);
     }
 
     [Fact]
-    public void ShouldShowInSettings_FallsBackToMetadata_WhenSnapshotMissing()
+    public void ShouldShowInSettings_UsesProviderMetadata_WhenSnapshotMissing()
     {
         var result = ProviderCapabilityCatalog.ShouldShowInSettings("codex", snapshot: null);
 
@@ -40,29 +40,17 @@ public sealed class ProviderCapabilityCatalogTests
     }
 
     [Fact]
-    public void GetCanonicalProviderId_UsesSnapshotHandledChildIds()
+    public void GetCanonicalProviderId_UsesProviderMetadata()
     {
-        var snapshot = new AgentProviderCapabilitiesSnapshot
-        {
-            Providers =
-            [
-                new AgentProviderCapabilityDefinition
-                {
-                    ProviderId = "antigravity",
-                    DisplayName = "Antigravity",
-                    SupportsChildProviderIds = true,
-                    HandledProviderIds = ["antigravity"],
-                },
-            ],
-        };
-
-        var canonical = ProviderCapabilityCatalog.GetCanonicalProviderId("antigravity.gpt-5", snapshot);
+        var canonical = ProviderCapabilityCatalog.GetCanonicalProviderId(
+            "antigravity.gpt-5",
+            snapshot: null);
 
         Assert.Equal("antigravity", canonical);
     }
 
     [Fact]
-    public void GetDefaultSettingsProviderIds_UsesSnapshotPayload()
+    public void GetDefaultSettingsProviderIds_UsesProviderMetadata_WhenSnapshotProvided()
     {
         var snapshot = new AgentProviderCapabilitiesSnapshot
         {
@@ -81,11 +69,12 @@ public sealed class ProviderCapabilityCatalogTests
 
         var providerIds = ProviderCapabilityCatalog.GetDefaultSettingsProviderIds(snapshot);
 
-        Assert.Equal(["codex", "codex.spark"], providerIds);
+        Assert.Contains("codex", providerIds);
+        Assert.Contains("codex.spark", providerIds);
     }
 
     [Fact]
-    public void GetDisplayName_PreservesDerivedProviderName_WhenCapabilityHandlesChildren()
+    public void GetDisplayName_PreservesDerivedProviderName_WhenProvided()
     {
         var snapshot = new AgentProviderCapabilitiesSnapshot
         {
@@ -110,7 +99,7 @@ public sealed class ProviderCapabilityCatalogTests
     }
 
     [Fact]
-    public void SupportsAccountIdentity_UsesSnapshotOverride_WhenPresent()
+    public void SupportsAccountIdentity_UsesProviderMetadata_WhenSnapshotTriesToOverride()
     {
         var snapshot = new AgentProviderCapabilitiesSnapshot
         {
@@ -119,7 +108,7 @@ public sealed class ProviderCapabilityCatalogTests
                 new AgentProviderCapabilityDefinition
                 {
                     ProviderId = "github-copilot",
-                    SupportsAccountIdentity = true,
+                    SupportsAccountIdentity = false,
                     HandledProviderIds = ["github-copilot"],
                 },
             ],
@@ -131,7 +120,7 @@ public sealed class ProviderCapabilityCatalogTests
     }
 
     [Fact]
-    public void SupportsAccountIdentity_FallsBackToMetadata_WhenSnapshotMissing()
+    public void SupportsAccountIdentity_UsesProviderMetadata_WhenSnapshotMissing()
     {
         var result = ProviderCapabilityCatalog.SupportsAccountIdentity("github-copilot", snapshot: null);
 

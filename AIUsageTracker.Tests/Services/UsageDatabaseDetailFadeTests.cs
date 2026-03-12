@@ -135,6 +135,42 @@ public sealed class UsageDatabaseDetailFadeTests : IDisposable
         Assert.Contains("Not authenticated", copilot.Description, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("github-copilot", "octocat")]
+    [InlineData("antigravity", "user@example.com")]
+    public async Task StoreProviderAsync_DoesNotClearExistingAccountName(
+        string providerId,
+        string accountName)
+    {
+        var database = await this.CreateDatabaseAsync();
+
+        await database.StoreHistoryAsync(new[]
+        {
+            new ProviderUsage
+            {
+                ProviderId = providerId,
+                ProviderName = providerId,
+                RequestsUsed = 10,
+                RequestsAvailable = 100,
+                RequestsPercentage = 90,
+                IsAvailable = true,
+                Description = "ok",
+                AccountName = accountName,
+                FetchedAt = DateTime.UtcNow,
+            },
+        });
+
+        await database.StoreProviderAsync(new ProviderConfig
+        {
+            ProviderId = providerId,
+            AuthSource = "config",
+        });
+
+        var latest = await database.GetLatestHistoryAsync();
+        var usage = Assert.Single(latest, x => string.Equals(x.ProviderId, providerId, StringComparison.Ordinal));
+        Assert.Equal(accountName, usage.AccountName);
+    }
+
     [Fact]
     public async Task StoreHistoryAsync_PersistsPlaceholderUnavailableUsage_WhenPassedByCaller()
     {
@@ -159,6 +195,33 @@ public sealed class UsageDatabaseDetailFadeTests : IDisposable
         var copilot = Assert.Single(latest, x => string.Equals(x.ProviderId, "github-copilot", StringComparison.Ordinal));
         Assert.False(copilot.IsAvailable);
         Assert.Contains("API Key missing", copilot.Description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetLatestHistoryAsync_ComputesUpstreamResponseValidity_FromHttpStatus()
+    {
+        var database = await this.CreateDatabaseAsync();
+
+        await database.StoreHistoryAsync(new[]
+        {
+            new ProviderUsage
+            {
+                ProviderId = "codex",
+                ProviderName = "OpenAI Codex",
+                RequestsUsed = 1,
+                RequestsAvailable = 10,
+                RequestsPercentage = 10,
+                IsAvailable = true,
+                Description = "Connected",
+                HttpStatus = 200,
+                FetchedAt = DateTime.UtcNow,
+            },
+        });
+
+        var latest = await database.GetLatestHistoryAsync();
+        var codex = Assert.Single(latest, x => string.Equals(x.ProviderId, "codex", StringComparison.Ordinal));
+        Assert.Equal(UpstreamResponseValidity.Valid, codex.UpstreamResponseValidity);
+        Assert.Equal("HTTP 200", codex.UpstreamResponseNote);
     }
 
     [Fact]

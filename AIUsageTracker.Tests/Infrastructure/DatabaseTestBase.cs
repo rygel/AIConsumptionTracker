@@ -74,6 +74,9 @@ public abstract class DatabaseTestBase : IDisposable
                 requests_available REAL NOT NULL DEFAULT 0,
                 requests_percentage REAL NOT NULL DEFAULT 0,
                 response_latency_ms REAL NOT NULL DEFAULT 0,
+                http_status INTEGER NOT NULL DEFAULT 0,
+                upstream_response_validity INTEGER NOT NULL DEFAULT 0,
+                upstream_response_note TEXT NOT NULL DEFAULT '',
                 fetched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 details_json TEXT,
                 FOREIGN KEY (provider_id) REFERENCES providers(provider_id) ON DELETE CASCADE

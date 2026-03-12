@@ -192,6 +192,8 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
         var rawJson = usage.RawJson;
         var accountName = usage.AccountName;
         var configKey = usage.ConfigKey;
+        var upstreamResponseValidity = usage.UpstreamResponseValidity;
+        var upstreamResponseNote = usage.UpstreamResponseNote;
         if (isPrivacyMode)
         {
             if (!string.IsNullOrWhiteSpace(rawJson) ||
@@ -206,6 +208,35 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             configKey = string.Empty;
         }
 
+        var normalizedUsageCandidate = new ProviderUsage
+        {
+            ProviderId = providerId,
+            ProviderName = providerName,
+            RequestsUsed = requestsUsed,
+            RequestsAvailable = requestsAvailable,
+            RequestsPercentage = requestsPercentage,
+            PlanType = usage.PlanType,
+            UsageUnit = usage.UsageUnit,
+            IsQuotaBased = usage.IsQuotaBased,
+            DisplayAsFraction = usage.DisplayAsFraction,
+            IsAvailable = usage.IsAvailable,
+            Description = description,
+            AuthSource = usage.AuthSource,
+            Details = details,
+            AccountName = accountName ?? string.Empty,
+            ConfigKey = configKey ?? string.Empty,
+            NextResetTime = normalizedNextResetTimeUtc,
+            FetchedAt = fetchedAt,
+            ResponseLatencyMs = responseLatencyMs,
+            RawJson = rawJson,
+            HttpStatus = httpStatus,
+            UpstreamResponseValidity = upstreamResponseValidity,
+            UpstreamResponseNote = upstreamResponseNote ?? string.Empty,
+        };
+        var upstreamEvaluation = UpstreamResponseValidityCatalog.Evaluate(normalizedUsageCandidate);
+        upstreamResponseValidity = upstreamEvaluation.Validity;
+        upstreamResponseNote = upstreamEvaluation.Note;
+
         if (!this.StringEquals(providerId, usage.ProviderId) ||
             !this.StringEquals(providerName, usage.ProviderName) ||
             requestsUsed != usage.RequestsUsed ||
@@ -216,7 +247,9 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             !this.StringEquals(description, usage.Description) ||
             httpStatus != usage.HttpStatus ||
             normalizedNextResetTimeUtc != usageNextResetTimeUtc ||
-            !ReferenceEquals(details, usage.Details))
+            !ReferenceEquals(details, usage.Details) ||
+            upstreamResponseValidity != usage.UpstreamResponseValidity ||
+            !this.StringEquals(upstreamResponseNote, usage.UpstreamResponseNote))
         {
             normalizedCount++;
         }
@@ -243,6 +276,8 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             ResponseLatencyMs = responseLatencyMs,
             RawJson = rawJson,
             HttpStatus = httpStatus,
+            UpstreamResponseValidity = upstreamResponseValidity,
+            UpstreamResponseNote = upstreamResponseNote ?? string.Empty,
         };
     }
 
@@ -436,6 +471,8 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             ResponseLatencyMs = usage.ResponseLatencyMs,
             RawJson = usage.RawJson,
             HttpStatus = usage.HttpStatus,
+            UpstreamResponseValidity = UpstreamResponseValidity.Invalid,
+            UpstreamResponseNote = "Invalid detail contract",
         };
 
         return true;

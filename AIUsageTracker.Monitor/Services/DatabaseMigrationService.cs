@@ -126,6 +126,9 @@ public class DatabaseMigrationService
                 requests_available REAL NOT NULL DEFAULT 0,
                 requests_percentage REAL NOT NULL DEFAULT 0,
                 response_latency_ms REAL NOT NULL DEFAULT 0,
+                http_status INTEGER NOT NULL DEFAULT 0,
+                upstream_response_validity INTEGER NOT NULL DEFAULT 0,
+                upstream_response_note TEXT NOT NULL DEFAULT '',
                 fetched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 details_json TEXT,
                 FOREIGN KEY (provider_id) REFERENCES providers(provider_id) ON DELETE CASCADE
@@ -161,6 +164,9 @@ public class DatabaseMigrationService
         EnsureColumn(connection, "providers", "plan_type", "TEXT DEFAULT 'usage'");
         EnsureColumn(connection, "provider_history", "details_json", "TEXT");
         EnsureColumn(connection, "provider_history", "response_latency_ms", "REAL NOT NULL DEFAULT 0");
+        EnsureColumn(connection, "provider_history", "http_status", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(connection, "provider_history", "upstream_response_validity", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(connection, "provider_history", "upstream_response_note", "TEXT NOT NULL DEFAULT ''");
 
         ExecuteNonQuery(connection, @"
             CREATE INDEX IF NOT EXISTS idx_history_provider_time ON provider_history(provider_id, fetched_at);

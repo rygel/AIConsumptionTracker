@@ -65,7 +65,9 @@ public class GeminiProviderTests : HttpProviderTestBase<GeminiProvider>
         var result = await provider.GetUsageAsync(this.Config);
 
         // Assert
-        var usage = result.Single();
+        var usage = Assert.Single(
+            result,
+            item => string.Equals(item.ProviderId, "gemini-cli", StringComparison.Ordinal));
         Assert.True(usage.IsAvailable);
         Assert.Equal("user@example.com", usage.AccountName);
         Assert.Contains("80", usage.RequestsPercentage.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
@@ -135,10 +137,142 @@ public class GeminiProviderTests : HttpProviderTestBase<GeminiProvider>
         var result = await provider.GetUsageAsync(this.Config);
 
         // Assert
-        var usage = result.Single();
+        var usage = Assert.Single(
+            result,
+            item => string.Equals(item.ProviderId, "gemini-cli", StringComparison.Ordinal));
         Assert.True(usage.IsAvailable);
         Assert.Equal(email, usage.AccountName);
         Assert.Equal("Gemini CLI", usage.ProviderName);
+
+        TestTempPaths.CleanupPath(tempDir);
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_DeduplicatesQuotaBucketsAndAssignsWindowKindsAsync()
+    {
+        // Arrange
+        var tempDir = TestTempPaths.CreateDirectory("gemini-bucket-dedupe-test");
+        var accountsPath = Path.Combine(tempDir, "antigravity-accounts.json");
+
+        await File.WriteAllTextAsync(accountsPath, JsonSerializer.Serialize(new
+        {
+            accounts = new[]
+            {
+                new { email = "user@example.com", refreshToken = "rt", projectId = "proj1" },
+            },
+        }));
+
+        var provider = new GeminiProvider(this.HttpClient, this.Logger.Object, accountsPath, Path.Combine(tempDir, "oauth_creds_override.json"));
+
+        this.SetupHttpResponse("https://oauth2.googleapis.com/token", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent("{\"access_token\":\"at\"}"),
+        });
+
+        var quotaResponse = new
+        {
+            buckets = new[]
+            {
+                new { remainingFraction = 0.679, resetTime = "2026-03-12T14:38:28Z", quotaId = "FreeTierRequestsPerMinute" },
+                new { remainingFraction = 0.679, resetTime = "2026-03-12T14:38:28Z", quotaId = "FreeTierRequestsPerMinute" }, // duplicate
+                new { remainingFraction = 0.889, resetTime = "2026-03-12T15:10:00Z", quotaId = "FreeTierRequestsPerHour" },
+                new { remainingFraction = 0.975, resetTime = "2026-03-12T14:35:02Z", quotaId = "FreeTierRequestsPerDay" },
+            },
+        };
+
+        this.SetupHttpResponse("https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent(JsonSerializer.Serialize(quotaResponse)),
+        });
+
+        // Act
+        var result = await provider.GetUsageAsync(this.Config);
+
+        // Assert
+        var usage = Assert.Single(
+            result,
+            item => string.Equals(item.ProviderId, "gemini-cli", StringComparison.Ordinal));
+        Assert.True(usage.IsAvailable);
+        Assert.Null(usage.Details);
+
+        var windowBars = result
+            .Where(item => item.ProviderId.StartsWith("gemini-cli.", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.ProviderId)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        Assert.Equal(new[] { "gemini-cli.daily", "gemini-cli.hourly", "gemini-cli.minute" }, windowBars);
+
+        TestTempPaths.CleanupPath(tempDir);
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_IncludesModelQuotaDetails_WhenBucketsContainModelIdsAsync()
+    {
+        // Arrange
+        var tempDir = TestTempPaths.CreateDirectory("gemini-model-quota-test");
+        var accountsPath = Path.Combine(tempDir, "antigravity-accounts.json");
+
+        await File.WriteAllTextAsync(accountsPath, JsonSerializer.Serialize(new
+        {
+            accounts = new[]
+            {
+                new { email = "user@example.com", refreshToken = "rt", projectId = "proj1" },
+            },
+        }));
+
+        var provider = new GeminiProvider(this.HttpClient, this.Logger.Object, accountsPath, Path.Combine(tempDir, "oauth_creds_override.json"));
+
+        this.SetupHttpResponse("https://oauth2.googleapis.com/token", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent("{\"access_token\":\"at\"}"),
+        });
+
+        var quotaResponse = new
+        {
+            buckets = new object[]
+            {
+                new { remainingFraction = 0.971, resetTime = "2030-03-12T14:53:00Z", quotaId = "FreeTierRequestsPerMinute", modelId = "gemini-2.5-flash-lite" },
+                new { remainingFraction = 0.657, resetTime = "2030-03-12T14:56:00Z", quotaId = "FreeTierRequestsPerHour", modelId = "gemini-3-flash-preview" },
+                new { remainingFraction = 0.657, resetTime = "2030-03-12T14:56:00Z", quotaId = "FreeTierRequestsPerHour", modelId = "gemini-2.5-flash" },
+                new { remainingFraction = 0.000, resetTime = "2030-03-12T17:40:00Z", quotaId = "FreeTierRequestsPerDay", modelId = "gemini-2.5-pro" },
+                new { remainingFraction = 0.000, resetTime = "2030-03-12T17:40:00Z", quotaId = "FreeTierRequestsPerDay", modelId = "gemini-3.1-pro-preview" },
+            },
+        };
+
+        this.SetupHttpResponse("https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent(JsonSerializer.Serialize(quotaResponse)),
+        });
+
+        // Act
+        var result = await provider.GetUsageAsync(this.Config);
+
+        // Assert
+        var usage = Assert.Single(
+            result,
+            item => string.Equals(item.ProviderId, "gemini-cli", StringComparison.Ordinal));
+        Assert.True(usage.IsAvailable);
+        Assert.NotNull(usage.Details);
+
+        var modelDetails = usage.Details!
+            .Where(detail => detail.DetailType == ProviderUsageDetailType.Model)
+            .OrderBy(detail => detail.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        Assert.Equal(5, modelDetails.Count);
+        Assert.Contains(modelDetails, detail => detail.ModelName == "gemini-2.5-pro");
+        Assert.Contains(modelDetails, detail => detail.Name == "Gemini 3.1 Pro Preview");
+        Assert.All(modelDetails, detail => Assert.False(string.IsNullOrWhiteSpace(detail.Used)));
+
+        var windowBars = result
+            .Where(item => item.ProviderId.StartsWith("gemini-cli.", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.ProviderId)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        Assert.Equal(new[] { "gemini-cli.daily", "gemini-cli.hourly", "gemini-cli.minute" }, windowBars);
 
         TestTempPaths.CleanupPath(tempDir);
     }
@@ -213,7 +347,9 @@ public class GeminiProviderTests : HttpProviderTestBase<GeminiProvider>
         var result = await provider.GetUsageAsync(this.Config);
 
         // Assert
-        var usage = result.Single();
+        var usage = Assert.Single(
+            result,
+            item => string.Equals(item.ProviderId, "gemini-cli", StringComparison.Ordinal));
         Assert.True(usage.IsAvailable);
 
         this.MessageHandler.Protected()

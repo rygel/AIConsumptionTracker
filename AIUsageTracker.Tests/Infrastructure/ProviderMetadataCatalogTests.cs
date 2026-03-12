@@ -39,6 +39,8 @@ public class ProviderMetadataCatalogTests
     [Theory]
     [InlineData("codex.spark", "codex", "OpenAI (GPT-5.3-Codex-Spark)")]
     [InlineData("gemini", "gemini-cli", "Google Gemini")]
+    [InlineData("gemini-cli.hourly", "gemini-cli", "Gemini CLI (Hourly)")]
+    [InlineData("gemini-cli.daily", "gemini-cli", "Gemini CLI (Daily)")]
     [InlineData("kimi-for-coding", "kimi", "Kimi")]
     [InlineData("minimax-io", "minimax", "Minimax (International)")]
     [InlineData("minimax-global", "minimax", "Minimax (International)")]

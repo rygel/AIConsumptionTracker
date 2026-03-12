@@ -25,6 +25,18 @@ public class GeminiProvider : ProviderBase
         autoIncludeWhenUnconfigured: true,
         includeInWellKnownProviders: true,
         handledProviderIds: new[] { "gemini-cli", "gemini" },
+        displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["gemini-cli.minute"] = "Gemini CLI (Minute)",
+            ["gemini-cli.hourly"] = "Gemini CLI (Hourly)",
+            ["gemini-cli.daily"] = "Gemini CLI (Daily)",
+            ["gemini-cli.primary"] = "Gemini CLI (Primary)",
+            ["gemini-cli.secondary"] = "Gemini CLI (Secondary)",
+            ["gemini-cli.spark"] = "Gemini CLI (Tertiary)",
+        },
+        supportsChildProviderIds: true,
+        visibleDerivedProviderIds: new[] { "gemini-cli.minute", "gemini-cli.hourly", "gemini-cli.daily" },
+        settingsAdditionalProviderIds: new[] { "gemini-cli.minute", "gemini-cli.hourly", "gemini-cli.daily" },
         discoveryEnvironmentVariables: new[] { "GEMINI_API_KEY", "GOOGLE_API_KEY" },
         rooConfigPropertyNames: new[] { "geminiApiKey" },
         supportsAccountIdentity: true,
@@ -118,36 +130,62 @@ public class GeminiProvider : ProviderBase
                 var accessToken = await this.RefreshTokenAsync(account.RefreshToken).ConfigureAwait(false);
                 var buckets = await this.FetchQuotaAsync(accessToken, account.ProjectId).ConfigureAwait(false);
                 var allBuckets = buckets ?? new List<Bucket>();
+                var normalizedBuckets = NormalizeBuckets(allBuckets);
+                var modelQuotaDetails = BuildModelQuotaDetails(allBuckets);
+                this._logger.LogDebug(
+                    "Gemini quota normalized to {BucketCount} bucket(s) for {AccountEmail}: {Buckets}",
+                    normalizedBuckets.Count,
+                    account.Email,
+                    string.Join(
+                        ", ",
+                        normalizedBuckets.Select(bucket =>
+                        {
+                            var quotaId = TryGetQuotaId(bucket) ?? "unknown";
+                            var remaining = UsageMath.ClampPercent(bucket.RemainingFraction * 100.0);
+                            var reset = bucket.ResetTime ?? "none";
+                            return $"{quotaId}:{remaining:F1}%@{reset}";
+                        })));
 
                 double minFrac = 1.0;
                 string mainResetStr = string.Empty;
                 DateTime? soonestResetDt = null;
-                var details = new List<ProviderUsageDetail>();
+                var quotaWindowDetails = new List<ProviderUsageDetail>();
 
-                if (allBuckets.Any())
+                if (normalizedBuckets.Any())
                 {
-                    foreach (var bucket in allBuckets)
+                    for (var bucketIndex = 0; bucketIndex < normalizedBuckets.Count; bucketIndex++)
                     {
+                        var bucket = normalizedBuckets[bucketIndex];
                         minFrac = Math.Min(minFrac, bucket.RemainingFraction);
-                        string name = "Quota Bucket";
-                        if (bucket.ExtensionData != null && bucket.ExtensionData.TryGetValue("quotaId", out var qidElement))
+                        var quotaId = TryGetQuotaId(bucket);
+                        var name = GetQuotaBucketName(quotaId);
+                        var windowKind = GetQuotaBucketWindowKind(quotaId);
+                        if (string.IsNullOrWhiteSpace(quotaId) && normalizedBuckets.Count > 1)
                         {
-                            var qid = qidElement;
-                            name = System.Text.RegularExpressions.Regex.Replace(name, "(?<lower>[a-z])(?<upper>[A-Z])", "${lower} ${upper}", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
-                            name = name.Replace("Requests Per Day", "(Day)").Replace("Requests Per Minute", "(Min)");
+                            name = bucketIndex switch
+                            {
+                                0 => "Quota Bucket (Primary)",
+                                1 => "Quota Bucket (Secondary)",
+                                _ => "Quota Bucket (Tertiary)",
+                            };
+                            windowKind = bucketIndex switch
+                            {
+                                0 => WindowKind.Primary,
+                                1 => WindowKind.Secondary,
+                                _ => WindowKind.Spark,
+                            };
                         }
 
                         var bucketRemainingPercentage = UsageMath.ClampPercent(bucket.RemainingFraction * 100.0);
                         string? resetTime = bucket.ResetTime;
 
-                        if (string.IsNullOrEmpty(resetTime) && bucket.ExtensionData != null && bucket.ExtensionData.TryGetValue("quotaId", out qidElement))
+                        if (string.IsNullOrEmpty(resetTime))
                         {
-                            var qid = qidElement.ToString();
-                            if (qid.Contains("RequestsPerDay", StringComparison.OrdinalIgnoreCase))
+                            if (!string.IsNullOrWhiteSpace(quotaId) && quotaId.Contains("RequestsPerDay", StringComparison.OrdinalIgnoreCase))
                             {
                                 resetTime = DateTime.UtcNow.Date.AddDays(1).ToString("o");
                             }
-                            else if (qid.Contains("RequestsPerMinute", StringComparison.OrdinalIgnoreCase))
+                            else if (!string.IsNullOrWhiteSpace(quotaId) && quotaId.Contains("RequestsPerMinute", StringComparison.OrdinalIgnoreCase))
                             {
                                 resetTime = DateTime.UtcNow.AddMinutes(1).ToString("o");
                             }
@@ -169,25 +207,33 @@ public class GeminiProvider : ProviderBase
                             }
                         }
 
-                        details.Add(new ProviderUsageDetail
+                        quotaWindowDetails.Add(new ProviderUsageDetail
                         {
                             Name = name,
                             Used = $"{bucketRemainingPercentage:F1}%",
                             Description = $"{bucket.RemainingFraction:P1} remaining{resetStr}",
                             NextResetTime = itemResetDt,
                             DetailType = ProviderUsageDetailType.QuotaWindow,
-                            WindowKind = WindowKind.Primary,
+                            WindowKind = windowKind,
                         });
                     }
                 }
 
-                // Sort details
-                details = details.OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                var sortedQuotaWindowDetails = quotaWindowDetails
+                    .OrderBy(GetDetailSortOrder)
+                    .ThenBy(d => d.WindowKind)
+                    .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                var sortedModelQuotaDetails = modelQuotaDetails
+                    .OrderBy(GetDetailSortOrder)
+                    .ThenBy(d => d.WindowKind)
+                    .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
 
                 var remainingPercentage = UsageMath.ClampPercent(minFrac * 100.0);
                 var usedPercentage = 100.0 - remainingPercentage;
 
-                var soonestBucket = allBuckets.Where(b => !string.IsNullOrEmpty(b.ResetTime))
+                var soonestBucket = normalizedBuckets.Where(b => !string.IsNullOrEmpty(b.ResetTime))
                                               .OrderBy(b => DateTime.TryParse(b.ResetTime, System.Globalization.CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt) ? dt : DateTime.MaxValue)
                                              .FirstOrDefault();
 
@@ -201,7 +247,7 @@ public class GeminiProvider : ProviderBase
                     }
                 }
 
-                results.Add(new ProviderUsage
+                var summaryUsage = new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
                     ProviderName = "Gemini CLI",
@@ -214,10 +260,12 @@ public class GeminiProvider : ProviderBase
                     AccountName = account.Email, // Separate usage per account
                     Description = $"{remainingPercentage:F1}% Remaining{mainResetStr}",
                     NextResetTime = soonestResetDt,
-                    Details = details,
+                    Details = sortedModelQuotaDetails.Count > 0 ? sortedModelQuotaDetails : null,
                     RawJson = JsonSerializer.Serialize(new { buckets = allBuckets }),
                     HttpStatus = 200,
-                });
+                };
+                results.Add(summaryUsage);
+                results.AddRange(CreateQuotaWindowUsages(summaryUsage, sortedQuotaWindowDetails));
             }
             catch (Exception ex)
             {
@@ -605,6 +653,399 @@ public class GeminiProvider : ProviderBase
         return value[..maxLength] + "...";
     }
 
+    private static List<Bucket> NormalizeBuckets(IEnumerable<Bucket> buckets)
+    {
+        var deduplicated = new List<Bucket>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var bucket in buckets)
+        {
+            var quotaId = TryGetQuotaId(bucket) ?? "unknown";
+            var reset = bucket.ResetTime ?? string.Empty;
+            var fraction = bucket.RemainingFraction.ToString("F6", CultureInfo.InvariantCulture);
+            var key = $"{quotaId}|{reset}|{fraction}";
+            if (seen.Add(key))
+            {
+                deduplicated.Add(bucket);
+            }
+        }
+
+        // Gemini CLI commonly reports minute/day windows; keep those first.
+        var prioritized = deduplicated
+            .OrderByDescending(b => IsKnownQuotaWindow(TryGetQuotaId(b)))
+            .ThenBy(b => TryGetQuotaId(b), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(b => b.ResetTime, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var knownWindows = prioritized
+            .Where(bucket => IsKnownQuotaWindow(TryGetQuotaId(bucket)))
+            .GroupBy(bucket => TryGetQuotaId(bucket), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderBy(bucket => bucket.ResetTime, StringComparer.OrdinalIgnoreCase)
+                .First())
+            .ToList();
+
+        if (knownWindows.Count > 0)
+        {
+            return knownWindows;
+        }
+
+        var resetClustered = prioritized
+            .GroupBy(GetResetClusterKey, StringComparer.Ordinal)
+            .Select(group => group
+                .OrderBy(bucket => bucket.RemainingFraction)
+                .ThenBy(bucket => bucket.ResetTime, StringComparer.OrdinalIgnoreCase)
+                .First())
+            .OrderBy(bucket => bucket.ResetTime, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (resetClustered.Count <= 3)
+        {
+            return resetClustered;
+        }
+
+        // Keep shortest, middle, and longest reset horizons to represent three distinct CLI buckets.
+        var middleIndex = resetClustered.Count / 2;
+        return new List<Bucket>
+        {
+            resetClustered.First(),
+            resetClustered[middleIndex],
+            resetClustered.Last(),
+        };
+    }
+
+    private static string? TryGetQuotaId(Bucket bucket)
+    {
+        if (!string.IsNullOrWhiteSpace(bucket.QuotaId))
+        {
+            return bucket.QuotaId;
+        }
+
+        if (bucket.ExtensionData == null || !bucket.ExtensionData.TryGetValue("quotaId", out var quotaIdElement))
+        {
+            return null;
+        }
+
+        var quotaId = quotaIdElement.ValueKind == JsonValueKind.String
+            ? quotaIdElement.GetString()
+            : quotaIdElement.ToString();
+        return string.IsNullOrWhiteSpace(quotaId) ? null : quotaId;
+    }
+
+    private static bool IsKnownQuotaWindow(string? quotaId)
+    {
+        if (string.IsNullOrWhiteSpace(quotaId))
+        {
+            return false;
+        }
+
+        return quotaId.Contains("RequestsPerMinute", StringComparison.OrdinalIgnoreCase)
+            || quotaId.Contains("RequestsPerHour", StringComparison.OrdinalIgnoreCase)
+            || quotaId.Contains("RequestsPerDay", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetResetClusterKey(Bucket bucket)
+    {
+        if (!DateTime.TryParse(bucket.ResetTime, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var reset))
+        {
+            return string.IsNullOrWhiteSpace(bucket.ResetTime)
+                ? "unknown-reset"
+                : bucket.ResetTime!;
+        }
+
+        var clusterMinutes = (long)Math.Floor(reset.ToUniversalTime().TimeOfDay.TotalMinutes / 10.0) * 10L;
+        return $"reset:{clusterMinutes}";
+    }
+
+    private static string GetQuotaBucketName(string? quotaId)
+    {
+        if (string.IsNullOrWhiteSpace(quotaId))
+        {
+            return "Quota Window";
+        }
+
+        if (quotaId.Contains("RequestsPerMinute", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Requests / Minute";
+        }
+
+        if (quotaId.Contains("RequestsPerDay", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Requests / Day";
+        }
+
+        if (quotaId.Contains("RequestsPerHour", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Requests / Hour";
+        }
+
+        return "Quota Window";
+    }
+
+    private static WindowKind GetQuotaBucketWindowKind(string? quotaId)
+    {
+        if (!string.IsNullOrWhiteSpace(quotaId) && quotaId.Contains("RequestsPerMinute", StringComparison.OrdinalIgnoreCase))
+        {
+            return WindowKind.Primary;
+        }
+
+        if (!string.IsNullOrWhiteSpace(quotaId) && quotaId.Contains("RequestsPerHour", StringComparison.OrdinalIgnoreCase))
+        {
+            return WindowKind.Secondary;
+        }
+
+        if (!string.IsNullOrWhiteSpace(quotaId) && quotaId.Contains("RequestsPerDay", StringComparison.OrdinalIgnoreCase))
+        {
+            return WindowKind.Spark;
+        }
+
+        return WindowKind.Primary;
+    }
+
+    private static int GetDetailSortOrder(ProviderUsageDetail detail)
+    {
+        return detail.DetailType switch
+        {
+            ProviderUsageDetailType.QuotaWindow => 0,
+            ProviderUsageDetailType.Model => 1,
+            _ => 2,
+        };
+    }
+
+    private static IReadOnlyList<ProviderUsage> CreateQuotaWindowUsages(
+        ProviderUsage summaryUsage,
+        IReadOnlyCollection<ProviderUsageDetail> quotaWindowDetails)
+    {
+        if (quotaWindowDetails.Count == 0)
+        {
+            return Array.Empty<ProviderUsage>();
+        }
+
+        var children = new List<ProviderUsage>(quotaWindowDetails.Count);
+        var seenProviderIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var detail in quotaWindowDetails)
+        {
+            if (!TryResolveQuotaWindowChildIdentity(detail, out var childProviderId, out var childDisplayName))
+            {
+                continue;
+            }
+
+            if (!seenProviderIds.Add(childProviderId))
+            {
+                continue;
+            }
+
+            var usedPercent = UsageMath.GetEffectiveUsedPercent(detail, parentIsQuota: true);
+            if (!usedPercent.HasValue)
+            {
+                continue;
+            }
+
+            var clampedUsedPercent = UsageMath.ClampPercent(usedPercent.Value);
+            var remainingPercent = UsageMath.ClampPercent(100.0 - clampedUsedPercent);
+            children.Add(new ProviderUsage
+            {
+                ProviderId = childProviderId,
+                ProviderName = childDisplayName,
+                RequestsPercentage = remainingPercent,
+                RequestsUsed = clampedUsedPercent,
+                RequestsAvailable = 100,
+                UsageUnit = summaryUsage.UsageUnit,
+                IsQuotaBased = true,
+                PlanType = summaryUsage.PlanType,
+                IsAvailable = summaryUsage.IsAvailable,
+                Description = $"{remainingPercent:F1}% Remaining",
+                AuthSource = summaryUsage.AuthSource,
+                AccountName = summaryUsage.AccountName,
+                NextResetTime = detail.NextResetTime,
+                FetchedAt = summaryUsage.FetchedAt,
+                ResponseLatencyMs = summaryUsage.ResponseLatencyMs,
+                HttpStatus = summaryUsage.HttpStatus,
+                UpstreamResponseValidity = summaryUsage.UpstreamResponseValidity,
+                UpstreamResponseNote = summaryUsage.UpstreamResponseNote,
+            });
+        }
+
+        return children;
+    }
+
+    private static bool TryResolveQuotaWindowChildIdentity(
+        ProviderUsageDetail detail,
+        out string childProviderId,
+        out string childDisplayName)
+    {
+        var name = (detail.Name ?? string.Empty).Trim();
+        if (name.Contains("Minute", StringComparison.OrdinalIgnoreCase))
+        {
+            childProviderId = "gemini-cli.minute";
+            childDisplayName = "Gemini CLI (Minute)";
+            return true;
+        }
+
+        if (name.Contains("Hour", StringComparison.OrdinalIgnoreCase))
+        {
+            childProviderId = "gemini-cli.hourly";
+            childDisplayName = "Gemini CLI (Hourly)";
+            return true;
+        }
+
+        if (name.Contains("Day", StringComparison.OrdinalIgnoreCase))
+        {
+            childProviderId = "gemini-cli.daily";
+            childDisplayName = "Gemini CLI (Daily)";
+            return true;
+        }
+
+        switch (detail.WindowKind)
+        {
+            case WindowKind.Primary:
+                childProviderId = "gemini-cli.primary";
+                childDisplayName = "Gemini CLI (Primary)";
+                return true;
+            case WindowKind.Secondary:
+                childProviderId = "gemini-cli.secondary";
+                childDisplayName = "Gemini CLI (Secondary)";
+                return true;
+            case WindowKind.Spark:
+                childProviderId = "gemini-cli.spark";
+                childDisplayName = "Gemini CLI (Tertiary)";
+                return true;
+            default:
+                childProviderId = string.Empty;
+                childDisplayName = string.Empty;
+                return false;
+        }
+    }
+
+    private static IReadOnlyList<ProviderUsageDetail> BuildModelQuotaDetails(IEnumerable<Bucket> buckets)
+    {
+        var modelBuckets = buckets
+            .Select(bucket => new
+            {
+                Bucket = bucket,
+                ModelId = TryGetModelId(bucket),
+            })
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.ModelId))
+            .ToList();
+        if (modelBuckets.Count == 0)
+        {
+            return Array.Empty<ProviderUsageDetail>();
+        }
+
+        var details = new List<ProviderUsageDetail>();
+        foreach (var modelGroup in modelBuckets.GroupBy(entry => entry.ModelId!, StringComparer.OrdinalIgnoreCase))
+        {
+            var representative = modelGroup
+                .OrderBy(entry => entry.Bucket.RemainingFraction)
+                .ThenBy(entry => ParseResetTimeLocal(entry.Bucket.ResetTime) ?? DateTime.MaxValue)
+                .Select(entry => entry.Bucket)
+                .FirstOrDefault();
+            if (representative == null)
+            {
+                continue;
+            }
+
+            var remainingPercent = UsageMath.ClampPercent(representative.RemainingFraction * 100.0);
+            var resetTime = ParseResetTimeLocal(representative.ResetTime);
+            var resetSuffix = resetTime.HasValue ? $" (Resets: ({resetTime.Value:MMM dd HH:mm}))" : string.Empty;
+
+            details.Add(new ProviderUsageDetail
+            {
+                Name = FormatGeminiModelDisplayName(modelGroup.Key),
+                ModelName = modelGroup.Key,
+                Used = $"{remainingPercent:F1}%",
+                Description = $"{remainingPercent:F1}% remaining{resetSuffix}",
+                NextResetTime = resetTime,
+                DetailType = ProviderUsageDetailType.Model,
+                WindowKind = WindowKind.None,
+            });
+        }
+
+        return details
+            .OrderBy(detail => detail.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string? TryGetModelId(Bucket bucket)
+    {
+        if (!string.IsNullOrWhiteSpace(bucket.ModelId))
+        {
+            return bucket.ModelId;
+        }
+
+        if (bucket.ExtensionData == null || !bucket.ExtensionData.TryGetValue("modelId", out var modelIdElement))
+        {
+            return null;
+        }
+
+        var modelId = modelIdElement.ValueKind == JsonValueKind.String
+            ? modelIdElement.GetString()
+            : modelIdElement.ToString();
+        return string.IsNullOrWhiteSpace(modelId) ? null : modelId;
+    }
+
+    private static DateTime? ParseResetTimeLocal(string? resetTime)
+    {
+        if (string.IsNullOrWhiteSpace(resetTime))
+        {
+            return null;
+        }
+
+        if (!DateTime.TryParse(resetTime, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var parsed))
+        {
+            return null;
+        }
+
+        var local = parsed.ToLocalTime();
+        return local > DateTime.Now ? local : null;
+    }
+
+    private static string FormatGeminiModelDisplayName(string modelId)
+    {
+        if (string.IsNullOrWhiteSpace(modelId))
+        {
+            return "Gemini Model";
+        }
+
+        var normalized = modelId.Trim();
+        if (normalized.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = "gemini " + normalized["gemini-".Length..];
+        }
+        normalized = normalized.Replace("-", " ", StringComparison.Ordinal);
+
+        var tokens = normalized
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(NormalizeModelToken)
+            .ToList();
+
+        return tokens.Count == 0 ? modelId : string.Join(' ', tokens);
+    }
+
+    private static string NormalizeModelToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return token;
+        }
+
+        if (token.Any(char.IsDigit))
+        {
+            return token.ToLowerInvariant();
+        }
+
+        return token.ToLowerInvariant() switch
+        {
+            "gemini" => "Gemini",
+            "pro" => "Pro",
+            "flash" => "Flash",
+            "lite" => "Lite",
+            "preview" => "Preview",
+            "exp" => "Exp",
+            _ => char.ToUpperInvariant(token[0]) + token[1..].ToLowerInvariant(),
+        };
+    }
+
     private class AntigravityAccounts
     {
         public List<Account>? Accounts { get; set; }
@@ -659,6 +1100,15 @@ public class GeminiProvider : ProviderBase
 
         [JsonPropertyName("resetTime")]
         public string? ResetTime { get; set; }
+
+        [JsonPropertyName("quotaId")]
+        public string? QuotaId { get; set; }
+
+        [JsonPropertyName("modelId")]
+        public string? ModelId { get; set; }
+
+        [JsonPropertyName("tokenType")]
+        public string? TokenType { get; set; }
 
         [JsonExtensionData]
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }

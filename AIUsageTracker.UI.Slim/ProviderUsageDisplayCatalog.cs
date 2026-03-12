@@ -21,8 +21,11 @@ internal static class ProviderUsageDisplayCatalog
 
         filteredUsages = filteredUsages
             .Where(ShouldDisplayUsage(collapsedParentProviderIds, capabilities))
+            .ToList();
+
+        filteredUsages = filteredUsages
             .GroupBy(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
+            .Select(SelectPreferredUsage)
             .ToList();
 
         return new ProviderRenderPreparation(filteredUsages, hasAntigravityParent);
@@ -77,6 +80,41 @@ internal static class ProviderUsageDisplayCatalog
     private static bool IsAntigravityParent(ProviderUsage usage, AgentProviderCapabilitiesSnapshot? capabilities)
     {
         return ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty, capabilities);
+    }
+
+    private static ProviderUsage SelectPreferredUsage(IGrouping<string, ProviderUsage> group)
+    {
+        return group
+            .OrderByDescending(GetSelectionScore)
+            .ThenByDescending(usage => usage.FetchedAt)
+            .First();
+    }
+
+    private static int GetSelectionScore(ProviderUsage usage)
+    {
+        var score = 0;
+        if (usage.IsAvailable)
+        {
+            score += 1000;
+        }
+
+        if (usage.HttpStatus is >= 200 and < 300)
+        {
+            score += 100;
+        }
+
+        if (usage.Details?.Count > 0)
+        {
+            score += usage.Details.Count;
+            score += usage.Details.Count(detail => detail.DetailType == ProviderUsageDetailType.QuotaWindow) * 50;
+        }
+
+        if (usage.NextResetTime.HasValue)
+        {
+            score += 10;
+        }
+
+        return score;
     }
 
     private static ProviderUsage CreateAntigravityModelUsage(

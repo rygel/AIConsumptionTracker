@@ -93,7 +93,10 @@ public class UsageDatabase : IUsageDatabase
                 ON CONFLICT(provider_id) DO UPDATE SET
                     provider_name = excluded.provider_name,
                     auth_source = excluded.auth_source,
-                    account_name = excluded.account_name,
+                    account_name = CASE
+                        WHEN excluded.account_name IS NOT NULL AND excluded.account_name != '' THEN excluded.account_name
+                        ELSE providers.account_name
+                    END,
                     updated_at = CURRENT_TIMESTAMP,
                     config_json = excluded.config_json,
                     is_active = 1";
@@ -165,12 +168,14 @@ public class UsageDatabase : IUsageDatabase
                     provider_id,
                     requests_used, requests_available, requests_percentage,
                     is_available, status_message, next_reset_time, fetched_at,
-                    details_json, response_latency_ms
+                    details_json, response_latency_ms, http_status,
+                    upstream_response_validity, upstream_response_note
                 ) VALUES (
                     @ProviderId,
                     @RequestsUsed, @RequestsAvailable, @RequestsPercentage,
                     @IsAvailable, @StatusMessage, @NextResetTime, @FetchedAt,
-                    @DetailsJson, @ResponseLatencyMs
+                    @DetailsJson, @ResponseLatencyMs, @HttpStatus,
+                    @UpstreamResponseValidity, @UpstreamResponseNote
                 )";
 
             var providerUpsertParameters = validUsages.Select(u => new
@@ -198,6 +203,13 @@ public class UsageDatabase : IUsageDatabase
                     ? JsonSerializer.Serialize(u.Details)
                     : null,
                 ResponseLatencyMs = u.ResponseLatencyMs,
+                HttpStatus = u.HttpStatus,
+                UpstreamResponseValidity = (int)(u.UpstreamResponseValidity == UpstreamResponseValidity.Unknown
+                    ? UpstreamResponseValidityCatalog.Evaluate(u).Validity
+                    : u.UpstreamResponseValidity),
+                UpstreamResponseNote = string.IsNullOrWhiteSpace(u.UpstreamResponseNote)
+                    ? UpstreamResponseValidityCatalog.Evaluate(u).Note
+                    : u.UpstreamResponseNote,
             });
 
             await connection.ExecuteAsync(sql, parameters).ConfigureAwait(false);
@@ -307,6 +319,9 @@ public class UsageDatabase : IUsageDatabase
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
                        h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson,
                        h.response_latency_ms AS ResponseLatencyMs,
+                       h.http_status AS HttpStatus,
+                       COALESCE(h.upstream_response_validity, 0) AS UpstreamResponseValidity,
+                       COALESCE(h.upstream_response_note, '') AS UpstreamResponseNote,
                        COALESCE(p.account_name, '') AS AccountName,
                        COALESCE(p.auth_source, '') AS AuthSource
                 FROM provider_history h
@@ -353,6 +368,8 @@ public class UsageDatabase : IUsageDatabase
                 {
                     usage.DisplayAsFraction = true;
                 }
+
+                ApplyUpstreamResponseValidity(usage);
             }
 
             return results;
@@ -545,6 +562,13 @@ public class UsageDatabase : IUsageDatabase
             : $"{baseDescription} {staleSuffix}";
     }
 
+    private static void ApplyUpstreamResponseValidity(ProviderUsage usage)
+    {
+        var evaluation = UpstreamResponseValidityCatalog.Evaluate(usage);
+        usage.UpstreamResponseValidity = evaluation.Validity;
+        usage.UpstreamResponseNote = evaluation.Note;
+    }
+
     private sealed record RecentProviderDetailsRow(string ProviderId, string DetailsJson, string FetchedAt);
 
     private sealed record RecentDetailSnapshot(ProviderUsageDetail Detail, DateTime FetchedAtUtc);
@@ -564,7 +588,10 @@ public class UsageDatabase : IUsageDatabase
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
                        h.next_reset_time AS NextResetTime,
                        h.details_json AS DetailsJson,
-                       h.response_latency_ms AS ResponseLatencyMs
+                       h.response_latency_ms AS ResponseLatencyMs,
+                       h.http_status AS HttpStatus,
+                       COALESCE(h.upstream_response_validity, 0) AS UpstreamResponseValidity,
+                       COALESCE(h.upstream_response_note, '') AS UpstreamResponseNote
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
                 ORDER BY h.fetched_at DESC
@@ -585,6 +612,11 @@ public class UsageDatabase : IUsageDatabase
                 {
                     this._logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
                 }
+            }
+
+            foreach (var usage in results)
+            {
+                ApplyUpstreamResponseValidity(usage);
             }
 
             return results;
@@ -610,7 +642,10 @@ public class UsageDatabase : IUsageDatabase
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
                        h.next_reset_time AS NextResetTime,
                        h.details_json AS DetailsJson,
-                       h.response_latency_ms AS ResponseLatencyMs
+                       h.response_latency_ms AS ResponseLatencyMs,
+                       h.http_status AS HttpStatus,
+                       COALESCE(h.upstream_response_validity, 0) AS UpstreamResponseValidity,
+                       COALESCE(h.upstream_response_note, '') AS UpstreamResponseNote
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.provider_id = @ProviderId
@@ -632,6 +667,11 @@ public class UsageDatabase : IUsageDatabase
                 {
                     this._logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
                 }
+            }
+
+            foreach (var usage in results)
+            {
+                ApplyUpstreamResponseValidity(usage);
             }
 
             return results;
@@ -659,13 +699,16 @@ public class UsageDatabase : IUsageDatabase
                            h.next_reset_time AS NextResetTime,
                            h.details_json AS DetailsJson,
                            h.response_latency_ms AS ResponseLatencyMs,
+                           h.http_status AS HttpStatus,
+                           COALESCE(h.upstream_response_validity, 0) AS UpstreamResponseValidity,
+                           COALESCE(h.upstream_response_note, '') AS UpstreamResponseNote,
                            ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY h.fetched_at DESC) as pos
                     FROM provider_history h
                     JOIN providers p ON h.provider_id = p.provider_id
                 )
                 SELECT ProviderId, ProviderName, RequestsUsed, RequestsAvailable,
                        RequestsPercentage, IsAvailable, Description, FetchedAt, NextResetTime,
-                       DetailsJson, ResponseLatencyMs
+                       DetailsJson, ResponseLatencyMs, HttpStatus, UpstreamResponseValidity, UpstreamResponseNote
                 FROM RankedHistory
                 WHERE pos <= @Count
                 ORDER BY ProviderId, FetchedAt DESC";
@@ -682,6 +725,11 @@ public class UsageDatabase : IUsageDatabase
                 {
                     this._logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
                 }
+            }
+
+            foreach (var usage in results)
+            {
+                ApplyUpstreamResponseValidity(usage);
             }
 
             return results;
