@@ -392,7 +392,20 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             return true;
         }
 
-        return usageProviderId.StartsWith($"{providerId}.", StringComparison.OrdinalIgnoreCase);
+        if (usageProviderId.StartsWith($"{providerId}.", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+        var canonicalUsageProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(usageProviderId);
+
+        if (canonicalUsageProviderId.Equals(canonicalProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return usageProviderId.StartsWith($"{canonicalProviderId}.", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool IsPlaceholderUnavailableUsage(ProviderUsage usage)

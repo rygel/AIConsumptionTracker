@@ -196,6 +196,29 @@ public class ProviderUsageProcessingPipelineTests
     }
 
     [Fact]
+    public void Process_WhenUsageMatchesCanonicalProviderAlias_KeepsEntry()
+    {
+        var usage = new ProviderUsage
+        {
+            ProviderId = "gemini-cli.hourly",
+            ProviderName = "Gemini CLI (Hourly)",
+            RequestsUsed = 20,
+            RequestsAvailable = 100,
+            RequestsPercentage = 80,
+            IsAvailable = true,
+        };
+
+        var result = this._pipeline.Process(
+            new[] { usage },
+            new[] { "gemini" },
+            isPrivacyMode: false);
+
+        var accepted = Assert.Single(result.Usages);
+        Assert.Equal("gemini-cli.hourly", accepted.ProviderId);
+        Assert.Equal(0, result.InactiveProviderFilteredCount);
+    }
+
+    [Fact]
     public void Process_WhenProviderIdMissing_FiltersInvalidIdentity()
     {
         var usage = new ProviderUsage
