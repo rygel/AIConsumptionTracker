@@ -308,12 +308,21 @@ public class JsonConfigLoader : IConfigLoader
     public async Task<AppPreferences> LoadPreferencesAsync()
     {
         var path = this.GetPreferencesPath();
-        return await JsonConfigFileStore.ReadAsync<AppPreferences>(
-                   path,
-                   this._logger,
-                   "Failed to load preferences from {Path}; using default preferences")
-               .ConfigureAwait(false)
-               ?? new AppPreferences();
+        if (!File.Exists(path))
+        {
+            return new AppPreferences();
+        }
+
+        try
+        {
+            var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
+            return AppPreferences.Deserialize(json);
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogDebug(ex, "Failed to load preferences from {Path}; using default preferences", path);
+            return new AppPreferences();
+        }
     }
 
     public async Task SavePreferencesAsync(AppPreferences preferences)

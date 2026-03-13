@@ -116,11 +116,13 @@ public class KimiProvider : ProviderBase
                 details.Add(new ProviderUsageDetail
                 {
                     Name = "Weekly Limit",
-                    Used = $"{weeklyUsedPct.ToString("F1", CultureInfo.InvariantCulture)}% used",
                     Description = $"{remaining} remaining{(!string.IsNullOrEmpty(data.Usage.ResetTime) ? $" (Resets: {this.FormatResetTime(data.Usage.ResetTime)})" : string.Empty)}",
                     NextResetTime = weeklyResetDt,
                     DetailType = ProviderUsageDetailType.QuotaWindow,
                     QuotaBucketKind = WindowKind.Secondary,
+                    PercentageValue = weeklyUsedPct,
+                    PercentageSemantic = PercentageValueSemantic.Used,
+                    PercentageDecimalPlaces = 1,
                 });
             }
 
@@ -164,11 +166,13 @@ public class KimiProvider : ProviderBase
                     details.Add(new ProviderUsageDetail
                     {
                         Name = name,
-                        Used = $"{itemUsedPercentage.ToString("F1", CultureInfo.InvariantCulture)}% used",
                         Description = $"{det.Remaining} / {det.Limit} remaining (Resets: {resetDisplay})",
                         NextResetTime = itemResetDt,
                         DetailType = ProviderUsageDetailType.QuotaWindow,
                         QuotaBucketKind = quotaBucketKind,
+                        PercentageValue = itemUsedPercentage,
+                        PercentageSemantic = PercentageValueSemantic.Used,
+                        PercentageDecimalPlaces = 1,
                     });
                 }
             }

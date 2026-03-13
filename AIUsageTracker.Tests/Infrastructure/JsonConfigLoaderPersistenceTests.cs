@@ -123,6 +123,65 @@ public sealed class JsonConfigLoaderPersistenceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task LoadPreferencesAsync_LegacyInvertFlags_MapToUsedDisplayModeAsync()
+    {
+        var authPath = this.CreateFile("config/auth.json", "{}");
+        var providersPath = this.CreateFile("config/providers.json", "{}");
+        var preferencesPath = this.CreateFile("config/preferences.json", "{\"InvertCalculations\":true}");
+
+        var mockPathProvider = new Mock<IAppPathProvider>();
+        mockPathProvider.Setup(p => p.GetAuthFilePath()).Returns(authPath);
+        mockPathProvider.Setup(p => p.GetProviderConfigFilePath()).Returns(providersPath);
+        mockPathProvider.Setup(p => p.GetPreferencesFilePath()).Returns(preferencesPath);
+        mockPathProvider.Setup(p => p.GetUserProfileRoot()).Returns(this.TestRootPath);
+        mockPathProvider.Setup(p => p.GetAppDataRoot()).Returns(this.TestRootPath);
+        mockPathProvider.Setup(p => p.GetDatabasePath()).Returns(Path.Combine(this.TestRootPath, "usage.db"));
+        mockPathProvider.Setup(p => p.GetLogDirectory()).Returns(Path.Combine(this.TestRootPath, "logs"));
+
+        var loader = new JsonConfigLoader(
+            logger: NullLogger<JsonConfigLoader>.Instance,
+            tokenDiscoveryLogger: NullLogger<TokenDiscoveryService>.Instance,
+            pathProvider: mockPathProvider.Object);
+
+        var preferences = await loader.LoadPreferencesAsync();
+
+        Assert.True(preferences.ShowUsedPercentages);
+        Assert.Equal(PercentageDisplayMode.Used, preferences.PercentageDisplayMode);
+        Assert.Equal(AppPreferences.CurrentSchemaVersion, preferences.SchemaVersion);
+    }
+
+    [Fact]
+    public async Task SavePreferencesAsync_WritesDisplayModeWithoutLegacyInvertFlagsAsync()
+    {
+        var authPath = this.CreateFile("config/auth.json", "{}");
+        var providersPath = this.CreateFile("config/providers.json", "{}");
+        var preferencesPath = Path.Combine(this.TestRootPath, "config", "preferences.json");
+
+        var mockPathProvider = new Mock<IAppPathProvider>();
+        mockPathProvider.Setup(p => p.GetAuthFilePath()).Returns(authPath);
+        mockPathProvider.Setup(p => p.GetProviderConfigFilePath()).Returns(providersPath);
+        mockPathProvider.Setup(p => p.GetPreferencesFilePath()).Returns(preferencesPath);
+        mockPathProvider.Setup(p => p.GetUserProfileRoot()).Returns(this.TestRootPath);
+        mockPathProvider.Setup(p => p.GetAppDataRoot()).Returns(this.TestRootPath);
+        mockPathProvider.Setup(p => p.GetDatabasePath()).Returns(Path.Combine(this.TestRootPath, "usage.db"));
+        mockPathProvider.Setup(p => p.GetLogDirectory()).Returns(Path.Combine(this.TestRootPath, "logs"));
+
+        var loader = new JsonConfigLoader(
+            logger: NullLogger<JsonConfigLoader>.Instance,
+            tokenDiscoveryLogger: NullLogger<TokenDiscoveryService>.Instance,
+            pathProvider: mockPathProvider.Object);
+
+        await loader.SavePreferencesAsync(new AppPreferences { ShowUsedPercentages = true });
+
+        var json = await File.ReadAllTextAsync(preferencesPath);
+
+        Assert.Contains($"\"SchemaVersion\": {AppPreferences.CurrentSchemaVersion}", json, StringComparison.Ordinal);
+        Assert.Contains("\"PercentageDisplayMode\": \"Used\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("InvertCalculations", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("InvertProgressBar", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task LoadPreferencesAsync_DoesNotUseLegacyAuthSettings_WhenCanonicalPreferencesFileIsMissingAsync()
     {
         var authPath = this.CreateFile("config/auth.json", "{\"app_settings\":{\"Theme\":1}}");

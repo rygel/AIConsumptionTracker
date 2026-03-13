@@ -35,6 +35,7 @@ public partial class SettingsWindow : Window
     private readonly ILogger<SettingsWindow> _logger;
     private readonly IAppPathProvider _pathProvider;
     private readonly UiPreferencesStore _preferencesStore;
+    private readonly DisplayPreferencesService _displayPreferences;
     private readonly SemaphoreSlim _autoSaveSemaphore = new(1, 1);
     private readonly DispatcherTimer _autoSaveTimer;
 
@@ -51,7 +52,8 @@ public partial class SettingsWindow : Window
         IMonitorLifecycleService monitorLifecycleService,
         ILogger<SettingsWindow> logger,
         UiPreferencesStore preferencesStore,
-        IAppPathProvider pathProvider)
+        IAppPathProvider pathProvider,
+        DisplayPreferencesService displayPreferences)
     {
         this._autoSaveTimer = new DispatcherTimer
         {
@@ -65,6 +67,7 @@ public partial class SettingsWindow : Window
         this._logger = logger;
         this._pathProvider = pathProvider;
         this._preferencesStore = preferencesStore;
+        this._displayPreferences = displayPreferences;
         App.PrivacyChanged += this.OnPrivacyChanged;
         this.Closed += this.SettingsWindow_Closed;
         this.Loaded += this.SettingsWindow_Loaded;
@@ -77,7 +80,8 @@ public partial class SettingsWindow : Window
         App.Host.Services.GetRequiredService<IMonitorLifecycleService>(),
         App.Host.Services.GetRequiredService<ILogger<SettingsWindow>>(),
         App.Host.Services.GetRequiredService<UiPreferencesStore>(),
-        App.Host.Services.GetRequiredService<IAppPathProvider>())
+        App.Host.Services.GetRequiredService<IAppPathProvider>(),
+        App.Host.Services.GetRequiredService<DisplayPreferencesService>())
     {
     }
 
@@ -254,8 +258,7 @@ public partial class SettingsWindow : Window
         this._preferences = new AppPreferences
         {
             AlwaysOnTop = true,
-            InvertProgressBar = true,
-            InvertCalculations = false,
+            ShowUsedPercentages = false,
             ColorThresholdYellow = 60,
             ColorThresholdRed = 80,
             FontFamily = "Segoe UI",
@@ -540,9 +543,9 @@ public partial class SettingsWindow : Window
         return settingsBehavior.InputMode switch
         {
             ProviderInputMode.DerivedReadOnly
-                or ProviderInputMode.AntigravityAutoDetected
-                or ProviderInputMode.GitHubCopilotAuthStatus
-                or ProviderInputMode.OpenAiSessionStatus
+                or ProviderInputMode.AutoDetectedStatus
+                or ProviderInputMode.ExternalAuthStatus
+                or ProviderInputMode.SessionAuthStatus
                 => this.BuildStatusPanel(config, usage, settingsBehavior),
             _ => this.BuildApiKeyEditor(config),
         };
@@ -946,8 +949,7 @@ public partial class SettingsWindow : Window
         this.AlwaysOnTopCheck.IsChecked = this._preferences.AlwaysOnTop;
         this.AggressiveTopmostCheck.IsChecked = this._preferences.AggressiveAlwaysOnTop;
         this.ForceWin32TopmostCheck.IsChecked = this._preferences.ForceWin32Topmost;
-        this.InvertProgressCheck.IsChecked = this._preferences.InvertProgressBar;
-        this.InvertCalculationsCheck.IsChecked = this._preferences.InvertCalculations;
+        this.ApplyDisplayModePreference();
         this.ThemeCombo.DisplayMemberPath = nameof(ThemeOption.Label);
         this.ThemeCombo.SelectedValuePath = nameof(ThemeOption.Value);
         this.ThemeCombo.ItemsSource = this.GetThemeOptions();
@@ -981,6 +983,14 @@ public partial class SettingsWindow : Window
         this.FontBoldCheck.IsChecked = this._preferences.FontBold;
         this.FontItalicCheck.IsChecked = this._preferences.FontItalic;
         this.UpdateFontPreview();
+    }
+
+    private void ApplyDisplayModePreference()
+    {
+        if (this.ShowUsedPercentagesCheck != null)
+        {
+            this.ShowUsedPercentagesCheck.IsChecked = this._displayPreferences.ShouldShowUsedPercentages(this._preferences);
+        }
     }
 
     private IReadOnlyList<ThemeOption> GetThemeOptions()
@@ -1726,8 +1736,8 @@ public partial class SettingsWindow : Window
             this._preferences.AlwaysOnTop = this.AlwaysOnTopCheck.IsChecked ?? true;
             this._preferences.AggressiveAlwaysOnTop = this.AggressiveTopmostCheck.IsChecked ?? false;
             this._preferences.ForceWin32Topmost = this.ForceWin32TopmostCheck.IsChecked ?? false;
-            this._preferences.InvertProgressBar = this.InvertProgressCheck.IsChecked ?? false;
-            this._preferences.InvertCalculations = this.InvertCalculationsCheck.IsChecked ?? false;
+            var showUsedPercentages = this.ShowUsedPercentagesCheck.IsChecked ?? false;
+            this._displayPreferences.SetShowUsedPercentages(this._preferences, showUsedPercentages);
             if (this.ThemeCombo.SelectedValue is AppTheme appTheme)
             {
                 this._preferences.Theme = appTheme;

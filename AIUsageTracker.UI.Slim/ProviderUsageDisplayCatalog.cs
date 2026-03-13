@@ -3,6 +3,7 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
 
@@ -13,7 +14,7 @@ internal static class ProviderUsageDisplayCatalog
         var filteredUsages = usages
             .Where(usage => ProviderCapabilityCatalog.ShouldShowInMainWindow(usage.ProviderId ?? string.Empty))
             .ToList();
-        var hasAntigravityParent = filteredUsages.Any(IsAntigravityParent);
+        var hasAggregateParent = filteredUsages.Any(IsAggregateParent);
         var collapsedParentProviderIds = ResolveCollapsedParentProviderIds(filteredUsages);
 
         filteredUsages = filteredUsages
@@ -25,23 +26,42 @@ internal static class ProviderUsageDisplayCatalog
             .Select(SelectPreferredUsage)
             .ToList();
 
-        return new ProviderRenderPreparation(filteredUsages, hasAntigravityParent);
+        return new ProviderRenderPreparation(filteredUsages, hasAggregateParent);
     }
 
-    public static IReadOnlyList<ProviderUsage> CreateAntigravityModelUsages(ProviderUsage parentUsage)
+    public static IReadOnlyList<ProviderUsage> CreateAggregateDetailUsages(ProviderUsage parentUsage)
     {
-        if (parentUsage.Details?.Any() != true)
+        var canonicalProviderId = ProviderCapabilityCatalog.GetCanonicalProviderId(parentUsage.ProviderId ?? string.Empty);
+        if (!ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(canonicalProviderId) ||
+            parentUsage.Details?.Any() != true)
         {
             return Array.Empty<ProviderUsage>();
         }
 
+        var planType = parentUsage.PlanType;
+        var isQuotaBased = parentUsage.IsQuotaBased;
+        if (ProviderMetadataCatalog.TryGet(canonicalProviderId, out var definition))
+        {
+            planType = definition.PlanType;
+            isQuotaBased = definition.IsQuotaBased;
+        }
+
+        var aggregateDetailDisplaySuffix = ResolveAggregateDetailDisplaySuffix(canonicalProviderId, parentUsage.ProviderName);
+
         return parentUsage.Details
-            .Select(detail => new { Detail = detail, ModelDisplayName = ResolveAntigravityModelDisplayName(detail) })
+            .Select(detail => new { Detail = detail, ModelDisplayName = ResolveAggregateDetailDisplayName(detail) })
             .Where(x => !string.IsNullOrWhiteSpace(x.ModelDisplayName) && !x.ModelDisplayName.StartsWith("[", StringComparison.Ordinal))
             .GroupBy(x => x.ModelDisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .OrderBy(x => x.ModelDisplayName, StringComparer.OrdinalIgnoreCase)
-            .Select(x => CreateAntigravityModelUsage(x.Detail, x.ModelDisplayName, parentUsage))
+            .Select(x => CreateAggregateDetailUsage(
+                canonicalProviderId,
+                aggregateDetailDisplaySuffix,
+                planType,
+                isQuotaBased,
+                x.Detail,
+                x.ModelDisplayName,
+                parentUsage))
             .ToList();
     }
 
@@ -70,7 +90,7 @@ internal static class ProviderUsageDisplayCatalog
         };
     }
 
-    private static bool IsAntigravityParent(ProviderUsage usage)
+    private static bool IsAggregateParent(ProviderUsage usage)
     {
         return ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty);
     }
@@ -110,25 +130,31 @@ internal static class ProviderUsageDisplayCatalog
         return score;
     }
 
-    private static ProviderUsage CreateAntigravityModelUsage(
+    private static ProviderUsage CreateAggregateDetailUsage(
+        string canonicalProviderId,
+        string aggregateDetailDisplaySuffix,
+        PlanType planType,
+        bool isQuotaBased,
         ProviderUsageDetail detail,
         string modelDisplayName,
         ProviderUsage parentUsage)
     {
-        var remainingPercent = UsageMath.ParsePercent(detail.Used);
-        var hasRemainingPercent = remainingPercent.HasValue;
-        var effectiveRemaining = remainingPercent ?? 0;
+        var effectiveUsed = UsageMath.GetEffectiveUsedPercent(detail, parentIsQuota: true);
+        var hasRemainingPercent = effectiveUsed.HasValue;
+        var effectiveRemaining = !effectiveUsed.HasValue
+            ? 0
+            : Math.Clamp(100 - effectiveUsed.Value, 0, 100);
 
         return new ProviderUsage
         {
-            ProviderId = $"antigravity.{modelDisplayName.ToLowerInvariant().Replace(" ", "-", StringComparison.Ordinal)}",
-            ProviderName = $"{modelDisplayName} [Antigravity]",
+            ProviderId = $"{canonicalProviderId}.{modelDisplayName.ToLowerInvariant().Replace(" ", "-", StringComparison.Ordinal)}",
+            ProviderName = $"{modelDisplayName} {aggregateDetailDisplaySuffix}",
             RequestsPercentage = effectiveRemaining,
             RequestsUsed = 100.0 - effectiveRemaining,
             RequestsAvailable = 100,
             UsageUnit = "Quota %",
-            IsQuotaBased = true,
-            PlanType = PlanType.Coding,
+            IsQuotaBased = isQuotaBased,
+            PlanType = planType,
             Description = hasRemainingPercent ? $"{effectiveRemaining:F0}% Remaining" : "Usage unknown",
             NextResetTime = detail.NextResetTime,
             IsAvailable = parentUsage.IsAvailable,
@@ -137,7 +163,7 @@ internal static class ProviderUsageDisplayCatalog
         };
     }
 
-    private static string ResolveAntigravityModelDisplayName(ProviderUsageDetail detail)
+    private static string ResolveAggregateDetailDisplayName(ProviderUsageDetail detail)
     {
         if (!string.IsNullOrWhiteSpace(detail.Name))
         {
@@ -147,5 +173,17 @@ internal static class ProviderUsageDisplayCatalog
         return string.IsNullOrWhiteSpace(detail.ModelName)
             ? string.Empty
             : detail.ModelName.Trim();
+    }
+
+    private static string ResolveAggregateDetailDisplaySuffix(string providerId, string? providerName)
+    {
+        if (ProviderMetadataCatalog.TryGet(providerId, out var definition) &&
+            !string.IsNullOrWhiteSpace(definition.AggregateDetailDisplaySuffix))
+        {
+            return definition.AggregateDetailDisplaySuffix!;
+        }
+
+        var displayName = ProviderCapabilityCatalog.GetDisplayName(providerId, providerName);
+        return $"[{displayName}]";
     }
 }

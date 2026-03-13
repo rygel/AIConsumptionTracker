@@ -8,7 +8,7 @@ internal enum ProviderInputMode
 {
     StandardApiKey,
     DerivedReadOnly,
-    AntigravityAutoDetected,
-    GitHubCopilotAuthStatus,
-    OpenAiSessionStatus,
+    AutoDetectedStatus,
+    ExternalAuthStatus,
+    SessionAuthStatus,
 }

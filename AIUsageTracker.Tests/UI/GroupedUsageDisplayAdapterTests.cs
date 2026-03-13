@@ -88,7 +88,7 @@ public class GroupedUsageDisplayAdapterTests
                 new AgentGroupedProviderUsage
                 {
                     ProviderId = "codex",
-                    ProviderName = "OpenAI (Codex)",
+                    ProviderName = "OpenAI",
                     IsAvailable = true,
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
@@ -110,7 +110,7 @@ public class GroupedUsageDisplayAdapterTests
 
         Assert.Equal(2, usages.Count);
         var spark = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "codex.spark", StringComparison.Ordinal));
-        Assert.Equal("GPT-5.3-Codex-Spark", spark.ProviderName);
+        Assert.Equal("OpenAI (GPT-5.3 Codex Spark)", spark.ProviderName);
         Assert.Equal(72, spark.RequestsPercentage, 1);
     }
 
@@ -124,7 +124,7 @@ public class GroupedUsageDisplayAdapterTests
                 new AgentGroupedProviderUsage
                 {
                     ProviderId = "codex",
-                    ProviderName = "OpenAI (Codex)",
+                    ProviderName = "OpenAI",
                     IsAvailable = true,
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
@@ -342,7 +342,7 @@ public class GroupedUsageDisplayAdapterTests
                 new AgentGroupedProviderUsage
                 {
                     ProviderId = "codex",
-                    ProviderName = "OpenAI (Codex)",
+                    ProviderName = "OpenAI",
                     IsAvailable = true,
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
@@ -368,7 +368,7 @@ public class GroupedUsageDisplayAdapterTests
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
         var spark = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "codex.spark", StringComparison.Ordinal));
-        Assert.Equal("GPT-5.3 Codex Spark", spark.ProviderName);
+        Assert.Equal("OpenAI (GPT-5.3 Codex Spark)", spark.ProviderName);
         Assert.Equal(40, spark.RequestsPercentage, 1);
     }
 

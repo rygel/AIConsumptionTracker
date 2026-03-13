@@ -135,6 +135,34 @@ public class AntigravityProviderTests : HttpProviderTestBase<AntigravityProvider
             string.Equals(detail.Used, "Unknown", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task FetchUsage_FullRemainingQuota_UsesSemanticRemainingText_AndPreservesChildPercentagesAsync()
+    {
+        var snapshotJson = LoadFixture("antigravity_user_status.snapshot.json");
+
+        this.SetupHttpResponse(_ => true, new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent(snapshotJson),
+        });
+
+        var usages = await InvokeFetchUsageAsync(this._provider, 5109, "csrf-token", this.Config);
+        var summary = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "antigravity", StringComparison.Ordinal));
+        var geminiFlashDetail = Assert.Single(
+            summary.Details!,
+            detail => string.Equals(detail.Name, "Gemini 3 Flash", StringComparison.Ordinal));
+        var geminiFlashChild = Assert.Single(
+            usages,
+            usage => string.Equals(usage.ProviderId, "antigravity.gemini-3-flash", StringComparison.Ordinal));
+
+        Assert.Equal("100% remaining", geminiFlashDetail.Used);
+        Assert.Equal(100, geminiFlashChild.RequestsPercentage);
+        Assert.Equal(0, geminiFlashChild.RequestsUsed);
+        Assert.Equal(100, geminiFlashChild.RequestsAvailable);
+        Assert.True(geminiFlashChild.DisplayAsFraction);
+        Assert.Equal("100% Remaining", geminiFlashChild.Description);
+    }
+
     private static async Task<List<ProviderUsage>> InvokeFetchUsageAsync(AntigravityProvider provider, int port, string csrfToken, ProviderConfig config)
     {
         var method = typeof(AntigravityProvider).GetMethod("FetchUsageAsync", BindingFlags.Instance | BindingFlags.NonPublic);

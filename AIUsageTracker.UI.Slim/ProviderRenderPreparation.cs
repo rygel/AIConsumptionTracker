@@ -8,4 +8,4 @@ namespace AIUsageTracker.UI.Slim;
 
 internal sealed record ProviderRenderPreparation(
     IReadOnlyList<ProviderUsage> DisplayableUsages,
-    bool HasAntigravityParent);
+    bool HasAggregateParent);

@@ -281,11 +281,12 @@ public class GitHubCopilotProvider : ProviderBase
                     state.Details.Add(new ProviderUsageDetail
                     {
                         Name = "Weekly Quota",
-                        Used = $"{usedPercent:F0}% used",
                         Description = $"{normalizedRemaining:F0} / {entitlement:F0} remaining",
                         DetailType = ProviderUsageDetailType.QuotaWindow,
                         QuotaBucketKind = WindowKind.Secondary,
                         NextResetTime = state.ResetTime,
+                        PercentageValue = usedPercent,
+                        PercentageSemantic = PercentageValueSemantic.Used,
                     });
                 }
 
@@ -306,10 +307,11 @@ public class GitHubCopilotProvider : ProviderBase
                     state.Details.Add(new ProviderUsageDetail
                     {
                         Name = "5-hour Window",
-                        Used = $"{uUsedPercent:F0}% used",
                         Description = $"{normalizedRemaining:F0} / {uEnt:F0} remaining",
                         DetailType = ProviderUsageDetailType.QuotaWindow,
                         QuotaBucketKind = WindowKind.Primary,
+                        PercentageValue = uUsedPercent,
+                        PercentageSemantic = PercentageValueSemantic.Used,
                     });
                 }
 

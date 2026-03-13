@@ -21,12 +21,12 @@ internal static class MainWindowDeterministicFixture
                 new FixtureUsageScenario(60.0, 40, 100, "60.0% Remaining", 6),
                 details: new List<ProviderUsageDetail>
                 {
-                    CreateDetail(deterministicNow, "Claude Opus 4.6 (Thinking)", "60%", 10),
-                    CreateDetail(deterministicNow, "Claude Sonnet 4.6 (Thinking)", "60%", 10),
-                    CreateDetail(deterministicNow, "Gemini 3 Flash", "100%", 6),
-                    CreateDetail(deterministicNow, "Gemini 3.1 Pro (High)", "100%", 14),
-                    CreateDetail(deterministicNow, "Gemini 3.1 Pro (Low)", "100%", 14),
-                    CreateDetail(deterministicNow, "GPT-OSS 120B (Medium)", "60%", 8),
+                    CreateDetail(deterministicNow, "Claude Opus 4.6 (Thinking)", "60% remaining", 10),
+                    CreateDetail(deterministicNow, "Claude Sonnet 4.6 (Thinking)", "60% remaining", 10),
+                    CreateDetail(deterministicNow, "Gemini 3 Flash", "100% remaining", 6),
+                    CreateDetail(deterministicNow, "Gemini 3.1 Pro (High)", "100% remaining", 14),
+                    CreateDetail(deterministicNow, "Gemini 3.1 Pro (Low)", "100% remaining", 14),
+                    CreateDetail(deterministicNow, "GPT-OSS 120B (Medium)", "60% remaining", 8),
                 }),
         };
 
@@ -39,8 +39,7 @@ internal static class MainWindowDeterministicFixture
             Preferences = new AppPreferences
             {
                 AlwaysOnTop = true,
-                InvertProgressBar = true,
-                InvertCalculations = false,
+                ShowUsedPercentages = false,
                 ColorThresholdYellow = 60,
                 ColorThresholdRed = 80,
                 FontFamily = "Segoe UI",

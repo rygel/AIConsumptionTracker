@@ -93,6 +93,7 @@ public class AppStartupTests : IDisposable
             WindowHeight = 700,
             AlwaysOnTop = false,
             IsPrivacyMode = true,
+            ShowUsedPercentages = true,
         };
 
         var saved = await this._store.SaveAsync(original);
@@ -106,6 +107,19 @@ public class AppStartupTests : IDisposable
         Assert.Equal(original.WindowHeight, loaded.WindowHeight);
         Assert.Equal(original.AlwaysOnTop, loaded.AlwaysOnTop);
         Assert.Equal(original.IsPrivacyMode, loaded.IsPrivacyMode);
+        Assert.Equal(original.PercentageDisplayMode, loaded.PercentageDisplayMode);
+        Assert.True(loaded.ShowUsedPercentages);
+    }
+
+    [Fact]
+    public async Task LoadPreferencesAsync_WithLegacyInvertCalculations_MapsToShowUsedPercentagesAsync()
+    {
+        await File.WriteAllTextAsync(this._testPreferencesPath, "{\"InvertCalculations\":true}");
+
+        var loaded = await this._store.LoadAsync();
+
+        Assert.True(loaded.ShowUsedPercentages);
+        Assert.Equal(PercentageDisplayMode.Used, loaded.PercentageDisplayMode);
     }
 
     [Fact]

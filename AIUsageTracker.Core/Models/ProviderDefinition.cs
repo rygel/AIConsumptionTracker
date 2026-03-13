@@ -33,11 +33,15 @@ public sealed class ProviderDefinition
         ProviderSessionIdentitySource sessionIdentitySource = ProviderSessionIdentitySource.None,
         bool refreshOnStartupWithCachedData = false,
         bool collapseDerivedChildrenInMainWindow = false,
+        bool showInMainWindow = true,
         bool showInSettings = true,
         IEnumerable<string>? settingsAdditionalProviderIds = null,
         string? iconAssetName = null,
         string? fallbackBadgeColorHex = null,
         string? fallbackBadgeInitial = null,
+        bool preferDisplayNameOverridesForDerivedProviderIds = false,
+        bool renderDetailsAsSyntheticChildrenInMainWindow = false,
+        string? aggregateDetailDisplaySuffix = null,
         bool supportsAccountIdentity = false,
         IEnumerable<string>? authIdentityCandidatePathTemplates = null,
         IEnumerable<ProviderAuthFileSchema>? sessionAuthFileSchemas = null,
@@ -75,11 +79,15 @@ public sealed class ProviderDefinition
         this.SessionIdentitySource = sessionIdentitySource;
         this.RefreshOnStartupWithCachedData = refreshOnStartupWithCachedData;
         this.CollapseDerivedChildrenInMainWindow = collapseDerivedChildrenInMainWindow;
+        this.ShowInMainWindow = showInMainWindow;
         this.ShowInSettings = showInSettings;
         this.SettingsAdditionalProviderIds = NormalizeValues(settingsAdditionalProviderIds);
         this.IconAssetName = iconAssetName;
         this.FallbackBadgeColorHex = fallbackBadgeColorHex;
         this.FallbackBadgeInitial = fallbackBadgeInitial;
+        this.PreferDisplayNameOverridesForDerivedProviderIds = preferDisplayNameOverridesForDerivedProviderIds;
+        this.RenderDetailsAsSyntheticChildrenInMainWindow = renderDetailsAsSyntheticChildrenInMainWindow;
+        this.AggregateDetailDisplaySuffix = aggregateDetailDisplaySuffix;
         this.SupportsAccountIdentity = supportsAccountIdentity;
         this.AuthIdentityCandidatePathTemplates = NormalizeValues(authIdentityCandidatePathTemplates);
         this.SessionAuthFileSchemas = sessionAuthFileSchemas?
@@ -158,6 +166,8 @@ public sealed class ProviderDefinition
 
     public bool CollapseDerivedChildrenInMainWindow { get; }
 
+    public bool ShowInMainWindow { get; }
+
     public bool ShowInSettings { get; }
 
     public IReadOnlyCollection<string> SettingsAdditionalProviderIds { get; }
@@ -167,6 +177,12 @@ public sealed class ProviderDefinition
     public string? FallbackBadgeColorHex { get; }
 
     public string? FallbackBadgeInitial { get; }
+
+    public bool PreferDisplayNameOverridesForDerivedProviderIds { get; }
+
+    public bool RenderDetailsAsSyntheticChildrenInMainWindow { get; }
+
+    public string? AggregateDetailDisplaySuffix { get; }
 
     public bool SupportsAccountIdentity { get; }
 

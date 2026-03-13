@@ -361,13 +361,9 @@
                                          TextChanged="LayoutSetting_TextChanged"/>
                             </Grid>
 
-                            <CheckBox x:Name="InvertProgressCheck" Content="Invert Progress Bar" 
-                                      Margin="0,15,0,8" Foreground="{DynamicResource SecondaryText}"
-                                      Checked="LayoutSetting_Changed" Unchecked="LayoutSetting_Changed"/>
-                            
-                            <CheckBox x:Name="InvertCalculationsCheck" Content="Invert Calculations" 
-                                      Margin="0,8,0,20" Foreground="{DynamicResource SecondaryText}"
-                                      ToolTip="Invert the calculation logic for remaining vs used percentages"
+                            <CheckBox x:Name="ShowUsedPercentagesCheck" Content="Show Used Percentages"
+                                      Margin="0,15,0,20" Foreground="{DynamicResource SecondaryText}"
+                                      ToolTip="Display used percentages instead of remaining percentages for quota-style providers"
                                       Checked="LayoutSetting_Changed" Unchecked="LayoutSetting_Changed"/>
 
                             <!-- Font Settings -->
@@ -792,4 +788,3 @@
         </Grid>
     </Border>
 </Window>
-

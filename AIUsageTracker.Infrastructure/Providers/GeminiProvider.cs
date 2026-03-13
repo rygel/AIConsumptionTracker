@@ -629,11 +629,13 @@ public class GeminiProvider : ProviderBase
             {
                 Name = FormatGeminiModelDisplayName(modelGroup.Key),
                 ModelName = modelGroup.Key,
-                Used = $"{remainingPercent:F1}%",
                 Description = $"{remainingPercent:F1}% remaining{resetSuffix}",
                 NextResetTime = resetTime,
                 DetailType = ProviderUsageDetailType.Model,
                 QuotaBucketKind = WindowKind.None,
+                PercentageValue = remainingPercent,
+                PercentageSemantic = PercentageValueSemantic.Remaining,
+                PercentageDecimalPlaces = 1,
             });
         }
 

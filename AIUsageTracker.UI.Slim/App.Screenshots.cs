@@ -199,8 +199,7 @@ public partial class App
         Preferences = new AppPreferences
         {
             AlwaysOnTop = true,
-            InvertProgressBar = true,
-            InvertCalculations = false,
+            ShowUsedPercentages = false,
             ColorThresholdYellow = 60,
             ColorThresholdRed = 80,
             FontFamily = "Segoe UI",

@@ -23,14 +23,14 @@ internal static class ProviderSettingsCatalog
             ? false
             : inputMode switch
             {
-                ProviderInputMode.AntigravityAutoDetected => usage == null || !usage.IsAvailable,
-                ProviderInputMode.OpenAiSessionStatus => string.IsNullOrWhiteSpace(config.ApiKey) && !(usage?.IsAvailable == true),
+                ProviderInputMode.AutoDetectedStatus => usage == null || !usage.IsAvailable,
+                ProviderInputMode.SessionAuthStatus => string.IsNullOrWhiteSpace(config.ApiKey) && !(usage?.IsAvailable == true),
                 _ => string.IsNullOrWhiteSpace(config.ApiKey),
             };
-        var sessionProviderLabel = inputMode == ProviderInputMode.OpenAiSessionStatus
+        var sessionProviderLabel = inputMode == ProviderInputMode.SessionAuthStatus
             ? ProviderMetadataCatalog.GetSessionStatusLabel(canonicalProviderId)
             : null;
-        var preferCodexIdentity = inputMode == ProviderInputMode.OpenAiSessionStatus &&
+        var preferCodexIdentity = inputMode == ProviderInputMode.SessionAuthStatus &&
             ProviderMetadataCatalog.GetSessionIdentitySource(canonicalProviderId) == ProviderSessionIdentitySource.Codex;
 
         return new ProviderSettingsBehavior(
@@ -60,9 +60,9 @@ internal static class ProviderSettingsCatalog
 
         return settingsMode switch
         {
-            ProviderSettingsMode.AutoDetectedStatus => ProviderInputMode.AntigravityAutoDetected,
-            ProviderSettingsMode.ExternalAuthStatus => ProviderInputMode.GitHubCopilotAuthStatus,
-            ProviderSettingsMode.SessionAuthStatus => ProviderInputMode.OpenAiSessionStatus,
+            ProviderSettingsMode.AutoDetectedStatus => ProviderInputMode.AutoDetectedStatus,
+            ProviderSettingsMode.ExternalAuthStatus => ProviderInputMode.ExternalAuthStatus,
+            ProviderSettingsMode.SessionAuthStatus => ProviderInputMode.SessionAuthStatus,
             _ => ProviderInputMode.StandardApiKey,
         };
     }

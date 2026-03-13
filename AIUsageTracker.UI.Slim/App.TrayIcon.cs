@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using AIUsageTracker.Core.Models;
 using Hardcodet.Wpf.TaskbarNotification;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim;
@@ -20,17 +21,19 @@ public partial class App
         IReadOnlyList<ProviderConfig> configs,
         AppPreferences? prefs = null)
     {
+        var displayPreferences = Host.Services.GetRequiredService<DisplayPreferencesService>();
         var yellowThreshold = prefs?.ColorThresholdYellow ?? 60;
         var redThreshold = prefs?.ColorThresholdRed ?? 80;
-        var invert = prefs?.InvertProgressBar ?? false;
-        var desiredIcons = this.BuildDesiredIcons(usages, configs);
+        var showUsed = prefs != null && displayPreferences.ShouldShowUsedPercentages(prefs);
+        var desiredIcons = this.BuildDesiredIcons(usages, configs, showUsed);
 
-        this.SyncProviderTrayIcons(desiredIcons, yellowThreshold, redThreshold, invert);
+        this.SyncProviderTrayIcons(desiredIcons, yellowThreshold, redThreshold, showUsed);
     }
 
     private Dictionary<string, (string ToolTip, double Percentage, bool IsQuota)> BuildDesiredIcons(
         IReadOnlyList<ProviderUsage> usages,
-        IReadOnlyList<ProviderConfig> configs)
+        IReadOnlyList<ProviderConfig> configs,
+        bool showUsed)
     {
         var desiredIcons = new Dictionary<string, (string ToolTip, double Percentage, bool IsQuota)>(StringComparer.OrdinalIgnoreCase);
         foreach (var config in configs)
@@ -46,7 +49,8 @@ public partial class App
                 !usage.Description.Contains("unknown", StringComparison.OrdinalIgnoreCase))
             {
                 var isQuota = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
-                desiredIcons[config.ProviderId] = ($"{usage.ProviderName}: {usage.Description}", usage.RequestsPercentage, isQuota);
+                var statusText = ProviderCardPresentationCatalog.Create(usage, showUsed).StatusText;
+                desiredIcons[config.ProviderId] = ($"{usage.ProviderName}: {statusText}", usage.RequestsPercentage, isQuota);
             }
 
             if (config.EnabledSubTrays == null || usage.Details == null)
@@ -62,17 +66,21 @@ public partial class App
                     continue;
                 }
 
-                var detailPercent = this.ParsePercent(detail.Used);
-                if (!detailPercent.HasValue)
+                var isQuotaSub = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
+                var detailPresentation = ProviderSubDetailPresentationCatalog.Create(
+                    detail,
+                    isQuotaSub,
+                    showUsed,
+                    _ => string.Empty);
+                if (!detailPresentation.HasProgress)
                 {
                     continue;
                 }
 
                 var key = $"{config.ProviderId}:{subName}";
-                var isQuotaSub = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
                 desiredIcons[key] = (
-                    $"{usage.ProviderName} - {subName}: {detail.Description} ({detail.Used})",
-                    detailPercent.Value,
+                    $"{usage.ProviderName} - {subName}: {detailPresentation.DisplayText}",
+                    showUsed ? detailPresentation.UsedPercent : detailPresentation.IndicatorWidth,
                     isQuotaSub);
             }
         }
@@ -84,7 +92,7 @@ public partial class App
         IReadOnlyDictionary<string, (string ToolTip, double Percentage, bool IsQuota)> desiredIcons,
         int yellowThreshold,
         int redThreshold,
-        bool invert)
+        bool showUsed)
     {
         var currentKeys = this._providerTrayIcons.Keys.ToList();
         foreach (var key in currentKeys)
@@ -102,7 +110,7 @@ public partial class App
         {
             var key = kvp.Key;
             var info = kvp.Value;
-            var iconSource = this.GenerateUsageIcon(info.Percentage, yellowThreshold, redThreshold, invert, info.IsQuota);
+            var iconSource = this.GenerateUsageIcon(info.Percentage, yellowThreshold, redThreshold, showUsed, info.IsQuota);
 
             if (!this._providerTrayIcons.ContainsKey(key))
             {
@@ -144,11 +152,6 @@ public partial class App
         return candidates[0];
     }
 
-    private double? ParsePercent(string? value)
-    {
-        return UsageMath.ParsePercent(value);
-    }
-
     private bool IsSubTrayEligibleDetail(ProviderUsageDetail detail)
     {
         return detail.IsDisplayableSubProviderDetail();
@@ -158,7 +161,7 @@ public partial class App
         double percentage,
         int yellowThreshold,
         int redThreshold,
-        bool invert = false,
+        bool showUsed = false,
         bool isQuota = false)
     {
         var size = 32;
@@ -179,7 +182,7 @@ public partial class App
             var barWidth = size - 6;
             var barHeight = size - 6;
             double fillHeight;
-            if (invert)
+            if (showUsed)
             {
                 var remaining = Math.Max(0, 100.0 - percentage);
                 fillHeight = (remaining / 100.0) * barHeight;

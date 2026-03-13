@@ -46,12 +46,21 @@ public static class ProviderMetadataCatalog
                 providerId,
                 definition.ProviderId,
                 StringComparison.OrdinalIgnoreCase);
+            var mapped = definition.ResolveDisplayName(providerId);
+
+            if (!string.IsNullOrWhiteSpace(mapped) &&
+                (!isDerivedProviderId ||
+                 definition.PreferDisplayNameOverridesForDerivedProviderIds ||
+                 string.IsNullOrWhiteSpace(providerName)))
+            {
+                return mapped;
+            }
+
             if (isDerivedProviderId && !string.IsNullOrWhiteSpace(providerName))
             {
                 return providerName;
             }
 
-            var mapped = definition.ResolveDisplayName(providerId);
             if (!string.IsNullOrWhiteSpace(mapped))
             {
                 return mapped;
@@ -99,7 +108,9 @@ public static class ProviderMetadataCatalog
 
     public static bool IsAggregateParentProviderId(string providerId)
     {
-        return string.Equals(providerId, "antigravity", StringComparison.OrdinalIgnoreCase);
+        return TryGet(providerId, out var definition) &&
+               string.Equals(providerId, definition.ProviderId, StringComparison.OrdinalIgnoreCase) &&
+               definition.RenderDetailsAsSyntheticChildrenInMainWindow;
     }
 
     public static bool ShouldCollapseDerivedChildrenInMainWindow(string providerId)
@@ -109,7 +120,7 @@ public static class ProviderMetadataCatalog
 
     public static bool ShouldShowInMainWindow(string providerId)
     {
-        return TryGet(providerId, out _);
+        return TryGet(providerId, out var definition) && definition.ShowInMainWindow;
     }
 
     public static bool ShouldRenderAggregateDetailsInMainWindow(string providerId)
@@ -289,6 +300,7 @@ public static class ProviderMetadataCatalog
         ValidateNoDuplicateProviderIds(definitions);
         ValidateNoDuplicateHandledProviderIds(definitions);
         ValidateDerivedModelSelectors(definitions);
+        ValidateAggregateDetailContracts(definitions);
 
         return definitions;
     }
@@ -523,6 +535,22 @@ public static class ProviderMetadataCatalog
                 string.Join(
                     "; ",
                     unknownSelectorTargets.Select(entry => $"{entry.ProviderId}: {string.Join(", ", entry.Unknown)}")));
+        }
+    }
+
+    private static void ValidateAggregateDetailContracts(IReadOnlyCollection<ProviderDefinition> definitions)
+    {
+        var invalidAggregateDefinitions = definitions
+            .Where(definition => definition.RenderDetailsAsSyntheticChildrenInMainWindow && !definition.SupportsChildProviderIds)
+            .Select(definition => definition.ProviderId)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (invalidAggregateDefinitions.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Providers rendering synthetic aggregate children must support child provider ids: " +
+                string.Join(", ", invalidAggregateDefinitions));
         }
     }
 }

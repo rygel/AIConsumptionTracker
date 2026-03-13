@@ -111,7 +111,9 @@ internal static class GroupedUsageDisplayAdapter
             childRows.Add(new ProviderUsage
             {
                 ProviderId = assignment.ProviderId,
-                ProviderName = ProviderMetadataCatalog.GetDerivedModelDisplayName(provider.ProviderId, model.ModelName),
+                ProviderName = ProviderMetadataCatalog.GetDisplayName(
+                    assignment.ProviderId,
+                    ProviderMetadataCatalog.GetDerivedModelDisplayName(provider.ProviderId, model.ModelName)),
                 AccountName = parentUsage.AccountName,
                 IsAvailable = parentUsage.IsAvailable,
                 PlanType = parentUsage.PlanType,

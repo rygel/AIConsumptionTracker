@@ -21,19 +21,20 @@ public class CodexProvider : ProviderBase
 
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "codex",
-        displayName: "OpenAI (Codex)",
+        displayName: "OpenAI",
         planType: PlanType.Coding,
         isQuotaBased: true,
         defaultConfigType: "quota-based",
         includeInWellKnownProviders: true,
         displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["codex.spark"] = "OpenAI (GPT-5.3-Codex-Spark)",
+            ["codex.spark"] = "OpenAI (GPT-5.3 Codex Spark)",
         },
         supportsChildProviderIds: true,
         discoveryEnvironmentVariables: new[] { "CODEX_API_KEY" },
         visibleDerivedProviderIds: new[] { "codex.spark" },
         settingsAdditionalProviderIds: new[] { "codex.spark" },
+        preferDisplayNameOverridesForDerivedProviderIds: true,
         derivedModelSelectors: new[]
         {
             new ProviderDerivedModelSelector(
@@ -42,7 +43,7 @@ public class CodexProvider : ProviderBase
                 modelNameContains: new[] { "spark" }),
         },
         settingsMode: ProviderSettingsMode.SessionAuthStatus,
-        sessionStatusLabel: "OpenAI Codex",
+        sessionStatusLabel: "OpenAI",
         sessionIdentitySource: ProviderSessionIdentitySource.Codex,
         supportsAccountIdentity: true,
         iconAssetName: "openai",
@@ -235,7 +236,7 @@ public class CodexProvider : ProviderBase
             new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = "OpenAI (Codex)",
+                ProviderName = "OpenAI",
                 RequestsPercentage = remainingPercent,
                 RequestsUsed = 100.0 - remainingPercent,
                 RequestsAvailable = 100.0,
@@ -436,19 +437,21 @@ public class CodexProvider : ProviderBase
             new()
             {
                 Name = modelNames.PrimaryModelName,
-                Used = $"{primaryRemaining:F0}% remaining ({primaryUsedPercent:F0}% used)",
                 Description = "Model quota",
                 DetailType = ProviderUsageDetailType.Model,
                 QuotaBucketKind = WindowKind.Primary,
+                PercentageValue = primaryRemaining,
+                PercentageSemantic = PercentageValueSemantic.Remaining,
             },
             new()
             {
                 Name = "5-hour quota",
-                Used = $"{primaryRemaining:F0}% remaining ({primaryUsedPercent:F0}% used)",
                 Description = FormatResetDescription(primaryResetSeconds),
                 NextResetTime = ResolveDetailResetTime(primaryResetSeconds),
                 DetailType = ProviderUsageDetailType.QuotaWindow,
                 QuotaBucketKind = WindowKind.Primary,
+                PercentageValue = primaryRemaining,
+                PercentageSemantic = PercentageValueSemantic.Remaining,
             },
         };
 
@@ -458,11 +461,12 @@ public class CodexProvider : ProviderBase
             details.Add(new ProviderUsageDetail
             {
                 Name = "Weekly quota",
-                Used = $"{secondaryRemaining:F0}% remaining ({secondaryUsedPercent.Value:F0}% used)",
                 Description = FormatResetDescription(secondaryResetSeconds),
                 NextResetTime = ResolveDetailResetTime(secondaryResetSeconds),
                 DetailType = ProviderUsageDetailType.QuotaWindow,
                 QuotaBucketKind = WindowKind.Secondary,
+                PercentageValue = secondaryRemaining,
+                PercentageSemantic = PercentageValueSemantic.Remaining,
             });
         }
 
@@ -476,11 +480,12 @@ public class CodexProvider : ProviderBase
                 details.Add(new ProviderUsageDetail
                 {
                     Name = $"Spark ({sparkWindow.Label ?? "window"})",
-                    Used = $"{sparkRemaining:F0}% remaining ({sparkUsedPercent.Value:F0}% used)",
                     Description = FormatResetDescription(sparkResetAfterSeconds),
                     NextResetTime = ResolveDetailResetTime(sparkResetAfterSeconds),
                     DetailType = ProviderUsageDetailType.QuotaWindow,
                     QuotaBucketKind = WindowKind.Spark,
+                    PercentageValue = sparkRemaining,
+                    PercentageSemantic = PercentageValueSemantic.Remaining,
                 });
             }
         }
@@ -512,7 +517,7 @@ public class CodexProvider : ProviderBase
                          ?? root.ReadString("rate_limit", "primary_window", "model_name")
                          ?? root.ReadString("rate_limit", "primary_window", "model")
                          ?? root.ReadString("rate_limit", "primary_window", "limit_name");
-        var primaryModelName = NormalizeModelName(primaryRaw, "OpenAI (Codex)") ?? "OpenAI (Codex)";
+        var primaryModelName = NormalizeModelName(primaryRaw, "OpenAI") ?? "OpenAI";
 
         string? sparkModelName = null;
         if (sparkWindow.HasWindowData)

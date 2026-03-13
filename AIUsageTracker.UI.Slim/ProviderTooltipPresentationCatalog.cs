@@ -55,17 +55,7 @@ internal static class ProviderTooltipPresentationCatalog
 
     private static string ResolveDetailDisplayValue(ProviderUsageDetail detail)
     {
-        if (!string.IsNullOrWhiteSpace(detail.Used))
-        {
-            return detail.Used;
-        }
-
-        if (!string.IsNullOrWhiteSpace(detail.Description))
-        {
-            return detail.Description;
-        }
-
-        return string.Empty;
+        return ProviderUsageDetailValuePresentationCatalog.GetStoredDisplayText(detail);
     }
 
     private static int GetDetailSortOrder(ProviderUsageDetail detail)

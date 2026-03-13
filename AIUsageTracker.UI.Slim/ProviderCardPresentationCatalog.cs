@@ -20,7 +20,7 @@ internal static class ProviderCardPresentationCatalog
         var isConsoleCheck = description.Contains("Check Console", StringComparison.OrdinalIgnoreCase);
         var isError = description.Contains("[Error]", StringComparison.OrdinalIgnoreCase);
         var isUnknown = description.Contains("unknown", StringComparison.OrdinalIgnoreCase);
-        var isAntigravityParent = ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(providerId);
+        var isAggregateParent = ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(providerId);
         var isStatusOnlyProvider = string.Equals(usage.UsageUnit, "Status", StringComparison.OrdinalIgnoreCase);
         var hasDualQuotaBucketPresentation = ProviderDualQuotaBucketPresentationCatalog.TryGetPresentation(usage, out var dualQuotaBucketPresentation);
         var remainingPercent = usage.IsQuotaBased
@@ -31,7 +31,7 @@ internal static class ProviderCardPresentationCatalog
             : usage.RequestsPercentage;
         var shouldHaveProgress = usage.IsAvailable &&
             !isUnknown &&
-            !isAntigravityParent &&
+            !isAggregateParent &&
             (usage.RequestsPercentage > 0 || usage.IsQuotaBased) &&
             !isMissing &&
             !isError;
@@ -40,7 +40,7 @@ internal static class ProviderCardPresentationCatalog
             isMissing,
             isUnknown,
             isError,
-            isAntigravityParent,
+            isAggregateParent,
             isConsoleCheck,
             shouldHaveProgress,
             usedPercent,
@@ -55,7 +55,7 @@ internal static class ProviderCardPresentationCatalog
             showUsed,
             description,
             isUnknown,
-            isAntigravityParent,
+            isAggregateParent,
             isStatusOnlyProvider,
             hasDualQuotaBucketPresentation,
             dualQuotaBucketPresentation);
@@ -64,7 +64,7 @@ internal static class ProviderCardPresentationCatalog
             isMissing,
             isUnknown,
             isError,
-            isAntigravityParent,
+            isAggregateParent,
             shouldHaveProgress,
             suppressSingleResetTime,
             usedPercent,
@@ -77,7 +77,7 @@ internal static class ProviderCardPresentationCatalog
         bool isMissing,
         bool isUnknown,
         bool isError,
-        bool isAntigravityParent,
+        bool isAggregateParent,
         bool isConsoleCheck,
         bool shouldHaveProgress,
         double usedPercent,
@@ -90,7 +90,7 @@ internal static class ProviderCardPresentationCatalog
                 isMissing,
                 isUnknown,
                 isError,
-                isAntigravityParent,
+                isAggregateParent,
                 shouldHaveProgress,
                 false,
                 usedPercent,
@@ -106,7 +106,7 @@ internal static class ProviderCardPresentationCatalog
                 isMissing,
                 isUnknown,
                 isError,
-                isAntigravityParent,
+                isAggregateParent,
                 shouldHaveProgress,
                 false,
                 usedPercent,
@@ -122,7 +122,7 @@ internal static class ProviderCardPresentationCatalog
                 isMissing,
                 isUnknown,
                 isError,
-                isAntigravityParent,
+                isAggregateParent,
                 shouldHaveProgress,
                 false,
                 usedPercent,
@@ -141,12 +141,12 @@ internal static class ProviderCardPresentationCatalog
         bool showUsed,
         string description,
         bool isUnknown,
-        bool isAntigravityParent,
+        bool isAggregateParent,
         bool isStatusOnlyProvider,
         bool hasDualQuotaBucketPresentation,
         ProviderDualQuotaBucketPresentation dualQuotaBucketPresentation)
     {
-        if (isAntigravityParent)
+        if (isAggregateParent)
         {
             return (string.IsNullOrWhiteSpace(description) ? "Per-model quotas" : description, false);
         }
@@ -214,7 +214,7 @@ internal static class ProviderCardPresentationCatalog
         bool isMissing,
         bool isUnknown,
         bool isError,
-        bool isAntigravityParent,
+        bool isAggregateParent,
         bool shouldHaveProgress,
         bool suppressSingleResetTime,
         double usedPercent,
@@ -226,7 +226,7 @@ internal static class ProviderCardPresentationCatalog
             IsMissing: isMissing,
             IsUnknown: isUnknown,
             IsError: isError,
-            IsAntigravityParent: isAntigravityParent,
+            IsAggregateParent: isAggregateParent,
             ShouldHaveProgress: shouldHaveProgress,
             SuppressSingleResetTime: suppressSingleResetTime,
             UsedPercent: usedPercent,

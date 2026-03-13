@@ -58,6 +58,7 @@ public partial class MainWindow : Window
     private readonly IMonitorLifecycleService _monitorLifecycleService;
     private readonly ILogger<MainWindow> _logger;
     private readonly UiPreferencesStore _preferencesStore;
+    private readonly DisplayPreferencesService _displayPreferences;
     private readonly Dictionary<string, ImageSource> _iconCache = new(StringComparer.Ordinal);
     private readonly DispatcherTimer _updateCheckTimer;
     private readonly DispatcherTimer _alwaysOnTopTimer;
@@ -117,8 +118,9 @@ public partial class MainWindow : Window
         IMonitorLifecycleService monitorLifecycleService,
         ILogger<MainWindow> logger,
         IUpdateCheckerService updateChecker,
-        UiPreferencesStore preferencesStore)
-        : this(skipUiInitialization: false, viewModel, monitorService, monitorLifecycleService, logger, updateChecker, preferencesStore)
+        UiPreferencesStore preferencesStore,
+        DisplayPreferencesService displayPreferences)
+        : this(skipUiInitialization: false, viewModel, monitorService, monitorLifecycleService, logger, updateChecker, preferencesStore, displayPreferences)
     {
     }
 
@@ -129,12 +131,13 @@ public partial class MainWindow : Window
             App.Host.Services.GetRequiredService<IMonitorLifecycleService>(),
             App.Host.Services.GetRequiredService<ILogger<MainWindow>>(),
             App.Host.Services.GetRequiredService<IUpdateCheckerService>(),
-            App.Host.Services.GetRequiredService<UiPreferencesStore>())
+            App.Host.Services.GetRequiredService<UiPreferencesStore>(),
+            App.Host.Services.GetRequiredService<DisplayPreferencesService>())
     {
     }
 
     internal MainWindow(bool skipUiInitialization)
-        : this(skipUiInitialization, null, null, null, null, null, null)
+        : this(skipUiInitialization, null, null, null, null, null, null, null)
     {
     }
 
@@ -145,7 +148,8 @@ public partial class MainWindow : Window
         IMonitorLifecycleService? monitorLifecycleService,
         ILogger<MainWindow>? logger,
         IUpdateCheckerService? updateChecker,
-        UiPreferencesStore? preferencesStore)
+        UiPreferencesStore? preferencesStore,
+        DisplayPreferencesService? displayPreferences)
     {
         if (!skipUiInitialization)
         {
@@ -159,6 +163,7 @@ public partial class MainWindow : Window
         this._monitorLifecycleService = monitorLifecycleService ?? App.Host.Services.GetRequiredService<IMonitorLifecycleService>();
         this._updateChecker = updateChecker ?? App.Host.Services.GetRequiredService<IUpdateCheckerService>();
         this._preferencesStore = preferencesStore ?? App.Host.Services.GetRequiredService<UiPreferencesStore>();
+        this._displayPreferences = displayPreferences ?? App.Host.Services.GetRequiredService<DisplayPreferencesService>();
         this._viewModel = viewModel ?? App.Host.Services.GetRequiredService<MainViewModel>();
         this.DataContext = this._viewModel;
 
@@ -689,12 +694,20 @@ public partial class MainWindow : Window
 
         // Apply UI controls
         this.AlwaysOnTopCheck.IsChecked = this._preferences.AlwaysOnTop;
-        this.ShowUsedToggle.IsChecked = this._preferences.InvertProgressBar;
+        this.ApplyDisplayModePreference();
         this.UpdatePrivacyButtonState();
         this.EnsureAlwaysOnTop();
 
         // Reinitialize update checker with correct channel
         this.InitializeUpdateChecker();
+    }
+
+    private void ApplyDisplayModePreference()
+    {
+        if (this.ShowUsedToggle != null)
+        {
+            this.ShowUsedToggle.IsChecked = this._displayPreferences.ShouldShowUsedPercentages(this._preferences);
+        }
     }
 
     private string BuildMonitorLaunchErrorMessage()
@@ -1079,7 +1092,7 @@ public partial class MainWindow : Window
             var filteredUsages = renderPreparation.DisplayableUsages;
 
             this.LogDiagnostic(
-                $"[DIAGNOSTIC] Provider render counts: raw={this._usages.Count}, filtered={filteredUsages.Count}, hasAntigravityParent={renderPreparation.HasAntigravityParent}");
+                $"[DIAGNOSTIC] Provider render counts: raw={this._usages.Count}, filtered={filteredUsages.Count}, hasAggregateParent={renderPreparation.HasAggregateParent}");
 
             if (!filteredUsages.Any())
             {
@@ -1141,16 +1154,16 @@ public partial class MainWindow : Window
                     continue;
                 }
 
-                // Special handling for Antigravity
+                // Providers can declare synthetic aggregate child rendering in metadata.
                 if (ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty))
                 {
                     if (usage.Details?.Any() == true)
                     {
-                        this.AddAntigravityModels(usage, currentContainer);
+                        this.AddAggregateDetailCards(usage, currentContainer);
                     }
                     else
                     {
-                        this.AddAntigravityUnavailableNotice(usage, currentContainer);
+                        this.AddAggregateDetailUnavailableNotice(usage, currentContainer);
                     }
 
                     continue;
@@ -1456,23 +1469,24 @@ public partial class MainWindow : Window
         return $"({string.Join(" | ", resetParts)})";
     }
 
-    private void AddAntigravityModels(ProviderUsage usage, StackPanel container)
+    private void AddAggregateDetailCards(ProviderUsage usage, StackPanel container)
     {
-        foreach (var modelUsage in ProviderUsageDisplayCatalog.CreateAntigravityModelUsages(usage))
+        foreach (var modelUsage in ProviderUsageDisplayCatalog.CreateAggregateDetailUsages(usage))
         {
             this.AddProviderCard(modelUsage, container);
         }
     }
 
-    private void AddAntigravityUnavailableNotice(ProviderUsage usage, StackPanel container)
+    private void AddAggregateDetailUnavailableNotice(ProviderUsage usage, StackPanel container)
     {
         var reason = string.IsNullOrWhiteSpace(usage.Description)
             ? "Model quota details are missing from the latest monitor refresh."
             : usage.Description;
+        var providerName = ProviderCapabilityCatalog.GetDisplayName(usage.ProviderId ?? string.Empty, usage.ProviderName);
 
         var message =
-            "Antigravity model quotas unavailable. " +
-            $"{reason} Use Refresh to request live data from Antigravity.";
+            $"{providerName} model quotas unavailable. " +
+            $"{reason} Use Refresh to request live data from {providerName}.";
 
         container.Children.Add(this.CreateInfoTextBlock(message));
     }
@@ -2413,7 +2427,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            this._preferences.InvertProgressBar = this.ShowUsedToggle.IsChecked ?? false;
+            this._displayPreferences.SetShowUsedPercentages(this._preferences, this.ShowUsedToggle.IsChecked ?? false);
             await this.SaveUiPreferencesAsync();
 
             // Refresh the display to show used% vs remaining%

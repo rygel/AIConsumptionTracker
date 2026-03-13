@@ -83,13 +83,13 @@
 
                          
                           <CheckBox x:Name="ShowUsedToggle" 
-                                    Content="Used%" 
+                                    Content="Show Used"
                                     IsChecked="False"
                                     Foreground="{DynamicResource SecondaryText}" 
                                     VerticalAlignment="Center"
                                     FontSize="11"
                                     Margin="0,0,8,0"
-                                    ToolTip="Toggle between Used% and Remaining%"
+                                    ToolTip="Show used percentages instead of remaining percentages"
                                     Checked="ShowUsedToggle_Checked"
                                     Unchecked="ShowUsedToggle_Checked"/>
                          
@@ -111,4 +111,3 @@
         </Grid>
     </Border>
 </Window>
-

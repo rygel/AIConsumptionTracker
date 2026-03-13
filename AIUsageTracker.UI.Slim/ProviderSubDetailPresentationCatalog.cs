@@ -45,8 +45,12 @@ internal static class ProviderSubDetailPresentationCatalog
         var remainingPercent = 100.0 - usedPercent;
         var displayPercent = showUsed ? usedPercent : remainingPercent;
         var displayText = hasPercent
-            ? $"{displayPercent:F0}%"
-            : string.IsNullOrWhiteSpace(detail.Used) ? "Unknown" : detail.Used;
+            ? ProviderUsageDetailValuePresentationCatalog.GetDisplayText(
+                detail,
+                isQuotaBased,
+                showUsed,
+                includeSemanticLabel: false)
+            : ProviderUsageDetailValuePresentationCatalog.GetStoredDisplayText(detail);
         var indicatorWidth = Math.Clamp(displayPercent, 0, 100);
         var resetText = detail.NextResetTime.HasValue
             ? $"({relativeTimeFormatter(detail.NextResetTime.Value)})"

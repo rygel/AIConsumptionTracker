@@ -28,7 +28,7 @@ public sealed class ProviderCardPresentationCatalogTests
     }
 
     [Fact]
-    public void Create_ReturnsAntigravityParentStatus_WhenDescriptionMissing()
+    public void Create_ReturnsAggregateParentStatus_WhenDescriptionMissing()
     {
         var usage = new ProviderUsage
         {
@@ -39,7 +39,7 @@ public sealed class ProviderCardPresentationCatalogTests
 
         var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: false);
 
-        Assert.True(presentation.IsAntigravityParent);
+        Assert.True(presentation.IsAggregateParent);
         Assert.Equal("Per-model quotas", presentation.StatusText);
         Assert.False(presentation.ShouldHaveProgress);
     }

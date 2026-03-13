@@ -35,6 +35,14 @@ public sealed class ProviderCapabilityCatalogTests
     }
 
     [Fact]
+    public void ShouldShowInMainWindow_HidesLegacyOpenAiProvider()
+    {
+        var result = ProviderCapabilityCatalog.ShouldShowInMainWindow("openai");
+
+        Assert.False(result);
+    }
+
+    [Fact]
     public void GetDisplayName_PreservesDerivedProviderName_WhenProvided()
     {
         var result = ProviderCapabilityCatalog.GetDisplayName(
