@@ -89,4 +89,34 @@ public class AuthDiagnosticsSnapshotBuilderTests
         Assert.Equal("n/a", snapshot.FallbackPathUsed);
         Assert.Equal("runtime-env", snapshot.TokenAgeBucket);
     }
+
+    [Fact]
+    public void Build_WhenProviderSupportsAccountIdentity_MarksUserIdentityWithoutAuthSourceHeuristics()
+    {
+        var config = new ProviderConfig
+        {
+            ProviderId = "github-copilot",
+            ApiKey = "token",
+            AuthSource = "Config: auth.json",
+        };
+
+        var snapshot = AuthDiagnosticsSnapshotBuilder.Build(config, DateTimeOffset.UtcNow);
+
+        Assert.True(snapshot.HasUserIdentity);
+    }
+
+    [Fact]
+    public void Build_WhenProviderDoesNotSupportAccountIdentity_LeavesUserIdentityFalseWithoutDescription()
+    {
+        var config = new ProviderConfig
+        {
+            ProviderId = "deepseek",
+            ApiKey = "token",
+            AuthSource = "Config: auth.json",
+        };
+
+        var snapshot = AuthDiagnosticsSnapshotBuilder.Build(config, DateTimeOffset.UtcNow);
+
+        Assert.False(snapshot.HasUserIdentity);
+    }
 }
