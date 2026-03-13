@@ -56,6 +56,8 @@ public class TokenDiscoveryService
         return discoveredConfigs;
     }
 
+    private string GetUserProfilePath() => this._pathProvider.GetUserProfileRoot();
+
     private static IReadOnlyList<IProviderAuthFallbackResolver> BuildExplicitProviderFallbackResolvers()
     {
         return ProviderMetadataCatalog.GetProviderIdsWithDiscoveryEnvironmentVariables()
@@ -72,14 +74,6 @@ public class TokenDiscoveryService
         return ProviderMetadataCatalog.GetProviderIdsWithDedicatedSessionAuthFiles()
             .Select(providerId => new ProviderSessionTokenResolver(
                 discoverySpec: ProviderMetadataCatalog.Find(providerId)!.CreateAuthDiscoverySpec(),
-                description: $"Discovered in {ProviderMetadataCatalog.GetDisplayName(providerId)} session auth",
-                sourcePrefix: "Config",
-                logger: logger,
-                pathProvider: pathProvider))
-            .ToArray();
-    }
-
-    private string GetUserProfilePath() => this._pathProvider.GetUserProfileRoot();
                 description: $"Discovered in {ProviderMetadataCatalog.GetDisplayName(providerId)} session auth",
                 sourcePrefix: "Config",
                 logger: logger,
