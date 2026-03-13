@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [2.2.28-beta.32] - 2026-03-14
+
+### Added
+- **Claude Code OAuth Integration**: Added OAuth usage endpoint support for Claude subscription users with dual quota buckets (5-hour burst and 7-day rolling window), model-specific breakdowns (Sonnet/Opus), and extra usage status.
+- **WPF Attached Behaviors**: Added declarative event handling behaviors (`WindowDragBehavior`, `KeyboardShortcutBehavior`, `CloseWindowBehavior`, `OpenFolderBehavior`) to reduce code-behind.
+- **Design-Time ViewModels**: Added design-time data support for XAML designer preview with sample provider cards and sections.
+- **Reactive Polling Service**: Added Rx-based polling service with throttling, error recovery, and disposable subscriptions.
+- **WeakEventManager**: Added memory-safe event subscription pattern for privacy mode changes.
+
+### Fixed
+- **MinimaxProvider Quota Semantics**: Fixed `RequestsPercentage` to store remaining percentage instead of used percentage, aligning with quota-based provider contract.
+- **Analyzer Compliance**: Resolved ~280 analyzer warnings across Core, Infrastructure, Monitor, and UI projects (SA1201, SA1202, SA1203, SA1204 member ordering).
+
+### Changed
+- **Beta Version Bump**: Advanced shared version metadata and packaging references to `2.2.28-beta.32`.
+- **Provider Test Coverage**: Added comprehensive tests for ClaudeCode (16 tests), Kimi (17 tests), and Minimax (22 tests) providers with realistic API response data.
+
 ## [2.2.28-beta.31] - 2026-03-13
 
 ### Changed
