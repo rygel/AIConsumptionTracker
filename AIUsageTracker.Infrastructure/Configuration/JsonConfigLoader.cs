@@ -106,6 +106,17 @@ public class JsonConfigLoader : IConfigLoader
         }
     }
 
+    private static string ResolveConfigProviderId(string providerId)
+    {
+        if (ProviderMetadataCatalog.ShouldPersistProviderId(providerId) &&
+            ProviderMetadataCatalog.IsVisibleDerivedProviderId(providerId))
+        {
+            return providerId;
+        }
+
+        return ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+    }
+
     private string GetTrackerConfigPath() => this._pathProvider.GetAuthFilePath();
 
     private string GetProvidersConfigPath() => this._pathProvider.GetProviderConfigFilePath();
@@ -125,17 +136,6 @@ public class JsonConfigLoader : IConfigLoader
         }
 
         return mergedConfigs;
-    }
-
-    private static string ResolveConfigProviderId(string providerId)
-    {
-        if (ProviderMetadataCatalog.ShouldPersistProviderId(providerId) &&
-            ProviderMetadataCatalog.IsVisibleDerivedProviderId(providerId))
-        {
-            return providerId;
-        }
-
-        return ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
     }
 
     private async Task MergeConfigFileAsync(Dictionary<string, ProviderConfig> mergedConfigs, string path, bool isAuthFile)

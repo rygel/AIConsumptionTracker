@@ -122,53 +122,6 @@ public class MonitorLauncher
         };
     }
 
-    private static Task QuarantineMonitorInfoAsync(string infoPath, string? diagnosticMessage = null)
-    {
-        if (!string.IsNullOrEmpty(diagnosticMessage))
-        {
-            MonitorService.LogDiagnostic(diagnosticMessage);
-        }
-
-        InvalidateMonitorInfoPath(infoPath);
-        return Task.CompletedTask;
-    }
-
-    private static void InvalidateMonitorInfoPath(string infoPath)
-    {
-        var backupPath = infoPath + ".stale." + DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        File.Move(infoPath, backupPath, overwrite: true);
-        MonitorService.LogDiagnostic($"Backed up stale metadata to: {backupPath}");
-        CleanupOldStaleMetadataBackups(infoPath);
-    }
-
-    private static void CleanupOldStaleMetadataBackups(string infoPath)
-    {
-        var directory = Path.GetDirectoryName(infoPath);
-        var fileName = Path.GetFileName(infoPath);
-        if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(fileName))
-        {
-            return;
-        }
-
-        var pattern = fileName + ".stale.*";
-        try
-        {
-            var staleFiles = Directory.GetFiles(directory, pattern, SearchOption.TopDirectoryOnly)
-                .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
-                .Skip(MaxStaleMetadataBackups)
-                .ToList();
-
-            foreach (var staleFile in staleFiles)
-            {
-                File.Delete(staleFile);
-            }
-        }
-        catch (Exception ex)
-        {
-            MonitorService.LogDiagnostic($"Failed pruning stale monitor metadata backups: {ex.Message}");
-        }
-    }
-
     public static async Task<bool> StartAgentAsync()
     {
         await StartupSemaphore.WaitAsync().ConfigureAwait(false);
@@ -271,6 +224,53 @@ public class MonitorLauncher
         }
 
         return Task.CompletedTask;
+    }
+
+    private static Task QuarantineMonitorInfoAsync(string infoPath, string? diagnosticMessage = null)
+    {
+        if (!string.IsNullOrEmpty(diagnosticMessage))
+        {
+            MonitorService.LogDiagnostic(diagnosticMessage);
+        }
+
+        InvalidateMonitorInfoPath(infoPath);
+        return Task.CompletedTask;
+    }
+
+    private static void InvalidateMonitorInfoPath(string infoPath)
+    {
+        var backupPath = infoPath + ".stale." + DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        File.Move(infoPath, backupPath, overwrite: true);
+        MonitorService.LogDiagnostic($"Backed up stale metadata to: {backupPath}");
+        CleanupOldStaleMetadataBackups(infoPath);
+    }
+
+    private static void CleanupOldStaleMetadataBackups(string infoPath)
+    {
+        var directory = Path.GetDirectoryName(infoPath);
+        var fileName = Path.GetFileName(infoPath);
+        if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(fileName))
+        {
+            return;
+        }
+
+        var pattern = fileName + ".stale.*";
+        try
+        {
+            var staleFiles = Directory.GetFiles(directory, pattern, SearchOption.TopDirectoryOnly)
+                .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
+                .Skip(MaxStaleMetadataBackups)
+                .ToList();
+
+            foreach (var staleFile in staleFiles)
+            {
+                File.Delete(staleFile);
+            }
+        }
+        catch (Exception ex)
+        {
+            MonitorService.LogDiagnostic($"Failed pruning stale monitor metadata backups: {ex.Message}");
+        }
     }
 
     private static async Task<bool> CheckHealthAsync(int port)

@@ -230,13 +230,6 @@ public static class UsageMath
             out percent);
     }
 
-    private static bool TryParseFallbackNumber(string value, out double result)
-    {
-        result = 0;
-        var cleanValue = new string(value.Where(c => char.IsDigit(c) || c == '.').ToArray());
-        return double.TryParse(cleanValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out result);
-    }
-
     /// <summary>
     /// Gets the effective used percentage for a provider detail, accounting for parent quota status
     /// and explicit 'used'/'remaining' strings.
@@ -282,6 +275,13 @@ public static class UsageMath
 
         // 4. PAYG/Other details are used % by default
         return val.Value;
+    }
+
+    private static bool TryParseFallbackNumber(string value, out double result)
+    {
+        result = 0;
+        var cleanValue = new string(value.Where(c => char.IsDigit(c) || c == '.').ToArray());
+        return double.TryParse(cleanValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out result);
     }
 
     public static BurnRateForecast CalculateBurnRateForecast(IEnumerable<ProviderUsage> history)
@@ -366,6 +366,31 @@ public static class UsageMath
         };
     }
 
+    public static UsageAnomalySnapshot CalculateUsageAnomalySnapshot(IEnumerable<ProviderUsage> history)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+
+        var samples = FilterValidSamplesForAnomaly(history);
+        if (!ValidateMinimumSamplesForAnomaly(samples, 4, "Insufficient history", out var snapshotResult))
+        {
+            return snapshotResult;
+        }
+
+        var cycleSamples = TrimToLatestCycle(samples);
+        if (!ValidateMinimumSamplesForAnomaly(cycleSamples, 4, "Insufficient cycle history", out snapshotResult))
+        {
+            return snapshotResult;
+        }
+
+        var rates = CalculateRatesPerDay(cycleSamples);
+        if (!ValidateRatesAndCalculateBaseline(rates, out var baselineMedian, out var baselineRates, out var latest, out var snapshot))
+        {
+            return snapshot;
+        }
+
+        return CreateAnomalySnapshot(baselineMedian, baselineRates, latest, cycleSamples);
+    }
+
     private static List<ProviderUsage> FilterValidSamples(IEnumerable<ProviderUsage> history)
     {
         return history
@@ -442,31 +467,6 @@ public static class UsageMath
             SampleCount = cycleSamples.Count,
             TrendDirection = TrendDirection.Stable,
         };
-    }
-
-    public static UsageAnomalySnapshot CalculateUsageAnomalySnapshot(IEnumerable<ProviderUsage> history)
-    {
-        ArgumentNullException.ThrowIfNull(history);
-
-        var samples = FilterValidSamplesForAnomaly(history);
-        if (!ValidateMinimumSamplesForAnomaly(samples, 4, "Insufficient history", out var snapshotResult))
-        {
-            return snapshotResult;
-        }
-
-        var cycleSamples = TrimToLatestCycle(samples);
-        if (!ValidateMinimumSamplesForAnomaly(cycleSamples, 4, "Insufficient cycle history", out snapshotResult))
-        {
-            return snapshotResult;
-        }
-
-        var rates = CalculateRatesPerDay(cycleSamples);
-        if (!ValidateRatesAndCalculateBaseline(rates, out var baselineMedian, out var baselineRates, out var latest, out var snapshot))
-        {
-            return snapshot;
-        }
-
-        return CreateAnomalySnapshot(baselineMedian, baselineRates, latest, cycleSamples);
     }
 
     private static List<ProviderUsage> FilterValidSamplesForAnomaly(IEnumerable<ProviderUsage> history)
