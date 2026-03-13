@@ -24,21 +24,7 @@ public class TokenDiscoveryService
     {
         this._logger = logger;
         this._pathProvider = pathProvider;
-        this._sessionResolvers = new List<ProviderSessionTokenResolver>
-        {
-            new(
-                discoverySpec: ClaudeCodeProvider.StaticDefinition.CreateAuthDiscoverySpec(),
-                description: "Discovered in Claude Code credentials",
-                sourcePrefix: "Claude Code",
-                logger: this._logger,
-                pathProvider: this._pathProvider),
-            new(
-                discoverySpec: CodexProvider.StaticDefinition.CreateAuthDiscoverySpec(),
-                description: "Discovered in Codex auth",
-                sourcePrefix: "Config",
-                logger: this._logger,
-                pathProvider: this._pathProvider),
-        };
+        this._sessionResolvers = BuildSessionResolvers(this._logger, this._pathProvider);
     }
 
     private string GetUserProfilePath() => this._pathProvider.GetUserProfileRoot();
@@ -49,6 +35,20 @@ public class TokenDiscoveryService
             .Select(providerId => (IProviderAuthFallbackResolver)new ProviderAuthFallbackResolver(
                 providerId,
                 ProviderMetadataCatalog.GetDiscoveryEnvironmentVariables(providerId).ToArray()))
+            .ToArray();
+    }
+
+    private static IReadOnlyList<ProviderSessionTokenResolver> BuildSessionResolvers(
+        ILogger<TokenDiscoveryService> logger,
+        IAppPathProvider pathProvider)
+    {
+        return ProviderMetadataCatalog.GetProviderIdsWithDedicatedSessionAuthFiles()
+            .Select(providerId => new ProviderSessionTokenResolver(
+                discoverySpec: ProviderMetadataCatalog.Find(providerId)!.CreateAuthDiscoverySpec(),
+                description: $"Discovered in {ProviderMetadataCatalog.GetDisplayName(providerId)} session auth",
+                sourcePrefix: "Config",
+                logger: logger,
+                pathProvider: pathProvider))
             .ToArray();
     }
 

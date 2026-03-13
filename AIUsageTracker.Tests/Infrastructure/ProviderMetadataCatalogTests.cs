@@ -340,6 +340,16 @@ public class ProviderMetadataCatalogTests
         Assert.DoesNotContain("openai", providerIds);
     }
 
+    [Fact]
+    public void GetProviderIdsWithDedicatedSessionAuthFiles_UsesProviderMetadata()
+    {
+        var providerIds = ProviderMetadataCatalog.GetProviderIdsWithDedicatedSessionAuthFiles();
+
+        Assert.Contains("claude-code", providerIds);
+        Assert.Contains("codex", providerIds);
+        Assert.DoesNotContain("openai", providerIds);
+    }
+
     [Theory]
     [InlineData("OPENAI_API_KEY", "openai")]
     [InlineData("CODEX_API_KEY", "codex")]

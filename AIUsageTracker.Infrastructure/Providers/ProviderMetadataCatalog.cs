@@ -329,6 +329,18 @@ public static class ProviderMetadataCatalog
             .ToList();
     }
 
+    public static IReadOnlyList<string> GetProviderIdsWithDedicatedSessionAuthFiles()
+    {
+        return Definitions
+            .Where(definition =>
+                definition.AuthIdentityCandidatePathTemplates.Count > 0 &&
+                definition.SessionAuthFileSchemas.Count > 0 &&
+                string.IsNullOrWhiteSpace(definition.SessionAuthCanonicalProviderId))
+            .Select(definition => definition.ProviderId)
+            .OrderBy(providerId => providerId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     public static bool ShouldPersistProviderId(string providerId)
     {
         if (string.IsNullOrWhiteSpace(providerId))
