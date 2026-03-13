@@ -3,101 +3,158 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.MonitorClient;
+using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
 
 internal static class ProviderUsageDisplayCatalog
 {
-    public static ProviderRenderPreparation PrepareForMainWindow(
-        IReadOnlyCollection<ProviderUsage> usages,
-        AgentProviderCapabilitiesSnapshot? capabilities = null)
+    public static ProviderRenderPreparation PrepareForMainWindow(IReadOnlyCollection<ProviderUsage> usages)
     {
         var filteredUsages = usages
-            .Where(usage => ProviderCapabilityCatalog.ShouldShowInMainWindow(usage.ProviderId ?? string.Empty, capabilities))
+            .Where(usage => ProviderCapabilityCatalog.ShouldShowInMainWindow(usage.ProviderId ?? string.Empty))
             .ToList();
-        var hasAntigravityParent = filteredUsages.Any(usage => IsAntigravityParent(usage, capabilities));
-        var collapsedParentProviderIds = ResolveCollapsedParentProviderIds(filteredUsages, capabilities);
+        var hasAggregateParent = filteredUsages.Any(IsAggregateParent);
+        var collapsedParentProviderIds = ResolveCollapsedParentProviderIds(filteredUsages);
 
         filteredUsages = filteredUsages
-            .Where(ShouldDisplayUsage(collapsedParentProviderIds, capabilities))
-            .GroupBy(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
+            .Where(ShouldDisplayUsage(collapsedParentProviderIds))
             .ToList();
 
-        return new ProviderRenderPreparation(filteredUsages, hasAntigravityParent);
+        filteredUsages = filteredUsages
+            .GroupBy(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase)
+            .Select(SelectPreferredUsage)
+            .ToList();
+
+        return new ProviderRenderPreparation(filteredUsages, hasAggregateParent);
     }
 
-    public static IReadOnlyList<ProviderUsage> CreateAntigravityModelUsages(ProviderUsage parentUsage)
+    public static IReadOnlyList<ProviderUsage> CreateAggregateDetailUsages(ProviderUsage parentUsage)
     {
-        if (parentUsage.Details?.Any() != true)
+        var canonicalProviderId = ProviderCapabilityCatalog.GetCanonicalProviderId(parentUsage.ProviderId ?? string.Empty);
+        if (!ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(canonicalProviderId) ||
+            parentUsage.Details?.Any() != true)
         {
             return Array.Empty<ProviderUsage>();
         }
 
+        var planType = parentUsage.PlanType;
+        var isQuotaBased = parentUsage.IsQuotaBased;
+        if (ProviderMetadataCatalog.TryGet(canonicalProviderId, out var definition))
+        {
+            planType = definition.PlanType;
+            isQuotaBased = definition.IsQuotaBased;
+        }
+
+        var aggregateDetailDisplaySuffix = ResolveAggregateDetailDisplaySuffix(canonicalProviderId, parentUsage.ProviderName);
+
         return parentUsage.Details
-            .Select(detail => new { Detail = detail, ModelDisplayName = ResolveAntigravityModelDisplayName(detail) })
+            .Select(detail => new { Detail = detail, ModelDisplayName = ResolveAggregateDetailDisplayName(detail) })
             .Where(x => !string.IsNullOrWhiteSpace(x.ModelDisplayName) && !x.ModelDisplayName.StartsWith("[", StringComparison.Ordinal))
             .GroupBy(x => x.ModelDisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .OrderBy(x => x.ModelDisplayName, StringComparer.OrdinalIgnoreCase)
-            .Select(x => CreateAntigravityModelUsage(x.Detail, x.ModelDisplayName, parentUsage))
+            .Select(x => CreateAggregateDetailUsage(
+                canonicalProviderId,
+                aggregateDetailDisplaySuffix,
+                planType,
+                isQuotaBased,
+                x.Detail,
+                x.ModelDisplayName,
+                parentUsage))
             .ToList();
     }
 
-    private static HashSet<string> ResolveCollapsedParentProviderIds(
-        IEnumerable<ProviderUsage> usages,
-        AgentProviderCapabilitiesSnapshot? capabilities)
+    private static HashSet<string> ResolveCollapsedParentProviderIds(IEnumerable<ProviderUsage> usages)
     {
         return usages
             .Where(usage =>
             {
                 var providerId = usage.ProviderId ?? string.Empty;
-                var canonicalProviderId = ProviderCapabilityCatalog.GetCanonicalProviderId(providerId, capabilities);
+                var canonicalProviderId = ProviderCapabilityCatalog.GetCanonicalProviderId(providerId);
                 return string.Equals(providerId, canonicalProviderId, StringComparison.OrdinalIgnoreCase) &&
-                       ProviderCapabilityCatalog.ShouldCollapseDerivedChildrenInMainWindow(providerId, capabilities);
+                       ProviderCapabilityCatalog.ShouldCollapseDerivedChildrenInMainWindow(providerId);
             })
             .Select(usage => usage.ProviderId ?? string.Empty)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    private static Func<ProviderUsage, bool> ShouldDisplayUsage(
-        IReadOnlySet<string> collapsedParentProviderIds,
-        AgentProviderCapabilitiesSnapshot? capabilities)
+    private static Func<ProviderUsage, bool> ShouldDisplayUsage(IReadOnlySet<string> collapsedParentProviderIds)
     {
         return usage =>
         {
             var providerId = usage.ProviderId ?? string.Empty;
-            var canonicalProviderId = ProviderCapabilityCatalog.GetCanonicalProviderId(providerId, capabilities);
+            var canonicalProviderId = ProviderCapabilityCatalog.GetCanonicalProviderId(providerId);
             var isDerivedChild = !string.Equals(providerId, canonicalProviderId, StringComparison.OrdinalIgnoreCase);
             return !isDerivedChild || !collapsedParentProviderIds.Contains(canonicalProviderId);
         };
     }
 
-    private static bool IsAntigravityParent(ProviderUsage usage, AgentProviderCapabilitiesSnapshot? capabilities)
+    private static bool IsAggregateParent(ProviderUsage usage)
     {
-        return ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty, capabilities);
+        return ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty);
     }
 
-    private static ProviderUsage CreateAntigravityModelUsage(
+    private static ProviderUsage SelectPreferredUsage(IGrouping<string, ProviderUsage> group)
+    {
+        return group
+            .OrderByDescending(GetSelectionScore)
+            .ThenByDescending(usage => usage.FetchedAt)
+            .First();
+    }
+
+    private static int GetSelectionScore(ProviderUsage usage)
+    {
+        var score = 0;
+        if (usage.IsAvailable)
+        {
+            score += 1000;
+        }
+
+        if (usage.HttpStatus is >= 200 and < 300)
+        {
+            score += 100;
+        }
+
+        if (usage.Details?.Count > 0)
+        {
+            score += usage.Details.Count;
+            score += usage.Details.Count(detail => detail.DetailType == ProviderUsageDetailType.QuotaWindow) * 50;
+        }
+
+        if (usage.NextResetTime.HasValue)
+        {
+            score += 10;
+        }
+
+        return score;
+    }
+
+    private static ProviderUsage CreateAggregateDetailUsage(
+        string canonicalProviderId,
+        string aggregateDetailDisplaySuffix,
+        PlanType planType,
+        bool isQuotaBased,
         ProviderUsageDetail detail,
         string modelDisplayName,
         ProviderUsage parentUsage)
     {
-        var remainingPercent = UsageMath.ParsePercent(detail.Used);
-        var hasRemainingPercent = remainingPercent.HasValue;
-        var effectiveRemaining = remainingPercent ?? 0;
+        var effectiveUsed = UsageMath.GetEffectiveUsedPercent(detail, parentIsQuota: true);
+        var hasRemainingPercent = effectiveUsed.HasValue;
+        var effectiveRemaining = !effectiveUsed.HasValue
+            ? 0
+            : Math.Clamp(100 - effectiveUsed.Value, 0, 100);
 
         return new ProviderUsage
         {
-            ProviderId = $"antigravity.{modelDisplayName.ToLowerInvariant().Replace(" ", "-", StringComparison.Ordinal)}",
-            ProviderName = $"{modelDisplayName} [Antigravity]",
+            ProviderId = $"{canonicalProviderId}.{modelDisplayName.ToLowerInvariant().Replace(" ", "-", StringComparison.Ordinal)}",
+            ProviderName = $"{modelDisplayName} {aggregateDetailDisplaySuffix}",
             RequestsPercentage = effectiveRemaining,
             RequestsUsed = 100.0 - effectiveRemaining,
             RequestsAvailable = 100,
             UsageUnit = "Quota %",
-            IsQuotaBased = true,
-            PlanType = PlanType.Coding,
+            IsQuotaBased = isQuotaBased,
+            PlanType = planType,
             Description = hasRemainingPercent ? $"{effectiveRemaining:F0}% Remaining" : "Usage unknown",
             NextResetTime = detail.NextResetTime,
             IsAvailable = parentUsage.IsAvailable,
@@ -106,7 +163,7 @@ internal static class ProviderUsageDisplayCatalog
         };
     }
 
-    private static string ResolveAntigravityModelDisplayName(ProviderUsageDetail detail)
+    private static string ResolveAggregateDetailDisplayName(ProviderUsageDetail detail)
     {
         if (!string.IsNullOrWhiteSpace(detail.Name))
         {
@@ -116,5 +173,17 @@ internal static class ProviderUsageDisplayCatalog
         return string.IsNullOrWhiteSpace(detail.ModelName)
             ? string.Empty
             : detail.ModelName.Trim();
+    }
+
+    private static string ResolveAggregateDetailDisplaySuffix(string providerId, string? providerName)
+    {
+        if (ProviderMetadataCatalog.TryGet(providerId, out var definition) &&
+            !string.IsNullOrWhiteSpace(definition.AggregateDetailDisplaySuffix))
+        {
+            return definition.AggregateDetailDisplaySuffix!;
+        }
+
+        var displayName = ProviderCapabilityCatalog.GetDisplayName(providerId, providerName);
+        return $"[{displayName}]";
     }
 }

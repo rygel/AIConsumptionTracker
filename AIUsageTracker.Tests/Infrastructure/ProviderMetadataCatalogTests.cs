@@ -37,8 +37,10 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("codex.spark", "codex", "OpenAI (GPT-5.3-Codex-Spark)")]
+    [InlineData("codex.spark", "codex", "OpenAI (GPT-5.3 Codex Spark)")]
     [InlineData("gemini", "gemini-cli", "Google Gemini")]
+    [InlineData("gemini-cli.hourly", "gemini-cli", "Gemini CLI (Hourly)")]
+    [InlineData("gemini-cli.daily", "gemini-cli", "Gemini CLI (Daily)")]
     [InlineData("kimi-for-coding", "kimi", "Kimi")]
     [InlineData("minimax-io", "minimax", "Minimax (International)")]
     [InlineData("minimax-global", "minimax", "Minimax (International)")]
@@ -112,6 +114,22 @@ public class ProviderMetadataCatalogTests
         Assert.Equal(expectedCanonicalId, ProviderMetadataCatalog.GetCanonicalProviderId(providerId));
     }
 
+    [Fact]
+    public void GetDerivedModelDisplayName_AppendsConfiguredSuffix()
+    {
+        var name = ProviderMetadataCatalog.GetDerivedModelDisplayName("gemini-cli", "Gemini 2.5 Flash Lite");
+
+        Assert.Equal("Gemini 2.5 Flash Lite [Gemini CLI]", name);
+    }
+
+    [Fact]
+    public void GetDerivedModelDisplayName_LeavesNameUnchanged_WhenNoSuffixConfigured()
+    {
+        var name = ProviderMetadataCatalog.GetDerivedModelDisplayName("codex", "GPT-5.3 Codex");
+
+        Assert.Equal("GPT-5.3 Codex", name);
+    }
+
     [Theory]
     [InlineData("antigravity", true)]
     [InlineData("antigravity.some-model", false)]
@@ -135,6 +153,7 @@ public class ProviderMetadataCatalogTests
     [InlineData("codex", true)]
     [InlineData("codex.spark", true)]
     [InlineData("antigravity.some-model", true)]
+    [InlineData("openai", false)]
     [InlineData("unknown-provider", false)]
     public void ShouldShowInMainWindow_UsesCatalogVisibility(string providerId, bool expected)
     {
@@ -237,6 +256,28 @@ public class ProviderMetadataCatalogTests
         Assert.DoesNotContain("codex", providerIds);
     }
 
+    [Theory]
+    [InlineData("github-copilot", PlanType.Coding, true)]
+    [InlineData("antigravity", PlanType.Coding, true)]
+    [InlineData("gemini-cli", PlanType.Coding, true)]
+    [InlineData("kimi", PlanType.Coding, true)]
+    [InlineData("synthetic", PlanType.Coding, true)]
+    [InlineData("zai-coding-plan", PlanType.Coding, true)]
+    [InlineData("codex", PlanType.Coding, true)]
+    [InlineData("openai", PlanType.Coding, true)]
+    public void Definitions_ExposeExplicitQuotaSemanticsForCodingProviders(
+        string providerId,
+        PlanType expectedPlanType,
+        bool expectedIsQuotaBased)
+    {
+        var definition = Assert.Single(
+            ProviderMetadataCatalog.Definitions,
+            item => string.Equals(item.ProviderId, providerId, StringComparison.OrdinalIgnoreCase));
+
+        Assert.Equal(expectedPlanType, definition.PlanType);
+        Assert.Equal(expectedIsQuotaBased, definition.IsQuotaBased);
+    }
+
     [Fact]
     public void GetDefaultSettingsProviderIds_UsesProviderDefinitionAdditionalIds()
     {
@@ -308,6 +349,7 @@ public class ProviderMetadataCatalogTests
         Assert.Contains("GEMINI_API_KEY", gemini!.DiscoveryEnvironmentVariables);
         Assert.Contains("GOOGLE_API_KEY", gemini.DiscoveryEnvironmentVariables);
         Assert.Contains("geminiApiKey", gemini.RooConfigPropertyNames);
+        Assert.Equal("[Gemini CLI]", gemini.DerivedModelDisplaySuffix);
 
         var deepSeek = ProviderMetadataCatalog.Find("deepseek");
         Assert.NotNull(deepSeek);
@@ -327,6 +369,31 @@ public class ProviderMetadataCatalogTests
     }
 
     [Fact]
+    public void Definitions_ExposeProviderSpecificUiContracts()
+    {
+        var githubCopilot = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("github-copilot"));
+        Assert.Equal(ProviderSettingsMode.ExternalAuthStatus, githubCopilot.SettingsMode);
+        Assert.False(githubCopilot.RenderDetailsAsSyntheticChildrenInMainWindow);
+
+        var antigravity = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("antigravity"));
+        Assert.Equal(ProviderSettingsMode.AutoDetectedStatus, antigravity.SettingsMode);
+        Assert.True(antigravity.RenderDetailsAsSyntheticChildrenInMainWindow);
+        Assert.Equal("[Antigravity]", antigravity.AggregateDetailDisplaySuffix);
+
+        var gemini = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("gemini-cli"));
+        Assert.Equal(ProviderSettingsMode.StandardApiKey, gemini.SettingsMode);
+        Assert.True(gemini.SupportsChildProviderIds);
+        Assert.False(gemini.RenderDetailsAsSyntheticChildrenInMainWindow);
+
+        foreach (var providerId in new[] { "kimi", "synthetic", "zai-coding-plan" })
+        {
+            var definition = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find(providerId));
+            Assert.Equal(ProviderSettingsMode.StandardApiKey, definition.SettingsMode);
+            Assert.False(definition.RenderDetailsAsSyntheticChildrenInMainWindow);
+        }
+    }
+
+    [Fact]
     public void Find_ExposesClaudeSessionAuthDiscoveryMetadata()
     {
         var definition = ProviderMetadataCatalog.Find("claude-code");
@@ -342,7 +409,7 @@ string.Equals(schema.AccessTokenProperty, "accessToken", StringComparison.Ordina
     {
         var usages = new List<ProviderUsage>
         {
-            new() { ProviderId = "codex", ProviderName = "OpenAI (Codex)" },
+            new() { ProviderId = "codex", ProviderName = "OpenAI" },
             new() { ProviderId = "openai", ProviderName = "OpenAI" },
         };
 

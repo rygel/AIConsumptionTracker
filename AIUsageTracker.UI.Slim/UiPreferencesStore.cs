@@ -40,7 +40,7 @@ public class UiPreferencesStore
         try
         {
             var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
-            return JsonSerializer.Deserialize<AppPreferences>(json) ?? new AppPreferences();
+            return AppPreferences.Deserialize(json);
         }
         catch (JsonException ex)
         {

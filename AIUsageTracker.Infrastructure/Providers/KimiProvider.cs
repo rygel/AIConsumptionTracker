@@ -68,7 +68,9 @@ public class KimiProvider : ProviderBase
             }
             catch (JsonException ex)
             {
-                this._logger.LogError(ex, "Kimi API response could not be deserialized. Unexpected format? Raw: {Raw}",
+                this._logger.LogError(
+                    ex,
+                    "Kimi API response could not be deserialized. Unexpected format? Raw: {Raw}",
                     content.Length > 500 ? content[..500] : content);
                 return new[] { this.CreateUnavailableUsage("Unexpected response format", authSource: config.AuthSource) };
             }
@@ -114,11 +116,13 @@ public class KimiProvider : ProviderBase
                 details.Add(new ProviderUsageDetail
                 {
                     Name = "Weekly Limit",
-                    Used = $"{weeklyUsedPct.ToString("F1", CultureInfo.InvariantCulture)}% used",
                     Description = $"{remaining} remaining{(!string.IsNullOrEmpty(data.Usage.ResetTime) ? $" (Resets: {this.FormatResetTime(data.Usage.ResetTime)})" : string.Empty)}",
                     NextResetTime = weeklyResetDt,
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    WindowKind = WindowKind.Secondary,
+                    QuotaBucketKind = WindowKind.Secondary,
+                    PercentageValue = weeklyUsedPct,
+                    PercentageSemantic = PercentageValueSemantic.Used,
+                    PercentageDecimalPlaces = 1,
                 });
             }
 
@@ -157,16 +161,18 @@ public class KimiProvider : ProviderBase
                         }
                     }
 
-                    var windowKind = DetermineWindowKind(win.Duration, win.TimeUnit);
+                    var quotaBucketKind = DetermineWindowKind(win.Duration, win.TimeUnit);
 
                     details.Add(new ProviderUsageDetail
                     {
                         Name = name,
-                        Used = $"{itemUsedPercentage.ToString("F1", CultureInfo.InvariantCulture)}% used",
                         Description = $"{det.Remaining} / {det.Limit} remaining (Resets: {resetDisplay})",
                         NextResetTime = itemResetDt,
                         DetailType = ProviderUsageDetailType.QuotaWindow,
-                        WindowKind = windowKind,
+                        QuotaBucketKind = quotaBucketKind,
+                        PercentageValue = itemUsedPercentage,
+                        PercentageSemantic = PercentageValueSemantic.Used,
+                        PercentageDecimalPlaces = 1,
                     });
                 }
             }
@@ -194,7 +200,7 @@ public class KimiProvider : ProviderBase
                 HttpStatus = (int)response.StatusCode,
                 Details = details,
                 NextResetTime = soonestResetDt,
-                AuthSource = config.AuthSource
+                AuthSource = config.AuthSource,
             },
             };
         }

@@ -37,7 +37,7 @@ public class ProviderUsageProcessingPipelineTests
                 {
                     Name = string.Empty,
                     DetailType = ProviderUsageDetailType.Unknown,
-                    WindowKind = WindowKind.None,
+                    QuotaBucketKind = WindowKind.None,
                 },
             },
         };
@@ -50,7 +50,52 @@ public class ProviderUsageProcessingPipelineTests
         var processed = Assert.Single(result.Usages);
         Assert.False(processed.IsAvailable);
         Assert.True(processed.Description.Contains("Invalid detail contract:", StringComparison.Ordinal));
+        Assert.Equal(UpstreamResponseValidity.Invalid, processed.UpstreamResponseValidity);
         Assert.Equal(1, result.DetailContractAdjustedCount);
+    }
+
+    [Fact]
+    public void Process_WhenHttpStatusIsSuccess_MarksUpstreamResponseValid()
+    {
+        var usage = new ProviderUsage
+        {
+            ProviderId = "openai",
+            ProviderName = "OpenAI",
+            IsAvailable = true,
+            Description = "Connected",
+            HttpStatus = 200,
+        };
+
+        var result = this._pipeline.Process(
+            new[] { usage },
+            new[] { "openai" },
+            isPrivacyMode: false);
+
+        var processed = Assert.Single(result.Usages);
+        Assert.Equal(UpstreamResponseValidity.Valid, processed.UpstreamResponseValidity);
+        Assert.Equal("HTTP 200", processed.UpstreamResponseNote);
+    }
+
+    [Fact]
+    public void Process_WhenNoUpstreamMetadata_MarksResponseAsNotAttempted()
+    {
+        var usage = new ProviderUsage
+        {
+            ProviderId = "antigravity",
+            ProviderName = "Antigravity",
+            IsAvailable = false,
+            Description = "Application not running",
+            HttpStatus = 0,
+            RawJson = null,
+        };
+
+        var result = this._pipeline.Process(
+            new[] { usage },
+            new[] { "antigravity" },
+            isPrivacyMode: false);
+
+        var processed = Assert.Single(result.Usages);
+        Assert.Equal(UpstreamResponseValidity.NotAttempted, processed.UpstreamResponseValidity);
     }
 
     [Fact]
@@ -151,6 +196,29 @@ public class ProviderUsageProcessingPipelineTests
     }
 
     [Fact]
+    public void Process_WhenUsageMatchesCanonicalProviderAlias_KeepsEntry()
+    {
+        var usage = new ProviderUsage
+        {
+            ProviderId = "gemini-cli.hourly",
+            ProviderName = "Gemini CLI (Hourly)",
+            RequestsUsed = 20,
+            RequestsAvailable = 100,
+            RequestsPercentage = 80,
+            IsAvailable = true,
+        };
+
+        var result = this._pipeline.Process(
+            new[] { usage },
+            new[] { "gemini" },
+            isPrivacyMode: false);
+
+        var accepted = Assert.Single(result.Usages);
+        Assert.Equal("gemini-cli.hourly", accepted.ProviderId);
+        Assert.Equal(0, result.InactiveProviderFilteredCount);
+    }
+
+    [Fact]
     public void Process_WhenProviderIdMissing_FiltersInvalidIdentity()
     {
         var usage = new ProviderUsage
@@ -246,7 +314,7 @@ public class ProviderUsageProcessingPipelineTests
                     Name = "Weekly Quota",
                     Used = "14% used",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    WindowKind = WindowKind.Secondary,
+                    QuotaBucketKind = WindowKind.Secondary,
                     NextResetTime = futureReset,
                 },
             ],
@@ -354,7 +422,7 @@ public class ProviderUsageProcessingPipelineTests
                     {
                         Name = string.Empty,
                         DetailType = ProviderUsageDetailType.Unknown,
-                        WindowKind = WindowKind.None,
+                        QuotaBucketKind = WindowKind.None,
                     },
                 ],
             },

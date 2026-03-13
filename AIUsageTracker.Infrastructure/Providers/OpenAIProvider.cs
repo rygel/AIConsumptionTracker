@@ -36,6 +36,7 @@ public class OpenAIProvider : ProviderBase
         settingsMode: ProviderSettingsMode.SessionAuthStatus,
         useSessionAuthStatusWhenQuotaBasedOrSessionToken: true,
         sessionStatusLabel: "OpenAI (API)",
+        showInMainWindow: false,
         sessionIdentitySource: ProviderSessionIdentitySource.OpenAi,
         supportsAccountIdentity: true,
         showInSettings: false,
@@ -251,11 +252,12 @@ public class OpenAIProvider : ProviderBase
             details.Add(new ProviderUsageDetail
             {
                 Name = "5-hour quota",
-                Used = $"{used.Value:F0}% used",
                 Description = reset.HasValue && reset.Value > 0 ? $"Resets in {(int)reset.Value}s" : string.Empty,
                 NextResetTime = primaryResetTime,
                 DetailType = ProviderUsageDetailType.QuotaWindow,
-                WindowKind = WindowKind.Primary,
+                QuotaBucketKind = WindowKind.Primary,
+                PercentageValue = used.Value,
+                PercentageSemantic = PercentageValueSemantic.Used,
             });
         }
 
@@ -267,11 +269,12 @@ public class OpenAIProvider : ProviderBase
             details.Add(new ProviderUsageDetail
             {
                 Name = "Weekly quota",
-                Used = $"{weeklyUsed.Value:F0}% used",
                 Description = weeklyReset.HasValue && weeklyReset.Value > 0 ? $"Resets in {(int)weeklyReset.Value}s" : string.Empty,
                 NextResetTime = weeklyResetTime,
                 DetailType = ProviderUsageDetailType.QuotaWindow,
-                WindowKind = WindowKind.Secondary,
+                QuotaBucketKind = WindowKind.Secondary,
+                PercentageValue = weeklyUsed.Value,
+                PercentageSemantic = PercentageValueSemantic.Used,
             });
         }
 
@@ -284,7 +287,7 @@ public class OpenAIProvider : ProviderBase
                 Name = "Credits",
                 Used = unlimited == true ? "Unlimited" : credits?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "Unknown",
                 DetailType = ProviderUsageDetailType.Credit,
-                WindowKind = WindowKind.None,
+                QuotaBucketKind = WindowKind.None,
             });
         }
 

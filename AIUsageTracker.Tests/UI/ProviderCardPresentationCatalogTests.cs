@@ -28,7 +28,7 @@ public sealed class ProviderCardPresentationCatalogTests
     }
 
     [Fact]
-    public void Create_ReturnsAntigravityParentStatus_WhenDescriptionMissing()
+    public void Create_ReturnsAggregateParentStatus_WhenDescriptionMissing()
     {
         var usage = new ProviderUsage
         {
@@ -39,7 +39,7 @@ public sealed class ProviderCardPresentationCatalogTests
 
         var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: false);
 
-        Assert.True(presentation.IsAntigravityParent);
+        Assert.True(presentation.IsAggregateParent);
         Assert.Equal("Per-model quotas", presentation.StatusText);
         Assert.False(presentation.ShouldHaveProgress);
     }
@@ -102,7 +102,7 @@ public sealed class ProviderCardPresentationCatalogTests
     }
 
     [Fact]
-    public void Create_FormatsDualWindowStatus_AndSuppressesSingleResetTime()
+    public void Create_FormatsDualQuotaBucketStatus_AndSuppressesSingleResetTime()
     {
         var usage = new ProviderUsage
         {
@@ -118,14 +118,14 @@ public sealed class ProviderCardPresentationCatalogTests
                     Name = "5-hour quota",
                     Used = "96% remaining (4% used)",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    WindowKind = WindowKind.Primary,
+                    QuotaBucketKind = WindowKind.Primary,
                 },
                 new()
                 {
                     Name = "Weekly quota",
                     Used = "49% remaining (51% used)",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    WindowKind = WindowKind.Secondary,
+                    QuotaBucketKind = WindowKind.Secondary,
                 },
             },
         };
@@ -134,5 +134,25 @@ public sealed class ProviderCardPresentationCatalogTests
 
         Assert.Equal("5-hour 96% remaining | Weekly 49% remaining", presentation.StatusText);
         Assert.True(presentation.SuppressSingleResetTime);
+    }
+
+    [Theory]
+    [InlineData("opencode-zen")]
+    [InlineData("opencode-go")]
+    public void Create_UsesCompactInlineStatus_ForOpenCodeProviders(string providerId)
+    {
+        var usage = new ProviderUsage
+        {
+            ProviderId = providerId,
+            IsAvailable = true,
+            PlanType = PlanType.Usage,
+            UsageUnit = "USD",
+            RequestsUsed = 12.34,
+            Description = "$12.34 (4 sessions, 198 msgs, 7 days)",
+        };
+
+        var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: false);
+
+        Assert.Equal("$12.34", presentation.StatusText);
     }
 }

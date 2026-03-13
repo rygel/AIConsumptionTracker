@@ -32,6 +32,8 @@ public class AntigravityProvider : ProviderBase
         settingsMode: ProviderSettingsMode.AutoDetectedStatus,
         refreshOnStartupWithCachedData: true,
         collapseDerivedChildrenInMainWindow: true,
+        renderDetailsAsSyntheticChildrenInMainWindow: true,
+        aggregateDetailDisplaySuffix: "[Antigravity]",
         supportsAccountIdentity: true,
         iconAssetName: "google",
         fallbackBadgeColorHex: "#1E90FF",
@@ -517,23 +519,28 @@ public class AntigravityProvider : ProviderBase
             var remainingPct = this.ResolveRemainingPercentage(label, modelConfig);
             var (resetDescription, nextResetTime) = ResolveResetInfo(modelConfig);
             var modelName = ResolveDisplayModelName(label);
-            var usedText = remainingPct.HasValue
-                ? $"{remainingPct.Value.ToString("F0", CultureInfo.InvariantCulture)}%"
-                : "Unknown";
-
-            details.Add(new ProviderUsageDetail
+            var detail = new ProviderUsageDetail
             {
                 Name = label,
                 ModelName = modelName,
                 GroupName = labelToGroup.TryGetValue(label, out var groupName)
                     ? groupName
                     : "Ungrouped Models",
-                Used = usedText,
                 Description = resetDescription,
                 NextResetTime = nextResetTime,
                 DetailType = ProviderUsageDetailType.Model,
-                WindowKind = WindowKind.None,
-            });
+                QuotaBucketKind = WindowKind.None,
+            };
+            if (remainingPct.HasValue)
+            {
+                detail.SetPercentageValue(remainingPct.Value, PercentageValueSemantic.Remaining);
+            }
+            else
+            {
+                detail.Used = "Unknown";
+            }
+
+            details.Add(detail);
 
             if (remainingPct.HasValue)
             {
@@ -759,7 +766,10 @@ public class AntigravityProvider : ProviderBase
 
         foreach (var detail in sortedDetails)
         {
-            var detailRemaining = ParseDetailRemainingPercentage(detail.Used);
+            var usedPercent = UsageMath.GetEffectiveUsedPercent(detail, parentIsQuota: true);
+            var detailRemaining = usedPercent.HasValue
+                ? Math.Clamp(100 - usedPercent.Value, 0, 100)
+                : 0;
             var (childId, childName) = this.ResolveChildIdentity(detail, config);
 
             long? detailTotal = null;
@@ -800,17 +810,6 @@ public class AntigravityProvider : ProviderBase
         }
 
         return results;
-    }
-
-    private static double ParseDetailRemainingPercentage(string detailUsed)
-    {
-        if (detailUsed.EndsWith("%", StringComparison.Ordinal) &&
-            double.TryParse(detailUsed.TrimEnd('%'), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
-        {
-            return parsed;
-        }
-
-        return 0;
     }
 
     private (string ChildId, string ChildName) ResolveChildIdentity(ProviderUsageDetail detail, ProviderConfig config)

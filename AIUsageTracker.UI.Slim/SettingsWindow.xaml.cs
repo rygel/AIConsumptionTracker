@@ -35,12 +35,12 @@ public partial class SettingsWindow : Window
     private readonly ILogger<SettingsWindow> _logger;
     private readonly IAppPathProvider _pathProvider;
     private readonly UiPreferencesStore _preferencesStore;
+    private readonly DisplayPreferencesService _displayPreferences;
     private readonly SemaphoreSlim _autoSaveSemaphore = new(1, 1);
     private readonly DispatcherTimer _autoSaveTimer;
 
     private List<ProviderConfig> _configs = new();
     private List<ProviderUsage> _usages = new();
-    private AgentProviderCapabilitiesSnapshot? _providerCapabilities;
     private AppPreferences _preferences = new();
     private bool _isPrivacyMode = App.IsPrivacyMode;
     private bool _isDeterministicScreenshotMode;
@@ -52,7 +52,8 @@ public partial class SettingsWindow : Window
         IMonitorLifecycleService monitorLifecycleService,
         ILogger<SettingsWindow> logger,
         UiPreferencesStore preferencesStore,
-        IAppPathProvider pathProvider)
+        IAppPathProvider pathProvider,
+        DisplayPreferencesService displayPreferences)
     {
         this._autoSaveTimer = new DispatcherTimer
         {
@@ -66,6 +67,7 @@ public partial class SettingsWindow : Window
         this._logger = logger;
         this._pathProvider = pathProvider;
         this._preferencesStore = preferencesStore;
+        this._displayPreferences = displayPreferences;
         App.PrivacyChanged += this.OnPrivacyChanged;
         this.Closed += this.SettingsWindow_Closed;
         this.Loaded += this.SettingsWindow_Loaded;
@@ -78,7 +80,8 @@ public partial class SettingsWindow : Window
         App.Host.Services.GetRequiredService<IMonitorLifecycleService>(),
         App.Host.Services.GetRequiredService<ILogger<SettingsWindow>>(),
         App.Host.Services.GetRequiredService<UiPreferencesStore>(),
-        App.Host.Services.GetRequiredService<IAppPathProvider>())
+        App.Host.Services.GetRequiredService<IAppPathProvider>(),
+        App.Host.Services.GetRequiredService<DisplayPreferencesService>())
     {
     }
 
@@ -115,8 +118,7 @@ public partial class SettingsWindow : Window
             this._isDeterministicScreenshotMode = false;
 
             this._configs = (await this._monitorService.GetConfigsAsync().ConfigureAwait(true)).ToList();
-            this._usages = (await this._monitorService.GetUsageAsync().ConfigureAwait(true)).ToList();
-            this._providerCapabilities = await this._monitorService.GetProviderCapabilitiesAsync().ConfigureAwait(true);
+            this._usages = (await this.GetUsageForDisplayAsync().ConfigureAwait(true)).ToList();
 
             if (this._configs.Count == 0)
             {
@@ -162,6 +164,18 @@ public partial class SettingsWindow : Window
                     MessageBoxImage.Warning);
             }
         }
+    }
+
+    private async Task<IReadOnlyList<ProviderUsage>> GetUsageForDisplayAsync()
+    {
+        var groupedSnapshot = await this._monitorService.GetGroupedUsageAsync().ConfigureAwait(true);
+        if (groupedSnapshot == null)
+        {
+            this._logger.LogWarning("Grouped usage snapshot is unavailable.");
+            return Array.Empty<ProviderUsage>();
+        }
+
+        return GroupedUsageDisplayAdapter.Expand(groupedSnapshot);
     }
 
 #pragma warning disable VSTHRD001 // Headless screenshot capture intentionally waits for dispatcher idle before rendering.
@@ -244,8 +258,7 @@ public partial class SettingsWindow : Window
         this._preferences = new AppPreferences
         {
             AlwaysOnTop = true,
-            InvertProgressBar = true,
-            InvertCalculations = false,
+            ShowUsedPercentages = false,
             ColorThresholdYellow = 60,
             ColorThresholdRed = 80,
             FontFamily = "Segoe UI",
@@ -263,7 +276,6 @@ public partial class SettingsWindow : Window
         var fixture = SettingsWindowDeterministicFixture.Create();
         this._configs = fixture.Configs;
         this._usages = fixture.Usages;
-        this._providerCapabilities = null;
 
         this.PopulateProviders();
         this.PopulateLayoutSettings();
@@ -459,7 +471,7 @@ public partial class SettingsWindow : Window
     {
         this.ProvidersStack.Children.Clear();
 
-        var displayItems = ProviderSettingsDisplayCatalog.CreateDisplayItems(this._configs, this._usages, this._providerCapabilities);
+        var displayItems = ProviderSettingsDisplayCatalog.CreateDisplayItems(this._configs, this._usages);
         var usageByProviderId = this._usages.ToDictionary(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in displayItems)
@@ -471,7 +483,7 @@ public partial class SettingsWindow : Window
 
     private void AddProviderCard(ProviderConfig config, ProviderUsage? usage, bool isDerived = false)
     {
-        var isSubItem = this.ShouldRenderAsSettingsSubItem(config.ProviderId, isDerived);
+        var isSubItem = ShouldRenderAsSettingsSubItem(config.ProviderId, isDerived);
 
         var card = new Border
         {
@@ -487,7 +499,7 @@ public partial class SettingsWindow : Window
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Inputs
 
-        var settingsBehavior = ProviderSettingsCatalog.Resolve(config, usage, isDerived, this._providerCapabilities);
+        var settingsBehavior = ProviderSettingsCatalog.Resolve(config, usage, isDerived);
         var headerPanel = this.BuildProviderHeader(config, settingsBehavior, isSubItem);
 
         grid.Children.Add(headerPanel);
@@ -503,9 +515,7 @@ public partial class SettingsWindow : Window
         Grid.SetRow(keyPanel, 1);
         grid.Children.Add(keyPanel);
 
-        var subTrayDetails = ProviderSubTrayCatalog.GetEligibleDetails(
-            usage,
-            this._providerCapabilities);
+        var subTrayDetails = ProviderSubTrayCatalog.GetEligibleDetails(usage);
 
         if (!isSubItem && subTrayDetails is { Count: > 0 })
         {
@@ -518,20 +528,14 @@ public partial class SettingsWindow : Window
 
     internal static bool ShouldRenderAsSettingsSubItem(
         string providerId,
-        bool isDerived,
-        AgentProviderCapabilitiesSnapshot? capabilities = null)
+        bool isDerived)
     {
         if (!isDerived)
         {
             return false;
         }
 
-        return ProviderCapabilityCatalog.ShouldRenderAsSettingsSubItem(providerId, capabilities);
-    }
-
-    private bool ShouldRenderAsSettingsSubItem(string providerId, bool isDerived)
-    {
-        return ShouldRenderAsSettingsSubItem(providerId, isDerived, this._providerCapabilities);
+        return ProviderCapabilityCatalog.ShouldRenderAsSettingsSubItem(providerId);
     }
 
     private FrameworkElement BuildProviderInputContent(ProviderConfig config, ProviderUsage? usage, ProviderSettingsBehavior settingsBehavior)
@@ -539,9 +543,9 @@ public partial class SettingsWindow : Window
         return settingsBehavior.InputMode switch
         {
             ProviderInputMode.DerivedReadOnly
-                or ProviderInputMode.AntigravityAutoDetected
-                or ProviderInputMode.GitHubCopilotAuthStatus
-                or ProviderInputMode.OpenAiSessionStatus
+                or ProviderInputMode.AutoDetectedStatus
+                or ProviderInputMode.ExternalAuthStatus
+                or ProviderInputMode.SessionAuthStatus
                 => this.BuildStatusPanel(config, usage, settingsBehavior),
             _ => this.BuildApiKeyEditor(config),
         };
@@ -599,8 +603,8 @@ public partial class SettingsWindow : Window
         var title = new TextBlock
         {
             Text = isDerived
-                ? $"-> {ProviderCapabilityCatalog.GetDisplayName(config.ProviderId, this._providerCapabilities)}"
-                : ProviderCapabilityCatalog.GetDisplayName(config.ProviderId, this._providerCapabilities),
+                ? $"-> {ProviderCapabilityCatalog.GetDisplayName(config.ProviderId)}"
+                : ProviderCapabilityCatalog.GetDisplayName(config.ProviderId),
             FontWeight = FontWeights.SemiBold,
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center,
@@ -945,8 +949,7 @@ public partial class SettingsWindow : Window
         this.AlwaysOnTopCheck.IsChecked = this._preferences.AlwaysOnTop;
         this.AggressiveTopmostCheck.IsChecked = this._preferences.AggressiveAlwaysOnTop;
         this.ForceWin32TopmostCheck.IsChecked = this._preferences.ForceWin32Topmost;
-        this.InvertProgressCheck.IsChecked = this._preferences.InvertProgressBar;
-        this.InvertCalculationsCheck.IsChecked = this._preferences.InvertCalculations;
+        this.ApplyDisplayModePreference();
         this.ThemeCombo.DisplayMemberPath = nameof(ThemeOption.Label);
         this.ThemeCombo.SelectedValuePath = nameof(ThemeOption.Value);
         this.ThemeCombo.ItemsSource = this.GetThemeOptions();
@@ -980,6 +983,14 @@ public partial class SettingsWindow : Window
         this.FontBoldCheck.IsChecked = this._preferences.FontBold;
         this.FontItalicCheck.IsChecked = this._preferences.FontItalic;
         this.UpdateFontPreview();
+    }
+
+    private void ApplyDisplayModePreference()
+    {
+        if (this.ShowUsedPercentagesCheck != null)
+        {
+            this.ShowUsedPercentagesCheck.IsChecked = this._displayPreferences.ShouldShowUsedPercentages(this._preferences);
+        }
     }
 
     private IReadOnlyList<ThemeOption> GetThemeOptions()
@@ -1725,8 +1736,8 @@ public partial class SettingsWindow : Window
             this._preferences.AlwaysOnTop = this.AlwaysOnTopCheck.IsChecked ?? true;
             this._preferences.AggressiveAlwaysOnTop = this.AggressiveTopmostCheck.IsChecked ?? false;
             this._preferences.ForceWin32Topmost = this.ForceWin32TopmostCheck.IsChecked ?? false;
-            this._preferences.InvertProgressBar = this.InvertProgressCheck.IsChecked ?? false;
-            this._preferences.InvertCalculations = this.InvertCalculationsCheck.IsChecked ?? false;
+            var showUsedPercentages = this.ShowUsedPercentagesCheck.IsChecked ?? false;
+            this._displayPreferences.SetShowUsedPercentages(this._preferences, showUsedPercentages);
             if (this.ThemeCombo.SelectedValue is AppTheme appTheme)
             {
                 this._preferences.Theme = appTheme;

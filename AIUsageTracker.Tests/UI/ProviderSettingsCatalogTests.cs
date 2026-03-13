@@ -19,13 +19,13 @@ public sealed class ProviderSettingsCatalogTests
     }
 
     [Fact]
-    public void GetInputMode_ReturnsOpenAiSession_ForSessionToken()
+    public void GetInputMode_ReturnsSessionAuth_ForSessionToken()
     {
         var config = new ProviderConfig { ProviderId = "openai", ApiKey = "sess-token" };
 
         var behavior = ProviderSettingsCatalog.Resolve(config, usage: null, isDerived: false);
 
-        Assert.Equal(ProviderInputMode.OpenAiSessionStatus, behavior.InputMode);
+        Assert.Equal(ProviderInputMode.SessionAuthStatus, behavior.InputMode);
     }
 
     [Fact]
@@ -55,8 +55,8 @@ public sealed class ProviderSettingsCatalogTests
 
         var behavior = ProviderSettingsCatalog.Resolve(config, usage: null, isDerived: false);
 
-        Assert.Equal(ProviderInputMode.OpenAiSessionStatus, behavior.InputMode);
-        Assert.Equal("OpenAI Codex", behavior.SessionProviderLabel);
+        Assert.Equal(ProviderInputMode.SessionAuthStatus, behavior.InputMode);
+        Assert.Equal("OpenAI", behavior.SessionProviderLabel);
         Assert.True(behavior.PreferCodexIdentity);
         Assert.False(behavior.IsInactive);
     }
@@ -69,7 +69,7 @@ public sealed class ProviderSettingsCatalogTests
 
         var behavior = ProviderSettingsCatalog.Resolve(config, usage, isDerived: false);
 
-        Assert.Equal(ProviderInputMode.OpenAiSessionStatus, behavior.InputMode);
+        Assert.Equal(ProviderInputMode.SessionAuthStatus, behavior.InputMode);
         Assert.Equal("OpenAI (API)", behavior.SessionProviderLabel);
         Assert.False(behavior.PreferCodexIdentity);
         Assert.False(behavior.IsInactive);

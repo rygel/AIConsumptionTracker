@@ -120,6 +120,7 @@ public partial class App : Application
         // Infrastructure
         services.AddSingleton<IAppPathProvider, AIUsageTracker.Infrastructure.Helpers.DefaultAppPathProvider>();
         services.AddSingleton<UiPreferencesStore>();
+        services.AddSingleton<DisplayPreferencesService>();
         services.AddSingleton<IMonitorService, MonitorService>();
         services.AddSingleton<IMonitorLifecycleService, MonitorLifecycleService>();
         services.AddSingleton<IUsageAnalyticsService, NoOpUsageAnalyticsService>();

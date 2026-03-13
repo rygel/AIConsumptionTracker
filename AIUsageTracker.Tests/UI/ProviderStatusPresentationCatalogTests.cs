@@ -48,7 +48,7 @@ public sealed class ProviderStatusPresentationCatalogTests
         var presentation = ProviderStatusPresentationCatalog.Create(
             config,
             usage,
-            ProviderInputMode.AntigravityAutoDetected,
+            ProviderInputMode.AutoDetectedStatus,
             isPrivacyMode: true);
 
         Assert.Equal("Auto-Detected (u**r@*******.***)", presentation.PrimaryText);
@@ -71,7 +71,7 @@ public sealed class ProviderStatusPresentationCatalogTests
         var presentation = ProviderStatusPresentationCatalog.Create(
             config,
             usage,
-            ProviderInputMode.AntigravityAutoDetected,
+            ProviderInputMode.AutoDetectedStatus,
             isPrivacyMode: false);
 
         Assert.Equal("Auto-Detected (Unknown)", presentation.PrimaryText);
@@ -85,7 +85,7 @@ public sealed class ProviderStatusPresentationCatalogTests
         var presentation = ProviderStatusPresentationCatalog.Create(
             config,
             usage: null,
-            ProviderInputMode.GitHubCopilotAuthStatus,
+            ProviderInputMode.ExternalAuthStatus,
             isPrivacyMode: false);
 
         Assert.True(presentation.UseHorizontalLayout);
@@ -106,7 +106,7 @@ public sealed class ProviderStatusPresentationCatalogTests
         var presentation = ProviderStatusPresentationCatalog.Create(
             config,
             usage,
-            ProviderInputMode.GitHubCopilotAuthStatus,
+            ProviderInputMode.ExternalAuthStatus,
             isPrivacyMode: false);
 
         Assert.True(presentation.UseHorizontalLayout);
@@ -122,10 +122,10 @@ public sealed class ProviderStatusPresentationCatalogTests
         var presentation = ProviderStatusPresentationCatalog.Create(
             config,
             usage: null,
-            ProviderInputMode.OpenAiSessionStatus,
+            ProviderInputMode.SessionAuthStatus,
             isPrivacyMode: true);
 
-        Assert.Equal("Authenticated via OpenAI Codex - refresh to load quota", presentation.PrimaryText);
+        Assert.Equal("Authenticated via OpenAI - refresh to load quota", presentation.PrimaryText);
         Assert.Single(presentation.SecondaryLines);
         Assert.Equal("Next reset: loading...", presentation.SecondaryLines[0].Text);
     }
@@ -143,7 +143,7 @@ public sealed class ProviderStatusPresentationCatalogTests
         var presentation = ProviderStatusPresentationCatalog.Create(
             config,
             usage,
-            ProviderInputMode.OpenAiSessionStatus,
+            ProviderInputMode.SessionAuthStatus,
             isPrivacyMode: false);
 
         Assert.Equal("Authenticated (openai-user@example.com)", presentation.PrimaryText);

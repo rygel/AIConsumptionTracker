@@ -20,9 +20,9 @@ internal static class ProviderStatusPresentationCatalog
         return inputMode switch
         {
             ProviderInputMode.DerivedReadOnly => CreateDerivedPresentation(usage),
-            ProviderInputMode.AntigravityAutoDetected => CreateAntigravityPresentation(usage, isPrivacyMode),
-            ProviderInputMode.GitHubCopilotAuthStatus => CreateGitHubPresentation(config, usage, isPrivacyMode),
-            ProviderInputMode.OpenAiSessionStatus => CreateOpenAiSessionPresentation(config, usage, isPrivacyMode),
+            ProviderInputMode.AutoDetectedStatus => CreateAntigravityPresentation(usage, isPrivacyMode),
+            ProviderInputMode.ExternalAuthStatus => CreateGitHubPresentation(config, usage, isPrivacyMode),
+            ProviderInputMode.SessionAuthStatus => CreateOpenAiSessionPresentation(config, usage, isPrivacyMode),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(inputMode),
                 inputMode,

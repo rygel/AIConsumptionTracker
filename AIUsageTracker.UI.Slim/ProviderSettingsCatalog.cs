@@ -3,7 +3,6 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
@@ -13,10 +12,9 @@ internal static class ProviderSettingsCatalog
     public static ProviderSettingsBehavior Resolve(
         ProviderConfig config,
         ProviderUsage? usage,
-        bool isDerived,
-        AgentProviderCapabilitiesSnapshot? capabilities = null)
+        bool isDerived)
     {
-        var canonicalProviderId = ProviderCapabilityCatalog.GetCanonicalProviderId(config.ProviderId, capabilities);
+        var canonicalProviderId = ProviderCapabilityCatalog.GetCanonicalProviderId(config.ProviderId);
         var hasSessionToken = IsSessionToken(config.ApiKey);
         var inputMode = isDerived
             ? ProviderInputMode.DerivedReadOnly
@@ -25,20 +23,20 @@ internal static class ProviderSettingsCatalog
             ? false
             : inputMode switch
             {
-                ProviderInputMode.AntigravityAutoDetected => usage == null || !usage.IsAvailable,
-                ProviderInputMode.OpenAiSessionStatus => string.IsNullOrWhiteSpace(config.ApiKey) && !(usage?.IsAvailable == true),
+                ProviderInputMode.AutoDetectedStatus => usage == null || !usage.IsAvailable,
+                ProviderInputMode.SessionAuthStatus => string.IsNullOrWhiteSpace(config.ApiKey) && !(usage?.IsAvailable == true),
                 _ => string.IsNullOrWhiteSpace(config.ApiKey),
             };
-        var sessionProviderLabel = inputMode == ProviderInputMode.OpenAiSessionStatus
+        var sessionProviderLabel = inputMode == ProviderInputMode.SessionAuthStatus
             ? ProviderMetadataCatalog.GetSessionStatusLabel(canonicalProviderId)
             : null;
-        var preferCodexIdentity = inputMode == ProviderInputMode.OpenAiSessionStatus &&
+        var preferCodexIdentity = inputMode == ProviderInputMode.SessionAuthStatus &&
             ProviderMetadataCatalog.GetSessionIdentitySource(canonicalProviderId) == ProviderSessionIdentitySource.Codex;
 
         return new ProviderSettingsBehavior(
             InputMode: inputMode,
             IsInactive: isInactive,
-            IsDerivedVisible: ProviderCapabilityCatalog.IsVisibleDerivedProviderId(config.ProviderId ?? string.Empty, capabilities),
+            IsDerivedVisible: ProviderCapabilityCatalog.IsVisibleDerivedProviderId(config.ProviderId ?? string.Empty),
             SessionProviderLabel: sessionProviderLabel,
             PreferCodexIdentity: preferCodexIdentity);
     }
@@ -62,9 +60,9 @@ internal static class ProviderSettingsCatalog
 
         return settingsMode switch
         {
-            ProviderSettingsMode.AutoDetectedStatus => ProviderInputMode.AntigravityAutoDetected,
-            ProviderSettingsMode.ExternalAuthStatus => ProviderInputMode.GitHubCopilotAuthStatus,
-            ProviderSettingsMode.SessionAuthStatus => ProviderInputMode.OpenAiSessionStatus,
+            ProviderSettingsMode.AutoDetectedStatus => ProviderInputMode.AutoDetectedStatus,
+            ProviderSettingsMode.ExternalAuthStatus => ProviderInputMode.ExternalAuthStatus,
+            ProviderSettingsMode.SessionAuthStatus => ProviderInputMode.SessionAuthStatus,
             _ => ProviderInputMode.StandardApiKey,
         };
     }

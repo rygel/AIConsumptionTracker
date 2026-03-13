@@ -244,6 +244,17 @@ public static class UsageMath
     /// <returns></returns>
     public static double? GetEffectiveUsedPercent(ProviderUsageDetail detail, bool parentIsQuota)
     {
+        if (detail.TryGetPercentageValue(out var typedPercent, out var typedSemantic, out _))
+        {
+            return typedSemantic switch
+            {
+                PercentageValueSemantic.Used => typedPercent,
+                PercentageValueSemantic.Remaining => ClampPercent(100.0 - typedPercent),
+                _ when detail.DetailType == ProviderUsageDetailType.QuotaWindow || parentIsQuota => ClampPercent(100.0 - typedPercent),
+                _ => typedPercent,
+            };
+        }
+
         var val = ParsePercent(detail.Used, out var isUsed);
         if (!val.HasValue)
         {

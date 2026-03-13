@@ -2,10 +2,15 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace AIUsageTracker.Core.Models;
 
 public class AppPreferences
 {
+    public const int CurrentSchemaVersion = 2;
+
     public bool ShowAll { get; set; } = false;
 
     public double WindowWidth { get; set; } = 420;
@@ -30,9 +35,17 @@ public class AppPreferences
 
     public int ColorThresholdRed { get; set; } = 80;
 
-    public bool InvertProgressBar { get; set; } = true;
+    [JsonConverter(typeof(JsonStringEnumConverter<PercentageDisplayMode>))]
+    public PercentageDisplayMode PercentageDisplayMode { get; set; } = PercentageDisplayMode.Remaining;
 
-    public bool InvertCalculations { get; set; } = false;
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
+
+    [JsonIgnore]
+    public bool ShowUsedPercentages
+    {
+        get => this.PercentageDisplayMode == PercentageDisplayMode.Used;
+        set => this.PercentageDisplayMode = value ? PercentageDisplayMode.Used : PercentageDisplayMode.Remaining;
+    }
 
     public string FontFamily { get; set; } = "Segoe UI";
 
@@ -80,4 +93,64 @@ public class AppPreferences
 
     // Update channel (Stable or Beta)
     public UpdateChannel UpdateChannel { get; set; } = UpdateChannel.Stable;
+
+    public static AppPreferences Deserialize(string json)
+    {
+        var preferences = JsonSerializer.Deserialize<AppPreferences>(json) ?? new AppPreferences();
+        preferences.ApplyMigrations(json);
+        preferences.SchemaVersion = CurrentSchemaVersion;
+        return preferences;
+    }
+
+    private void ApplyMigrations(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (!TryGetProperty(document.RootElement, nameof(this.SchemaVersion), out _) ||
+            this.SchemaVersion < CurrentSchemaVersion)
+        {
+            this.ApplyLegacyDisplayModeCompatibility(document.RootElement);
+        }
+    }
+
+    private void ApplyLegacyDisplayModeCompatibility(JsonElement root)
+    {
+        if (TryGetProperty(root, nameof(this.PercentageDisplayMode), out _))
+        {
+            return;
+        }
+
+        if (TryGetBooleanProperty(root, nameof(this.ShowUsedPercentages), out var showUsed) ||
+            TryGetBooleanProperty(root, "InvertCalculations", out showUsed) ||
+            TryGetBooleanProperty(root, "InvertProgressBar", out showUsed))
+        {
+            this.ShowUsedPercentages = showUsed;
+        }
+    }
+
+    private static bool TryGetBooleanProperty(JsonElement element, string propertyName, out bool value)
+    {
+        value = false;
+        if (!TryGetProperty(element, propertyName, out var property) || property.ValueKind != JsonValueKind.True && property.ValueKind != JsonValueKind.False)
+        {
+            return false;
+        }
+
+        value = property.GetBoolean();
+        return true;
+    }
+
+    private static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement property)
+    {
+        foreach (var candidate in element.EnumerateObject())
+        {
+            if (string.Equals(candidate.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                property = candidate.Value;
+                return true;
+            }
+        }
+
+        property = default;
+        return false;
+    }
 }

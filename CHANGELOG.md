@@ -2,12 +2,13 @@
 
 ## [Unreleased]
 
-### Added
-- **Monitor Capability Contract**: Added `/api/providers/capabilities` so the Monitor publishes provider visibility/grouping capabilities as a runtime contract for UI consumers.
+## [2.2.28-beta.30] - 2026-03-13
 
 ### Changed
-- **Slim UI Capability Consumption**: Main window and settings now consume Monitor-published provider capabilities for display/grouping behavior, with metadata fallback when the endpoint is unavailable.
-- **Contract Guardrails**: Added regression tests covering route stability, monitor-client parsing, capability-policy behavior, and UI grouping/settings consumption paths.
+- **Beta Version Bump**: Advanced shared version metadata and packaging references to `2.2.28-beta.30`.
+- **Provider-Defined Display Semantics**: Consolidated used-vs-remaining preference handling behind a shared display-preferences service and provider-driven presentation contracts.
+- **Typed Percentage Details**: Added typed percentage semantics for provider detail rows so cards, tooltips, and tray items render consistent used/remaining text across Copilot, Antigravity, Gemini, Codex, Kimi, and OpenAI flows.
+- **Contract Guardrails**: Expanded provider metadata and persistence coverage so grouped usage, derived naming, and quota semantics stay aligned with the provider catalog.
 
 ## [2.2.28-beta.27] - 2026-03-11
 

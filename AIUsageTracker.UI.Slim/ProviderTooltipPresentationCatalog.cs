@@ -28,7 +28,13 @@ internal static class ProviderTooltipPresentationCatalog
                          .OrderBy(GetDetailSortOrder)
                          .ThenBy(GetDetailDisplayName, StringComparer.OrdinalIgnoreCase))
             {
-                tooltipBuilder.AppendLine($"  {GetDetailDisplayName(detail)}: {detail.Used}");
+                var detailValue = ResolveDetailDisplayValue(detail);
+                if (string.IsNullOrWhiteSpace(detailValue))
+                {
+                    continue;
+                }
+
+                tooltipBuilder.AppendLine($"  {GetDetailDisplayName(detail)}: {detailValue}");
             }
 
             return tooltipBuilder.ToString().Trim();
@@ -47,13 +53,19 @@ internal static class ProviderTooltipPresentationCatalog
         return detail.Name;
     }
 
+    private static string ResolveDetailDisplayValue(ProviderUsageDetail detail)
+    {
+        return ProviderUsageDetailValuePresentationCatalog.GetStoredDisplayText(detail);
+    }
+
     private static int GetDetailSortOrder(ProviderUsageDetail detail)
     {
-        return (detail.DetailType, detail.WindowKind) switch
+        return (detail.DetailType, detail.QuotaBucketKind) switch
         {
             (ProviderUsageDetailType.QuotaWindow, WindowKind.Primary) => 0,
             (ProviderUsageDetailType.QuotaWindow, WindowKind.Secondary) => 1,
             (ProviderUsageDetailType.QuotaWindow, WindowKind.Spark) => 2,
+            (ProviderUsageDetailType.QuotaWindow, _) => 3,
             (ProviderUsageDetailType.Model, _) => 3,
             (ProviderUsageDetailType.Credit, _) => 4,
             _ => 5,

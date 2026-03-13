@@ -8,7 +8,7 @@ internal sealed record ProviderCardPresentation(
     bool IsMissing,
     bool IsUnknown,
     bool IsError,
-    bool IsAntigravityParent,
+    bool IsAggregateParent,
     bool ShouldHaveProgress,
     bool SuppressSingleResetTime,
     double UsedPercent,

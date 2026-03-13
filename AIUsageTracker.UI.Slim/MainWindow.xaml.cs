@@ -24,11 +24,11 @@ using AIUsageTracker.Core.Updates;
 using AIUsageTracker.Infrastructure.Providers;
 using AIUsageTracker.Infrastructure.Services;
 using AIUsageTracker.UI.Slim.ViewModels;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Win32;
-using Microsoft.AspNetCore.SignalR.Client;
 using SharpVectors.Converters;
 using SharpVectors.Renderers.Wpf;
 
@@ -58,6 +58,7 @@ public partial class MainWindow : Window
     private readonly IMonitorLifecycleService _monitorLifecycleService;
     private readonly ILogger<MainWindow> _logger;
     private readonly UiPreferencesStore _preferencesStore;
+    private readonly DisplayPreferencesService _displayPreferences;
     private readonly Dictionary<string, ImageSource> _iconCache = new(StringComparer.Ordinal);
     private readonly DispatcherTimer _updateCheckTimer;
     private readonly DispatcherTimer _alwaysOnTopTimer;
@@ -66,7 +67,6 @@ public partial class MainWindow : Window
     private AppPreferences _preferences = new();
     private List<ProviderUsage> _usages = new();
     private List<ProviderConfig> _configs = new();
-    private AgentProviderCapabilitiesSnapshot? _providerCapabilities;
     private bool _isPrivacyMode = App.IsPrivacyMode;
     private bool _isLoading;
     private DateTime _lastMonitorUpdate = DateTime.MinValue;
@@ -118,8 +118,9 @@ public partial class MainWindow : Window
         IMonitorLifecycleService monitorLifecycleService,
         ILogger<MainWindow> logger,
         IUpdateCheckerService updateChecker,
-        UiPreferencesStore preferencesStore)
-        : this(skipUiInitialization: false, viewModel, monitorService, monitorLifecycleService, logger, updateChecker, preferencesStore)
+        UiPreferencesStore preferencesStore,
+        DisplayPreferencesService displayPreferences)
+        : this(skipUiInitialization: false, viewModel, monitorService, monitorLifecycleService, logger, updateChecker, preferencesStore, displayPreferences)
     {
     }
 
@@ -130,12 +131,13 @@ public partial class MainWindow : Window
             App.Host.Services.GetRequiredService<IMonitorLifecycleService>(),
             App.Host.Services.GetRequiredService<ILogger<MainWindow>>(),
             App.Host.Services.GetRequiredService<IUpdateCheckerService>(),
-            App.Host.Services.GetRequiredService<UiPreferencesStore>())
+            App.Host.Services.GetRequiredService<UiPreferencesStore>(),
+            App.Host.Services.GetRequiredService<DisplayPreferencesService>())
     {
     }
 
     internal MainWindow(bool skipUiInitialization)
-        : this(skipUiInitialization, null, null, null, null, null, null)
+        : this(skipUiInitialization, null, null, null, null, null, null, null)
     {
     }
 
@@ -146,7 +148,8 @@ public partial class MainWindow : Window
         IMonitorLifecycleService? monitorLifecycleService,
         ILogger<MainWindow>? logger,
         IUpdateCheckerService? updateChecker,
-        UiPreferencesStore? preferencesStore)
+        UiPreferencesStore? preferencesStore,
+        DisplayPreferencesService? displayPreferences)
     {
         if (!skipUiInitialization)
         {
@@ -160,6 +163,7 @@ public partial class MainWindow : Window
         this._monitorLifecycleService = monitorLifecycleService ?? App.Host.Services.GetRequiredService<IMonitorLifecycleService>();
         this._updateChecker = updateChecker ?? App.Host.Services.GetRequiredService<IUpdateCheckerService>();
         this._preferencesStore = preferencesStore ?? App.Host.Services.GetRequiredService<UiPreferencesStore>();
+        this._displayPreferences = displayPreferences ?? App.Host.Services.GetRequiredService<DisplayPreferencesService>();
         this._viewModel = viewModel ?? App.Host.Services.GetRequiredService<MainViewModel>();
         this.DataContext = this._viewModel;
 
@@ -591,9 +595,8 @@ public partial class MainWindow : Window
             {
                 // Try to get cached data from monitor
                 this.LogDiagnostic("[DIAGNOSTIC] Calling GetUsageAsync...");
-                var usages = await this._monitorService.GetUsageAsync();
+                var usages = await this.GetUsageForDisplayAsync();
                 this.LogDiagnostic($"[DIAGNOSTIC] GetUsageAsync returned {usages.Count} providers");
-                this._providerCapabilities = await this._monitorService.GetProviderCapabilitiesAsync();
 
                 // Show all providers from monitor (filtering already done in database)
                 if (usages.Any())
@@ -691,12 +694,20 @@ public partial class MainWindow : Window
 
         // Apply UI controls
         this.AlwaysOnTopCheck.IsChecked = this._preferences.AlwaysOnTop;
-        this.ShowUsedToggle.IsChecked = this._preferences.InvertProgressBar;
+        this.ApplyDisplayModePreference();
         this.UpdatePrivacyButtonState();
         this.EnsureAlwaysOnTop();
 
         // Reinitialize update checker with correct channel
         this.InitializeUpdateChecker();
+    }
+
+    private void ApplyDisplayModePreference()
+    {
+        if (this.ShowUsedToggle != null)
+        {
+            this.ShowUsedToggle.IsChecked = this._displayPreferences.ShouldShowUsedPercentages(this._preferences);
+        }
     }
 
     private string BuildMonitorLaunchErrorMessage()
@@ -965,8 +976,7 @@ public partial class MainWindow : Window
             await this._monitorService.TriggerRefreshAsync();
 
             // Get updated usage data
-            var latestUsages = await this._monitorService.GetUsageAsync();
-            this._providerCapabilities = await this._monitorService.GetProviderCapabilitiesAsync();
+            var latestUsages = await this.GetUsageForDisplayAsync();
             if (latestUsages.Any())
             {
                 this._usages = latestUsages.ToList();
@@ -993,6 +1003,18 @@ public partial class MainWindow : Window
         {
             this._isLoading = false;
         }
+    }
+
+    private async Task<IReadOnlyList<ProviderUsage>> GetUsageForDisplayAsync()
+    {
+        var groupedSnapshot = await this._monitorService.GetGroupedUsageAsync();
+        if (groupedSnapshot == null)
+        {
+            this._logger.LogWarning("Grouped usage snapshot is unavailable.");
+            return Array.Empty<ProviderUsage>();
+        }
+
+        return GroupedUsageDisplayAdapter.Expand(groupedSnapshot);
     }
 
     // UI Element Creation Helpers
@@ -1066,11 +1088,11 @@ public partial class MainWindow : Window
         {
             this.LogDiagnostic($"[DIAGNOSTIC] Rendering {this._usages.Count} providers...");
 
-            var renderPreparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(this._usages, this._providerCapabilities);
+            var renderPreparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(this._usages);
             var filteredUsages = renderPreparation.DisplayableUsages;
 
             this.LogDiagnostic(
-                $"[DIAGNOSTIC] Provider render counts: raw={this._usages.Count}, filtered={filteredUsages.Count}, hasAntigravityParent={renderPreparation.HasAntigravityParent}");
+                $"[DIAGNOSTIC] Provider render counts: raw={this._usages.Count}, filtered={filteredUsages.Count}, hasAggregateParent={renderPreparation.HasAggregateParent}");
 
             if (!filteredUsages.Any())
             {
@@ -1079,11 +1101,8 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Render Quota Providers first, then PAYG
-            var orderedUsages = filteredUsages
-                .OrderByDescending(u => u.IsQuotaBased)
-                .ThenBy(u => ProviderCapabilityCatalog.GetDisplayName(u.ProviderId ?? string.Empty, u.ProviderName, this._providerCapabilities), StringComparer.OrdinalIgnoreCase)
-                .ThenBy(u => u.ProviderId, StringComparer.OrdinalIgnoreCase);
+            var orderedUsages = ProviderMainWindowOrderingCatalog.OrderForMainWindow(
+                filteredUsages);
 
             UIElement? currentHeader = null;
             StackPanel? currentContainer = null;
@@ -1135,16 +1154,16 @@ public partial class MainWindow : Window
                     continue;
                 }
 
-                // Special handling for Antigravity
-                if (ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty, this._providerCapabilities))
+                // Providers can declare synthetic aggregate child rendering in metadata.
+                if (ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty))
                 {
                     if (usage.Details?.Any() == true)
                     {
-                        this.AddAntigravityModels(usage, currentContainer);
+                        this.AddAggregateDetailCards(usage, currentContainer);
                     }
                     else
                     {
-                        this.AddAntigravityUnavailableNotice(usage, currentContainer);
+                        this.AddAggregateDetailUnavailableNotice(usage, currentContainer);
                     }
 
                     continue;
@@ -1308,9 +1327,9 @@ public partial class MainWindow : Window
     private void AddProviderCard(ProviderUsage usage, StackPanel container, bool isChild = false)
     {
         var providerId = usage.ProviderId ?? string.Empty;
-        var friendlyName = ProviderCapabilityCatalog.GetDisplayName(providerId, usage.ProviderName, this._providerCapabilities);
+        var friendlyName = ProviderCapabilityCatalog.GetDisplayName(providerId, usage.ProviderName);
         var showUsed = this.ShowUsedToggle?.IsChecked ?? false;
-        var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed, this._providerCapabilities);
+        var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed);
 
         // Main Grid Container - single row layout
         var grid = new Grid
@@ -1324,17 +1343,17 @@ public partial class MainWindow : Window
         // Background Progress Bar
         var pGrid = new Grid();
 
-        if (ProviderDualWindowPresentationCatalog.TryGetDualWindowUsedPercentages(usage, out var hourlyUsed, out var weeklyUsed))
+        if (ProviderDualQuotaBucketPresentationCatalog.TryGetDualQuotaBucketUsedPercentages(usage, out var primaryUsed, out var secondaryUsed))
         {
             pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-            var hourlyRow = this.CreateProgressLayer(hourlyUsed, showUsed, opacity: 0.55);
-            var weeklyRow = this.CreateProgressLayer(weeklyUsed, showUsed, opacity: 0.35);
-            Grid.SetRow(hourlyRow, 0);
-            Grid.SetRow(weeklyRow, 1);
-            pGrid.Children.Add(hourlyRow);
-            pGrid.Children.Add(weeklyRow);
+            var primaryRow = this.CreateProgressLayer(primaryUsed, showUsed, opacity: 0.55);
+            var secondaryRow = this.CreateProgressLayer(secondaryUsed, showUsed, opacity: 0.35);
+            Grid.SetRow(primaryRow, 0);
+            Grid.SetRow(secondaryRow, 1);
+            pGrid.Children.Add(primaryRow);
+            pGrid.Children.Add(secondaryRow);
         }
         else
         {
@@ -1384,7 +1403,7 @@ public partial class MainWindow : Window
         };
 
         // Reset time display (if available) - shown with muted golden color
-        var resetBadgeText = this.BuildResetBadgeText(usage);
+        var resetBadgeText = this.BuildResetBadgeText(usage, presentation);
         if (!string.IsNullOrWhiteSpace(resetBadgeText))
         {
             this.AddDockedElement(
@@ -1412,8 +1431,7 @@ public partial class MainWindow : Window
         var accountName = ProviderAccountDisplayCatalog.ResolveDisplayAccountName(
             providerId,
             usage.AccountName,
-            this._isPrivacyMode,
-            this._providerCapabilities);
+            this._isPrivacyMode);
         this.AddDockedElement(
             contentPanel,
             this.CreateProviderNameTextBlock(
@@ -1435,52 +1453,40 @@ public partial class MainWindow : Window
         container.Children.Add(grid);
     }
 
-    private string? BuildResetBadgeText(ProviderUsage usage)
+    private string? BuildResetBadgeText(ProviderUsage usage, ProviderCardPresentation presentation)
     {
-        if (ProviderDualWindowPresentationCatalog.TryGetPresentation(usage, out var dualWindow))
+        var resetTimes = ProviderResetBadgePresentationCatalog.ResolveResetTimes(
+            usage,
+            presentation.SuppressSingleResetTime);
+        if (resetTimes.Count == 0)
         {
-            var resetParts = new List<string>(2);
-            if (dualWindow.PrimaryResetTime.HasValue)
-            {
-                resetParts.Add(this.GetRelativeTimeString(dualWindow.PrimaryResetTime.Value));
-            }
-
-            if (dualWindow.SecondaryResetTime.HasValue)
-            {
-                resetParts.Add(this.GetRelativeTimeString(dualWindow.SecondaryResetTime.Value));
-            }
-
-            if (resetParts.Count > 0)
-            {
-                return $"({string.Join(" | ", resetParts)})";
-            }
+            return null;
         }
 
-        if (usage.NextResetTime.HasValue)
-        {
-            return $"({this.GetRelativeTimeString(usage.NextResetTime.Value)})";
-        }
-
-        return null;
+        var resetParts = resetTimes
+            .Select(this.GetRelativeTimeString)
+            .ToList();
+        return $"({string.Join(" | ", resetParts)})";
     }
 
-    private void AddAntigravityModels(ProviderUsage usage, StackPanel container)
+    private void AddAggregateDetailCards(ProviderUsage usage, StackPanel container)
     {
-        foreach (var modelUsage in ProviderUsageDisplayCatalog.CreateAntigravityModelUsages(usage))
+        foreach (var modelUsage in ProviderUsageDisplayCatalog.CreateAggregateDetailUsages(usage))
         {
             this.AddProviderCard(modelUsage, container);
         }
     }
 
-    private void AddAntigravityUnavailableNotice(ProviderUsage usage, StackPanel container)
+    private void AddAggregateDetailUnavailableNotice(ProviderUsage usage, StackPanel container)
     {
         var reason = string.IsNullOrWhiteSpace(usage.Description)
             ? "Model quota details are missing from the latest monitor refresh."
             : usage.Description;
+        var providerName = ProviderCapabilityCatalog.GetDisplayName(usage.ProviderId ?? string.Empty, usage.ProviderName);
 
         var message =
-            "Antigravity model quotas unavailable. " +
-            $"{reason} Use Refresh to request live data from Antigravity.";
+            $"{providerName} model quotas unavailable. " +
+            $"{reason} Use Refresh to request live data from {providerName}.";
 
         container.Children.Add(this.CreateInfoTextBlock(message));
     }
@@ -1690,8 +1696,7 @@ public partial class MainWindow : Window
         }
 
         var displayableDetails = ProviderSubDetailPresentationCatalog.GetDisplayableDetails(
-            usage,
-            this._providerCapabilities);
+            usage);
 
         if (!displayableDetails.Any())
         {
@@ -1700,8 +1705,7 @@ public partial class MainWindow : Window
 
         // Create collapsible section for sub-providers
         var useAntigravityCollapsePreference = ProviderCapabilityCatalog.ShouldUseSharedSubDetailCollapsePreference(
-            usage.ProviderId ?? string.Empty,
-            this._providerCapabilities);
+            usage.ProviderId ?? string.Empty);
         var (subHeader, subContainer) = this.CreateCollapsibleHeader(
             $"{usage.ProviderName} Details",
             Brushes.DeepSkyBlue,
@@ -1880,8 +1884,7 @@ public partial class MainWindow : Window
             // Poll monitor for fresh data
             try
             {
-                var usages = await this._monitorService.GetUsageAsync();
-                this._providerCapabilities = await this._monitorService.GetProviderCapabilitiesAsync();
+                var usages = await this.GetUsageForDisplayAsync();
 
                 // Show all providers from monitor (filtering already done in database)
                 if (usages.Any())
@@ -2055,8 +2058,7 @@ public partial class MainWindow : Window
         this._isPollingInProgress = true;
         try
         {
-            var usages = await this._monitorService.GetUsageAsync();
-            this._providerCapabilities = await this._monitorService.GetProviderCapabilitiesAsync();
+            var usages = await this.GetUsageForDisplayAsync();
             if (usages.Any())
             {
                 this._usages = usages.ToList();
@@ -2425,7 +2427,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            this._preferences.InvertProgressBar = this.ShowUsedToggle.IsChecked ?? false;
+            this._displayPreferences.SetShowUsedPercentages(this._preferences, this.ShowUsedToggle.IsChecked ?? false);
             await this.SaveUiPreferencesAsync();
 
             // Refresh the display to show used% vs remaining%

@@ -3,7 +3,7 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.MonitorClient;
+using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
 
@@ -11,26 +11,24 @@ internal static class ProviderSubDetailPresentationCatalog
 {
     public static IReadOnlyList<ProviderUsageDetail> GetDisplayableDetails(ProviderUsage usage)
     {
-        return GetDisplayableDetails(usage, capabilities: null);
-    }
-
-    public static IReadOnlyList<ProviderUsageDetail> GetDisplayableDetails(
-        ProviderUsage usage,
-        AgentProviderCapabilitiesSnapshot? capabilities)
-    {
         if (usage.Details?.Any() != true)
         {
             return Array.Empty<ProviderUsageDetail>();
         }
 
-        if (ProviderCapabilityCatalog.HasVisibleDerivedProviders(usage.ProviderId ?? string.Empty, capabilities))
+        if (ProviderCapabilityCatalog.HasVisibleDerivedProviders(usage.ProviderId ?? string.Empty))
+        {
+            return Array.Empty<ProviderUsageDetail>();
+        }
+
+        if (ShouldSuppressSubDetailsForTooltipOnlyProvider(usage.ProviderId))
         {
             return Array.Empty<ProviderUsageDetail>();
         }
 
         return usage.Details
             .Where(IsDisplayableDetail)
-            .OrderBy(detail => detail.Name, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(GetDetailSortOrder)
             .ThenBy(detail => detail.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -47,8 +45,12 @@ internal static class ProviderSubDetailPresentationCatalog
         var remainingPercent = 100.0 - usedPercent;
         var displayPercent = showUsed ? usedPercent : remainingPercent;
         var displayText = hasPercent
-            ? $"{displayPercent:F0}%"
-            : string.IsNullOrWhiteSpace(detail.Used) ? "Unknown" : detail.Used;
+            ? ProviderUsageDetailValuePresentationCatalog.GetDisplayText(
+                detail,
+                isQuotaBased,
+                showUsed,
+                includeSemanticLabel: false)
+            : ProviderUsageDetailValuePresentationCatalog.GetStoredDisplayText(detail);
         var indicatorWidth = Math.Clamp(displayPercent, 0, 100);
         var resetText = detail.NextResetTime.HasValue
             ? $"({relativeTimeFormatter(detail.NextResetTime.Value)})"
@@ -71,5 +73,28 @@ internal static class ProviderSubDetailPresentationCatalog
 
         return detail.DetailType == ProviderUsageDetailType.Model ||
                detail.DetailType == ProviderUsageDetailType.Other;
+    }
+
+    private static bool ShouldSuppressSubDetailsForTooltipOnlyProvider(string? providerId)
+    {
+        if (string.IsNullOrWhiteSpace(providerId))
+        {
+            return false;
+        }
+
+        return OpenCodeZenProvider.StaticDefinition.HandledProviderIds.Contains(providerId, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static int GetDetailSortOrder(ProviderUsageDetail detail)
+    {
+        return (detail.DetailType, detail.QuotaBucketKind) switch
+        {
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Primary) => 0,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Secondary) => 1,
+            (ProviderUsageDetailType.QuotaWindow, _) => 2,
+            (ProviderUsageDetailType.Model, _) => 3,
+            (ProviderUsageDetailType.Other, _) => 4,
+            _ => 5,
+        };
     }
 }
