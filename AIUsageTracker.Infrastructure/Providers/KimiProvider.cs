@@ -15,6 +15,15 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class KimiProvider : ProviderBase
 {
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<KimiProvider> _logger;
+
+    public KimiProvider(HttpClient httpClient, ILogger<KimiProvider> logger)
+    {
+        this._httpClient = httpClient;
+        this._logger = logger;
+    }
+
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "kimi",
         displayName: "Kimi",
@@ -31,15 +40,6 @@ public class KimiProvider : ProviderBase
     public override ProviderDefinition Definition => StaticDefinition;
 
     public override string ProviderId => StaticDefinition.ProviderId;
-
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<KimiProvider> _logger;
-
-    public KimiProvider(HttpClient httpClient, ILogger<KimiProvider> logger)
-    {
-        this._httpClient = httpClient;
-        this._logger = logger;
-    }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
@@ -211,21 +211,6 @@ public class KimiProvider : ProviderBase
         }
     }
 
-    private string FormatDuration(long duration, string unit)
-    {
-        return UsageWindowLabelFormatter.FormatDuration(duration, unit);
-    }
-
-    private string FormatResetTime(string resetTime)
-    {
-        if (DateTime.TryParse(resetTime, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
-        {
-            return $"({dt:MMM dd HH:mm})";
-        }
-
-        return resetTime;
-    }
-
     private static WindowKind DetermineWindowKind(long duration, string? unit)
     {
         if (string.Equals(unit, "TIME_UNIT_DAY", StringComparison.Ordinal) && duration >= 7)
@@ -252,6 +237,21 @@ public class KimiProvider : ProviderBase
         }
 
         return WindowKind.None;
+    }
+
+    private string FormatDuration(long duration, string unit)
+    {
+        return UsageWindowLabelFormatter.FormatDuration(duration, unit);
+    }
+
+    private string FormatResetTime(string resetTime)
+    {
+        if (DateTime.TryParse(resetTime, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+        {
+            return $"({dt:MMM dd HH:mm})";
+        }
+
+        return resetTime;
     }
 
     private class KimiUsageResponse

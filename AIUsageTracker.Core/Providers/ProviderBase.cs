@@ -23,16 +23,16 @@ public abstract class ProviderBase : IProviderService
         PropertyNameCaseInsensitive = true,
     };
 
+    public abstract string ProviderId { get; }
+
+    public abstract ProviderDefinition Definition { get; }
+
     protected ProviderBase(IProviderDiscoveryService? discoveryService = null)
     {
         this.DiscoveryService = discoveryService;
     }
 
     protected IProviderDiscoveryService? DiscoveryService { get; }
-
-    public abstract string ProviderId { get; }
-
-    public abstract ProviderDefinition Definition { get; }
 
     public virtual bool CanHandleProviderId(string providerId)
     {

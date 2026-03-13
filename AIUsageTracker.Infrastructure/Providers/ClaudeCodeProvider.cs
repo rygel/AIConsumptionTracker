@@ -26,6 +26,15 @@ public class ClaudeCodeProvider : ProviderBase
     /// </summary>
     internal const string OAuthBetaHeader = "oauth-2025-04-20";
 
+    private readonly ILogger<ClaudeCodeProvider> _logger;
+    private readonly HttpClient _httpClient;
+
+    public ClaudeCodeProvider(ILogger<ClaudeCodeProvider> logger, HttpClient httpClient)
+    {
+        this._logger = logger;
+        this._httpClient = httpClient;
+    }
+
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "claude-code",
         displayName: "Claude Code",
@@ -51,15 +60,6 @@ public class ClaudeCodeProvider : ProviderBase
 
     /// <inheritdoc/>
     public override string ProviderId => StaticDefinition.ProviderId;
-
-    private readonly ILogger<ClaudeCodeProvider> _logger;
-    private readonly HttpClient _httpClient;
-
-    public ClaudeCodeProvider(ILogger<ClaudeCodeProvider> logger, HttpClient httpClient)
-    {
-        this._logger = logger;
-        this._httpClient = httpClient;
-    }
 
     /// <inheritdoc/>
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)

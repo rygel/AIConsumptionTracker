@@ -146,6 +146,14 @@ public class GitHubUpdateChecker : IUpdateCheckerService
         return Path.Combine(tempDir, $"AIUsageTracker_Setup_{version}.exe");
     }
 
+    private static void DeleteIfExists(string path)
+    {
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
+    }
+
     private async Task<bool> DownloadInstallerAsync(string downloadUrl, string downloadPath, IProgress<double>? progress)
     {
         var partialDownloadPath = $"{downloadPath}.partial";
@@ -186,14 +194,6 @@ public class GitHubUpdateChecker : IUpdateCheckerService
 
         this._logger.LogError("Downloaded file not found at {Path}", downloadPath);
         return false;
-    }
-
-    private static void DeleteIfExists(string path)
-    {
-        if (File.Exists(path))
-        {
-            File.Delete(path);
-        }
     }
 
     private async Task<string> FetchReleaseNotesFromGitHubAsync(string version)

@@ -112,21 +112,6 @@ public class AppPreferences
         }
     }
 
-    private void ApplyLegacyDisplayModeCompatibility(JsonElement root)
-    {
-        if (TryGetProperty(root, nameof(this.PercentageDisplayMode), out _))
-        {
-            return;
-        }
-
-        if (TryGetBooleanProperty(root, nameof(this.ShowUsedPercentages), out var showUsed) ||
-            TryGetBooleanProperty(root, "InvertCalculations", out showUsed) ||
-            TryGetBooleanProperty(root, "InvertProgressBar", out showUsed))
-        {
-            this.ShowUsedPercentages = showUsed;
-        }
-    }
-
     private static bool TryGetBooleanProperty(JsonElement element, string propertyName, out bool value)
     {
         value = false;
@@ -152,5 +137,20 @@ public class AppPreferences
 
         property = default;
         return false;
+    }
+
+    private void ApplyLegacyDisplayModeCompatibility(JsonElement root)
+    {
+        if (TryGetProperty(root, nameof(this.PercentageDisplayMode), out _))
+        {
+            return;
+        }
+
+        if (TryGetBooleanProperty(root, nameof(this.ShowUsedPercentages), out var showUsed) ||
+            TryGetBooleanProperty(root, "InvertCalculations", out showUsed) ||
+            TryGetBooleanProperty(root, "InvertProgressBar", out showUsed))
+        {
+            this.ShowUsedPercentages = showUsed;
+        }
     }
 }

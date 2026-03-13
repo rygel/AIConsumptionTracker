@@ -11,10 +11,11 @@ namespace AIUsageTracker.Core.Services;
 
 public class ProviderManager : IDisposable
 {
-    private static readonly TimeSpan ProviderRequestTimeout = TimeSpan.FromSeconds(25);
     public const int DefaultMaxConcurrentProviderRequests = 6;
     public const int MinMaxConcurrentProviderRequests = 1;
     public const int MaxMaxConcurrentProviderRequests = 32;
+
+    private static readonly TimeSpan ProviderRequestTimeout = TimeSpan.FromSeconds(25);
 
     private readonly IReadOnlyList<IProviderService> _providers;
     private readonly IConfigLoader _configLoader;
