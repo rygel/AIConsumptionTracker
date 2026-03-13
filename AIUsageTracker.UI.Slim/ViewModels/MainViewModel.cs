@@ -5,63 +5,73 @@
 using System.Collections.ObjectModel;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.UI.Slim.Services;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim.ViewModels;
 
-public class MainViewModel : BaseViewModel
+/// <summary>
+/// ViewModel for the main window, managing usage data display and refresh operations.
+/// </summary>
+public partial class MainViewModel : BaseViewModel
 {
     private readonly IMonitorService _monitorService;
     private readonly IUsageAnalyticsService _analyticsService;
     private readonly ILogger<MainViewModel> _logger;
+    private readonly IBrowserService? _browserService;
+    private readonly IDialogService? _dialogService;
+
+    [ObservableProperty]
     private bool _isLoading;
+
+    [ObservableProperty]
     private bool _isPrivacyMode;
-    private ObservableCollection<ProviderUsage> _usages = new();
-    private DateTime _lastRefreshTime = DateTime.MinValue;
+
+    [ObservableProperty]
     private string _statusMessage = "Initializing...";
 
+    [ObservableProperty]
+    private ObservableCollection<ProviderUsage> _usages = new();
+
+    [ObservableProperty]
+    private DateTime _lastRefreshTime = DateTime.MinValue;
+
+    [ObservableProperty]
+    private ObservableCollection<CollapsibleSectionViewModel> _sections = new();
+
+    [ObservableProperty]
+    private bool _showUsedPercentages;
+
+    [ObservableProperty]
+    private bool _isAlwaysOnTop = true;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MainViewModel"/> class.
+    /// </summary>
+    /// <param name="monitorService">The monitor service.</param>
+    /// <param name="analyticsService">The analytics service.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="browserService">Optional browser service for URL operations.</param>
+    /// <param name="dialogService">Optional dialog service for showing dialogs.</param>
     public MainViewModel(
         IMonitorService monitorService,
         IUsageAnalyticsService analyticsService,
-        ILogger<MainViewModel> logger)
+        ILogger<MainViewModel> logger,
+        IBrowserService? browserService = null,
+        IDialogService? dialogService = null)
     {
         this._monitorService = monitorService;
         this._analyticsService = analyticsService;
         this._logger = logger;
-        this._isPrivacyMode = false; // Initial state
+        this._browserService = browserService;
+        this._dialogService = dialogService;
+        this._isPrivacyMode = false;
     }
 
-    public bool IsLoading
-    {
-        get => this._isLoading;
-        set => this.SetProperty(ref this._isLoading, value);
-    }
-
-    public bool IsPrivacyMode
-    {
-        get => this._isPrivacyMode;
-        set => this.SetProperty(ref this._isPrivacyMode, value);
-    }
-
-    public string StatusMessage
-    {
-        get => this._statusMessage;
-        set => this.SetProperty(ref this._statusMessage, value);
-    }
-
-    public ObservableCollection<ProviderUsage> Usages
-    {
-        get => this._usages;
-        private set => this.SetProperty(ref this._usages, value);
-    }
-
-    public DateTime LastRefreshTime
-    {
-        get => this._lastRefreshTime;
-        private set => this.SetProperty(ref this._lastRefreshTime, value);
-    }
-
-    public async Task RefreshDataAsync()
+    [RelayCommand]
+    internal async Task RefreshDataAsync()
     {
         if (this.IsLoading)
         {
@@ -95,8 +105,188 @@ public class MainViewModel : BaseViewModel
         }
     }
 
+    [RelayCommand]
+    private void TogglePrivacyMode()
+    {
+        this.IsPrivacyMode = !this.IsPrivacyMode;
+    }
+
+    /// <summary>
+    /// Opens the Web UI in the default browser.
+    /// </summary>
+    /// <returns>A task representing the async operation.</returns>
+    [RelayCommand]
+    internal async Task OpenWebUIAsync()
+    {
+        if (this._browserService == null)
+        {
+            this._logger.LogWarning("Browser service not available");
+            return;
+        }
+
+        try
+        {
+            await this._browserService.OpenWebUIAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogError(ex, "Failed to open Web UI");
+            this.StatusMessage = "Failed to open Web UI";
+        }
+    }
+
+    /// <summary>
+    /// Opens the releases page in the default browser.
+    /// </summary>
+    [RelayCommand]
+    internal void ViewChangelog()
+    {
+        if (this._browserService == null)
+        {
+            this._logger.LogWarning("Browser service not available");
+            return;
+        }
+
+        this._browserService.OpenReleasesPage();
+    }
+
+    /// <summary>
+    /// Opens the settings dialog.
+    /// </summary>
+    /// <returns>A task representing the async operation.</returns>
+    [RelayCommand]
+    internal async Task OpenSettingsAsync()
+    {
+        if (this._dialogService == null)
+        {
+            this._logger.LogWarning("Dialog service not available");
+            return;
+        }
+
+        try
+        {
+            var hasChanges = await this._dialogService.ShowSettingsAsync().ConfigureAwait(true);
+            if (hasChanges == true)
+            {
+                // Refresh data after settings change
+                await this.RefreshDataAsync().ConfigureAwait(true);
+            }
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogError(ex, "Failed to open settings");
+            this.StatusMessage = "Failed to open settings";
+        }
+    }
+
     public void SetPrivacyMode(bool enabled)
     {
         this.IsPrivacyMode = enabled;
+        this.UpdatePrivacyModeForSections();
+    }
+
+    /// <summary>
+    /// Updates the sections collection with structured provider data.
+    /// This method organizes providers into collapsible sections by type.
+    /// </summary>
+    /// <param name="usages">The list of provider usages to display.</param>
+    /// <param name="prefs">The application preferences.</param>
+    /// <param name="savePreferencesAsync">Function to save preferences when section state changes.</param>
+    public void UpdateSections(
+        IReadOnlyList<ProviderUsage> usages,
+        AppPreferences prefs,
+        Func<Task>? savePreferencesAsync = null)
+    {
+        this.ShowUsedPercentages = prefs.ShowUsedPercentages;
+
+        var renderPreparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages.ToList());
+        var filteredUsages = renderPreparation.DisplayableUsages;
+        var orderedUsages = ProviderMainWindowOrderingCatalog.OrderForMainWindow(filteredUsages);
+
+        // Group by quota-based vs pay-as-you-go
+        var quotaUsages = orderedUsages.Where(u => u.IsQuotaBased).ToList();
+        var paygoUsages = orderedUsages.Where(u => !u.IsQuotaBased).ToList();
+
+        this.Sections.Clear();
+
+        if (quotaUsages.Count > 0)
+        {
+            var quotaSection = new CollapsibleSectionViewModel(
+                "Plans & Quotas",
+                isQuotaSection: true,
+                prefs,
+                savePreferencesAsync);
+
+            foreach (var usage in quotaUsages)
+            {
+                if (ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty))
+                {
+                    // For aggregate providers, create cards from details
+                    foreach (var modelUsage in ProviderUsageDisplayCatalog.CreateAggregateDetailUsages(usage))
+                    {
+                        quotaSection.Items.Add(new ProviderCardViewModel(modelUsage, prefs, this.IsPrivacyMode));
+                    }
+                }
+                else
+                {
+                    quotaSection.Items.Add(new ProviderCardViewModel(usage, prefs, this.IsPrivacyMode));
+                }
+            }
+
+            this.Sections.Add(quotaSection);
+        }
+
+        if (paygoUsages.Count > 0)
+        {
+            var paygoSection = new CollapsibleSectionViewModel(
+                "Pay As You Go",
+                isQuotaSection: false,
+                prefs,
+                savePreferencesAsync);
+
+            foreach (var usage in paygoUsages)
+            {
+                if (ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty))
+                {
+                    foreach (var modelUsage in ProviderUsageDisplayCatalog.CreateAggregateDetailUsages(usage))
+                    {
+                        paygoSection.Items.Add(new ProviderCardViewModel(modelUsage, prefs, this.IsPrivacyMode));
+                    }
+                }
+                else
+                {
+                    paygoSection.Items.Add(new ProviderCardViewModel(usage, prefs, this.IsPrivacyMode));
+                }
+            }
+
+            this.Sections.Add(paygoSection);
+        }
+    }
+
+    partial void OnIsPrivacyModeChanged(bool value)
+    {
+        UpdatePrivacyModeForSections();
+    }
+
+    partial void OnShowUsedPercentagesChanged(bool value)
+    {
+        foreach (var section in Sections)
+        {
+            foreach (var card in section.Items)
+            {
+                card.ShowUsedPercentages = value;
+            }
+        }
+    }
+
+    private void UpdatePrivacyModeForSections()
+    {
+        foreach (var section in this.Sections)
+        {
+            foreach (var card in section.Items)
+            {
+                card.IsPrivacyMode = this.IsPrivacyMode;
+            }
+        }
     }
 }
