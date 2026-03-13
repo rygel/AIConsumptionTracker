@@ -2,10 +2,13 @@
 
 ## [Unreleased]
 
+## [2.2.28-beta.30] - 2026-03-13
+
 ### Changed
-- **Metadata-Only Provider Catalog**: Slim UI provider capability decisions are now sourced directly from `ProviderMetadataCatalog`; snapshot-based overrides and dead capability wiring were removed.
-- **Monitor Contract Simplification**: Removed the unused `/api/providers/capabilities` endpoint, deleted its client/server DTOs, and pruned route/client contract surface accordingly.
-- **Contract Guardrails**: Updated architecture guardrails to enforce grouped-usage consumption and prevent reintroduction of legacy provider-capability snapshot flows.
+- **Beta Version Bump**: Advanced shared version metadata and packaging references to `2.2.28-beta.30`.
+- **Provider-Defined Display Semantics**: Consolidated used-vs-remaining preference handling behind a shared display-preferences service and provider-driven presentation contracts.
+- **Typed Percentage Details**: Added typed percentage semantics for provider detail rows so cards, tooltips, and tray items render consistent used/remaining text across Copilot, Antigravity, Gemini, Codex, Kimi, and OpenAI flows.
+- **Contract Guardrails**: Expanded provider metadata and persistence coverage so grouped usage, derived naming, and quota semantics stay aligned with the provider catalog.
 
 ## [2.2.28-beta.27] - 2026-03-11
 
