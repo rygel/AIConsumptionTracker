@@ -109,7 +109,7 @@ internal static class GroupedUsageDisplayAdapter
         {
             assignments = BuildDerivedAssignments(definition, provider.ProviderId, orderedModels);
         }
-        else if (definition.SupportsChildProviderIds && !definition.RenderDetailsAsSyntheticChildrenInMainWindow)
+        else if (definition.UseChildProviderRowsForGroupedModels)
         {
             assignments = BuildDynamicModelAssignments(provider.ProviderId, orderedModels);
         }

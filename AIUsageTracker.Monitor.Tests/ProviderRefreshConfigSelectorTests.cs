@@ -128,7 +128,7 @@ public class ProviderRefreshConfigSelectorTests
     private static IProviderService CreateProvider(
         string providerId,
         bool autoIncludeWhenUnconfigured = false,
-        bool supportsChildProviderIds = false)
+        ProviderFamilyMode familyMode = ProviderFamilyMode.Standalone)
     {
         var mock = new Mock<IProviderService>();
         mock.SetupGet(provider => provider.ProviderId).Returns(providerId);
@@ -140,7 +140,7 @@ public class ProviderRefreshConfigSelectorTests
                 isQuotaBased: true,
                 defaultConfigType: "quota-based",
                 autoIncludeWhenUnconfigured: autoIncludeWhenUnconfigured,
-                supportsChildProviderIds: supportsChildProviderIds));
+                familyMode: familyMode));
         mock.Setup(provider => provider.GetUsageAsync(It.IsAny<ProviderConfig>(), It.IsAny<Action<ProviderUsage>?>()))
             .ReturnsAsync(Array.Empty<ProviderUsage>());
         return mock.Object;

@@ -28,17 +28,14 @@ public class AntigravityProvider : ProviderBase
         defaultConfigType: "quota-based",
         autoIncludeWhenUnconfigured: true,
         includeInWellKnownProviders: true,
-        supportsChildProviderIds: true,
+        familyMode: ProviderFamilyMode.DynamicChildProviderRows,
         settingsMode: ProviderSettingsMode.AutoDetectedStatus,
         refreshOnStartupWithCachedData: true,
-        collapseDerivedChildrenInMainWindow: false,
-        renderDetailsAsSyntheticChildrenInMainWindow: false,
         aggregateDetailDisplaySuffix: "[Antigravity]",
         supportsAccountIdentity: true,
         iconAssetName: "google",
         fallbackBadgeColorHex: "#1E90FF",
         fallbackBadgeInitial: "G",
-        useChildProviderRowsForGroupedModels: true,
         derivedModelDisplaySuffix: "[Antigravity]");
 
     /// <inheritdoc/>

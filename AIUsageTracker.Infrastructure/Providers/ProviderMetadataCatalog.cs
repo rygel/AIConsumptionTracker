@@ -22,7 +22,8 @@ public static class ProviderMetadataCatalog
             return null;
         }
 
-        return Definitions.FirstOrDefault(definition => definition.HandlesProviderId(providerId));
+        return Definitions.FirstOrDefault(definition =>
+            ProviderFamilyPolicy.BelongsToProviderFamily(definition.HandledProviderIds, providerId, definition.FamilyMode));
     }
 
     public static bool TryGet(string providerId, out ProviderDefinition definition)
@@ -108,20 +109,8 @@ public static class ProviderMetadataCatalog
 
     public static bool BelongsToProviderFamily(string providerId, string candidateProviderId)
     {
-        if (string.IsNullOrWhiteSpace(providerId) || string.IsNullOrWhiteSpace(candidateProviderId))
-        {
-            return false;
-        }
-
-        if (string.Equals(providerId, candidateProviderId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        var canonicalProviderId = GetCanonicalProviderId(providerId);
-        var canonicalCandidateProviderId = GetCanonicalProviderId(candidateProviderId);
-        return !string.IsNullOrWhiteSpace(canonicalProviderId) &&
-               string.Equals(canonicalProviderId, canonicalCandidateProviderId, StringComparison.OrdinalIgnoreCase);
+        return TryGet(providerId, out var definition) &&
+               ProviderFamilyPolicy.BelongsToProviderFamily(definition.HandledProviderIds, candidateProviderId, definition.FamilyMode);
     }
 
     public static bool IsChildProviderId(string providerId)
@@ -131,50 +120,30 @@ public static class ProviderMetadataCatalog
             return false;
         }
 
-        return IsChildProviderId(definition.ProviderId, providerId);
+        return ProviderFamilyPolicy.IsChildProviderId(definition.HandledProviderIds, providerId, definition.FamilyMode);
     }
 
     public static bool IsChildProviderId(string parentProviderId, string candidateProviderId)
     {
-        if (string.IsNullOrWhiteSpace(parentProviderId) || string.IsNullOrWhiteSpace(candidateProviderId))
-        {
-            return false;
-        }
-
-        if (!TryGet(parentProviderId, out var definition) || !definition.SupportsChildProviderIds)
-        {
-            return false;
-        }
-
-        if (definition.HandledProviderIds.Contains(candidateProviderId, StringComparer.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return definition.HandledProviderIds.Any(handledProviderId =>
-            candidateProviderId.StartsWith($"{handledProviderId}.", StringComparison.OrdinalIgnoreCase));
+        return TryGet(parentProviderId, out var definition) &&
+               ProviderFamilyPolicy.IsChildProviderId(definition.HandledProviderIds, candidateProviderId, definition.FamilyMode);
     }
 
     public static bool TryGetChildProviderKey(string parentProviderId, string candidateProviderId, out string childProviderKey)
     {
         childProviderKey = string.Empty;
-        if (!TryGet(parentProviderId, out var definition) ||
-            !IsChildProviderId(definition.ProviderId, candidateProviderId))
-        {
-            return false;
-        }
+        return TryGet(parentProviderId, out var definition) &&
+               ProviderFamilyPolicy.TryGetChildProviderKey(
+                   definition.HandledProviderIds,
+                   candidateProviderId,
+                   definition.FamilyMode,
+                   out childProviderKey);
+    }
 
-        var matchedHandledProviderId = definition.HandledProviderIds
-            .Where(handledProviderId => candidateProviderId.StartsWith($"{handledProviderId}.", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(handledProviderId => handledProviderId.Length)
-            .FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(matchedHandledProviderId))
-        {
-            return false;
-        }
-
-        childProviderKey = candidateProviderId[(matchedHandledProviderId.Length + 1)..];
-        return true;
+    public static bool HasDisplayableDerivedProviders(string providerId)
+    {
+        return TryGet(providerId, out var definition) &&
+               ProviderFamilyPolicy.HasDisplayableDerivedProviders(definition.VisibleDerivedProviderIds, definition.FamilyMode);
     }
 
     public static bool IsAggregateParentProviderId(string providerId)
@@ -611,6 +580,36 @@ public static class ProviderMetadataCatalog
 
     private static void ValidateAggregateDetailContracts(IReadOnlyCollection<ProviderDefinition> definitions)
     {
+        var invalidVisibleDerivedProviderModes = definitions
+            .Where(definition =>
+                definition.VisibleDerivedProviderIds.Count > 0 &&
+                definition.FamilyMode != ProviderFamilyMode.VisibleDerivedProviders &&
+                definition.FamilyMode != ProviderFamilyMode.CollapsedDerivedProviders)
+            .Select(definition => definition.ProviderId)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (invalidVisibleDerivedProviderModes.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Providers with visible derived provider ids must use a visible-derived family mode: " +
+                string.Join(", ", invalidVisibleDerivedProviderModes));
+        }
+
+        var missingVisibleDerivedProviderIds = definitions
+            .Where(definition =>
+                (definition.FamilyMode == ProviderFamilyMode.VisibleDerivedProviders ||
+                 definition.FamilyMode == ProviderFamilyMode.CollapsedDerivedProviders) &&
+                definition.VisibleDerivedProviderIds.Count == 0)
+            .Select(definition => definition.ProviderId)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (missingVisibleDerivedProviderIds.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Visible-derived family modes require visible derived provider ids: " +
+                string.Join(", ", missingVisibleDerivedProviderIds));
+        }
+
         var invalidAggregateDefinitions = definitions
             .Where(definition => definition.RenderDetailsAsSyntheticChildrenInMainWindow && !definition.SupportsChildProviderIds)
             .Select(definition => definition.ProviderId)

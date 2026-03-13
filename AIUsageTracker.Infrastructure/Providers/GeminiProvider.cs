@@ -31,7 +31,7 @@ public class GeminiProvider : ProviderBase
             ["gemini-cli.hourly"] = "Gemini CLI (Hourly)",
             ["gemini-cli.daily"] = "Gemini CLI (Daily)",
         },
-        supportsChildProviderIds: true,
+        familyMode: ProviderFamilyMode.VisibleDerivedProviders,
         visibleDerivedProviderIds: new[] { "gemini-cli.minute", "gemini-cli.hourly", "gemini-cli.daily" },
         settingsAdditionalProviderIds: new[] { "gemini-cli.minute", "gemini-cli.hourly", "gemini-cli.daily" },
         discoveryEnvironmentVariables: new[] { "GEMINI_API_KEY", "GOOGLE_API_KEY" },

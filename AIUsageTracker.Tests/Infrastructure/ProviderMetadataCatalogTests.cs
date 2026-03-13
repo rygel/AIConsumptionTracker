@@ -228,6 +228,16 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
+    [InlineData("antigravity", true)]
+    [InlineData("gemini-cli", true)]
+    [InlineData("codex", true)]
+    [InlineData("github-copilot", false)]
+    public void HasDisplayableDerivedProviders_UsesProviderFamilyPolicy(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.HasDisplayableDerivedProviders(providerId));
+    }
+
+    [Theory]
     [InlineData("OPENAI_API_KEY", "openai")]
     [InlineData("CODEX_API_KEY", "codex")]
     [InlineData("GEMINI_API_KEY", "gemini-cli")]
@@ -413,16 +423,19 @@ public class ProviderMetadataCatalogTests
     {
         var githubCopilot = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("github-copilot"));
         Assert.Equal(ProviderSettingsMode.ExternalAuthStatus, githubCopilot.SettingsMode);
+        Assert.Equal(ProviderFamilyMode.Standalone, githubCopilot.FamilyMode);
         Assert.False(githubCopilot.RenderDetailsAsSyntheticChildrenInMainWindow);
 
         var antigravity = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("antigravity"));
         Assert.Equal(ProviderSettingsMode.AutoDetectedStatus, antigravity.SettingsMode);
+        Assert.Equal(ProviderFamilyMode.DynamicChildProviderRows, antigravity.FamilyMode);
         Assert.False(antigravity.RenderDetailsAsSyntheticChildrenInMainWindow);
         Assert.True(antigravity.UseChildProviderRowsForGroupedModels);
         Assert.Equal("[Antigravity]", antigravity.DerivedModelDisplaySuffix);
 
         var gemini = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("gemini-cli"));
         Assert.Equal(ProviderSettingsMode.StandardApiKey, gemini.SettingsMode);
+        Assert.Equal(ProviderFamilyMode.VisibleDerivedProviders, gemini.FamilyMode);
         Assert.True(gemini.SupportsChildProviderIds);
         Assert.False(gemini.RenderDetailsAsSyntheticChildrenInMainWindow);
         Assert.False(gemini.UseChildProviderRowsForGroupedModels);

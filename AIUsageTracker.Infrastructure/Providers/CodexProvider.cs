@@ -30,7 +30,7 @@ public class CodexProvider : ProviderBase
         {
             ["codex.spark"] = "OpenAI (GPT-5.3 Codex Spark)",
         },
-        supportsChildProviderIds: true,
+        familyMode: ProviderFamilyMode.VisibleDerivedProviders,
         discoveryEnvironmentVariables: new[] { "CODEX_API_KEY" },
         visibleDerivedProviderIds: new[] { "codex.spark" },
         settingsAdditionalProviderIds: new[] { "codex.spark" },

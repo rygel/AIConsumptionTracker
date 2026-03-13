@@ -103,8 +103,8 @@ public class ProviderUsageProcessingPipelineTests
     {
         var usage = new ProviderUsage
         {
-            ProviderId = "anthropic",
-            ProviderName = "Anthropic",
+            ProviderId = "openrouter",
+            ProviderName = "OpenRouter",
             RequestsUsed = 0,
             RequestsAvailable = 0,
             RequestsPercentage = 0,
@@ -114,7 +114,7 @@ public class ProviderUsageProcessingPipelineTests
 
         var result = this._pipeline.Process(
             new[] { usage },
-            new[] { "anthropic" },
+            new[] { "openrouter" },
             isPrivacyMode: false);
 
         Assert.Empty(result.Usages);
