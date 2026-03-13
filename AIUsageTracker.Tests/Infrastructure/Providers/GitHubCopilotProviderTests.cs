@@ -130,8 +130,8 @@ public class GitHubCopilotProviderTests : HttpProviderTestBase<GitHubCopilotProv
         Assert.Equal(100.0, usage.RequestsAvailable);
         Assert.Contains("Weekly Quota", usage.Description, StringComparison.Ordinal);
         Assert.NotNull(usage.Details);
-        Assert.Contains(usage.Details!, detail => detail.Name == "5-hour Window" && detail.QuotaBucketKind == WindowKind.Primary);
-        Assert.Contains(usage.Details!, detail => detail.Name == "Weekly Quota" && detail.QuotaBucketKind == WindowKind.Secondary);
+        Assert.Contains(usage.Details!, detail => string.Equals(detail.Name, "5-hour Window", StringComparison.Ordinal) && detail.QuotaBucketKind == WindowKind.Primary);
+        Assert.Contains(usage.Details!, detail => string.Equals(detail.Name, "Weekly Quota", StringComparison.Ordinal) && detail.QuotaBucketKind == WindowKind.Secondary);
     }
 
     [Fact]
@@ -182,8 +182,8 @@ public class GitHubCopilotProviderTests : HttpProviderTestBase<GitHubCopilotProv
         Assert.Equal(200.0, usage.RequestsAvailable);
         Assert.Contains("5-hour Window", usage.Description, StringComparison.Ordinal);
         Assert.NotNull(usage.Details);
-        Assert.Contains(usage.Details!, detail => detail.Name == "5-hour Window");
-        Assert.DoesNotContain(usage.Details!, detail => detail.Name == "Weekly Quota");
+        Assert.Contains(usage.Details!, detail => string.Equals(detail.Name, "5-hour Window", StringComparison.Ordinal));
+        Assert.DoesNotContain(usage.Details!, detail => string.Equals(detail.Name, "Weekly Quota", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public class GitHubCopilotProviderTests : HttpProviderTestBase<GitHubCopilotProv
         this._authService.Setup(s => s.GetCurrentToken()).Returns((string?)null);
         this._authService.Setup(s => s.GetUsernameAsync()).ReturnsAsync("octocat");
         this._discoveryService
-            .Setup(s => s.DiscoverAuthAsync(GitHubCopilotProvider.StaticDefinition))
+            .Setup(s => s.DiscoverAuthAsync(GitHubCopilotProvider.StaticDefinition.CreateAuthDiscoverySpec()))
             .ReturnsAsync(new ProviderAuthData("discovered-token"));
 
         this.SetupHttpResponse("https://api.github.com/user", new HttpResponseMessage
@@ -243,7 +243,7 @@ public class GitHubCopilotProviderTests : HttpProviderTestBase<GitHubCopilotProv
         this._authService.Setup(s => s.GetCurrentToken()).Returns((string?)null);
         this._authService.Setup(s => s.GetUsernameAsync()).ReturnsAsync("rygel");
         this._discoveryService
-            .Setup(s => s.DiscoverAuthAsync(GitHubCopilotProvider.StaticDefinition))
+            .Setup(s => s.DiscoverAuthAsync(GitHubCopilotProvider.StaticDefinition.CreateAuthDiscoverySpec()))
             .ReturnsAsync((ProviderAuthData?)null);
 
         // Act

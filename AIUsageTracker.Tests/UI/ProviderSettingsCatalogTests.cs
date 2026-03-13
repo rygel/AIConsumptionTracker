@@ -6,6 +6,7 @@ using AIUsageTracker.Core.Models;
 using AIUsageTracker.UI.Slim;
 
 namespace AIUsageTracker.Tests.UI;
+
 public sealed class ProviderSettingsCatalogTests
 {
     [Fact]
@@ -56,8 +57,7 @@ public sealed class ProviderSettingsCatalogTests
         var behavior = ProviderSettingsCatalog.Resolve(config, usage: null, isDerived: false);
 
         Assert.Equal(ProviderInputMode.SessionAuthStatus, behavior.InputMode);
-        Assert.Equal("OpenAI", behavior.SessionProviderLabel);
-        Assert.True(behavior.PreferCodexIdentity);
+        Assert.Equal("OpenAI (Codex)", behavior.SessionProviderLabel);
         Assert.False(behavior.IsInactive);
     }
 
@@ -71,7 +71,6 @@ public sealed class ProviderSettingsCatalogTests
 
         Assert.Equal(ProviderInputMode.SessionAuthStatus, behavior.InputMode);
         Assert.Equal("OpenAI (API)", behavior.SessionProviderLabel);
-        Assert.False(behavior.PreferCodexIdentity);
         Assert.False(behavior.IsInactive);
     }
 }

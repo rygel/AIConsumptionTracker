@@ -34,23 +34,21 @@ internal static class RooTokenConfigParser
 
     private static void AddProviderTokens(List<DiscoveredProviderToken> tokens, JsonElement config)
     {
-        foreach (var definition in ProviderMetadataCatalog.Definitions.Where(d => d.RooConfigPropertyNames.Count > 0))
+        foreach (var property in config.EnumerateObject())
         {
-            foreach (var propertyName in definition.RooConfigPropertyNames)
+            var definition = ProviderMetadataCatalog.FindByRooConfigProperty(property.Name);
+            if (definition == null)
             {
-                if (!config.TryGetProperty(propertyName, out var keyProperty))
-                {
-                    continue;
-                }
-
-                var apiKey = keyProperty.GetString();
-                if (string.IsNullOrEmpty(apiKey))
-                {
-                    continue;
-                }
-
-                tokens.Add(new DiscoveredProviderToken(definition.ProviderId, apiKey));
+                continue;
             }
+
+            var apiKey = property.Value.GetString();
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                continue;
+            }
+
+            tokens.Add(new DiscoveredProviderToken(definition.ProviderId, apiKey));
         }
     }
 

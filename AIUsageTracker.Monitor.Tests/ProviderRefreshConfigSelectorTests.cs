@@ -71,6 +71,25 @@ public class ProviderRefreshConfigSelectorTests
     }
 
     [Fact]
+    public void SelectActiveConfigs_IncludesChildProviderIdsForAutoIncludedFamilies()
+    {
+        var selector = CreateSelector(
+            CreateProvider(
+                "antigravity",
+                autoIncludeWhenUnconfigured: true,
+                familyMode: ProviderFamilyMode.DynamicChildProviderRows));
+        var configs = new List<ProviderConfig>
+        {
+            new() { ProviderId = "antigravity.claude-4-sonnet" },
+        };
+
+        var selection = selector.SelectActiveConfigs(configs, forceAll: false, includeProviderIds: null);
+
+        var activeConfig = Assert.Single(selection.ActiveConfigs);
+        Assert.Equal("antigravity.claude-4-sonnet", activeConfig.ProviderId);
+    }
+
+    [Fact]
     public void SelectActiveConfigs_ExcludesNonPersistedProviders()
     {
         var selector = CreateSelector();
@@ -128,7 +147,7 @@ public class ProviderRefreshConfigSelectorTests
     private static IProviderService CreateProvider(
         string providerId,
         bool autoIncludeWhenUnconfigured = false,
-        bool supportsChildProviderIds = false)
+        ProviderFamilyMode familyMode = ProviderFamilyMode.Standalone)
     {
         var mock = new Mock<IProviderService>();
         mock.SetupGet(provider => provider.ProviderId).Returns(providerId);
@@ -140,7 +159,7 @@ public class ProviderRefreshConfigSelectorTests
                 isQuotaBased: true,
                 defaultConfigType: "quota-based",
                 autoIncludeWhenUnconfigured: autoIncludeWhenUnconfigured,
-                supportsChildProviderIds: supportsChildProviderIds));
+                familyMode: familyMode));
         mock.Setup(provider => provider.GetUsageAsync(It.IsAny<ProviderConfig>(), It.IsAny<Action<ProviderUsage>?>()))
             .ReturnsAsync(Array.Empty<ProviderUsage>());
         return mock.Object;

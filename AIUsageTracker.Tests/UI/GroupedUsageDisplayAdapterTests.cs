@@ -66,6 +66,7 @@ public class GroupedUsageDisplayAdapterTests
 
         Assert.Equal(4, usages.Count);
         var parent = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli", StringComparison.Ordinal));
+        Assert.Equal("Google Gemini", parent.ProviderName);
         Assert.Equal(3, parent.Details?.Count);
 
         var minute = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli.gemini-2.5-flash-lite", StringComparison.Ordinal));
@@ -109,7 +110,9 @@ public class GroupedUsageDisplayAdapterTests
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
         Assert.Equal(2, usages.Count);
+        var parent = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
         var spark = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "codex.spark", StringComparison.Ordinal));
+        Assert.Equal("OpenAI (Codex)", parent.ProviderName);
         Assert.Equal("OpenAI (GPT-5.3 Codex Spark)", spark.ProviderName);
         Assert.Equal(72, spark.RequestsPercentage, 1);
     }
@@ -422,5 +425,43 @@ public class GroupedUsageDisplayAdapterTests
         Assert.Equal(23, derived.RequestsUsed, 1);
         Assert.Equal("77.0% Remaining", derived.Description);
         Assert.Equal(now.AddHours(3), derived.NextResetTime);
+    }
+
+    [Fact]
+    public void Expand_AntigravitySnapshot_AddsDynamicDerivedRows()
+    {
+        var snapshot = new AgentGroupedUsageSnapshot
+        {
+            Providers = new[]
+            {
+                new AgentGroupedProviderUsage
+                {
+                    ProviderId = "antigravity",
+                    ProviderName = "Antigravity",
+                    IsAvailable = true,
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Coding,
+                    Models = new[]
+                    {
+                        new AgentGroupedModelUsage
+                        {
+                            ModelId = "gemini-3-flash",
+                            ModelName = "Gemini 3 Flash",
+                            RemainingPercentage = 100,
+                            UsedPercentage = 0,
+                            Description = "100% Remaining",
+                        },
+                    },
+                },
+            },
+        };
+
+        var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
+
+        Assert.Equal(2, usages.Count);
+        var derived = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "antigravity.gemini-3-flash", StringComparison.Ordinal));
+        Assert.Equal("Gemini 3 Flash [Antigravity]", derived.ProviderName);
+        Assert.Equal(100, derived.RequestsPercentage, 1);
+        Assert.Equal("100% Remaining", derived.Description);
     }
 }

@@ -2,6 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
@@ -38,16 +39,34 @@ internal static class ProviderCapabilityCatalog
         return ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
     }
 
+    public static string ResolveDisplayLabel(
+        string providerId,
+        string? runtimeLabel)
+    {
+        return ProviderMetadataCatalog.ResolveDisplayLabel(providerId, runtimeLabel);
+    }
+
+    public static string ResolveDisplayLabel(ProviderUsage usage)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+        return ResolveDisplayLabel(usage.ProviderId ?? string.Empty, usage.ProviderName);
+    }
+
     public static string GetDisplayName(
         string providerId,
         string? providerName)
     {
-        return ProviderMetadataCatalog.GetDisplayName(providerId, providerName);
+        return ResolveDisplayLabel(providerId, providerName);
     }
 
     public static string GetDisplayName(string providerId)
     {
-        return GetDisplayName(providerId, providerName: null);
+        return ProviderMetadataCatalog.GetConfiguredDisplayName(providerId);
+    }
+
+    public static string GetConfiguredDisplayName(string providerId)
+    {
+        return ProviderMetadataCatalog.GetConfiguredDisplayName(providerId);
     }
 
     public static bool ShouldCollapseDerivedChildrenInMainWindow(string providerId)
@@ -62,20 +81,16 @@ internal static class ProviderCapabilityCatalog
 
     public static bool ShouldUseSharedSubDetailCollapsePreference(string providerId)
     {
-        var canonicalProviderId = GetCanonicalProviderId(providerId);
-        return ShouldCollapseDerivedChildrenInMainWindow(canonicalProviderId);
+        return ProviderMetadataCatalog.ShouldUseSharedSubDetailCollapsePreference(providerId);
     }
 
     public static bool ShouldRenderAsSettingsSubItem(string providerId)
     {
-        var canonicalProviderId = GetCanonicalProviderId(providerId);
-        var isCanonicalChild = !string.Equals(canonicalProviderId, providerId, StringComparison.OrdinalIgnoreCase);
-        return isCanonicalChild && ShouldUseSharedSubDetailCollapsePreference(canonicalProviderId);
+        return ProviderMetadataCatalog.ShouldRenderAsSettingsSubItem(providerId);
     }
 
     public static bool HasVisibleDerivedProviders(string providerId)
     {
-        return ProviderMetadataCatalog.TryGet(providerId, out var definition) &&
-               definition.VisibleDerivedProviderIds.Count > 0;
+        return ProviderMetadataCatalog.HasDisplayableDerivedProviders(providerId);
     }
 }

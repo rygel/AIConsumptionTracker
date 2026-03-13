@@ -1,58 +1,58 @@
 using System.Text.Json;
-
-using Microsoft.Extensions.Logging;
-
-using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Paths;
+using AIUsageTracker.Infrastructure.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Infrastructure.Services;
 
 public sealed class ProviderDiscoveryService : IProviderDiscoveryService
 {
     private readonly ILogger<ProviderDiscoveryService> _logger;
+    private readonly IAppPathProvider _pathProvider;
 
-    public ProviderDiscoveryService(ILogger<ProviderDiscoveryService> logger)
+    public ProviderDiscoveryService(
+        ILogger<ProviderDiscoveryService> logger,
+        IAppPathProvider pathProvider)
     {
         this._logger = logger;
+        this._pathProvider = pathProvider;
     }
 
-    public async Task<ProviderAuthData?> DiscoverAuthAsync(ProviderDefinition definition)
+    public async Task<ProviderAuthData?> DiscoverAuthAsync(ProviderAuthDiscoverySpec discoverySpec)
     {
         // 1. Check environment variables
-        foreach (var envVar in definition.DiscoveryEnvironmentVariables)
+        foreach (var envVar in discoverySpec.DiscoveryEnvironmentVariables)
         {
             var value = Environment.GetEnvironmentVariable(envVar);
             if (!string.IsNullOrWhiteSpace(value))
             {
-                this._logger.LogDebug("Discovered auth for {ProviderId} via environment variable {EnvVar}", definition.ProviderId, envVar);
+                this._logger.LogDebug("Discovered auth for {ProviderId} via environment variable {EnvVar}", discoverySpec.ProviderId, envVar);
                 return new ProviderAuthData(value);
             }
         }
 
         // 2. Check auth file candidates
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        foreach (var pathTemplate in definition.AuthIdentityCandidatePathTemplates)
+        foreach (var path in ProviderAuthCandidatePathResolver.ResolvePaths(discoverySpec, this._pathProvider))
         {
-            var path = AuthPathTemplateResolver.Resolve(pathTemplate, userProfile);
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            if (!File.Exists(path))
             {
                 continue;
             }
 
             try
             {
-                var authData = await LoadAuthFromFileAsync(path, definition.SessionAuthFileSchemas);
+                var authData = await LoadAuthFromFileAsync(path, discoverySpec.SessionAuthFileSchemas).ConfigureAwait(false);
                 if (authData != null)
                 {
-                    this._logger.LogDebug("Discovered auth for {ProviderId} via file {Path}", definition.ProviderId, path);
+                    this._logger.LogDebug("Discovered auth for {ProviderId} via file {Path}", discoverySpec.ProviderId, path);
                     return authData with { SourcePath = path };
                 }
             }
             catch (Exception ex)
             {
-                this._logger.LogDebug(ex, "Failed to read auth file for {ProviderId} at {Path}", definition.ProviderId, path);
+                this._logger.LogDebug(ex, "Failed to read auth file for {ProviderId} at {Path}", discoverySpec.ProviderId, path);
             }
         }
 
@@ -66,48 +66,8 @@ public sealed class ProviderDiscoveryService : IProviderDiscoveryService
 
     private static async Task<ProviderAuthData?> LoadAuthFromFileAsync(string path, IEnumerable<ProviderAuthFileSchema> schemas)
     {
-        var json = await File.ReadAllTextAsync(path);
+        var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
         using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        foreach (var schema in schemas)
-        {
-            var sessionRoot = root;
-            var parts = schema.RootProperty.Split('.');
-            var lastPart = parts[^1];
-            bool foundRoot = true;
-            foreach (var part in parts)
-            {
-                if (!sessionRoot.TryGetProperty(part, out sessionRoot) ||
-                    (sessionRoot.ValueKind != JsonValueKind.Object && !string.Equals(part, lastPart, StringComparison.Ordinal)))
-                {
-                    foundRoot = false;
-                    break;
-                }
-            }
-
-            if (!foundRoot || sessionRoot.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
-
-            var accessToken = sessionRoot.ReadString(schema.AccessTokenProperty);
-            if (string.IsNullOrWhiteSpace(accessToken))
-            {
-                continue;
-            }
-
-            var accountId = !string.IsNullOrWhiteSpace(schema.AccountIdProperty)
-                ? sessionRoot.ReadString(schema.AccountIdProperty)
-                : null;
-
-            var identityToken = !string.IsNullOrWhiteSpace(schema.IdentityTokenProperty)
-                ? sessionRoot.ReadString(schema.IdentityTokenProperty)
-                : null;
-
-            return new ProviderAuthData(accessToken, accountId, identityToken);
-        }
-
-        return null;
+        return ProviderAuthFileSchemaReader.Read(doc.RootElement, schemas);
     }
 }

@@ -35,6 +35,14 @@ public sealed class ProviderCapabilityCatalogTests
     }
 
     [Fact]
+    public void HasVisibleDerivedProviders_TreatsAntigravityAsVisibleChildProviderFamily()
+    {
+        var result = ProviderCapabilityCatalog.HasVisibleDerivedProviders("antigravity");
+
+        Assert.True(result);
+    }
+
+    [Fact]
     public void ShouldShowInMainWindow_HidesLegacyOpenAiProvider()
     {
         var result = ProviderCapabilityCatalog.ShouldShowInMainWindow("openai");
@@ -43,9 +51,9 @@ public sealed class ProviderCapabilityCatalogTests
     }
 
     [Fact]
-    public void GetDisplayName_PreservesDerivedProviderName_WhenProvided()
+    public void ResolveDisplayLabel_PreservesDerivedProviderName_WhenProvided()
     {
-        var result = ProviderCapabilityCatalog.GetDisplayName(
+        var result = ProviderCapabilityCatalog.ResolveDisplayLabel(
             "antigravity.gpt-oss",
             "GPT OSS (Anti-Gravity)");
 
@@ -53,13 +61,21 @@ public sealed class ProviderCapabilityCatalogTests
     }
 
     [Fact]
-    public void GetDisplayName_PreservesRuntimeName_ForGeminiDerivedProvider()
+    public void ResolveDisplayLabel_PreservesRuntimeName_ForGeminiDerivedProvider()
     {
-        var result = ProviderCapabilityCatalog.GetDisplayName(
+        var result = ProviderCapabilityCatalog.ResolveDisplayLabel(
             "gemini-cli.minute",
             "Gemini 2.5 Flash Lite [Gemini CLI]");
 
         Assert.Equal("Gemini 2.5 Flash Lite [Gemini CLI]", result);
+    }
+
+    [Fact]
+    public void GetConfiguredDisplayName_UsesMetadataLabelForFamilyChildWithoutRuntimeLabel()
+    {
+        var result = ProviderCapabilityCatalog.GetConfiguredDisplayName("antigravity.gpt-oss");
+
+        Assert.Equal("Google Antigravity", result);
     }
 
     [Fact]
@@ -68,5 +84,21 @@ public sealed class ProviderCapabilityCatalogTests
         var result = ProviderCapabilityCatalog.SupportsAccountIdentity("github-copilot");
 
         Assert.True(result);
+    }
+
+    [Fact]
+    public void ShouldUseSharedSubDetailCollapsePreference_DelegatesToProviderMetadata()
+    {
+        var result = ProviderCapabilityCatalog.ShouldUseSharedSubDetailCollapsePreference("codex.spark");
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void ShouldRenderAsSettingsSubItem_DelegatesToProviderMetadata()
+    {
+        var result = ProviderCapabilityCatalog.ShouldRenderAsSettingsSubItem("antigravity.some-model");
+
+        Assert.False(result);
     }
 }

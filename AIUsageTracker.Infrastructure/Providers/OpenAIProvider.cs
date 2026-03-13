@@ -11,9 +11,10 @@ using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Infrastructure.Http;
 using AIUsageTracker.Core.Paths;
 using AIUsageTracker.Core.Providers;
+using AIUsageTracker.Infrastructure.Constants;
+using AIUsageTracker.Infrastructure.Http;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Infrastructure.Providers;
@@ -53,6 +54,10 @@ public class OpenAIProvider : ProviderBase
         sessionAuthFileSchemas: new[]
         {
             new ProviderAuthFileSchema("openai", "access", "accountId", "id_token"),
+        },
+        sessionIdentityProfileRootProperties: new[]
+        {
+            ProviderEndpoints.OpenAI.ProfileClaimKey,
         });
 
     /// <inheritdoc/>
@@ -84,7 +89,7 @@ public class OpenAIProvider : ProviderBase
 
         if (string.IsNullOrWhiteSpace(accessToken) && this.DiscoveryService != null)
         {
-            var auth = await this.DiscoveryService.DiscoverAuthAsync(this.Definition).ConfigureAwait(false);
+            var auth = await this.DiscoveryService.DiscoverAuthAsync(this.Definition.CreateAuthDiscoverySpec()).ConfigureAwait(false);
             accessToken = auth?.AccessToken;
             accountId = auth?.AccountId;
         }
@@ -93,7 +98,7 @@ public class OpenAIProvider : ProviderBase
         {
             return new[]
             {
-                this.CreateUnavailableUsage("OpenAI API key or OpenCode session not found.")
+                this.CreateUnavailableUsage("OpenAI API key or OpenCode session not found."),
             };
         }
 
@@ -117,7 +122,7 @@ public class OpenAIProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = "OpenAI",
+                    ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
                     Description = "Project keys (sk-proj-...) not supported yet. Use a standard user API key.",
                     IsQuotaBased = true,
@@ -139,7 +144,7 @@ public class OpenAIProvider : ProviderBase
                     new ProviderUsage
                     {
                         ProviderId = this.ProviderId,
-                        ProviderName = "OpenAI",
+                        ProviderName = this.Definition.DisplayName,
                         IsAvailable = true,
                         RequestsPercentage = 0,
                         IsQuotaBased = true,
@@ -155,7 +160,7 @@ public class OpenAIProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = "OpenAI",
+                    ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
                     Description = $"Invalid Key ({response.StatusCode})",
                     IsQuotaBased = true,
@@ -171,7 +176,7 @@ public class OpenAIProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = "OpenAI",
+                    ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
                     Description = "Connection Failed",
                     IsQuotaBased = true,
@@ -217,7 +222,7 @@ public class OpenAIProvider : ProviderBase
         return new ProviderUsage
         {
             ProviderId = this.ProviderId,
-            ProviderName = "OpenAI",
+            ProviderName = this.Definition.DisplayName,
             AccountName = GetAccountIdentity(doc.RootElement, accessToken, accountId) ?? string.Empty,
             IsAvailable = true,
             IsQuotaBased = true,
@@ -335,13 +340,13 @@ public class OpenAIProvider : ProviderBase
 
     private static string? GetAccountIdentity(JsonElement root, string accessToken, string? accountId)
     {
-        var directIdentity = SessionIdentityHelper.TryGetPreferredIdentity(root);
+        var directIdentity = SessionIdentityHelper.TryGetPreferredIdentity(root, StaticDefinition.SessionIdentityProfileRootProperties);
         if (!string.IsNullOrWhiteSpace(directIdentity))
         {
             return directIdentity;
         }
 
-        var fromToken = SessionIdentityHelper.TryGetIdentityFromJwt(accessToken);
+        var fromToken = SessionIdentityHelper.TryGetIdentityFromJwt(accessToken, StaticDefinition.SessionIdentityProfileRootProperties);
         if (!string.IsNullOrWhiteSpace(fromToken))
         {
             return fromToken;

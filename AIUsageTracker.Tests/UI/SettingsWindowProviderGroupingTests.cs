@@ -17,11 +17,11 @@ public sealed class SettingsWindowProviderGroupingTests
     }
 
     [Fact]
-    public void ShouldRenderAsSettingsSubItem_ReturnsTrue_ForAntigravityDerivedChild()
+    public void ShouldRenderAsSettingsSubItem_ReturnsFalse_ForAntigravityDerivedChild()
     {
         var result = SettingsWindow.ShouldRenderAsSettingsSubItem("antigravity.some-model", isDerived: true);
 
-        Assert.True(result);
+        Assert.False(result);
     }
 
     [Fact]

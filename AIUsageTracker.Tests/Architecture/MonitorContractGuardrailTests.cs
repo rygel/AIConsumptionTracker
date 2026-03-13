@@ -73,12 +73,12 @@ public class MonitorContractGuardrailTests
     }
 
     [Fact]
-    public void GroupedUsageProjection_DoesNotUseDerivedProviderRowsAsModelFallback()
+    public void GroupedUsageProjection_UsesExplicitChildRows_WhenProvidersEmitThem()
     {
         var projectionPath = GetRepoPath("AIUsageTracker.Monitor", "Services", "GroupedUsageProjectionService.cs");
         var source = File.ReadAllText(projectionPath);
 
-        Assert.DoesNotContain("BuildModelsFromDerivedProviderRows", source, StringComparison.Ordinal);
+        Assert.Contains("BuildModelsFromExplicitChildRows", source, StringComparison.Ordinal);
     }
 
     [Fact]

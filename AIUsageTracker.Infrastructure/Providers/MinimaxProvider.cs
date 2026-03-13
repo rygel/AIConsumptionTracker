@@ -55,6 +55,8 @@ public class MinimaxProvider : ProviderBase
     /// <inheritdoc/>
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {
+        var providerLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId);
+
         if (string.IsNullOrEmpty(config.ApiKey))
         {
             return new[]
@@ -62,11 +64,11 @@ public class MinimaxProvider : ProviderBase
                 new ProviderUsage
             {
                 ProviderId = config.ProviderId,
-                ProviderName = "Minimax",
+                ProviderName = providerLabel,
                 IsAvailable = false,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
-                Description = "API Key not found."
+                Description = "API Key not found.",
             },
             };
         }
@@ -110,13 +112,13 @@ public class MinimaxProvider : ProviderBase
                 new ProviderUsage
             {
                 ProviderId = config.ProviderId,
-                ProviderName = "Minimax",
+                ProviderName = providerLabel,
                 IsAvailable = false,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
                 Description = $"API returned {response.StatusCode} for {url}",
                 RawJson = errorContent,
-                HttpStatus = httpStatus
+                HttpStatus = httpStatus,
             },
             };
         }
@@ -138,17 +140,17 @@ public class MinimaxProvider : ProviderBase
             {
                 return new[]
                 {
-                    new ProviderUsage
-             {
-                 ProviderId = config.ProviderId,
-                 ProviderName = "Minimax",
-                 IsAvailable = false,
-                 IsQuotaBased = true,
-                 PlanType = PlanType.Coding,
-                 Description = "Invalid Minimax response format",
-                 RawJson = responseString,
-                 HttpStatus = httpStatus
-             },
+                     new ProviderUsage
+              {
+                  ProviderId = config.ProviderId,
+                  ProviderName = providerLabel,
+                  IsAvailable = false,
+                  IsQuotaBased = true,
+                  PlanType = PlanType.Coding,
+                  Description = "Invalid Minimax response format",
+                  RawJson = responseString,
+                  HttpStatus = httpStatus,
+              },
                 };
             }
         }
@@ -159,13 +161,13 @@ public class MinimaxProvider : ProviderBase
                 new ProviderUsage
             {
                 ProviderId = config.ProviderId,
-                ProviderName = "Minimax",
+                ProviderName = providerLabel,
                 IsAvailable = false,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
                 Description = $"Failed to parse Minimax response: {ex.Message}",
                 RawJson = responseString,
-                HttpStatus = httpStatus
+                HttpStatus = httpStatus,
             },
             };
         }
@@ -177,7 +179,7 @@ public class MinimaxProvider : ProviderBase
             new ProviderUsage
         {
             ProviderId = config.ProviderId,
-            ProviderName = "Minimax",
+            ProviderName = providerLabel,
             RequestsPercentage = Math.Min(utilization, 100),
             RequestsUsed = used,
             RequestsAvailable = total,
@@ -186,7 +188,7 @@ public class MinimaxProvider : ProviderBase
             IsQuotaBased = true,
             Description = $"{used:N0} tokens used" + (total > 0 ? $" / {total:N0} limit" : string.Empty),
             RawJson = responseString,
-            HttpStatus = httpStatus
+            HttpStatus = httpStatus,
         },
         };
     }

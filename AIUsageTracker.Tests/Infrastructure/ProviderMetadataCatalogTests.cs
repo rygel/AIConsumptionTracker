@@ -55,6 +55,37 @@ public class ProviderMetadataCatalogTests
         Assert.Equal(expectedDisplayName, ProviderMetadataCatalog.GetDisplayName(providerId));
     }
 
+    [Theory]
+    [InlineData("codex", "OpenAI (Codex)", "OpenAI (Codex)")]
+    [InlineData("openai", "OpenAI (API)", "OpenAI (API)")]
+    public void ProviderLabels_UseDefinitionAuthority(
+        string providerId,
+        string expectedDisplayName,
+        string expectedSessionLabel)
+    {
+        Assert.Equal(expectedDisplayName, ProviderMetadataCatalog.GetDisplayName(providerId));
+        Assert.Equal(expectedSessionLabel, ProviderMetadataCatalog.GetSessionStatusLabel(providerId));
+    }
+
+    [Theory]
+    [InlineData("codex.spark", "OpenAI (GPT-5.3 Codex Spark)")]
+    [InlineData("antigravity.gpt-oss", "Google Antigravity")]
+    public void GetConfiguredDisplayName_UsesMetadataAuthority(string providerId, string expectedDisplayName)
+    {
+        Assert.Equal(expectedDisplayName, ProviderMetadataCatalog.GetConfiguredDisplayName(providerId));
+    }
+
+    [Theory]
+    [InlineData("antigravity.gpt-oss", "GPT OSS (Anti-Gravity)", "GPT OSS (Anti-Gravity)")]
+    [InlineData("gemini-cli.minute", "Gemini 2.5 Flash Lite [Gemini CLI]", "Gemini 2.5 Flash Lite [Gemini CLI]")]
+    public void ResolveDisplayLabel_PreservesIntentionalRuntimeLabels_ForDynamicChildren(
+        string providerId,
+        string runtimeLabel,
+        string expectedDisplayLabel)
+    {
+        Assert.Equal(expectedDisplayLabel, ProviderMetadataCatalog.ResolveDisplayLabel(providerId, runtimeLabel));
+    }
+
     [Fact]
     public void Definitions_DoNotExposeDuplicateHandledProviderIds()
     {
@@ -114,6 +145,46 @@ public class ProviderMetadataCatalogTests
         Assert.Equal(expectedCanonicalId, ProviderMetadataCatalog.GetCanonicalProviderId(providerId));
     }
 
+    [Theory]
+    [InlineData("gemini", "gemini-cli.hourly", true)]
+    [InlineData("codex", "codex.spark", true)]
+    [InlineData("antigravity", "antigravity.gemini-3-flash", true)]
+    [InlineData("openai", "openai.spark", false)]
+    [InlineData("unknown-provider", "unknown-provider.child", false)]
+    public void BelongsToProviderFamily_UsesProviderDefinitions(string providerId, string candidateProviderId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.BelongsToProviderFamily(providerId, candidateProviderId));
+    }
+
+    [Theory]
+    [InlineData("gemini-cli.hourly", true)]
+    [InlineData("codex.spark", true)]
+    [InlineData("antigravity.gemini-3-flash", true)]
+    [InlineData("gemini", false)]
+    [InlineData("openai.spark", false)]
+    [InlineData("unknown-provider.child", false)]
+    public void IsChildProviderId_UsesProviderDefinitions(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.IsChildProviderId(providerId));
+    }
+
+    [Theory]
+    [InlineData("antigravity", "antigravity.gemini-3-flash", true, "gemini-3-flash")]
+    [InlineData("gemini", "gemini-cli.hourly", true, "hourly")]
+    [InlineData("codex", "codex.spark", true, "spark")]
+    [InlineData("openai", "openai.spark", false, "")]
+    public void TryGetChildProviderKey_UsesProviderDefinitions(
+        string providerId,
+        string candidateProviderId,
+        bool expected,
+        string expectedChildProviderKey)
+    {
+        var success = ProviderMetadataCatalog.TryGetChildProviderKey(providerId, candidateProviderId, out var childProviderKey);
+
+        Assert.Equal(expected, success);
+        Assert.Equal(expectedChildProviderKey, childProviderKey);
+    }
+
     [Fact]
     public void GetDerivedModelDisplayName_AppendsConfiguredSuffix()
     {
@@ -131,7 +202,7 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity", true)]
+    [InlineData("antigravity", false)]
     [InlineData("antigravity.some-model", false)]
     [InlineData("codex", false)]
     public void IsAggregateParentProviderId_DetectsOnlyAggregateParent(string providerId, bool expected)
@@ -140,8 +211,8 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity", true)]
-    [InlineData("antigravity.some-model", true)]
+    [InlineData("antigravity", false)]
+    [InlineData("antigravity.some-model", false)]
     [InlineData("codex", false)]
     [InlineData("codex.spark", false)]
     public void ShouldCollapseDerivedChildrenInMainWindow_UsesProviderDefinitions(string providerId, bool expected)
@@ -161,8 +232,8 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity", true)]
-    [InlineData("antigravity.some-model", true)]
+    [InlineData("antigravity", false)]
+    [InlineData("antigravity.some-model", false)]
     [InlineData("codex", false)]
     public void ShouldRenderAggregateDetailsInMainWindow_UsesCatalogPolicy(string providerId, bool expected)
     {
@@ -170,8 +241,8 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity", true)]
-    [InlineData("antigravity.some-model", true)]
+    [InlineData("antigravity", false)]
+    [InlineData("antigravity.some-model", false)]
     [InlineData("codex", false)]
     public void ShouldUseSharedSubDetailCollapsePreference_UsesCatalogPolicy(string providerId, bool expected)
     {
@@ -179,12 +250,135 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity.some-model", true)]
+    [InlineData("antigravity.some-model", false)]
     [InlineData("codex.spark", false)]
     [InlineData("codex", false)]
     public void ShouldRenderAsSettingsSubItem_UsesCatalogPolicy(string providerId, bool expected)
     {
         Assert.Equal(expected, ProviderMetadataCatalog.ShouldRenderAsSettingsSubItem(providerId));
+    }
+
+    [Theory]
+    [InlineData("antigravity", true)]
+    [InlineData("gemini-cli", true)]
+    [InlineData("codex", true)]
+    [InlineData("github-copilot", false)]
+    public void HasDisplayableDerivedProviders_UsesProviderFamilyPolicy(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.HasDisplayableDerivedProviders(providerId));
+    }
+
+    [Theory]
+    [InlineData("antigravity", false)]
+    [InlineData("gemini-cli", true)]
+    [InlineData("codex", true)]
+    [InlineData("github-copilot", false)]
+    public void HasStaticVisibleDerivedProviders_UsesProviderDefinitions(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.HasStaticVisibleDerivedProviders(providerId));
+    }
+
+    [Theory]
+    [InlineData("antigravity", true)]
+    [InlineData("gemini-cli", false)]
+    [InlineData("codex", false)]
+    [InlineData("github-copilot", false)]
+    public void ShouldUseChildProviderRowsForGroupedModels_UsesProviderFamilyMode(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.ShouldUseChildProviderRowsForGroupedModels(providerId));
+    }
+
+    [Theory]
+    [InlineData("codex", new[] { "codex.spark" })]
+    [InlineData("gemini-cli", new[] { "gemini-cli.minute", "gemini-cli.hourly", "gemini-cli.daily" })]
+    [InlineData("antigravity", new string[0])]
+    public void GetVisibleDerivedProviderIds_UsesProviderDefinitions(string providerId, string[] expected)
+    {
+        var providerIds = ProviderMetadataCatalog.GetVisibleDerivedProviderIds(providerId);
+
+        Assert.Equal(expected, providerIds, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("codex", 0, 0)]
+    [InlineData("gemini-cli", 0, 0)]
+    [InlineData("antigravity", 0, 0)]
+    public void DerivedModelSelectorCoverageQueries_ReportConfiguredProviders(
+        string providerId,
+        int expectedMissingCount,
+        int expectedUnknownCount)
+    {
+        Assert.Equal(expectedMissingCount, ProviderMetadataCatalog.GetMissingDerivedModelSelectorProviderIds(providerId).Count);
+        Assert.Equal(expectedUnknownCount, ProviderMetadataCatalog.GetUnknownDerivedModelSelectorProviderIds(providerId).Count);
+    }
+
+    [Theory]
+    [InlineData("codex.spark", PlanType.Coding, true)]
+    [InlineData("github-copilot", PlanType.Coding, true)]
+    public void TryGetUsageSemantics_UsesProviderDefinitions(
+        string providerId,
+        PlanType expectedPlanType,
+        bool expectedIsQuotaBased)
+    {
+        var success = ProviderMetadataCatalog.TryGetUsageSemantics(providerId, out var planType, out var isQuotaBased);
+
+        Assert.True(success);
+        Assert.Equal(expectedPlanType, planType);
+        Assert.Equal(expectedIsQuotaBased, isQuotaBased);
+    }
+
+    [Theory]
+    [InlineData("codex.spark", "openai")]
+    [InlineData("antigravity.claude-opus", "google")]
+    [InlineData("unknown-provider", "unknown-provider")]
+    public void GetIconAssetName_UsesProviderMetadata(string providerId, string expectedAssetName)
+    {
+        Assert.Equal(expectedAssetName, ProviderMetadataCatalog.GetIconAssetName(providerId));
+    }
+
+    [Theory]
+    [InlineData("github-copilot", true, "GH")]
+    [InlineData("claude-code", true, "C")]
+    [InlineData("unknown-provider", false, "")]
+    public void TryGetFallbackBadgeDefinition_UsesProviderMetadata(
+        string providerId,
+        bool expectedSuccess,
+        string expectedInitial)
+    {
+        var success = ProviderMetadataCatalog.TryGetFallbackBadgeDefinition(providerId, out _, out var initial);
+
+        Assert.Equal(expectedSuccess, success);
+        Assert.Equal(expectedInitial, initial);
+    }
+
+    [Fact]
+    public void GetProviderIdsWithDiscoveryEnvironmentVariables_UsesProviderMetadata()
+    {
+        var providerIds = ProviderMetadataCatalog.GetProviderIdsWithDiscoveryEnvironmentVariables();
+
+        Assert.Contains("codex", providerIds);
+        Assert.Contains("gemini-cli", providerIds);
+        Assert.Contains("synthetic", providerIds);
+    }
+
+    [Fact]
+    public void GetWellKnownProviderIds_UsesProviderMetadata()
+    {
+        var providerIds = ProviderMetadataCatalog.GetWellKnownProviderIds();
+
+        Assert.Contains("codex", providerIds);
+        Assert.Contains("github-copilot", providerIds);
+        Assert.DoesNotContain("openai", providerIds);
+    }
+
+    [Fact]
+    public void GetProviderIdsWithDedicatedSessionAuthFiles_UsesProviderMetadata()
+    {
+        var providerIds = ProviderMetadataCatalog.GetProviderIdsWithDedicatedSessionAuthFiles();
+
+        Assert.Contains("claude-code", providerIds);
+        Assert.Contains("codex", providerIds);
+        Assert.DoesNotContain("openai", providerIds);
     }
 
     [Theory]
@@ -373,17 +567,22 @@ public class ProviderMetadataCatalogTests
     {
         var githubCopilot = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("github-copilot"));
         Assert.Equal(ProviderSettingsMode.ExternalAuthStatus, githubCopilot.SettingsMode);
+        Assert.Equal(ProviderFamilyMode.Standalone, githubCopilot.FamilyMode);
         Assert.False(githubCopilot.RenderDetailsAsSyntheticChildrenInMainWindow);
 
         var antigravity = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("antigravity"));
         Assert.Equal(ProviderSettingsMode.AutoDetectedStatus, antigravity.SettingsMode);
-        Assert.True(antigravity.RenderDetailsAsSyntheticChildrenInMainWindow);
-        Assert.Equal("[Antigravity]", antigravity.AggregateDetailDisplaySuffix);
+        Assert.Equal(ProviderFamilyMode.DynamicChildProviderRows, antigravity.FamilyMode);
+        Assert.False(antigravity.RenderDetailsAsSyntheticChildrenInMainWindow);
+        Assert.True(antigravity.UseChildProviderRowsForGroupedModels);
+        Assert.Equal("[Antigravity]", antigravity.DerivedModelDisplaySuffix);
 
         var gemini = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("gemini-cli"));
         Assert.Equal(ProviderSettingsMode.StandardApiKey, gemini.SettingsMode);
+        Assert.Equal(ProviderFamilyMode.VisibleDerivedProviders, gemini.FamilyMode);
         Assert.True(gemini.SupportsChildProviderIds);
         Assert.False(gemini.RenderDetailsAsSyntheticChildrenInMainWindow);
+        Assert.False(gemini.UseChildProviderRowsForGroupedModels);
 
         foreach (var providerId in new[] { "kimi", "synthetic", "zai-coding-plan" })
         {

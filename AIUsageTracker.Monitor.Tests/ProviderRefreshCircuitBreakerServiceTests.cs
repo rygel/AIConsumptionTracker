@@ -85,6 +85,39 @@ public class ProviderRefreshCircuitBreakerServiceTests
     }
 
     [Fact]
+    public void UpdateProviderFailureStates_DoesNotResetCircuitFromUnsupportedDottedProviderId()
+    {
+        var configs = new List<ProviderConfig>
+        {
+            new() { ProviderId = "openai" },
+        };
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            this._service.UpdateProviderFailureStates(configs, Array.Empty<ProviderUsage>());
+        }
+
+        this._service.UpdateProviderFailureStates(
+            configs,
+            new[]
+            {
+                new ProviderUsage
+                {
+                    ProviderId = "openai.spark",
+                    IsAvailable = true,
+                    HttpStatus = 200,
+                },
+            });
+
+        var result = this._service.GetRefreshableConfigs(configs, forceAll: false);
+
+        Assert.Empty(result);
+        var diagnostic = Assert.Single(this._service.GetProviderDiagnostics());
+        Assert.Equal("openai", diagnostic.ProviderId);
+        Assert.True(diagnostic.IsCircuitOpen);
+    }
+
+    [Fact]
     public void GetRefreshableConfigs_ForceAllBypassesOpenCircuit()
     {
         var configs = new List<ProviderConfig>

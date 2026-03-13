@@ -28,16 +28,15 @@ public class AntigravityProvider : ProviderBase
         defaultConfigType: "quota-based",
         autoIncludeWhenUnconfigured: true,
         includeInWellKnownProviders: true,
-        supportsChildProviderIds: true,
+        familyMode: ProviderFamilyMode.DynamicChildProviderRows,
         settingsMode: ProviderSettingsMode.AutoDetectedStatus,
         refreshOnStartupWithCachedData: true,
-        collapseDerivedChildrenInMainWindow: true,
-        renderDetailsAsSyntheticChildrenInMainWindow: true,
         aggregateDetailDisplaySuffix: "[Antigravity]",
         supportsAccountIdentity: true,
         iconAssetName: "google",
         fallbackBadgeColorHex: "#1E90FF",
-        fallbackBadgeInitial: "G");
+        fallbackBadgeInitial: "G",
+        derivedModelDisplaySuffix: "[Antigravity]");
 
     /// <inheritdoc/>
     public override ProviderDefinition Definition => StaticDefinition;
@@ -109,7 +108,7 @@ public class AntigravityProvider : ProviderBase
                                 new ProviderUsage
                             {
                                 ProviderId = this.ProviderId,
-                                ProviderName = "Antigravity",
+                                ProviderName = this.Definition.DisplayName,
                                 IsAvailable = true,
                                 RequestsPercentage = 0,
                                 RequestsUsed = 0,
@@ -118,7 +117,7 @@ public class AntigravityProvider : ProviderBase
                                 AccountName = this._cachedUsage.AccountName,
                                 Description = description,
                                 IsQuotaBased = true,
-                                PlanType = PlanType.Coding
+                                PlanType = PlanType.Coding,
                             },
                             };
                         }
@@ -134,7 +133,7 @@ public class AntigravityProvider : ProviderBase
                         new ProviderUsage
                     {
                         ProviderId = this.ProviderId,
-                        ProviderName = "Antigravity",
+                        ProviderName = this.Definition.DisplayName,
                         IsAvailable = true,
                         RequestsPercentage = 0,
                         RequestsUsed = 0,
@@ -143,7 +142,7 @@ public class AntigravityProvider : ProviderBase
                         AccountName = this._cachedUsage.AccountName,
                         Description = description,
                         IsQuotaBased = true,
-                        PlanType = PlanType.Coding
+                        PlanType = PlanType.Coding,
                     },
                     };
                 }
@@ -155,7 +154,7 @@ public class AntigravityProvider : ProviderBase
                         new ProviderUsage
                     {
                         ProviderId = this.ProviderId,
-                        ProviderName = "Antigravity",
+                        ProviderName = this.Definition.DisplayName,
                         IsAvailable = true,
                         RequestsPercentage = 0,
                         RequestsUsed = 0,
@@ -164,7 +163,7 @@ public class AntigravityProvider : ProviderBase
                             ? "Antigravity running, waiting for language server"
                             : "Application not running",
                         IsQuotaBased = true,
-                        PlanType = PlanType.Coding
+                        PlanType = PlanType.Coding,
                     },
                     };
                 }
@@ -248,14 +247,14 @@ public class AntigravityProvider : ProviderBase
                     new ProviderUsage
                  {
                      ProviderId = this.ProviderId,
-                     ProviderName = "Antigravity",
+                     ProviderName = this.Definition.DisplayName,
                      IsAvailable = true,
                      RequestsPercentage = 0,
                      RequestsUsed = 0,
                      RequestsAvailable = 0,
                      Description = "Not running",
                      IsQuotaBased = true,
-                     PlanType = PlanType.Coding
+                     PlanType = PlanType.Coding,
                  },
                 };
             }
@@ -295,7 +294,7 @@ public class AntigravityProvider : ProviderBase
                 new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = "Antigravity",
+                ProviderName = this.Definition.DisplayName,
                 IsAvailable = true,
                 RequestsPercentage = 0,
                 RequestsUsed = 0,
@@ -304,7 +303,7 @@ public class AntigravityProvider : ProviderBase
                     ? "Antigravity running, waiting for language server"
                     : "Application not running",
                 IsQuotaBased = true,
-                PlanType = PlanType.Coding
+                PlanType = PlanType.Coding,
             },
             };
         }
@@ -559,7 +558,7 @@ public class AntigravityProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = "Antigravity",
+                    ProviderName = this.Definition.DisplayName,
                     IsAvailable = true,
                     RequestsPercentage = 0,
                     RequestsUsed = 0,
@@ -568,7 +567,7 @@ public class AntigravityProvider : ProviderBase
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
                     Description = "Usage unknown (no model quota data)",
-                    AccountName = data.UserStatus.Email ?? string.Empty
+                    AccountName = data.UserStatus.Email ?? string.Empty,
                 },
             };
         }
@@ -713,7 +712,7 @@ public class AntigravityProvider : ProviderBase
         return new ProviderUsage
         {
             ProviderId = this.ProviderId,
-            ProviderName = "Antigravity",
+            ProviderName = this.Definition.DisplayName,
             RequestsPercentage = remainingPctTotal,
             RequestsUsed = 100 - remainingPctTotal,
             RequestsAvailable = 100,

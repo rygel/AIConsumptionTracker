@@ -10,7 +10,7 @@ namespace AIUsageTracker.Tests.UI;
 public sealed class ProviderUsageDisplayCatalogTests
 {
     [Fact]
-    public void PrepareForMainWindow_KeepsUnavailableAggregateParentAndDeduplicatesProviders()
+    public void PrepareForMainWindow_KeepsUnavailableParentsAndDeduplicatesProviders()
     {
         var usages = new List<ProviderUsage>
         {
@@ -24,7 +24,7 @@ public sealed class ProviderUsageDisplayCatalogTests
         Assert.Equal(2, preparation.DisplayableUsages.Count);
         Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
         Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "antigravity", StringComparison.Ordinal));
-        Assert.True(preparation.HasAggregateParent);
+        Assert.False(preparation.HasAggregateParent);
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public sealed class ProviderUsageDisplayCatalogTests
     }
 
     [Fact]
-    public void PrepareForMainWindow_HidesAntigravityChildren_WhenParentExists()
+    public void PrepareForMainWindow_KeepsAntigravityChildren_WhenParentExists()
     {
         var usages = new List<ProviderUsage>
         {
@@ -53,8 +53,9 @@ public sealed class ProviderUsageDisplayCatalogTests
 
         var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
 
-        var displayable = Assert.Single(preparation.DisplayableUsages);
-        Assert.Equal("antigravity", displayable.ProviderId);
+        Assert.Equal(2, preparation.DisplayableUsages.Count);
+        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "antigravity", StringComparison.Ordinal));
+        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "antigravity.gemini-pro", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -89,55 +90,22 @@ public sealed class ProviderUsageDisplayCatalogTests
     }
 
     [Fact]
-    public void CreateAggregateDetailUsages_DeduplicatesAndBuildsSyntheticChildren()
+    public void CreateAggregateDetailUsages_ReturnsEmpty_WhenProviderDoesNotUseSyntheticChildren()
     {
+        var detail = new ProviderUsageDetail
+        {
+            Name = "Gemini 3 Flash",
+        };
+        detail.SetPercentageValue(100, PercentageValueSemantic.Remaining);
+
         var parent = new ProviderUsage
         {
             ProviderId = "antigravity",
             IsAvailable = true,
-            AuthSource = "test",
-            AccountName = "test.user@example.com",
-            Details = new List<ProviderUsageDetail>
-            {
-                new() { Name = "Gemini Pro", Used = "75% remaining", NextResetTime = new DateTime(2026, 3, 7, 10, 0, 0) },
-                new() { Name = "Gemini Pro", Used = "80% remaining" },
-                new() { Name = "[internal]", Used = "10% remaining" },
-                new() { Name = "Gemini Flash", Used = "55% remaining" },
-                new() { Name = string.Empty, ModelName = "GPT OSS", Used = "100% remaining" },
-            },
+            Details = new List<ProviderUsageDetail> { detail },
         };
 
-        var children = ProviderUsageDisplayCatalog.CreateAggregateDetailUsages(parent);
-
-        Assert.Equal(
-            new[] { "antigravity.gemini-flash", "antigravity.gemini-pro", "antigravity.gpt-oss" },
-            children.Select(child => child.ProviderId).ToArray());
-        Assert.Contains(children, child => string.Equals(child.ProviderName, "Gemini Pro [Antigravity]", StringComparison.Ordinal));
-        Assert.Contains(children, child => string.Equals(child.ProviderName, "GPT OSS [Antigravity]", StringComparison.Ordinal));
-        Assert.All(children, child => Assert.Equal("test.user@example.com", child.AccountName));
-        Assert.All(children, child => Assert.Equal(PlanType.Coding, child.PlanType));
-        Assert.All(children, child => Assert.True(child.IsQuotaBased));
-        Assert.Contains(children, child => string.Equals(child.ProviderId, "antigravity.gpt-oss", StringComparison.Ordinal) && child.RequestsPercentage == 100);
-    }
-
-    [Fact]
-    public void CreateAggregateDetailUsages_ConvertsExplicitUsedPercentBackToRemainingForQuotaParents()
-    {
-        var parent = new ProviderUsage
-        {
-            ProviderId = "antigravity",
-            IsAvailable = true,
-            Details = new List<ProviderUsageDetail>
-            {
-                new() { Name = "Gemini 3 Flash", Used = "0% used" },
-            },
-        };
-
-        var child = Assert.Single(ProviderUsageDisplayCatalog.CreateAggregateDetailUsages(parent));
-
-        Assert.Equal(100, child.RequestsPercentage);
-        Assert.Equal(0, child.RequestsUsed);
-        Assert.Equal("100% Remaining", child.Description);
+        Assert.Empty(ProviderUsageDisplayCatalog.CreateAggregateDetailUsages(parent));
     }
 
     [Fact]
@@ -324,5 +292,4 @@ public sealed class ProviderUsageDisplayCatalogTests
         Assert.NotNull(gemini.Details);
         Assert.Equal(3, gemini.Details!.Count);
     }
-
 }

@@ -7,8 +7,9 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.Paths;
 using AIUsageTracker.Core.Providers;
+using AIUsageTracker.Infrastructure.Configuration;
+using AIUsageTracker.Infrastructure.Constants;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Infrastructure.Providers;
@@ -16,12 +17,11 @@ namespace AIUsageTracker.Infrastructure.Providers;
 public class CodexProvider : ProviderBase
 {
     private const string UsageEndpoint = "https://chatgpt.com/backend-api/wham/usage";
-    private const string ProfileClaimKey = "https://api.openai.com/profile";
     private const string AuthClaimKey = "https://api.openai.com/auth";
 
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "codex",
-        displayName: "OpenAI",
+        displayName: "OpenAI (Codex)",
         planType: PlanType.Coding,
         isQuotaBased: true,
         defaultConfigType: "quota-based",
@@ -30,7 +30,7 @@ public class CodexProvider : ProviderBase
         {
             ["codex.spark"] = "OpenAI (GPT-5.3 Codex Spark)",
         },
-        supportsChildProviderIds: true,
+        familyMode: ProviderFamilyMode.VisibleDerivedProviders,
         discoveryEnvironmentVariables: new[] { "CODEX_API_KEY" },
         visibleDerivedProviderIds: new[] { "codex.spark" },
         settingsAdditionalProviderIds: new[] { "codex.spark" },
@@ -43,7 +43,7 @@ public class CodexProvider : ProviderBase
                 modelNameContains: new[] { "spark" }),
         },
         settingsMode: ProviderSettingsMode.SessionAuthStatus,
-        sessionStatusLabel: "OpenAI",
+        sessionStatusLabel: "OpenAI (Codex)",
         sessionIdentitySource: ProviderSessionIdentitySource.Codex,
         supportsAccountIdentity: true,
         iconAssetName: "openai",
@@ -57,6 +57,10 @@ public class CodexProvider : ProviderBase
         sessionAuthFileSchemas: new[]
         {
             new ProviderAuthFileSchema("tokens", "access_token", "account_id", "id_token"),
+        },
+        sessionIdentityProfileRootProperties: new[]
+        {
+            ProviderEndpoints.OpenAI.ProfileClaimKey,
         });
 
     public override ProviderDefinition Definition => StaticDefinition;
@@ -104,7 +108,9 @@ public class CodexProvider : ProviderBase
 
             var resolvedAccessToken = accessToken!;
             var payload = SessionIdentityHelper.TryDecodeJwtPayload(resolvedAccessToken);
-            var email = payload.HasValue ? SessionIdentityHelper.TryGetPreferredIdentity(payload.Value) : null;
+            var email = payload.HasValue
+                ? SessionIdentityHelper.TryGetPreferredIdentity(payload.Value, StaticDefinition.SessionIdentityProfileRootProperties)
+                : null;
             var jwtPlanType = payload?.ReadString(AuthClaimKey, "chatgpt_plan_type");
             knownAccountIdentity = ResolveKnownAccountIdentity(email, authIdentity, accountId);
 
@@ -236,7 +242,7 @@ public class CodexProvider : ProviderBase
             new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = "OpenAI",
+                ProviderName = StaticDefinition.DisplayName,
                 RequestsPercentage = remainingPercent,
                 RequestsUsed = 100.0 - remainingPercent,
                 RequestsAvailable = 100.0,
@@ -343,16 +349,11 @@ public class CodexProvider : ProviderBase
             yield break;
         }
 
+        var discoverySpec = StaticDefinition.CreateAuthDiscoverySpec();
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-        foreach (var pathTemplate in StaticDefinition.AuthIdentityCandidatePathTemplates)
+        foreach (var path in ProviderAuthCandidatePathResolver.ResolvePaths(discoverySpec, userProfile))
         {
-            var path = AuthPathTemplateResolver.Resolve(pathTemplate, userProfile);
-
-            if (!string.IsNullOrWhiteSpace(path))
-            {
-                yield return path;
-            }
+            yield return path;
         }
     }
 
@@ -398,7 +399,7 @@ public class CodexProvider : ProviderBase
 
     private static string? ResolveIdentityFromAuthPayload(JsonElement source, string accessToken, string? idToken = null)
     {
-        var directIdentity = SessionIdentityHelper.TryGetPreferredIdentity(source);
+        var directIdentity = SessionIdentityHelper.TryGetPreferredIdentity(source, StaticDefinition.SessionIdentityProfileRootProperties);
         if (!string.IsNullOrWhiteSpace(directIdentity))
         {
             return directIdentity;
@@ -406,14 +407,14 @@ public class CodexProvider : ProviderBase
 
         if (!string.IsNullOrWhiteSpace(idToken))
         {
-            var emailFromIdToken = SessionIdentityHelper.TryGetIdentityFromJwt(idToken);
+            var emailFromIdToken = SessionIdentityHelper.TryGetIdentityFromJwt(idToken, StaticDefinition.SessionIdentityProfileRootProperties);
             if (!string.IsNullOrWhiteSpace(emailFromIdToken))
             {
                 return emailFromIdToken;
             }
         }
 
-        var emailFromJwt = SessionIdentityHelper.TryGetIdentityFromJwt(accessToken);
+        var emailFromJwt = SessionIdentityHelper.TryGetIdentityFromJwt(accessToken, StaticDefinition.SessionIdentityProfileRootProperties);
         if (!string.IsNullOrWhiteSpace(emailFromJwt))
         {
             return emailFromJwt;

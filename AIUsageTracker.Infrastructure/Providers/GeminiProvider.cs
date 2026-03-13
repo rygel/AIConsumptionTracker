@@ -31,7 +31,7 @@ public class GeminiProvider : ProviderBase
             ["gemini-cli.hourly"] = "Gemini CLI (Hourly)",
             ["gemini-cli.daily"] = "Gemini CLI (Daily)",
         },
-        supportsChildProviderIds: true,
+        familyMode: ProviderFamilyMode.VisibleDerivedProviders,
         visibleDerivedProviderIds: new[] { "gemini-cli.minute", "gemini-cli.hourly", "gemini-cli.daily" },
         settingsAdditionalProviderIds: new[] { "gemini-cli.minute", "gemini-cli.hourly", "gemini-cli.daily" },
         discoveryEnvironmentVariables: new[] { "GEMINI_API_KEY", "GOOGLE_API_KEY" },
@@ -120,7 +120,7 @@ public class GeminiProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = "Gemini CLI",
+                    ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
@@ -191,7 +191,7 @@ public class GeminiProvider : ProviderBase
                 var summaryUsage = new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = "Gemini CLI",
+                    ProviderName = this.Definition.DisplayName,
                     RequestsPercentage = remainingPercentage,
                     RequestsUsed = usedPercentage,
                     RequestsAvailable = 100,
@@ -213,7 +213,7 @@ public class GeminiProvider : ProviderBase
                 results.Add(new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = "Gemini CLI",
+                    ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
                     Description = $"Error: {ex.Message}",
                     AccountName = account.Email,
@@ -233,7 +233,7 @@ public class GeminiProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = "Gemini CLI",
+                    ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
                     Description = "Failed to fetch quota for any account",
                 },

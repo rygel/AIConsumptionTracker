@@ -3,6 +3,7 @@
 // </copyright>
 
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
@@ -41,7 +42,7 @@ public class OpenAIProviderTests : HttpProviderTestBase<OpenAIProvider>
         // Assert
         var usage = result.Single();
         Assert.True(usage.IsAvailable);
-        Assert.Equal("OpenAI", usage.ProviderName);
+        Assert.Equal("OpenAI (API)", usage.ProviderName);
         Assert.Equal("Connected (API Key)", usage.Description);
         Assert.Equal(200, usage.HttpStatus);
     }
@@ -120,7 +121,7 @@ public class OpenAIProviderTests : HttpProviderTestBase<OpenAIProvider>
     public async Task GetUsageAsync_LoadsSessionAuthFromDiscoveryServiceAsync()
     {
         // Arrange
-        this._discoveryService.Setup(d => d.DiscoverAuthAsync(It.IsAny<ProviderDefinition>()))
+        this._discoveryService.Setup(d => d.DiscoverAuthAsync(It.IsAny<ProviderAuthDiscoverySpec>()))
             .ReturnsAsync(new ProviderAuthData("session-from-mock", "acct-from-mock"));
 
         this.SetupHttpResponse("https://chatgpt.com/backend-api/wham/usage", new HttpResponseMessage
@@ -149,6 +150,32 @@ public class OpenAIProviderTests : HttpProviderTestBase<OpenAIProvider>
     }
 
     [Fact]
+    public async Task GetUsageAsync_NativeSession_UsesConfiguredProfileRootForAccountIdentityAsync()
+    {
+        this.Config.ApiKey = CreateSessionJwtWithProfileName("OpenAI Profile User");
+        this.SetupHttpResponse("https://chatgpt.com/backend-api/wham/usage", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent("""
+            {
+              "rate_limit": {
+                "primary_window": {
+                  "used_percent": 20,
+                  "reset_after_seconds": 3600
+                }
+              }
+            }
+            """),
+        });
+
+        var result = await this._provider.GetUsageAsync(this.Config);
+
+        var usage = result.Single();
+        Assert.True(usage.IsAvailable);
+        Assert.Equal("OpenAI Profile User", usage.AccountName);
+    }
+
+    [Fact]
     public async Task GetUsageAsync_InvalidSession_ReturnsUnavailableAsync()
     {
         // Arrange
@@ -166,5 +193,27 @@ public class OpenAIProviderTests : HttpProviderTestBase<OpenAIProvider>
         Assert.False(usage.IsAvailable);
         Assert.Equal(401, usage.HttpStatus);
         Assert.Contains("Session invalid", usage.Description, StringComparison.Ordinal);
+    }
+
+    private static string CreateSessionJwtWithProfileName(string name)
+    {
+        var header = Base64UrlEncode("""{"alg":"none","typ":"JWT"}""");
+        var payload = Base64UrlEncode(JsonSerializer.Serialize(new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["https://api.openai.com/profile"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["name"] = name,
+            },
+        }));
+
+        return $"{header}.{payload}.";
+    }
+
+    private static string Base64UrlEncode(string value)
+    {
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(value))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
     }
 }

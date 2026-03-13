@@ -3,6 +3,7 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Monitor.Services;
@@ -72,6 +73,6 @@ internal sealed class ProviderUsagePersistenceService
     private static bool IsDynamicChildOfAnyActiveProvider(HashSet<string> activeProviderIds, string usageProviderId)
     {
         return activeProviderIds.Any(providerId =>
-            usageProviderId.StartsWith($"{providerId}.", StringComparison.OrdinalIgnoreCase));
+            ProviderMetadataCatalog.IsChildProviderId(providerId, usageProviderId));
     }
 }

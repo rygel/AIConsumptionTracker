@@ -3,6 +3,7 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Monitor.Services;
@@ -22,7 +23,7 @@ internal static class AuthDiagnosticsSnapshotBuilder
             AuthSource: authSource,
             FallbackPathUsed: fallbackPathUsed,
             TokenAgeBucket: GetTokenAgeBucket(config.ProviderId, authSource, fallbackPath, nowUtc, logger),
-            HasUserIdentity: HasUserIdentity(config.Description, authSource));
+            HasUserIdentity: HasUserIdentity(config.ProviderId, config.Description));
     }
 
     private static string ExtractFallbackPath(string authSource)
@@ -149,7 +150,7 @@ internal static class AuthDiagnosticsSnapshotBuilder
         }
     }
 
-    private static bool HasUserIdentity(string? description, string authSource)
+    private static bool HasUserIdentity(string providerId, string? description)
     {
         if (!string.IsNullOrWhiteSpace(description))
         {
@@ -161,7 +162,6 @@ internal static class AuthDiagnosticsSnapshotBuilder
             }
         }
 
-        return authSource.Contains("github", StringComparison.OrdinalIgnoreCase) ||
-               authSource.Contains("copilot", StringComparison.OrdinalIgnoreCase);
+        return ProviderMetadataCatalog.SupportsAccountIdentity(providerId);
     }
 }

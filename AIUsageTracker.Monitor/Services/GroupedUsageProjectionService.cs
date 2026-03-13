@@ -35,7 +35,7 @@ public static class GroupedUsageProjectionService
     {
         var canonicalProviderId = group.Key;
         var primary = SelectPrimaryUsage(group, canonicalProviderId);
-        var models = BuildModels(group);
+        var models = BuildModels(group, canonicalProviderId);
         var accountName = group
             .OrderByDescending(usage => usage.FetchedAt)
             .Select(usage => usage.AccountName)
@@ -70,13 +70,7 @@ public static class GroupedUsageProjectionService
 
     private static string ResolveProviderDisplayName(ProviderUsage primary, string canonicalProviderId)
     {
-        if (string.Equals(primary.ProviderId, canonicalProviderId, StringComparison.OrdinalIgnoreCase) &&
-            !string.IsNullOrWhiteSpace(primary.ProviderName))
-        {
-            return primary.ProviderName;
-        }
-
-        return ProviderMetadataCatalog.GetDisplayName(canonicalProviderId, primary.ProviderName);
+        return ProviderMetadataCatalog.GetConfiguredDisplayName(canonicalProviderId);
     }
 
     private static ProviderUsage SelectPrimaryUsage(IEnumerable<ProviderUsage> group, string canonicalProviderId)
@@ -89,9 +83,17 @@ public static class GroupedUsageProjectionService
     }
 
     private static IReadOnlyList<AgentGroupedModelUsage> BuildModels(
-        IEnumerable<ProviderUsage> group)
+        IEnumerable<ProviderUsage> group,
+        string canonicalProviderId)
     {
-        return BuildModelsFromDetails(group);
+        var usages = group.ToList();
+        if (ProviderMetadataCatalog.ShouldUseChildProviderRowsForGroupedModels(canonicalProviderId) &&
+            ShouldBuildModelsFromExplicitChildRows(usages, canonicalProviderId))
+        {
+            return BuildModelsFromExplicitChildRows(usages, canonicalProviderId);
+        }
+
+        return BuildModelsFromDetails(usages);
     }
 
     private static IReadOnlyList<AgentGroupedModelUsage> BuildModelsFromDetails(IEnumerable<ProviderUsage> group)
@@ -152,6 +154,60 @@ public static class GroupedUsageProjectionService
 
         return models.Values
             .OrderBy(model => model.ModelName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static bool ShouldBuildModelsFromExplicitChildRows(
+        IReadOnlyCollection<ProviderUsage> usages,
+        string canonicalProviderId)
+    {
+        if (!ProviderMetadataCatalog.ShouldUseChildProviderRowsForGroupedModels(canonicalProviderId))
+        {
+            return false;
+        }
+
+        return usages.Any(usage => IsExplicitChildUsage(usage, canonicalProviderId));
+    }
+
+    private static IReadOnlyList<AgentGroupedModelUsage> BuildModelsFromExplicitChildRows(
+        IEnumerable<ProviderUsage> group,
+        string canonicalProviderId)
+    {
+        return group
+            .Where(usage => IsExplicitChildUsage(usage, canonicalProviderId))
+            .GroupBy(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase)
+            .Select(childGroup => childGroup
+                .OrderByDescending(usage => usage.FetchedAt)
+                .First())
+            .OrderBy(usage => usage.ProviderName, StringComparer.OrdinalIgnoreCase)
+            .Select(usage =>
+            {
+                var remainingPercentage = usage.IsQuotaBased
+                    ? UsageMath.ClampPercent(usage.RequestsPercentage)
+                    : UsageMath.ClampPercent(100.0 - usage.RequestsPercentage);
+                var usedPercentage = usage.IsQuotaBased
+                    ? UsageMath.ClampPercent(100.0 - remainingPercentage)
+                    : UsageMath.ClampPercent(usage.RequestsPercentage);
+                var quotaBuckets = BuildQuotaBucketsFromDetails(usage.Details ?? Array.Empty<ProviderUsageDetail>(), usage.IsQuotaBased);
+                var model = new AgentGroupedModelUsage
+                {
+                    ModelId = ResolveChildModelId(usage, canonicalProviderId),
+                    ModelName = ResolveChildModelName(usage, canonicalProviderId),
+                    UsedPercentage = usedPercentage,
+                    RemainingPercentage = remainingPercentage,
+                    NextResetTime = usage.NextResetTime,
+                    Description = usage.Description ?? string.Empty,
+                    QuotaBuckets = quotaBuckets.Count > 0
+                        ? quotaBuckets
+                        : BuildSummaryQuotaBuckets(
+                            usedPercentage,
+                            remainingPercentage,
+                            usage.NextResetTime,
+                            usage.Description),
+                };
+                ApplyEffectiveModelState(model, usage.IsQuotaBased);
+                return model;
+            })
             .ToList();
     }
 
@@ -249,5 +305,32 @@ public static class GroupedUsageProjectionService
         model.EffectiveRemainingPercentage = effective.RemainingPercentage;
         model.EffectiveDescription = effective.Description;
         model.EffectiveNextResetTime = effective.NextResetTime;
+    }
+
+    private static bool IsExplicitChildUsage(ProviderUsage usage, string canonicalProviderId)
+    {
+        return !string.IsNullOrWhiteSpace(usage.ProviderId) &&
+               !string.Equals(usage.ProviderId, canonicalProviderId, StringComparison.OrdinalIgnoreCase) &&
+               ProviderMetadataCatalog.IsChildProviderId(canonicalProviderId, usage.ProviderId);
+    }
+
+    private static string ResolveChildModelId(ProviderUsage usage, string canonicalProviderId)
+    {
+        if (ProviderMetadataCatalog.TryGetChildProviderKey(canonicalProviderId, usage.ProviderId ?? string.Empty, out var childProviderKey))
+        {
+            return childProviderKey;
+        }
+
+        return usage.ProviderId ?? string.Empty;
+    }
+
+    private static string ResolveChildModelName(ProviderUsage usage, string canonicalProviderId)
+    {
+        if (!string.IsNullOrWhiteSpace(usage.ProviderName))
+        {
+            return usage.ProviderName;
+        }
+
+        return ResolveChildModelId(usage, canonicalProviderId);
     }
 }

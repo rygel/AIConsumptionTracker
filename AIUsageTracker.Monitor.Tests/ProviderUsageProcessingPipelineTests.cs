@@ -103,8 +103,8 @@ public class ProviderUsageProcessingPipelineTests
     {
         var usage = new ProviderUsage
         {
-            ProviderId = "anthropic",
-            ProviderName = "Anthropic",
+            ProviderId = "openrouter",
+            ProviderName = "OpenRouter",
             RequestsUsed = 0,
             RequestsAvailable = 0,
             RequestsPercentage = 0,
@@ -114,7 +114,7 @@ public class ProviderUsageProcessingPipelineTests
 
         var result = this._pipeline.Process(
             new[] { usage },
-            new[] { "anthropic" },
+            new[] { "openrouter" },
             isPrivacyMode: false);
 
         Assert.Empty(result.Usages);
@@ -216,6 +216,62 @@ public class ProviderUsageProcessingPipelineTests
         var accepted = Assert.Single(result.Usages);
         Assert.Equal("gemini-cli.hourly", accepted.ProviderId);
         Assert.Equal(0, result.InactiveProviderFilteredCount);
+    }
+
+    [Fact]
+    public void Process_WhenFamilyMemberMissingAccountName_PropagatesCanonicalAccountIdentity()
+    {
+        var result = this._pipeline.Process(
+            new[]
+            {
+                new ProviderUsage
+                {
+                    ProviderId = "gemini-cli.daily",
+                    ProviderName = "Gemini CLI (Daily)",
+                    RequestsUsed = 10,
+                    RequestsAvailable = 100,
+                    RequestsPercentage = 90,
+                    IsAvailable = true,
+                    AccountName = "alex@example.com",
+                },
+                new ProviderUsage
+                {
+                    ProviderId = "gemini-cli.hourly",
+                    ProviderName = "Gemini CLI (Hourly)",
+                    RequestsUsed = 20,
+                    RequestsAvailable = 100,
+                    RequestsPercentage = 80,
+                    IsAvailable = true,
+                    AccountName = string.Empty,
+                },
+            },
+            new[] { "gemini" },
+            isPrivacyMode: false);
+
+        Assert.Equal(2, result.Usages.Count);
+        Assert.All(result.Usages, usage => Assert.Equal("alex@example.com", usage.AccountName));
+    }
+
+    [Fact]
+    public void Process_WhenUsageUsesUnsupportedDottedProviderId_FiltersInactiveEntry()
+    {
+        var usage = new ProviderUsage
+        {
+            ProviderId = "openai.spark",
+            ProviderName = "Unexpected Child",
+            RequestsUsed = 20,
+            RequestsAvailable = 100,
+            RequestsPercentage = 20,
+            IsAvailable = true,
+        };
+
+        var result = this._pipeline.Process(
+            new[] { usage },
+            new[] { "openai" },
+            isPrivacyMode: false);
+
+        Assert.Empty(result.Usages);
+        Assert.Equal(1, result.InactiveProviderFilteredCount);
     }
 
     [Fact]

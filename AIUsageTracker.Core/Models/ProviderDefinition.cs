@@ -18,7 +18,7 @@ public sealed class ProviderDefinition
         bool includeInWellKnownProviders = false,
         IEnumerable<string>? handledProviderIds = null,
         IReadOnlyDictionary<string, string>? displayNameOverrides = null,
-        bool supportsChildProviderIds = false,
+        ProviderFamilyMode familyMode = ProviderFamilyMode.Standalone,
         IEnumerable<string>? discoveryEnvironmentVariables = null,
         IEnumerable<string>? rooConfigPropertyNames = null,
         IEnumerable<string>? nonPersistedProviderIds = null,
@@ -32,7 +32,6 @@ public sealed class ProviderDefinition
         string? sessionStatusLabel = null,
         ProviderSessionIdentitySource sessionIdentitySource = ProviderSessionIdentitySource.None,
         bool refreshOnStartupWithCachedData = false,
-        bool collapseDerivedChildrenInMainWindow = false,
         bool showInMainWindow = true,
         bool showInSettings = true,
         IEnumerable<string>? settingsAdditionalProviderIds = null,
@@ -40,11 +39,11 @@ public sealed class ProviderDefinition
         string? fallbackBadgeColorHex = null,
         string? fallbackBadgeInitial = null,
         bool preferDisplayNameOverridesForDerivedProviderIds = false,
-        bool renderDetailsAsSyntheticChildrenInMainWindow = false,
         string? aggregateDetailDisplaySuffix = null,
         bool supportsAccountIdentity = false,
         IEnumerable<string>? authIdentityCandidatePathTemplates = null,
         IEnumerable<ProviderAuthFileSchema>? sessionAuthFileSchemas = null,
+        IEnumerable<string>? sessionIdentityProfileRootProperties = null,
         string? derivedModelDisplaySuffix = null)
     {
         if (string.IsNullOrWhiteSpace(providerId))
@@ -64,7 +63,7 @@ public sealed class ProviderDefinition
         this.DefaultConfigType = defaultConfigType;
         this.AutoIncludeWhenUnconfigured = autoIncludeWhenUnconfigured;
         this.IncludeInWellKnownProviders = includeInWellKnownProviders;
-        this.SupportsChildProviderIds = supportsChildProviderIds;
+        this.FamilyMode = familyMode;
         this.DiscoveryEnvironmentVariables = NormalizeValues(discoveryEnvironmentVariables);
         this.RooConfigPropertyNames = NormalizeValues(rooConfigPropertyNames);
         this.NonPersistedProviderIds = NormalizeValues(nonPersistedProviderIds);
@@ -78,7 +77,6 @@ public sealed class ProviderDefinition
         this.SessionStatusLabel = sessionStatusLabel;
         this.SessionIdentitySource = sessionIdentitySource;
         this.RefreshOnStartupWithCachedData = refreshOnStartupWithCachedData;
-        this.CollapseDerivedChildrenInMainWindow = collapseDerivedChildrenInMainWindow;
         this.ShowInMainWindow = showInMainWindow;
         this.ShowInSettings = showInSettings;
         this.SettingsAdditionalProviderIds = NormalizeValues(settingsAdditionalProviderIds);
@@ -86,7 +84,6 @@ public sealed class ProviderDefinition
         this.FallbackBadgeColorHex = fallbackBadgeColorHex;
         this.FallbackBadgeInitial = fallbackBadgeInitial;
         this.PreferDisplayNameOverridesForDerivedProviderIds = preferDisplayNameOverridesForDerivedProviderIds;
-        this.RenderDetailsAsSyntheticChildrenInMainWindow = renderDetailsAsSyntheticChildrenInMainWindow;
         this.AggregateDetailDisplaySuffix = aggregateDetailDisplaySuffix;
         this.SupportsAccountIdentity = supportsAccountIdentity;
         this.AuthIdentityCandidatePathTemplates = NormalizeValues(authIdentityCandidatePathTemplates);
@@ -95,6 +92,7 @@ public sealed class ProviderDefinition
             .Distinct()
             .ToArray()
             ?? Array.Empty<ProviderAuthFileSchema>();
+        this.SessionIdentityProfileRootProperties = NormalizeValues(sessionIdentityProfileRootProperties);
         this.DerivedModelDisplaySuffix = derivedModelDisplaySuffix;
 
         var normalizedHandledIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -132,7 +130,9 @@ public sealed class ProviderDefinition
 
     public bool IncludeInWellKnownProviders { get; }
 
-    public bool SupportsChildProviderIds { get; }
+    public ProviderFamilyMode FamilyMode { get; }
+
+    public bool SupportsChildProviderIds => ProviderFamilyPolicy.SupportsChildProviderIds(this.FamilyMode);
 
     public IReadOnlyCollection<string> HandledProviderIds { get; }
 
@@ -164,7 +164,8 @@ public sealed class ProviderDefinition
 
     public bool RefreshOnStartupWithCachedData { get; }
 
-    public bool CollapseDerivedChildrenInMainWindow { get; }
+    public bool CollapseDerivedChildrenInMainWindow =>
+        ProviderFamilyPolicy.ShouldCollapseDerivedChildrenInMainWindow(this.FamilyMode);
 
     public bool ShowInMainWindow { get; }
 
@@ -180,7 +181,8 @@ public sealed class ProviderDefinition
 
     public bool PreferDisplayNameOverridesForDerivedProviderIds { get; }
 
-    public bool RenderDetailsAsSyntheticChildrenInMainWindow { get; }
+    public bool RenderDetailsAsSyntheticChildrenInMainWindow =>
+        ProviderFamilyPolicy.ShouldRenderSyntheticChildrenInMainWindow(this.FamilyMode);
 
     public string? AggregateDetailDisplaySuffix { get; }
 
@@ -190,27 +192,16 @@ public sealed class ProviderDefinition
 
     public IReadOnlyCollection<ProviderAuthFileSchema> SessionAuthFileSchemas { get; }
 
+    public IReadOnlyCollection<string> SessionIdentityProfileRootProperties { get; }
+
+    public bool UseChildProviderRowsForGroupedModels =>
+        ProviderFamilyPolicy.UsesChildProviderRowsForGroupedModels(this.FamilyMode);
+
     public string? DerivedModelDisplaySuffix { get; }
 
     public bool HandlesProviderId(string providerId)
     {
-        if (string.IsNullOrWhiteSpace(providerId))
-        {
-            return false;
-        }
-
-        if (this._handledProviderIds.Contains(providerId))
-        {
-            return true;
-        }
-
-        if (!this.SupportsChildProviderIds)
-        {
-            return false;
-        }
-
-        return this._handledProviderIds.Any(handled =>
-            providerId.StartsWith($"{handled}.", StringComparison.OrdinalIgnoreCase));
+        return ProviderFamilyPolicy.BelongsToProviderFamily(this.HandledProviderIds, providerId, this.FamilyMode);
     }
 
     public string? ResolveDisplayName(string providerId)
@@ -231,6 +222,32 @@ public sealed class ProviderDefinition
         }
 
         return null;
+    }
+
+    public ProviderAuthDiscoverySpec CreateAuthDiscoverySpec()
+    {
+        return new ProviderAuthDiscoverySpec(
+            this.ProviderId,
+            this.DiscoveryEnvironmentVariables,
+            this.AuthIdentityCandidatePathTemplates,
+            this.SessionAuthFileSchemas);
+    }
+
+    public ProviderConfig CreateDefaultConfig(
+        string? providerId = null,
+        string? apiKey = null,
+        string? authSource = null,
+        string? description = null)
+    {
+        return new ProviderConfig
+        {
+            ProviderId = string.IsNullOrWhiteSpace(providerId) ? this.ProviderId : providerId,
+            ApiKey = apiKey ?? string.Empty,
+            Type = this.DefaultConfigType,
+            PlanType = this.PlanType,
+            AuthSource = authSource ?? AuthSource.Unknown,
+            Description = description,
+        };
     }
 
     private static IReadOnlyCollection<string> NormalizeValues(IEnumerable<string>? values)

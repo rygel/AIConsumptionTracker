@@ -24,32 +24,31 @@ public class TokenDiscoveryService
     {
         this._logger = logger;
         this._pathProvider = pathProvider;
-        this._sessionResolvers = new List<ProviderSessionTokenResolver>
-        {
-            new(
-                definition: ClaudeCodeProvider.StaticDefinition,
-                description: "Discovered in Claude Code credentials",
-                sourcePrefix: "Claude Code",
-                logger: this._logger,
-                pathProvider: this._pathProvider),
-            new(
-                definition: CodexProvider.StaticDefinition,
-                description: "Discovered in Codex auth",
-                sourcePrefix: "Config",
-                logger: this._logger,
-                pathProvider: this._pathProvider),
-        };
+        this._sessionResolvers = BuildSessionResolvers(this._logger, this._pathProvider);
     }
 
     private string GetUserProfilePath() => this._pathProvider.GetUserProfileRoot();
 
     private static IReadOnlyList<IProviderAuthFallbackResolver> BuildExplicitProviderFallbackResolvers()
     {
-        return ProviderMetadataCatalog.Definitions
-            .Where(definition => definition.DiscoveryEnvironmentVariables.Count > 0)
-            .Select(definition => (IProviderAuthFallbackResolver)new ProviderAuthFallbackResolver(
-                definition.ProviderId,
-                definition.DiscoveryEnvironmentVariables.ToArray()))
+        return ProviderMetadataCatalog.GetProviderIdsWithDiscoveryEnvironmentVariables()
+            .Select(providerId => (IProviderAuthFallbackResolver)new ProviderAuthFallbackResolver(
+                providerId,
+                ProviderMetadataCatalog.GetDiscoveryEnvironmentVariables(providerId).ToArray()))
+            .ToArray();
+    }
+
+    private static IReadOnlyList<ProviderSessionTokenResolver> BuildSessionResolvers(
+        ILogger<TokenDiscoveryService> logger,
+        IAppPathProvider pathProvider)
+    {
+        return ProviderMetadataCatalog.GetProviderIdsWithDedicatedSessionAuthFiles()
+            .Select(providerId => new ProviderSessionTokenResolver(
+                discoverySpec: ProviderMetadataCatalog.Find(providerId)!.CreateAuthDiscoverySpec(),
+                description: $"Discovered in {ProviderMetadataCatalog.GetDisplayName(providerId)} session auth",
+                sourcePrefix: "Config",
+                logger: logger,
+                pathProvider: pathProvider))
             .ToArray();
     }
 
@@ -143,11 +142,7 @@ public class TokenDiscoveryService
 
     private void AddWellKnownProviders(List<ProviderConfig> configs)
     {
-        var wellKnownIds = ProviderMetadataCatalog.Definitions
-            .Where(definition => definition.IncludeInWellKnownProviders)
-            .Select(definition => definition.ProviderId);
-
-        foreach (var id in wellKnownIds)
+        foreach (var id in ProviderMetadataCatalog.GetWellKnownProviderIds())
         {
             this.AddIfNotExists(configs, id, string.Empty, "Well-known provider", AuthSource.SystemDefault);
         }
