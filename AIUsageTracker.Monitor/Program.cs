@@ -204,6 +204,9 @@ public class Program
             builder.Services.AddHttpClient();
             builder.Services.AddResilientHttpClient();
 
+            // Register plain HttpClient for providers that need it (e.g., ClaudeCodeProvider, KimiProvider)
+            builder.Services.AddSingleton(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient());
+
             // Enable debug mode in refresh service
             if (isDebugMode)
             {
