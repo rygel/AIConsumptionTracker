@@ -5,20 +5,35 @@
 using System.Collections.ObjectModel;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim.ViewModels;
 
-public class MainViewModel : BaseViewModel
+/// <summary>
+/// ViewModel for the main window, managing usage data display and refresh operations.
+/// </summary>
+public partial class MainViewModel : BaseViewModel
 {
     private readonly IMonitorService _monitorService;
     private readonly IUsageAnalyticsService _analyticsService;
     private readonly ILogger<MainViewModel> _logger;
+
+    [ObservableProperty]
     private bool _isLoading;
+
+    [ObservableProperty]
     private bool _isPrivacyMode;
-    private ObservableCollection<ProviderUsage> _usages = new();
-    private DateTime _lastRefreshTime = DateTime.MinValue;
+
+    [ObservableProperty]
     private string _statusMessage = "Initializing...";
+
+    [ObservableProperty]
+    private ObservableCollection<ProviderUsage> _usages = new();
+
+    [ObservableProperty]
+    private DateTime _lastRefreshTime = DateTime.MinValue;
 
     public MainViewModel(
         IMonitorService monitorService,
@@ -28,40 +43,11 @@ public class MainViewModel : BaseViewModel
         this._monitorService = monitorService;
         this._analyticsService = analyticsService;
         this._logger = logger;
-        this._isPrivacyMode = false; // Initial state
+        this._isPrivacyMode = false;
     }
 
-    public bool IsLoading
-    {
-        get => this._isLoading;
-        set => this.SetProperty(ref this._isLoading, value);
-    }
-
-    public bool IsPrivacyMode
-    {
-        get => this._isPrivacyMode;
-        set => this.SetProperty(ref this._isPrivacyMode, value);
-    }
-
-    public string StatusMessage
-    {
-        get => this._statusMessage;
-        set => this.SetProperty(ref this._statusMessage, value);
-    }
-
-    public ObservableCollection<ProviderUsage> Usages
-    {
-        get => this._usages;
-        private set => this.SetProperty(ref this._usages, value);
-    }
-
-    public DateTime LastRefreshTime
-    {
-        get => this._lastRefreshTime;
-        private set => this.SetProperty(ref this._lastRefreshTime, value);
-    }
-
-    public async Task RefreshDataAsync()
+    [RelayCommand]
+    internal async Task RefreshDataAsync()
     {
         if (this.IsLoading)
         {
@@ -93,6 +79,12 @@ public class MainViewModel : BaseViewModel
         {
             this.IsLoading = false;
         }
+    }
+
+    [RelayCommand]
+    private void TogglePrivacyMode()
+    {
+        this.IsPrivacyMode = !this.IsPrivacyMode;
     }
 
     public void SetPrivacyMode(bool enabled)
