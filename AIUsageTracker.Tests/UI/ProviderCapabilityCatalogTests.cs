@@ -35,6 +35,14 @@ public sealed class ProviderCapabilityCatalogTests
     }
 
     [Fact]
+    public void HasVisibleDerivedProviders_TreatsAntigravityAsVisibleChildProviderFamily()
+    {
+        var result = ProviderCapabilityCatalog.HasVisibleDerivedProviders("antigravity");
+
+        Assert.True(result);
+    }
+
+    [Fact]
     public void ShouldShowInMainWindow_HidesLegacyOpenAiProvider()
     {
         var result = ProviderCapabilityCatalog.ShouldShowInMainWindow("openai");

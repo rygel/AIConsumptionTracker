@@ -31,13 +31,15 @@ public class AntigravityProvider : ProviderBase
         supportsChildProviderIds: true,
         settingsMode: ProviderSettingsMode.AutoDetectedStatus,
         refreshOnStartupWithCachedData: true,
-        collapseDerivedChildrenInMainWindow: true,
-        renderDetailsAsSyntheticChildrenInMainWindow: true,
+        collapseDerivedChildrenInMainWindow: false,
+        renderDetailsAsSyntheticChildrenInMainWindow: false,
         aggregateDetailDisplaySuffix: "[Antigravity]",
         supportsAccountIdentity: true,
         iconAssetName: "google",
         fallbackBadgeColorHex: "#1E90FF",
-        fallbackBadgeInitial: "G");
+        fallbackBadgeInitial: "G",
+        useChildProviderRowsForGroupedModels: true,
+        derivedModelDisplaySuffix: "[Antigravity]");
 
     /// <inheritdoc/>
     public override ProviderDefinition Definition => StaticDefinition;

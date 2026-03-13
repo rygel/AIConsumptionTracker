@@ -35,7 +35,7 @@ public static class GroupedUsageProjectionService
     {
         var canonicalProviderId = group.Key;
         var primary = SelectPrimaryUsage(group, canonicalProviderId);
-        var models = BuildModels(group);
+        var models = BuildModels(group, canonicalProviderId);
         var accountName = group
             .OrderByDescending(usage => usage.FetchedAt)
             .Select(usage => usage.AccountName)
@@ -89,9 +89,17 @@ public static class GroupedUsageProjectionService
     }
 
     private static IReadOnlyList<AgentGroupedModelUsage> BuildModels(
-        IEnumerable<ProviderUsage> group)
+        IEnumerable<ProviderUsage> group,
+        string canonicalProviderId)
     {
-        return BuildModelsFromDetails(group);
+        var usages = group.ToList();
+        if (ProviderMetadataCatalog.TryGet(canonicalProviderId, out var definition) &&
+            ShouldBuildModelsFromExplicitChildRows(definition, usages, canonicalProviderId))
+        {
+            return BuildModelsFromExplicitChildRows(usages, canonicalProviderId);
+        }
+
+        return BuildModelsFromDetails(usages);
     }
 
     private static IReadOnlyList<AgentGroupedModelUsage> BuildModelsFromDetails(IEnumerable<ProviderUsage> group)
@@ -152,6 +160,61 @@ public static class GroupedUsageProjectionService
 
         return models.Values
             .OrderBy(model => model.ModelName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static bool ShouldBuildModelsFromExplicitChildRows(
+        ProviderDefinition definition,
+        IReadOnlyCollection<ProviderUsage> usages,
+        string canonicalProviderId)
+    {
+        if (!definition.UseChildProviderRowsForGroupedModels)
+        {
+            return false;
+        }
+
+        return usages.Any(usage => IsExplicitChildUsage(usage, canonicalProviderId));
+    }
+
+    private static IReadOnlyList<AgentGroupedModelUsage> BuildModelsFromExplicitChildRows(
+        IEnumerable<ProviderUsage> group,
+        string canonicalProviderId)
+    {
+        return group
+            .Where(usage => IsExplicitChildUsage(usage, canonicalProviderId))
+            .GroupBy(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase)
+            .Select(childGroup => childGroup
+                .OrderByDescending(usage => usage.FetchedAt)
+                .First())
+            .OrderBy(usage => usage.ProviderName, StringComparer.OrdinalIgnoreCase)
+            .Select(usage =>
+            {
+                var remainingPercentage = usage.IsQuotaBased
+                    ? UsageMath.ClampPercent(usage.RequestsPercentage)
+                    : UsageMath.ClampPercent(100.0 - usage.RequestsPercentage);
+                var usedPercentage = usage.IsQuotaBased
+                    ? UsageMath.ClampPercent(100.0 - remainingPercentage)
+                    : UsageMath.ClampPercent(usage.RequestsPercentage);
+                var quotaBuckets = BuildQuotaBucketsFromDetails(usage.Details ?? Array.Empty<ProviderUsageDetail>(), usage.IsQuotaBased);
+                var model = new AgentGroupedModelUsage
+                {
+                    ModelId = ResolveChildModelId(usage, canonicalProviderId),
+                    ModelName = ResolveChildModelName(usage, canonicalProviderId),
+                    UsedPercentage = usedPercentage,
+                    RemainingPercentage = remainingPercentage,
+                    NextResetTime = usage.NextResetTime,
+                    Description = usage.Description ?? string.Empty,
+                    QuotaBuckets = quotaBuckets.Count > 0
+                        ? quotaBuckets
+                        : BuildSummaryQuotaBuckets(
+                            usedPercentage,
+                            remainingPercentage,
+                            usage.NextResetTime,
+                            usage.Description),
+                };
+                ApplyEffectiveModelState(model, usage.IsQuotaBased);
+                return model;
+            })
             .ToList();
     }
 
@@ -249,5 +312,33 @@ public static class GroupedUsageProjectionService
         model.EffectiveRemainingPercentage = effective.RemainingPercentage;
         model.EffectiveDescription = effective.Description;
         model.EffectiveNextResetTime = effective.NextResetTime;
+    }
+
+    private static bool IsExplicitChildUsage(ProviderUsage usage, string canonicalProviderId)
+    {
+        return !string.IsNullOrWhiteSpace(usage.ProviderId) &&
+               !string.Equals(usage.ProviderId, canonicalProviderId, StringComparison.OrdinalIgnoreCase) &&
+               usage.ProviderId.StartsWith($"{canonicalProviderId}.", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ResolveChildModelId(ProviderUsage usage, string canonicalProviderId)
+    {
+        var providerId = usage.ProviderId ?? string.Empty;
+        if (providerId.StartsWith($"{canonicalProviderId}.", StringComparison.OrdinalIgnoreCase))
+        {
+            return providerId[(canonicalProviderId.Length + 1)..];
+        }
+
+        return providerId;
+    }
+
+    private static string ResolveChildModelName(ProviderUsage usage, string canonicalProviderId)
+    {
+        if (!string.IsNullOrWhiteSpace(usage.ProviderName))
+        {
+            return usage.ProviderName;
+        }
+
+        return ResolveChildModelId(usage, canonicalProviderId);
     }
 }

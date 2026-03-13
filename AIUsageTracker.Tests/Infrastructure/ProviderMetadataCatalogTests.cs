@@ -131,7 +131,7 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity", true)]
+    [InlineData("antigravity", false)]
     [InlineData("antigravity.some-model", false)]
     [InlineData("codex", false)]
     public void IsAggregateParentProviderId_DetectsOnlyAggregateParent(string providerId, bool expected)
@@ -140,8 +140,8 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity", true)]
-    [InlineData("antigravity.some-model", true)]
+    [InlineData("antigravity", false)]
+    [InlineData("antigravity.some-model", false)]
     [InlineData("codex", false)]
     [InlineData("codex.spark", false)]
     public void ShouldCollapseDerivedChildrenInMainWindow_UsesProviderDefinitions(string providerId, bool expected)
@@ -161,8 +161,8 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity", true)]
-    [InlineData("antigravity.some-model", true)]
+    [InlineData("antigravity", false)]
+    [InlineData("antigravity.some-model", false)]
     [InlineData("codex", false)]
     public void ShouldRenderAggregateDetailsInMainWindow_UsesCatalogPolicy(string providerId, bool expected)
     {
@@ -170,8 +170,8 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity", true)]
-    [InlineData("antigravity.some-model", true)]
+    [InlineData("antigravity", false)]
+    [InlineData("antigravity.some-model", false)]
     [InlineData("codex", false)]
     public void ShouldUseSharedSubDetailCollapsePreference_UsesCatalogPolicy(string providerId, bool expected)
     {
@@ -179,7 +179,7 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity.some-model", true)]
+    [InlineData("antigravity.some-model", false)]
     [InlineData("codex.spark", false)]
     [InlineData("codex", false)]
     public void ShouldRenderAsSettingsSubItem_UsesCatalogPolicy(string providerId, bool expected)
@@ -377,13 +377,15 @@ public class ProviderMetadataCatalogTests
 
         var antigravity = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("antigravity"));
         Assert.Equal(ProviderSettingsMode.AutoDetectedStatus, antigravity.SettingsMode);
-        Assert.True(antigravity.RenderDetailsAsSyntheticChildrenInMainWindow);
-        Assert.Equal("[Antigravity]", antigravity.AggregateDetailDisplaySuffix);
+        Assert.False(antigravity.RenderDetailsAsSyntheticChildrenInMainWindow);
+        Assert.True(antigravity.UseChildProviderRowsForGroupedModels);
+        Assert.Equal("[Antigravity]", antigravity.DerivedModelDisplaySuffix);
 
         var gemini = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("gemini-cli"));
         Assert.Equal(ProviderSettingsMode.StandardApiKey, gemini.SettingsMode);
         Assert.True(gemini.SupportsChildProviderIds);
         Assert.False(gemini.RenderDetailsAsSyntheticChildrenInMainWindow);
+        Assert.False(gemini.UseChildProviderRowsForGroupedModels);
 
         foreach (var providerId in new[] { "kimi", "synthetic", "zai-coding-plan" })
         {

@@ -423,4 +423,42 @@ public class GroupedUsageDisplayAdapterTests
         Assert.Equal("77.0% Remaining", derived.Description);
         Assert.Equal(now.AddHours(3), derived.NextResetTime);
     }
+
+    [Fact]
+    public void Expand_AntigravitySnapshot_AddsDynamicDerivedRows()
+    {
+        var snapshot = new AgentGroupedUsageSnapshot
+        {
+            Providers = new[]
+            {
+                new AgentGroupedProviderUsage
+                {
+                    ProviderId = "antigravity",
+                    ProviderName = "Antigravity",
+                    IsAvailable = true,
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Coding,
+                    Models = new[]
+                    {
+                        new AgentGroupedModelUsage
+                        {
+                            ModelId = "gemini-3-flash",
+                            ModelName = "Gemini 3 Flash",
+                            RemainingPercentage = 100,
+                            UsedPercentage = 0,
+                            Description = "100% Remaining",
+                        },
+                    },
+                },
+            },
+        };
+
+        var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
+
+        Assert.Equal(2, usages.Count);
+        var derived = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "antigravity.gemini-3-flash", StringComparison.Ordinal));
+        Assert.Equal("Gemini 3 Flash [Antigravity]", derived.ProviderName);
+        Assert.Equal(100, derived.RequestsPercentage, 1);
+        Assert.Equal("100% Remaining", derived.Description);
+    }
 }

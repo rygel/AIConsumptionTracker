@@ -76,6 +76,7 @@ internal static class ProviderCapabilityCatalog
     public static bool HasVisibleDerivedProviders(string providerId)
     {
         return ProviderMetadataCatalog.TryGet(providerId, out var definition) &&
-               definition.VisibleDerivedProviderIds.Count > 0;
+               (definition.VisibleDerivedProviderIds.Count > 0 ||
+                (definition.SupportsChildProviderIds && !definition.RenderDetailsAsSyntheticChildrenInMainWindow));
     }
 }

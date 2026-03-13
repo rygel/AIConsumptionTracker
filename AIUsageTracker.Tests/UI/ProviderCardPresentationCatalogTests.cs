@@ -28,20 +28,21 @@ public sealed class ProviderCardPresentationCatalogTests
     }
 
     [Fact]
-    public void Create_ReturnsAggregateParentStatus_WhenDescriptionMissing()
+    public void Create_RendersAntigravityAsNormalQuotaProvider_WhenDescriptionMissing()
     {
         var usage = new ProviderUsage
         {
             ProviderId = "antigravity",
             IsAvailable = true,
             IsQuotaBased = true,
+            RequestsPercentage = 100,
         };
 
         var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: false);
 
-        Assert.True(presentation.IsAggregateParent);
-        Assert.Equal("Per-model quotas", presentation.StatusText);
-        Assert.False(presentation.ShouldHaveProgress);
+        Assert.False(presentation.IsAggregateParent);
+        Assert.Equal("100% remaining", presentation.StatusText);
+        Assert.True(presentation.ShouldHaveProgress);
     }
 
     [Fact]

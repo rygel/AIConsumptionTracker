@@ -4,8 +4,8 @@
 
 using System.ComponentModel;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace AIUsageTracker.Core.Models;
 

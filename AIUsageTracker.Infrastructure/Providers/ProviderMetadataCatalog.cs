@@ -552,5 +552,19 @@ public static class ProviderMetadataCatalog
                 "Providers rendering synthetic aggregate children must support child provider ids: " +
                 string.Join(", ", invalidAggregateDefinitions));
         }
+
+        var invalidGroupedModelChildRowDefinitions = definitions
+            .Where(definition =>
+                definition.UseChildProviderRowsForGroupedModels &&
+                (!definition.SupportsChildProviderIds || definition.RenderDetailsAsSyntheticChildrenInMainWindow))
+            .Select(definition => definition.ProviderId)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (invalidGroupedModelChildRowDefinitions.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Providers using child provider rows for grouped models must support child provider ids and avoid synthetic child rendering: " +
+                string.Join(", ", invalidGroupedModelChildRowDefinitions));
+        }
     }
 }

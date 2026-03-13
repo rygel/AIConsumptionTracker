@@ -61,16 +61,26 @@ internal static class GroupedUsageDisplayAdapter
             .Select(model =>
             {
                 var modelState = ResolveModelState(model, provider.IsQuotaBased);
-                return new ProviderUsageDetail
+                var detail = new ProviderUsageDetail
                 {
                     Name = model.ModelName,
                     ModelName = model.ModelId,
-                    Used = $"{modelState.RemainingPercentage:F1}%",
                     Description = modelState.Description,
                     NextResetTime = modelState.NextResetTime,
                     DetailType = ProviderUsageDetailType.Model,
                     QuotaBucketKind = WindowKind.None,
                 };
+
+                if (provider.IsQuotaBased)
+                {
+                    detail.SetPercentageValue(modelState.RemainingPercentage, PercentageValueSemantic.Remaining, decimalPlaces: 1);
+                }
+                else
+                {
+                    detail.SetPercentageValue(modelState.UsedPercentage, PercentageValueSemantic.Used, decimalPlaces: 1);
+                }
+
+                return detail;
             })
             .ToList();
     }
@@ -80,7 +90,6 @@ internal static class GroupedUsageDisplayAdapter
         ProviderUsage parentUsage)
     {
         if (!ProviderMetadataCatalog.TryGet(provider.ProviderId, out var definition) ||
-            definition.VisibleDerivedProviderIds.Count == 0 ||
             provider.Models.Count == 0)
         {
             return Array.Empty<ProviderUsage>();
@@ -95,7 +104,20 @@ internal static class GroupedUsageDisplayAdapter
             return Array.Empty<ProviderUsage>();
         }
 
-        var assignments = BuildDerivedAssignments(definition, provider.ProviderId, orderedModels);
+        IReadOnlyList<(string ProviderId, AgentGroupedModelUsage Model)> assignments;
+        if (definition.VisibleDerivedProviderIds.Count > 0)
+        {
+            assignments = BuildDerivedAssignments(definition, provider.ProviderId, orderedModels);
+        }
+        else if (definition.SupportsChildProviderIds && !definition.RenderDetailsAsSyntheticChildrenInMainWindow)
+        {
+            assignments = BuildDynamicModelAssignments(provider.ProviderId, orderedModels);
+        }
+        else
+        {
+            return Array.Empty<ProviderUsage>();
+        }
+
         if (assignments.Count == 0)
         {
             return Array.Empty<ProviderUsage>();
