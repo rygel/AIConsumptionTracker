@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [2.2.28-beta.32] - 2026-03-14
+## [2.2.28-beta.33] - 2026-03-14
 
 ### Added
 - **Claude Code OAuth Integration**: Added OAuth usage endpoint support for Claude subscription users with dual quota buckets (5-hour burst and 7-day rolling window), model-specific breakdowns (Sonnet/Opus), and extra usage status.
@@ -16,8 +16,13 @@
 - **Analyzer Compliance**: Resolved ~280 analyzer warnings across Core, Infrastructure, Monitor, and UI projects (SA1201, SA1202, SA1203, SA1204 member ordering).
 
 ### Changed
-- **Beta Version Bump**: Advanced shared version metadata and packaging references to `2.2.28-beta.32`.
+- **Beta Version Bump**: Advanced shared version metadata and packaging references to `2.2.28-beta.33`.
 - **Provider Test Coverage**: Added comprehensive tests for ClaudeCode (16 tests), Kimi (17 tests), and Minimax (22 tests) providers with realistic API response data.
+
+## [2.2.28-beta.32] - 2026-03-14
+
+### Changed
+- **Beta Version Bump**: Version bump only (superseded by beta.33).
 
 ## [2.2.28-beta.31] - 2026-03-13
 
