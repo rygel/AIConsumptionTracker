@@ -225,19 +225,6 @@ public partial class InfoDialog : Window, IWeakEventListener
     private async void PrivacyBtn_Click(object sender, RoutedEventArgs e) => await this.PrivacyBtn_ClickAsync(sender, e);
 #pragma warning restore VSTHRD100
 
-    private void CloseBtn_Click(object sender, RoutedEventArgs e)
-    {
-        this.Close();
-    }
-
-    private void Header_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        if (e.ChangedButton == System.Windows.Input.MouseButton.Left)
-        {
-            this.DragMove();
-        }
-    }
-
     private void ConfigDir_Click(object sender, RoutedEventArgs e)
     {
         if (Directory.Exists(this._realConfigDir))
