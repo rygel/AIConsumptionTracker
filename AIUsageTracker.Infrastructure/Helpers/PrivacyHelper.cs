@@ -8,9 +8,6 @@ namespace AIUsageTracker.Infrastructure.Helpers;
 
 public static partial class PrivacyHelper
 {
-    [GeneratedRegex(@"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
-    private static partial Regex EmailRegex();
-
     public static string MaskContent(string input, string? accountName = null)
     {
         if (string.IsNullOrEmpty(input))
@@ -94,4 +91,7 @@ public static partial class PrivacyHelper
 
         return MaskString(path);
     }
+
+    [GeneratedRegex(@"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex EmailRegex();
 }

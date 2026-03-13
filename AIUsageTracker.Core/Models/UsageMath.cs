@@ -8,14 +8,14 @@ namespace AIUsageTracker.Core.Models;
 
 public static class UsageMath
 {
-    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
-
     private const double MinimumDropRatioForReset = 0.2;
     private const double MinimumElapsedHours = 1.0;
     private const double AnomalySigmaThreshold = 3.0;
     private const double AnomalySigmaEpsilon = 0.001;
     private const double AnomalyMadScale = 1.4826;
     private const double MinimumAbsoluteRateDeltaPerDay = 1.0;
+
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
 
     private static readonly Regex SUsedPattern = new(
         @"(?<percent>\d+(?:\.\d+)?)\s*%\s*used",

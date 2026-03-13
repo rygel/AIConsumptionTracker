@@ -12,6 +12,17 @@ namespace AIUsageTracker.Core.Providers;
 
 public abstract class ProviderBase : IProviderService
 {
+    public abstract string ProviderId { get; }
+
+    public abstract ProviderDefinition Definition { get; }
+
+    protected ProviderBase(IProviderDiscoveryService? discoveryService = null)
+    {
+        this.DiscoveryService = discoveryService;
+    }
+
+    protected IProviderDiscoveryService? DiscoveryService { get; }
+
     /// <summary>
     /// Shared JSON options for all providers. Case-insensitive property matching only.
     /// Do NOT add NumberHandling.AllowReadingFromString here — any API that returns numbers
@@ -22,17 +33,6 @@ public abstract class ProviderBase : IProviderService
     {
         PropertyNameCaseInsensitive = true,
     };
-
-    protected ProviderBase(IProviderDiscoveryService? discoveryService = null)
-    {
-        this.DiscoveryService = discoveryService;
-    }
-
-    protected IProviderDiscoveryService? DiscoveryService { get; }
-
-    public abstract string ProviderId { get; }
-
-    public abstract ProviderDefinition Definition { get; }
 
     public virtual bool CanHandleProviderId(string providerId)
     {

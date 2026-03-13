@@ -15,8 +15,9 @@ public class MonitorLauncher
     internal const int MaxStaleMetadataBackups = 10;
     private const int MaxWaitSeconds = 30;
     private const int StopWaitSeconds = 5;
-    private static ILogger<MonitorLauncher>? _logger;
+
     private static readonly SemaphoreSlim StartupSemaphore = new(1, 1);
+    private static ILogger<MonitorLauncher>? _logger;
     private static Func<IEnumerable<string>>? _monitorInfoCandidatePathsOverride;
     private static Func<int, Task<bool>>? _healthCheckOverride;
     private static Func<int, Task<bool>>? _processRunningOverride;
