@@ -320,6 +320,26 @@ public class ProviderMetadataCatalogTests
         Assert.Equal(expectedInitial, initial);
     }
 
+    [Fact]
+    public void GetProviderIdsWithDiscoveryEnvironmentVariables_UsesProviderMetadata()
+    {
+        var providerIds = ProviderMetadataCatalog.GetProviderIdsWithDiscoveryEnvironmentVariables();
+
+        Assert.Contains("codex", providerIds);
+        Assert.Contains("gemini-cli", providerIds);
+        Assert.Contains("synthetic", providerIds);
+    }
+
+    [Fact]
+    public void GetWellKnownProviderIds_UsesProviderMetadata()
+    {
+        var providerIds = ProviderMetadataCatalog.GetWellKnownProviderIds();
+
+        Assert.Contains("codex", providerIds);
+        Assert.Contains("github-copilot", providerIds);
+        Assert.DoesNotContain("openai", providerIds);
+    }
+
     [Theory]
     [InlineData("OPENAI_API_KEY", "openai")]
     [InlineData("CODEX_API_KEY", "codex")]

@@ -45,11 +45,10 @@ public class TokenDiscoveryService
 
     private static IReadOnlyList<IProviderAuthFallbackResolver> BuildExplicitProviderFallbackResolvers()
     {
-        return ProviderMetadataCatalog.Definitions
-            .Where(definition => definition.DiscoveryEnvironmentVariables.Count > 0)
-            .Select(definition => (IProviderAuthFallbackResolver)new ProviderAuthFallbackResolver(
-                definition.ProviderId,
-                definition.DiscoveryEnvironmentVariables.ToArray()))
+        return ProviderMetadataCatalog.GetProviderIdsWithDiscoveryEnvironmentVariables()
+            .Select(providerId => (IProviderAuthFallbackResolver)new ProviderAuthFallbackResolver(
+                providerId,
+                ProviderMetadataCatalog.GetDiscoveryEnvironmentVariables(providerId).ToArray()))
             .ToArray();
     }
 
@@ -143,11 +142,7 @@ public class TokenDiscoveryService
 
     private void AddWellKnownProviders(List<ProviderConfig> configs)
     {
-        var wellKnownIds = ProviderMetadataCatalog.Definitions
-            .Where(definition => definition.IncludeInWellKnownProviders)
-            .Select(definition => definition.ProviderId);
-
-        foreach (var id in wellKnownIds)
+        foreach (var id in ProviderMetadataCatalog.GetWellKnownProviderIds())
         {
             this.AddIfNotExists(configs, id, string.Empty, "Well-known provider", AuthSource.SystemDefault);
         }

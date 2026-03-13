@@ -304,6 +304,31 @@ public static class ProviderMetadataCatalog
             definition.RooConfigPropertyNames.Contains(propertyName, StringComparer.OrdinalIgnoreCase));
     }
 
+    public static IReadOnlyCollection<string> GetDiscoveryEnvironmentVariables(string providerId)
+    {
+        return TryGet(providerId, out var definition)
+            ? definition.DiscoveryEnvironmentVariables
+            : Array.Empty<string>();
+    }
+
+    public static IReadOnlyList<string> GetProviderIdsWithDiscoveryEnvironmentVariables()
+    {
+        return Definitions
+            .Where(definition => definition.DiscoveryEnvironmentVariables.Count > 0)
+            .Select(definition => definition.ProviderId)
+            .OrderBy(providerId => providerId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public static IReadOnlyList<string> GetWellKnownProviderIds()
+    {
+        return Definitions
+            .Where(definition => definition.IncludeInWellKnownProviders)
+            .Select(definition => definition.ProviderId)
+            .OrderBy(providerId => providerId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     public static bool ShouldPersistProviderId(string providerId)
     {
         if (string.IsNullOrWhiteSpace(providerId))
