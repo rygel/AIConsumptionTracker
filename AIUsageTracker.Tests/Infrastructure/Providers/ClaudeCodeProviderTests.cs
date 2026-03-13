@@ -65,7 +65,11 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         Assert.Equal("Claude Code", result.ProviderName);
         Assert.True(result.IsQuotaBased);
         Assert.Equal(PlanType.Coding, result.PlanType);
-        Assert.Equal(42, result.RequestsPercentage); // Max of 35% and 42%
+
+        // For quota-based providers, RequestsPercentage is REMAINING (100 - max utilization)
+        // Max utilization is 42% (7-day), so remaining is 58%
+        Assert.Equal(58, result.RequestsPercentage);
+        Assert.Equal(42, result.RequestsUsed); // Used percentage stored separately
         Assert.Contains("5h: 35%", result.Description);
         Assert.Contains("7d: 42%", result.Description);
         Assert.NotNull(result.Details);
@@ -108,7 +112,10 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(92, result.RequestsPercentage); // Uses higher of 92% vs 28%
+
+        // For quota-based: RequestsPercentage = 100 - max(92%, 28%) = 8% remaining
+        Assert.Equal(8, result.RequestsPercentage);
+        Assert.Equal(92, result.RequestsUsed); // Stores the used percentage
         Assert.Contains("Extra usage enabled", result.Description);
 
         // Verify 5-hour quota is primary
@@ -116,7 +123,7 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         Assert.NotNull(primaryDetail);
         Assert.Equal("5-Hour Limit", primaryDetail!.Name);
         Assert.True(primaryDetail.TryGetPercentageValue(out var percent, out _, out _));
-        Assert.Equal(92, percent);
+        Assert.Equal(92, percent); // Detail stores actual utilization
     }
 
     /// <summary>
@@ -155,7 +162,10 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(87, result.RequestsPercentage); // Uses higher of 12% vs 87%
+
+        // For quota-based: RequestsPercentage = 100 - max(12%, 87%) = 13% remaining
+        Assert.Equal(13, result.RequestsPercentage);
+        Assert.Equal(87, result.RequestsUsed);
 
         // Verify model breakdown details
         var sonnetDetail = result.Details?.FirstOrDefault(d => d.Name.Contains("Sonnet"));
@@ -205,7 +215,10 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(2, result.RequestsPercentage);
+
+        // For quota-based: RequestsPercentage = 100 - max(0%, 2%) = 98% remaining
+        Assert.Equal(98, result.RequestsPercentage);
+        Assert.Equal(2, result.RequestsUsed);
         Assert.True(result.IsAvailable);
     }
 
@@ -245,7 +258,10 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(100, result.RequestsPercentage);
+
+        // For quota-based: RequestsPercentage = 100 - 100 = 0% remaining
+        Assert.Equal(0, result.RequestsPercentage);
+        Assert.Equal(100, result.RequestsUsed);
         Assert.Contains("Extra usage enabled", result.Description);
     }
 
@@ -311,7 +327,10 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(25, result.RequestsPercentage);
+
+        // For quota-based: RequestsPercentage = 100 - 25 = 75% remaining
+        Assert.Equal(75, result.RequestsPercentage);
+        Assert.Equal(25, result.RequestsUsed);
         Assert.Single(result.Details!);
     }
 
@@ -404,7 +423,10 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         var usage = result.Single();
         Assert.Equal("claude-code", usage.ProviderId); // provider-id-guardrail-allow: test assertion
         Assert.True(usage.IsQuotaBased);
-        Assert.Equal(60, usage.RequestsPercentage);
+
+        // For quota-based: RequestsPercentage = 100 - max(45%, 60%) = 40% remaining
+        Assert.Equal(40, usage.RequestsPercentage);
+        Assert.Equal(60, usage.RequestsUsed);
     }
 
     [Fact]

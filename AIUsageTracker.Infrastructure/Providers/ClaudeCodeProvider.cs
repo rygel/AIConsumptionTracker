@@ -256,11 +256,15 @@ public class ClaudeCodeProvider : ProviderBase
             description += " | Extra usage enabled";
         }
 
+        // For quota-based providers, RequestsPercentage represents REMAINING percentage
+        // The UI expects this semantic: higher RequestsPercentage = more quota remaining
+        var remainingPercent = 100 - mainPercent;
+
         return new ProviderUsage
         {
             ProviderId = this.ProviderId,
             ProviderName = "Claude Code",
-            RequestsPercentage = mainPercent,
+            RequestsPercentage = remainingPercent,
             RequestsUsed = mainPercent,
             RequestsAvailable = 100,
             UsageUnit = "%",
