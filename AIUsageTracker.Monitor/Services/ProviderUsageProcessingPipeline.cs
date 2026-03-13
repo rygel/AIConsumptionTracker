@@ -387,25 +387,7 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
 
     private bool IsUsageForProvider(string providerId, string usageProviderId)
     {
-        if (usageProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (usageProviderId.StartsWith($"{providerId}.", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
-        var canonicalUsageProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(usageProviderId);
-
-        if (canonicalUsageProviderId.Equals(canonicalProviderId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return usageProviderId.StartsWith($"{canonicalProviderId}.", StringComparison.OrdinalIgnoreCase);
+        return ProviderMetadataCatalog.BelongsToProviderFamily(providerId, usageProviderId);
     }
 
     private bool IsPlaceholderUnavailableUsage(ProviderUsage usage)
@@ -516,4 +498,3 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
         }
     }
 }
-

@@ -219,6 +219,28 @@ public class ProviderUsageProcessingPipelineTests
     }
 
     [Fact]
+    public void Process_WhenUsageUsesUnsupportedDottedProviderId_FiltersInactiveEntry()
+    {
+        var usage = new ProviderUsage
+        {
+            ProviderId = "openai.spark",
+            ProviderName = "Unexpected Child",
+            RequestsUsed = 20,
+            RequestsAvailable = 100,
+            RequestsPercentage = 20,
+            IsAvailable = true,
+        };
+
+        var result = this._pipeline.Process(
+            new[] { usage },
+            new[] { "openai" },
+            isPrivacyMode: false);
+
+        Assert.Empty(result.Usages);
+        Assert.Equal(1, result.InactiveProviderFilteredCount);
+    }
+
+    [Fact]
     public void Process_WhenProviderIdMissing_FiltersInvalidIdentity()
     {
         var usage = new ProviderUsage

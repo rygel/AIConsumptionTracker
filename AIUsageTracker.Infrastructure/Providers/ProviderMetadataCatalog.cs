@@ -106,6 +106,77 @@ public static class ProviderMetadataCatalog
         return providerId ?? string.Empty;
     }
 
+    public static bool BelongsToProviderFamily(string providerId, string candidateProviderId)
+    {
+        if (string.IsNullOrWhiteSpace(providerId) || string.IsNullOrWhiteSpace(candidateProviderId))
+        {
+            return false;
+        }
+
+        if (string.Equals(providerId, candidateProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var canonicalProviderId = GetCanonicalProviderId(providerId);
+        var canonicalCandidateProviderId = GetCanonicalProviderId(candidateProviderId);
+        return !string.IsNullOrWhiteSpace(canonicalProviderId) &&
+               string.Equals(canonicalProviderId, canonicalCandidateProviderId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsChildProviderId(string providerId)
+    {
+        if (!TryGet(providerId, out var definition))
+        {
+            return false;
+        }
+
+        return IsChildProviderId(definition.ProviderId, providerId);
+    }
+
+    public static bool IsChildProviderId(string parentProviderId, string candidateProviderId)
+    {
+        if (string.IsNullOrWhiteSpace(parentProviderId) || string.IsNullOrWhiteSpace(candidateProviderId))
+        {
+            return false;
+        }
+
+        if (!TryGet(parentProviderId, out var definition) || !definition.SupportsChildProviderIds)
+        {
+            return false;
+        }
+
+        if (definition.HandledProviderIds.Contains(candidateProviderId, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return definition.HandledProviderIds.Any(handledProviderId =>
+            candidateProviderId.StartsWith($"{handledProviderId}.", StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static bool TryGetChildProviderKey(string parentProviderId, string candidateProviderId, out string childProviderKey)
+    {
+        childProviderKey = string.Empty;
+        if (!TryGet(parentProviderId, out var definition) ||
+            !IsChildProviderId(definition.ProviderId, candidateProviderId))
+        {
+            return false;
+        }
+
+        var matchedHandledProviderId = definition.HandledProviderIds
+            .Where(handledProviderId => candidateProviderId.StartsWith($"{handledProviderId}.", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(handledProviderId => handledProviderId.Length)
+            .FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(matchedHandledProviderId))
+        {
+            return false;
+        }
+
+        childProviderKey = candidateProviderId[(matchedHandledProviderId.Length + 1)..];
+        return true;
+    }
+
     public static bool IsAggregateParentProviderId(string providerId)
     {
         return TryGet(providerId, out var definition) &&

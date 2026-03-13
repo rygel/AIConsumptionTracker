@@ -67,6 +67,36 @@ public class ProviderUsagePersistenceServiceTests
     }
 
     [Fact]
+    public async Task PersistUsageAndDynamicProvidersAsync_RegistersDynamicChildProvider_WhenActiveProviderUsesAliasAsync()
+    {
+        var service = this.CreateService();
+        var activeProviderIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "gemini" };
+        var usages = new List<ProviderUsage>
+        {
+            new()
+            {
+                ProviderId = "gemini-cli.hourly",
+                ProviderName = "Gemini CLI (Hourly)",
+                AuthSource = "session",
+                IsQuotaBased = true,
+            },
+        };
+
+        await service.PersistUsageAndDynamicProvidersAsync(usages, activeProviderIds);
+
+        this._database.Verify(
+            database => database.StoreProviderAsync(
+                It.Is<ProviderConfig>(config =>
+                    config.ProviderId == "gemini-cli.hourly" &&
+                    config.Type == "quota-based" &&
+                    config.AuthSource == "session" &&
+                    config.ApiKey == "dynamic"),
+                "Gemini CLI (Hourly)"),
+            Times.Once);
+        Assert.Contains("gemini-cli.hourly", activeProviderIds);
+    }
+
+    [Fact]
     public async Task PersistUsageAndDynamicProvidersAsync_StoresHistoryAndOnlyNonEmptyRawSnapshotsAsync()
     {
         var service = this.CreateService();

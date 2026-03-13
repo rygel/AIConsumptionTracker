@@ -114,6 +114,46 @@ public class ProviderMetadataCatalogTests
         Assert.Equal(expectedCanonicalId, ProviderMetadataCatalog.GetCanonicalProviderId(providerId));
     }
 
+    [Theory]
+    [InlineData("gemini", "gemini-cli.hourly", true)]
+    [InlineData("codex", "codex.spark", true)]
+    [InlineData("antigravity", "antigravity.gemini-3-flash", true)]
+    [InlineData("openai", "openai.spark", false)]
+    [InlineData("unknown-provider", "unknown-provider.child", false)]
+    public void BelongsToProviderFamily_UsesProviderDefinitions(string providerId, string candidateProviderId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.BelongsToProviderFamily(providerId, candidateProviderId));
+    }
+
+    [Theory]
+    [InlineData("gemini-cli.hourly", true)]
+    [InlineData("codex.spark", true)]
+    [InlineData("antigravity.gemini-3-flash", true)]
+    [InlineData("gemini", false)]
+    [InlineData("openai.spark", false)]
+    [InlineData("unknown-provider.child", false)]
+    public void IsChildProviderId_UsesProviderDefinitions(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.IsChildProviderId(providerId));
+    }
+
+    [Theory]
+    [InlineData("antigravity", "antigravity.gemini-3-flash", true, "gemini-3-flash")]
+    [InlineData("gemini", "gemini-cli.hourly", true, "hourly")]
+    [InlineData("codex", "codex.spark", true, "spark")]
+    [InlineData("openai", "openai.spark", false, "")]
+    public void TryGetChildProviderKey_UsesProviderDefinitions(
+        string providerId,
+        string candidateProviderId,
+        bool expected,
+        string expectedChildProviderKey)
+    {
+        var success = ProviderMetadataCatalog.TryGetChildProviderKey(providerId, candidateProviderId, out var childProviderKey);
+
+        Assert.Equal(expected, success);
+        Assert.Equal(expectedChildProviderKey, childProviderKey);
+    }
+
     [Fact]
     public void GetDerivedModelDisplayName_AppendsConfiguredSuffix()
     {

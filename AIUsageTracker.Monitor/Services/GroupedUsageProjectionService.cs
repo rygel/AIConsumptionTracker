@@ -318,18 +318,17 @@ public static class GroupedUsageProjectionService
     {
         return !string.IsNullOrWhiteSpace(usage.ProviderId) &&
                !string.Equals(usage.ProviderId, canonicalProviderId, StringComparison.OrdinalIgnoreCase) &&
-               usage.ProviderId.StartsWith($"{canonicalProviderId}.", StringComparison.OrdinalIgnoreCase);
+               ProviderMetadataCatalog.IsChildProviderId(canonicalProviderId, usage.ProviderId);
     }
 
     private static string ResolveChildModelId(ProviderUsage usage, string canonicalProviderId)
     {
-        var providerId = usage.ProviderId ?? string.Empty;
-        if (providerId.StartsWith($"{canonicalProviderId}.", StringComparison.OrdinalIgnoreCase))
+        if (ProviderMetadataCatalog.TryGetChildProviderKey(canonicalProviderId, usage.ProviderId ?? string.Empty, out var childProviderKey))
         {
-            return providerId[(canonicalProviderId.Length + 1)..];
+            return childProviderKey;
         }
 
-        return providerId;
+        return usage.ProviderId ?? string.Empty;
     }
 
     private static string ResolveChildModelName(ProviderUsage usage, string canonicalProviderId)

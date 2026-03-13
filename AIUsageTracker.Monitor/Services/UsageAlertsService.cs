@@ -4,6 +4,7 @@
 
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Monitor.Services;
@@ -143,7 +144,7 @@ public class UsageAlertsService
 
     private void LogInsufficientHistory(ProviderUsage usage)
     {
-        if (usage.ProviderId.Contains('.') || usage.NextResetTime != null)
+        if (ProviderMetadataCatalog.IsChildProviderId(usage.ProviderId) || usage.NextResetTime != null)
         {
             this._logger.LogTrace("{ProviderId}: Initial record stored, waiting for history", usage.ProviderId);
             return;

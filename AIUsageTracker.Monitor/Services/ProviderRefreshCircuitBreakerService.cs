@@ -3,6 +3,7 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.Monitor.Services;
 
@@ -196,12 +197,7 @@ public class ProviderRefreshCircuitBreakerService
 
     private static bool IsUsageForProvider(string providerId, string usageProviderId)
     {
-        if (usageProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return usageProviderId.StartsWith($"{providerId}.", StringComparison.OrdinalIgnoreCase);
+        return ProviderMetadataCatalog.BelongsToProviderFamily(providerId, usageProviderId);
     }
 
     private static bool IsSuccessfulUsage(ProviderUsage usage)
