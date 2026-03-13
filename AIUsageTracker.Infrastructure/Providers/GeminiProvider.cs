@@ -16,6 +16,24 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class GeminiProvider : ProviderBase
 {
+    // Public OAuth client ID embedded in the open-source gemini-cli tool.
+    // This is NOT a secret — it is intentionally public and shipped with the CLI.
+    private const string GeminiCliClientId =
+        "10710060605" + "91-tmhssin2h21lcre235vtoloj" + "h4g403ep.apps.googleusercontent.com";
+
+    private const string GeminiCliClientSecret = "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";
+
+    // Alternative client ID from the VS Code / JetBrains plugin which sometimes has better access.
+    private const string GeminiPluginClientId =
+        "681255809395" + "-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
+
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<GeminiProvider> _logger;
+    private readonly string? _accountsPathOverride;
+    private readonly string? _oauthCredsPathOverride;
+    private readonly string? _geminiConfigDirectoryOverride;
+    private readonly string? _currentDirectoryOverride;
+
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "gemini-cli",
         displayName: "Google Gemini",
@@ -59,24 +77,6 @@ public class GeminiProvider : ProviderBase
 
     /// <inheritdoc/>
     public override string ProviderId => StaticDefinition.ProviderId;
-
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<GeminiProvider> _logger;
-    private readonly string? _accountsPathOverride;
-    private readonly string? _oauthCredsPathOverride;
-    private readonly string? _geminiConfigDirectoryOverride;
-    private readonly string? _currentDirectoryOverride;
-
-    // Public OAuth client ID embedded in the open-source gemini-cli tool.
-    // This is NOT a secret — it is intentionally public and shipped with the CLI.
-    private const string GeminiCliClientId =
-        "10710060605" + "91-tmhssin2h21lcre235vtoloj" + "h4g403ep.apps.googleusercontent.com";
-
-    private const string GeminiCliClientSecret = "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";
-
-    // Alternative client ID from the VS Code / JetBrains plugin which sometimes has better access.
-    private const string GeminiPluginClientId =
-        "681255809395" + "-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
 
     private const string GeminiPluginClientSecret = "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";
 

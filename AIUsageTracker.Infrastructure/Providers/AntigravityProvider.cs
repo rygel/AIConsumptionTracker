@@ -27,6 +27,17 @@ public class AntigravityProvider : ProviderBase
     private List<(int Pid, string Token, int? Port)>? _cachedProcessInfos;
     private DateTime _lastProcessCheck = DateTime.MinValue;
 
+    public AntigravityProvider(ILogger<AntigravityProvider> logger)
+        : this(CreateLocalhostClient(), logger)
+    {
+    }
+
+    internal AntigravityProvider(HttpClient httpClient, ILogger<AntigravityProvider> logger)
+    {
+        this._httpClient = httpClient;
+        this._logger = logger;
+    }
+
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "antigravity",
         displayName: "Google Antigravity",
@@ -50,17 +61,6 @@ public class AntigravityProvider : ProviderBase
 
     /// <inheritdoc/>
     public override string ProviderId => StaticDefinition.ProviderId;
-
-    public AntigravityProvider(ILogger<AntigravityProvider> logger)
-        : this(CreateLocalhostClient(), logger)
-    {
-    }
-
-    internal AntigravityProvider(HttpClient httpClient, ILogger<AntigravityProvider> logger)
-    {
-        this._httpClient = httpClient;
-        this._logger = logger;
-    }
 
     private static HttpClient CreateLocalhostClient()
     {

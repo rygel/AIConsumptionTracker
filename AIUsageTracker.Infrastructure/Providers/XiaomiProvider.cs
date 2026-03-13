@@ -13,6 +13,15 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class XiaomiProvider : ProviderBase
 {
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<XiaomiProvider> _logger;
+
+    public XiaomiProvider(HttpClient httpClient, ILogger<XiaomiProvider> logger)
+    {
+        this._httpClient = httpClient;
+        this._logger = logger;
+    }
+
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "xiaomi",
         displayName: "Xiaomi",
@@ -28,15 +37,6 @@ public class XiaomiProvider : ProviderBase
     public override ProviderDefinition Definition => StaticDefinition;
 
     public override string ProviderId => StaticDefinition.ProviderId;
-
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<XiaomiProvider> _logger;
-
-    public XiaomiProvider(HttpClient httpClient, ILogger<XiaomiProvider> logger)
-    {
-        this._httpClient = httpClient;
-        this._logger = logger;
-    }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
     {

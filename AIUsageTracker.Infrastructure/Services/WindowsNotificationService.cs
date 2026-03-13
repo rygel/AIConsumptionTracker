@@ -17,6 +17,12 @@ public class WindowsNotificationService : INotificationService
         this._logger = logger;
     }
 
+    public event EventHandler<NotificationClickedEventArgs>? OnNotificationClicked
+    {
+        add { }
+        remove { }
+    }
+
     public void Initialize()
     {
         if (this._isInitialized)
@@ -61,11 +67,5 @@ public class WindowsNotificationService : INotificationService
     public void ShowQuotaExceeded(string providerName, string details)
     {
         this.ShowNotification($"{providerName} Quota Exceeded", details, "showProvider", providerName);
-    }
-
-    public event EventHandler<NotificationClickedEventArgs>? OnNotificationClicked
-    {
-        add { }
-        remove { }
     }
 }
