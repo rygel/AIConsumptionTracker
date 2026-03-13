@@ -11,6 +11,7 @@ using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Constants;
 using AIUsageTracker.Infrastructure.Http;
 using AIUsageTracker.Core.Paths;
 using AIUsageTracker.Core.Providers;
@@ -53,6 +54,10 @@ public class OpenAIProvider : ProviderBase
         sessionAuthFileSchemas: new[]
         {
             new ProviderAuthFileSchema("openai", "access", "accountId", "id_token"),
+        },
+        sessionIdentityProfileRootProperties: new[]
+        {
+            ProviderEndpoints.OpenAI.ProfileClaimKey,
         });
 
     /// <inheritdoc/>
@@ -335,13 +340,13 @@ public class OpenAIProvider : ProviderBase
 
     private static string? GetAccountIdentity(JsonElement root, string accessToken, string? accountId)
     {
-        var directIdentity = SessionIdentityHelper.TryGetPreferredIdentity(root);
+        var directIdentity = SessionIdentityHelper.TryGetPreferredIdentity(root, StaticDefinition.SessionIdentityProfileRootProperties);
         if (!string.IsNullOrWhiteSpace(directIdentity))
         {
             return directIdentity;
         }
 
-        var fromToken = SessionIdentityHelper.TryGetIdentityFromJwt(accessToken);
+        var fromToken = SessionIdentityHelper.TryGetIdentityFromJwt(accessToken, StaticDefinition.SessionIdentityProfileRootProperties);
         if (!string.IsNullOrWhiteSpace(fromToken))
         {
             return fromToken;

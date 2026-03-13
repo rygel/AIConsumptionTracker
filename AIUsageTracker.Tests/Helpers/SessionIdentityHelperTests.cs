@@ -50,17 +50,35 @@ public class SessionIdentityHelperTests
     }
 
     [Fact]
-    public void TryGetPreferredIdentity_FallsBackToOpenAiProfileIdentity()
+    public void TryGetPreferredIdentity_DoesNotUseProviderSpecificProfileRootWithoutConfiguration()
     {
         using var doc = JsonDocument.Parse("""
         {
           "https://api.openai.com/profile": {
-            "username": "profile-user"
+            "name": "profile-user"
           }
         }
         """);
 
         var identity = SessionIdentityHelper.TryGetPreferredIdentity(doc.RootElement);
+
+        Assert.Null(identity);
+    }
+
+    [Fact]
+    public void TryGetPreferredIdentity_UsesConfiguredProfileRoot()
+    {
+        using var doc = JsonDocument.Parse("""
+        {
+          "https://api.openai.com/profile": {
+            "name": "profile-user"
+          }
+        }
+        """);
+
+        var identity = SessionIdentityHelper.TryGetPreferredIdentity(
+            doc.RootElement,
+            new[] { "https://api.openai.com/profile" });
 
         Assert.Equal("profile-user", identity);
     }

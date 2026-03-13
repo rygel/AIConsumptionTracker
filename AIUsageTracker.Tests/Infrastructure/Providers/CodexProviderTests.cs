@@ -134,6 +134,49 @@ public class CodexProviderTests : HttpProviderTestBase<CodexProvider>
     }
 
     [Fact]
+    public async Task GetUsageAsync_UsesConfiguredProfileRootForAccountIdentityAsync()
+    {
+        var tempDir = TestTempPaths.CreateDirectory("codex-test-profile-name");
+        var authPath = Path.Combine(tempDir, "auth.json");
+        var token = CreateJwtWithProfileName("Codex Profile User");
+
+        await File.WriteAllTextAsync(authPath, JsonSerializer.Serialize(new
+        {
+            tokens = new
+            {
+                access_token = token,
+            },
+        }));
+
+        this.SetupHttpResponse("https://chatgpt.com/backend-api/wham/usage", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent(JsonSerializer.Serialize(new
+            {
+                model_name = "OpenAI-Codex-Live",
+                plan_type = "plus",
+                rate_limit = new
+                {
+                    primary_window = new { used_percent = 25, reset_after_seconds = 1200 },
+                },
+            })),
+        });
+
+        var provider = new CodexProvider(this.HttpClient, this.Logger.Object, authPath);
+
+        try
+        {
+            var usage = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).Single();
+            Assert.True(usage.IsAvailable);
+            Assert.Equal("Codex Profile User", usage.AccountName);
+        }
+        finally
+        {
+            TestTempPaths.CleanupPath(tempDir);
+        }
+    }
+
+    [Fact]
     public async Task GetUsageAsync_PrefersSparkSpecificAdditionalRateLimit_InParentDetails_WhenMultipleCandidatesExist()
     {
         var tempDir = TestTempPaths.CreateDirectory("codex-test-spark-window");
@@ -277,6 +320,21 @@ public class CodexProviderTests : HttpProviderTestBase<CodexProvider>
             ["https://api.openai.com/profile"] = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["email"] = email,
+            },
+            ["exp"] = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+        });
+
+        return $"{Base64UrlEncode(headerJson)}.{Base64UrlEncode(payloadJson)}.sig";
+    }
+
+    private static string CreateJwtWithProfileName(string name)
+    {
+        var headerJson = JsonSerializer.Serialize(new { alg = "HS256", typ = "JWT" });
+        var payloadJson = JsonSerializer.Serialize(new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["https://api.openai.com/profile"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["name"] = name,
             },
             ["exp"] = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
         });

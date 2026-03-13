@@ -43,6 +43,7 @@ public sealed class ProviderDefinition
         bool supportsAccountIdentity = false,
         IEnumerable<string>? authIdentityCandidatePathTemplates = null,
         IEnumerable<ProviderAuthFileSchema>? sessionAuthFileSchemas = null,
+        IEnumerable<string>? sessionIdentityProfileRootProperties = null,
         string? derivedModelDisplaySuffix = null)
     {
         if (string.IsNullOrWhiteSpace(providerId))
@@ -91,6 +92,7 @@ public sealed class ProviderDefinition
             .Distinct()
             .ToArray()
             ?? Array.Empty<ProviderAuthFileSchema>();
+        this.SessionIdentityProfileRootProperties = NormalizeValues(sessionIdentityProfileRootProperties);
         this.DerivedModelDisplaySuffix = derivedModelDisplaySuffix;
 
         var normalizedHandledIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -189,6 +191,8 @@ public sealed class ProviderDefinition
     public IReadOnlyCollection<string> AuthIdentityCandidatePathTemplates { get; }
 
     public IReadOnlyCollection<ProviderAuthFileSchema> SessionAuthFileSchemas { get; }
+
+    public IReadOnlyCollection<string> SessionIdentityProfileRootProperties { get; }
 
     public bool UseChildProviderRowsForGroupedModels =>
         ProviderFamilyPolicy.UsesChildProviderRowsForGroupedModels(this.FamilyMode);

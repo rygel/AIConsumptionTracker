@@ -55,7 +55,18 @@ public static class SessionIdentityHelper
         return payload.HasValue ? TryGetPreferredIdentity(payload.Value) : null;
     }
 
+    public static string? TryGetIdentityFromJwt(string? token, IEnumerable<string>? profileRootProperties)
+    {
+        var payload = TryDecodeJwtPayload(token);
+        return payload.HasValue ? TryGetPreferredIdentity(payload.Value, profileRootProperties) : null;
+    }
+
     public static string? TryGetPreferredIdentity(JsonElement root)
+    {
+        return TryGetPreferredIdentity(root, profileRootProperties: null);
+    }
+
+    public static string? TryGetPreferredIdentity(JsonElement root, IEnumerable<string>? profileRootProperties)
     {
         foreach (var claim in DirectEmailClaims)
         {
@@ -66,9 +77,14 @@ public static class SessionIdentityHelper
             }
         }
 
-        if (root.TryGetProperty("https://api.openai.com/profile", out var profile) &&
-            profile.ValueKind == JsonValueKind.Object)
+        foreach (var profileRootProperty in profileRootProperties ?? Array.Empty<string>())
         {
+            if (!root.TryGetProperty(profileRootProperty, out var profile) ||
+                profile.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
             foreach (var claim in ProfileIdentityClaims)
             {
                 var value = profile.ReadString(claim);

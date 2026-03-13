@@ -8,6 +8,7 @@ using System.Text.Json;
 using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Configuration;
+using AIUsageTracker.Infrastructure.Constants;
 using AIUsageTracker.Core.Providers;
 using Microsoft.Extensions.Logging;
 
@@ -16,7 +17,6 @@ namespace AIUsageTracker.Infrastructure.Providers;
 public class CodexProvider : ProviderBase
 {
     private const string UsageEndpoint = "https://chatgpt.com/backend-api/wham/usage";
-    private const string ProfileClaimKey = "https://api.openai.com/profile";
     private const string AuthClaimKey = "https://api.openai.com/auth";
 
     public static ProviderDefinition StaticDefinition { get; } = new(
@@ -57,6 +57,10 @@ public class CodexProvider : ProviderBase
         sessionAuthFileSchemas: new[]
         {
             new ProviderAuthFileSchema("tokens", "access_token", "account_id", "id_token"),
+        },
+        sessionIdentityProfileRootProperties: new[]
+        {
+            ProviderEndpoints.OpenAI.ProfileClaimKey,
         });
 
     public override ProviderDefinition Definition => StaticDefinition;
@@ -104,7 +108,9 @@ public class CodexProvider : ProviderBase
 
             var resolvedAccessToken = accessToken!;
             var payload = SessionIdentityHelper.TryDecodeJwtPayload(resolvedAccessToken);
-            var email = payload.HasValue ? SessionIdentityHelper.TryGetPreferredIdentity(payload.Value) : null;
+            var email = payload.HasValue
+                ? SessionIdentityHelper.TryGetPreferredIdentity(payload.Value, StaticDefinition.SessionIdentityProfileRootProperties)
+                : null;
             var jwtPlanType = payload?.ReadString(AuthClaimKey, "chatgpt_plan_type");
             knownAccountIdentity = ResolveKnownAccountIdentity(email, authIdentity, accountId);
 
@@ -393,7 +399,7 @@ public class CodexProvider : ProviderBase
 
     private static string? ResolveIdentityFromAuthPayload(JsonElement source, string accessToken, string? idToken = null)
     {
-        var directIdentity = SessionIdentityHelper.TryGetPreferredIdentity(source);
+        var directIdentity = SessionIdentityHelper.TryGetPreferredIdentity(source, StaticDefinition.SessionIdentityProfileRootProperties);
         if (!string.IsNullOrWhiteSpace(directIdentity))
         {
             return directIdentity;
@@ -401,14 +407,14 @@ public class CodexProvider : ProviderBase
 
         if (!string.IsNullOrWhiteSpace(idToken))
         {
-            var emailFromIdToken = SessionIdentityHelper.TryGetIdentityFromJwt(idToken);
+            var emailFromIdToken = SessionIdentityHelper.TryGetIdentityFromJwt(idToken, StaticDefinition.SessionIdentityProfileRootProperties);
             if (!string.IsNullOrWhiteSpace(emailFromIdToken))
             {
                 return emailFromIdToken;
             }
         }
 
-        var emailFromJwt = SessionIdentityHelper.TryGetIdentityFromJwt(accessToken);
+        var emailFromJwt = SessionIdentityHelper.TryGetIdentityFromJwt(accessToken, StaticDefinition.SessionIdentityProfileRootProperties);
         if (!string.IsNullOrWhiteSpace(emailFromJwt))
         {
             return emailFromJwt;
