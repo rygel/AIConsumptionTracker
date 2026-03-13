@@ -146,16 +146,29 @@ public static class ProviderMetadataCatalog
                ProviderFamilyPolicy.HasDisplayableDerivedProviders(definition.VisibleDerivedProviderIds, definition.FamilyMode);
     }
 
+    public static bool HasStaticVisibleDerivedProviders(string providerId)
+    {
+        return TryGet(providerId, out var definition) &&
+               definition.VisibleDerivedProviderIds.Count > 0;
+    }
+
     public static bool IsAggregateParentProviderId(string providerId)
     {
         return TryGet(providerId, out var definition) &&
                string.Equals(providerId, definition.ProviderId, StringComparison.OrdinalIgnoreCase) &&
-               definition.RenderDetailsAsSyntheticChildrenInMainWindow;
+               ProviderFamilyPolicy.ShouldRenderSyntheticChildrenInMainWindow(definition.FamilyMode);
     }
 
     public static bool ShouldCollapseDerivedChildrenInMainWindow(string providerId)
     {
-        return TryGet(providerId, out var definition) && definition.CollapseDerivedChildrenInMainWindow;
+        return TryGet(providerId, out var definition) &&
+               ProviderFamilyPolicy.ShouldCollapseDerivedChildrenInMainWindow(definition.FamilyMode);
+    }
+
+    public static bool ShouldUseChildProviderRowsForGroupedModels(string providerId)
+    {
+        return TryGet(providerId, out var definition) &&
+               ProviderFamilyPolicy.UsesChildProviderRowsForGroupedModels(definition.FamilyMode);
     }
 
     public static bool ShouldShowInMainWindow(string providerId)
@@ -611,7 +624,9 @@ public static class ProviderMetadataCatalog
         }
 
         var invalidAggregateDefinitions = definitions
-            .Where(definition => definition.RenderDetailsAsSyntheticChildrenInMainWindow && !definition.SupportsChildProviderIds)
+            .Where(definition =>
+                ProviderFamilyPolicy.ShouldRenderSyntheticChildrenInMainWindow(definition.FamilyMode) &&
+                !ProviderFamilyPolicy.SupportsChildProviderIds(definition.FamilyMode))
             .Select(definition => definition.ProviderId)
             .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -625,8 +640,9 @@ public static class ProviderMetadataCatalog
 
         var invalidGroupedModelChildRowDefinitions = definitions
             .Where(definition =>
-                definition.UseChildProviderRowsForGroupedModels &&
-                (!definition.SupportsChildProviderIds || definition.RenderDetailsAsSyntheticChildrenInMainWindow))
+                ProviderFamilyPolicy.UsesChildProviderRowsForGroupedModels(definition.FamilyMode) &&
+                (!ProviderFamilyPolicy.SupportsChildProviderIds(definition.FamilyMode) ||
+                 ProviderFamilyPolicy.ShouldRenderSyntheticChildrenInMainWindow(definition.FamilyMode)))
             .Select(definition => definition.ProviderId)
             .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
             .ToList();

@@ -105,11 +105,11 @@ internal static class GroupedUsageDisplayAdapter
         }
 
         IReadOnlyList<(string ProviderId, AgentGroupedModelUsage Model)> assignments;
-        if (definition.VisibleDerivedProviderIds.Count > 0)
+        if (ProviderMetadataCatalog.HasStaticVisibleDerivedProviders(provider.ProviderId))
         {
             assignments = BuildDerivedAssignments(definition, provider.ProviderId, orderedModels);
         }
-        else if (definition.UseChildProviderRowsForGroupedModels)
+        else if (ProviderMetadataCatalog.ShouldUseChildProviderRowsForGroupedModels(provider.ProviderId))
         {
             assignments = BuildDynamicModelAssignments(provider.ProviderId, orderedModels);
         }

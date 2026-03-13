@@ -238,6 +238,26 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
+    [InlineData("antigravity", false)]
+    [InlineData("gemini-cli", true)]
+    [InlineData("codex", true)]
+    [InlineData("github-copilot", false)]
+    public void HasStaticVisibleDerivedProviders_UsesProviderDefinitions(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.HasStaticVisibleDerivedProviders(providerId));
+    }
+
+    [Theory]
+    [InlineData("antigravity", true)]
+    [InlineData("gemini-cli", false)]
+    [InlineData("codex", false)]
+    [InlineData("github-copilot", false)]
+    public void ShouldUseChildProviderRowsForGroupedModels_UsesProviderFamilyMode(string providerId, bool expected)
+    {
+        Assert.Equal(expected, ProviderMetadataCatalog.ShouldUseChildProviderRowsForGroupedModels(providerId));
+    }
+
+    [Theory]
     [InlineData("OPENAI_API_KEY", "openai")]
     [InlineData("CODEX_API_KEY", "codex")]
     [InlineData("GEMINI_API_KEY", "gemini-cli")]

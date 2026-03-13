@@ -77,4 +77,20 @@ public sealed class ProviderCapabilityCatalogTests
 
         Assert.True(result);
     }
+
+    [Fact]
+    public void ShouldUseSharedSubDetailCollapsePreference_DelegatesToProviderMetadata()
+    {
+        var result = ProviderCapabilityCatalog.ShouldUseSharedSubDetailCollapsePreference("codex.spark");
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void ShouldRenderAsSettingsSubItem_DelegatesToProviderMetadata()
+    {
+        var result = ProviderCapabilityCatalog.ShouldRenderAsSettingsSubItem("antigravity.some-model");
+
+        Assert.False(result);
+    }
 }

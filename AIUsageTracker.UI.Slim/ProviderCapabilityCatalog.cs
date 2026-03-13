@@ -62,15 +62,12 @@ internal static class ProviderCapabilityCatalog
 
     public static bool ShouldUseSharedSubDetailCollapsePreference(string providerId)
     {
-        var canonicalProviderId = GetCanonicalProviderId(providerId);
-        return ShouldCollapseDerivedChildrenInMainWindow(canonicalProviderId);
+        return ProviderMetadataCatalog.ShouldUseSharedSubDetailCollapsePreference(providerId);
     }
 
     public static bool ShouldRenderAsSettingsSubItem(string providerId)
     {
-        var canonicalProviderId = GetCanonicalProviderId(providerId);
-        var isCanonicalChild = !string.Equals(canonicalProviderId, providerId, StringComparison.OrdinalIgnoreCase);
-        return isCanonicalChild && ShouldUseSharedSubDetailCollapsePreference(canonicalProviderId);
+        return ProviderMetadataCatalog.ShouldRenderAsSettingsSubItem(providerId);
     }
 
     public static bool HasVisibleDerivedProviders(string providerId)
