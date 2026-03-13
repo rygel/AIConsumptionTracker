@@ -43,19 +43,6 @@ public class OpenCodeZenProvider : ProviderBase
     private readonly TimeSpan _cliTimeout;
     private string _cliPath;
 
-    public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "opencode-zen",
-        displayName: ProviderDisplayName,
-        planType: PlanType.Usage,
-        isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go",
-        autoIncludeWhenUnconfigured: true,
-        handledProviderIds: new[] { "opencode-zen", "opencode-go" },
-        displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["opencode-go"] = "Opencode Go",
-        });
-
     public OpenCodeZenProvider(ILogger<OpenCodeZenProvider> logger)
     {
         this._logger = logger;
@@ -71,6 +58,19 @@ public class OpenCodeZenProvider : ProviderBase
         this._cliPath = cliPath;
         this._cliTimeout = cliTimeout ?? this._cliTimeout;
     }
+
+    public static ProviderDefinition StaticDefinition { get; } = new(
+        providerId: "opencode-zen",
+        displayName: ProviderDisplayName,
+        planType: PlanType.Usage,
+        isQuotaBased: false,
+        defaultConfigType: "pay-as-you-go",
+        autoIncludeWhenUnconfigured: true,
+        handledProviderIds: new[] { "opencode-zen", "opencode-go" },
+        displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["opencode-go"] = "Opencode Go",
+        });
 
     /// <inheritdoc/>
     public override ProviderDefinition Definition => StaticDefinition;

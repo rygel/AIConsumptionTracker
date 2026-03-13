@@ -13,6 +13,15 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class ZaiProvider : ProviderBase
 {
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<ZaiProvider> _logger;
+
+    public ZaiProvider(HttpClient httpClient, ILogger<ZaiProvider> logger)
+    {
+        this._httpClient = httpClient;
+        this._logger = logger;
+    }
+
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "zai-coding-plan",
         displayName: "Z.ai Coding Plan",
@@ -35,15 +44,6 @@ public class ZaiProvider : ProviderBase
 
     /// <inheritdoc/>
     public override string ProviderId => StaticDefinition.ProviderId;
-
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<ZaiProvider> _logger;
-
-    public ZaiProvider(HttpClient httpClient, ILogger<ZaiProvider> logger)
-    {
-        this._httpClient = httpClient;
-        this._logger = logger;
-    }
 
     /// <inheritdoc/>
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)

@@ -106,6 +106,13 @@ public class ResilienceProvider : IResilienceProvider
         return false;
     }
 
+    private static bool TryGetHttpResponseMessage<T>(DelegateResult<T> outcome, out HttpResponseMessage? response)
+    {
+        var resultProperty = outcome.GetType().GetProperty("Result");
+        response = resultProperty?.GetValue(outcome) as HttpResponseMessage;
+        return response is not null;
+    }
+
     private string GetReason<T>(DelegateResult<T> outcome)
     {
         if (outcome.Exception is not null)
@@ -119,12 +126,5 @@ public class ResilienceProvider : IResilienceProvider
         }
 
         return "Unknown error";
-    }
-
-    private static bool TryGetHttpResponseMessage<T>(DelegateResult<T> outcome, out HttpResponseMessage? response)
-    {
-        var resultProperty = outcome.GetType().GetProperty("Result");
-        response = resultProperty?.GetValue(outcome) as HttpResponseMessage;
-        return response is not null;
     }
 }

@@ -66,13 +66,13 @@ internal sealed class ProviderSessionTokenResolver
         return null;
     }
 
-    private IEnumerable<string> GetCandidatePaths()
-    {
-        return ProviderAuthCandidatePathResolver.ResolvePaths(this._discoverySpec, this._pathProvider);
-    }
-
     private static string? TryReadAccessToken(JsonElement root, ProviderAuthDiscoverySpec discoverySpec)
     {
         return ProviderAuthFileSchemaReader.Read(root, discoverySpec.SessionAuthFileSchemas)?.AccessToken;
+    }
+
+    private IEnumerable<string> GetCandidatePaths()
+    {
+        return ProviderAuthCandidatePathResolver.ResolvePaths(this._discoverySpec, this._pathProvider);
     }
 }

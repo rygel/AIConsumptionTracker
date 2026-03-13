@@ -29,12 +29,6 @@ public class JsonConfigLoader : IConfigLoader
         this._pathProvider = pathProvider ?? new DefaultAppPathProvider();
     }
 
-    private string GetTrackerConfigPath() => this._pathProvider.GetAuthFilePath();
-
-    private string GetProvidersConfigPath() => this._pathProvider.GetProviderConfigFilePath();
-
-    private string GetPreferencesPath() => this._pathProvider.GetPreferencesFilePath();
-
     public async Task<IReadOnlyList<ProviderConfig>> LoadConfigAsync()
     {
         var mergedConfigs = await this.LoadMergedConfigsAsync().ConfigureAwait(false);
@@ -46,6 +40,77 @@ public class JsonConfigLoader : IConfigLoader
 
         return result;
     }
+
+    public async Task SaveConfigAsync(IEnumerable<ProviderConfig> configs)
+    {
+        var authPath = this.GetTrackerConfigPath();
+        var providersPath = this.GetProvidersConfigPath();
+
+        this.EnsureParentDirectoryExists(authPath);
+        this.EnsureParentDirectoryExists(providersPath);
+
+        var exportAuth = await this.LoadExportPayloadAsync(
+            authPath,
+            "auth config").ConfigureAwait(false);
+        var exportProviders = await this.LoadExportPayloadAsync(
+            providersPath,
+            "provider config").ConfigureAwait(false);
+
+        JsonProviderConfigExportBuilder.RemoveNonPersistedProviders(exportAuth);
+        JsonProviderConfigExportBuilder.RemoveNonPersistedProviders(exportProviders);
+
+        foreach (var config in configs)
+        {
+            JsonProviderConfigExportBuilder.MergeProviderConfig(exportAuth, exportProviders, config);
+        }
+
+        await this.WriteExportPayloadAsync(authPath, exportAuth).ConfigureAwait(false);
+        await this.WriteExportPayloadAsync(providersPath, exportProviders).ConfigureAwait(false);
+    }
+
+    public async Task<AppPreferences> LoadPreferencesAsync()
+    {
+        var path = this.GetPreferencesPath();
+        if (!File.Exists(path))
+        {
+            return new AppPreferences();
+        }
+
+        try
+        {
+            var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
+            return AppPreferences.Deserialize(json);
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogDebug(ex, "Failed to load preferences from {Path}; using default preferences", path);
+            return new AppPreferences();
+        }
+    }
+
+    public async Task SavePreferencesAsync(AppPreferences preferences)
+    {
+        var path = this.GetTrackerConfigPath();
+        var preferencesPath = this.GetPreferencesPath();
+        var directory = Path.GetDirectoryName(preferencesPath);
+        if (directory != null && !Directory.Exists(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await JsonConfigFileStore.WriteIndentedAsync(preferencesPath, preferences).ConfigureAwait(false);
+
+        if (File.Exists(path))
+        {
+            this._logger.LogDebug("Preferences were written to canonical path {Path}; auth.json remains provider config only.", preferencesPath);
+        }
+    }
+
+    private string GetTrackerConfigPath() => this._pathProvider.GetAuthFilePath();
+
+    private string GetProvidersConfigPath() => this._pathProvider.GetProviderConfigFilePath();
+
+    private string GetPreferencesPath() => this._pathProvider.GetPreferencesFilePath();
 
     private async Task<Dictionary<string, ProviderConfig>> LoadMergedConfigsAsync()
     {
@@ -80,6 +145,17 @@ public class JsonConfigLoader : IConfigLoader
         }
     }
 
+    private static string ResolveConfigProviderId(string providerId)
+    {
+        if (ProviderMetadataCatalog.ShouldPersistProviderId(providerId) &&
+            ProviderMetadataCatalog.IsVisibleDerivedProviderId(providerId))
+        {
+            return providerId;
+        }
+
+        return ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+    }
+
     private void MergeConfigEntry(
         Dictionary<string, ProviderConfig> mergedConfigs,
         KeyValuePair<string, JsonElement> entry,
@@ -104,17 +180,6 @@ public class JsonConfigLoader : IConfigLoader
         var config = this.GetOrCreateMergedConfig(mergedConfigs, providerId);
         this.ApplyFileConfig(config, entry.Value, providerId, path, isAuthFile);
         this.AppendConfigSource(config, path);
-    }
-
-    private static string ResolveConfigProviderId(string providerId)
-    {
-        if (ProviderMetadataCatalog.ShouldPersistProviderId(providerId) &&
-            ProviderMetadataCatalog.IsVisibleDerivedProviderId(providerId))
-        {
-            return providerId;
-        }
-
-        return ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
     }
 
     private ProviderConfig GetOrCreateMergedConfig(Dictionary<string, ProviderConfig> mergedConfigs, string providerId)
@@ -254,33 +319,6 @@ public class JsonConfigLoader : IConfigLoader
         existing.Type = discoveredConfig.Type;
     }
 
-    public async Task SaveConfigAsync(IEnumerable<ProviderConfig> configs)
-    {
-        var authPath = this.GetTrackerConfigPath();
-        var providersPath = this.GetProvidersConfigPath();
-
-        this.EnsureParentDirectoryExists(authPath);
-        this.EnsureParentDirectoryExists(providersPath);
-
-        var exportAuth = await this.LoadExportPayloadAsync(
-            authPath,
-            "auth config").ConfigureAwait(false);
-        var exportProviders = await this.LoadExportPayloadAsync(
-            providersPath,
-            "provider config").ConfigureAwait(false);
-
-        JsonProviderConfigExportBuilder.RemoveNonPersistedProviders(exportAuth);
-        JsonProviderConfigExportBuilder.RemoveNonPersistedProviders(exportProviders);
-
-        foreach (var config in configs)
-        {
-            JsonProviderConfigExportBuilder.MergeProviderConfig(exportAuth, exportProviders, config);
-        }
-
-        await this.WriteExportPayloadAsync(authPath, exportAuth).ConfigureAwait(false);
-        await this.WriteExportPayloadAsync(providersPath, exportProviders).ConfigureAwait(false);
-    }
-
     private void EnsureParentDirectoryExists(string path)
     {
         var directory = Path.GetDirectoryName(path);
@@ -303,43 +341,5 @@ public class JsonConfigLoader : IConfigLoader
     private async Task WriteExportPayloadAsync(string path, Dictionary<string, object> payload)
     {
         await JsonConfigFileStore.WriteIndentedAsync(path, payload).ConfigureAwait(false);
-    }
-
-    public async Task<AppPreferences> LoadPreferencesAsync()
-    {
-        var path = this.GetPreferencesPath();
-        if (!File.Exists(path))
-        {
-            return new AppPreferences();
-        }
-
-        try
-        {
-            var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
-            return AppPreferences.Deserialize(json);
-        }
-        catch (Exception ex)
-        {
-            this._logger.LogDebug(ex, "Failed to load preferences from {Path}; using default preferences", path);
-            return new AppPreferences();
-        }
-    }
-
-    public async Task SavePreferencesAsync(AppPreferences preferences)
-    {
-        var path = this.GetTrackerConfigPath();
-        var preferencesPath = this.GetPreferencesPath();
-        var directory = Path.GetDirectoryName(preferencesPath);
-        if (directory != null && !Directory.Exists(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        await JsonConfigFileStore.WriteIndentedAsync(preferencesPath, preferences).ConfigureAwait(false);
-
-        if (File.Exists(path))
-        {
-            this._logger.LogDebug("Preferences were written to canonical path {Path}; auth.json remains provider config only.", preferencesPath);
-        }
     }
 }

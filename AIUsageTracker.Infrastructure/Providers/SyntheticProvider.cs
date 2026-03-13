@@ -18,6 +18,12 @@ public sealed class SyntheticProvider : ProviderBase
     private readonly HttpClient _httpClient;
     private readonly ILogger<SyntheticProvider> _logger;
 
+    public SyntheticProvider(HttpClient httpClient, ILogger<SyntheticProvider> logger)
+    {
+        this._httpClient = httpClient;
+        this._logger = logger;
+    }
+
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "synthetic",
         displayName: "Synthetic.new",
@@ -33,12 +39,6 @@ public sealed class SyntheticProvider : ProviderBase
     public override ProviderDefinition Definition => StaticDefinition;
 
     public override string ProviderId => StaticDefinition.ProviderId;
-
-    public SyntheticProvider(HttpClient httpClient, ILogger<SyntheticProvider> logger)
-    {
-        this._httpClient = httpClient;
-        this._logger = logger;
-    }
 
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(
         ProviderConfig config,

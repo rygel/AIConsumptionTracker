@@ -8,14 +8,14 @@ namespace AIUsageTracker.Core.Models;
 
 public static class UsageMath
 {
-    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
-
     private const double MinimumDropRatioForReset = 0.2;
     private const double MinimumElapsedHours = 1.0;
     private const double AnomalySigmaThreshold = 3.0;
     private const double AnomalySigmaEpsilon = 0.001;
     private const double AnomalyMadScale = 1.4826;
     private const double MinimumAbsoluteRateDeltaPerDay = 1.0;
+
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
 
     private static readonly Regex SUsedPattern = new(
         @"(?<percent>\d+(?:\.\d+)?)\s*%\s*used",
@@ -215,18 +215,18 @@ public static class UsageMath
             out percent);
     }
 
+    /// <summary>
+    /// Simple wrapper for ParsePercent when 'isUsed' info is not needed.
+    /// </summary>
+    /// <returns></returns>
+    public static double? ParsePercent(string? value) => ParsePercent(value, out _);
+
     private static bool TryParseFallbackNumber(string value, out double result)
     {
         result = 0;
         var cleanValue = new string(value.Where(c => char.IsDigit(c) || c == '.').ToArray());
         return double.TryParse(cleanValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out result);
     }
-
-    /// <summary>
-    /// Simple wrapper for ParsePercent when 'isUsed' info is not needed.
-    /// </summary>
-    /// <returns></returns>
-    public static double? ParsePercent(string? value) => ParsePercent(value, out _);
 
     public static double GetEffectiveUsedPercent(ProviderUsage usage)
     {

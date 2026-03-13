@@ -62,6 +62,21 @@ public class CodexAuthService : ICodexAuthService
         return null;
     }
 
+    private static CodexAuth? TryReadAuth(JsonElement root)
+    {
+        var authData = ProviderAuthFileSchemaReader.Read(root, CodexProvider.StaticDefinition.SessionAuthFileSchemas);
+        if (string.IsNullOrWhiteSpace(authData?.AccessToken))
+        {
+            return null;
+        }
+
+        return new CodexAuth
+        {
+            AccessToken = authData.AccessToken,
+            AccountId = authData.AccountId,
+        };
+    }
+
     private IEnumerable<string> GetAuthFileCandidates()
     {
         if (!string.IsNullOrWhiteSpace(this._authFilePath))
@@ -76,21 +91,6 @@ public class CodexAuthService : ICodexAuthService
         {
             yield return path;
         }
-    }
-
-    private static CodexAuth? TryReadAuth(JsonElement root)
-    {
-        var authData = ProviderAuthFileSchemaReader.Read(root, CodexProvider.StaticDefinition.SessionAuthFileSchemas);
-        if (string.IsNullOrWhiteSpace(authData?.AccessToken))
-        {
-            return null;
-        }
-
-        return new CodexAuth
-        {
-            AccessToken = authData.AccessToken,
-            AccountId = authData.AccountId,
-        };
     }
 
     private sealed class CodexAuth
