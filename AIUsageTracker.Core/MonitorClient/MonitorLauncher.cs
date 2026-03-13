@@ -106,65 +106,6 @@ public class MonitorLauncher
             CheckHealthAsync).ConfigureAwait(false);
     }
 
-    private static async Task<bool> CheckHealthAsync(int port)
-    {
-        if (_healthCheckOverride != null)
-        {
-            return await _healthCheckOverride(port).ConfigureAwait(false);
-        }
-
-        try
-        {
-            using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(500) };
-            var response = await client.GetAsync($"http://localhost:{port}/api/health").ConfigureAwait(false);
-            return response.IsSuccessStatusCode;
-        }
-        catch (HttpRequestException ex)
-        {
-            MonitorService.LogDiagnostic($"Health check request failed on port {port}: {ex.Message}");
-            return false;
-        }
-        catch (TaskCanceledException ex)
-        {
-            MonitorService.LogDiagnostic($"Health check timed out on port {port}: {ex.Message}");
-            return false;
-        }
-        catch
-        {
-            MonitorService.LogDiagnostic($"Health check failed on port {port} for an unknown reason.");
-            return false;
-        }
-    }
-
-    private static Task<bool> CheckProcessRunningAsync(int processId)
-    {
-        if (_processRunningOverride != null)
-        {
-            return _processRunningOverride(processId);
-        }
-
-        if (processId <= 0)
-        {
-            return Task.FromResult(false);
-        }
-
-        try
-        {
-            var process = Process.GetProcessById(processId);
-            return Task.FromResult(!process.HasExited);
-        }
-        catch (ArgumentException)
-        {
-            MonitorService.LogDiagnostic($"Monitor process {processId} was not found.");
-            return Task.FromResult(false);
-        }
-        catch
-        {
-            MonitorService.LogDiagnostic($"Failed to query monitor process {processId}.");
-            return Task.FromResult(false);
-        }
-    }
-
     public static async Task<MonitorInfo?> GetAndValidateMonitorInfoAsync()
     {
         var metadataState = await ReadValidatedAgentInfoAsync().ConfigureAwait(false);
@@ -330,6 +271,65 @@ public class MonitorLauncher
         MonitorService.LogDiagnostic($"Waiting for Monitor to start (max {MaxWaitSeconds}s)...");
         var readyState = await WaitForReadyStateAsync(cancellationToken).ConfigureAwait(false);
         return readyState.HasValue;
+    }
+
+    private static async Task<bool> CheckHealthAsync(int port)
+    {
+        if (_healthCheckOverride != null)
+        {
+            return await _healthCheckOverride(port).ConfigureAwait(false);
+        }
+
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(500) };
+            var response = await client.GetAsync($"http://localhost:{port}/api/health").ConfigureAwait(false);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException ex)
+        {
+            MonitorService.LogDiagnostic($"Health check request failed on port {port}: {ex.Message}");
+            return false;
+        }
+        catch (TaskCanceledException ex)
+        {
+            MonitorService.LogDiagnostic($"Health check timed out on port {port}: {ex.Message}");
+            return false;
+        }
+        catch
+        {
+            MonitorService.LogDiagnostic($"Health check failed on port {port} for an unknown reason.");
+            return false;
+        }
+    }
+
+    private static Task<bool> CheckProcessRunningAsync(int processId)
+    {
+        if (_processRunningOverride != null)
+        {
+            return _processRunningOverride(processId);
+        }
+
+        if (processId <= 0)
+        {
+            return Task.FromResult(false);
+        }
+
+        try
+        {
+            var process = Process.GetProcessById(processId);
+            return Task.FromResult(!process.HasExited);
+        }
+        catch (ArgumentException)
+        {
+            MonitorService.LogDiagnostic($"Monitor process {processId} was not found.");
+            return Task.FromResult(false);
+        }
+        catch
+        {
+            MonitorService.LogDiagnostic($"Failed to query monitor process {processId}.");
+            return Task.FromResult(false);
+        }
     }
 
     private static async Task<MonitorLauncherStateResolver.MonitorReadyState?> WaitForReadyStateAsync(CancellationToken cancellationToken)

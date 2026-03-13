@@ -215,18 +215,18 @@ public static class UsageMath
             out percent);
     }
 
+    /// <summary>
+    /// Simple wrapper for ParsePercent when 'isUsed' info is not needed.
+    /// </summary>
+    /// <returns></returns>
+    public static double? ParsePercent(string? value) => ParsePercent(value, out _);
+
     private static bool TryParseFallbackNumber(string value, out double result)
     {
         result = 0;
         var cleanValue = new string(value.Where(c => char.IsDigit(c) || c == '.').ToArray());
         return double.TryParse(cleanValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out result);
     }
-
-    /// <summary>
-    /// Simple wrapper for ParsePercent when 'isUsed' info is not needed.
-    /// </summary>
-    /// <returns></returns>
-    public static double? ParsePercent(string? value) => ParsePercent(value, out _);
 
     public static double GetEffectiveUsedPercent(ProviderUsage usage)
     {
