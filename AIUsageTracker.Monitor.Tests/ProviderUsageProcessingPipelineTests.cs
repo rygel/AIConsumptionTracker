@@ -219,6 +219,40 @@ public class ProviderUsageProcessingPipelineTests
     }
 
     [Fact]
+    public void Process_WhenFamilyMemberMissingAccountName_PropagatesCanonicalAccountIdentity()
+    {
+        var result = this._pipeline.Process(
+            new[]
+            {
+                new ProviderUsage
+                {
+                    ProviderId = "gemini-cli.daily",
+                    ProviderName = "Gemini CLI (Daily)",
+                    RequestsUsed = 10,
+                    RequestsAvailable = 100,
+                    RequestsPercentage = 90,
+                    IsAvailable = true,
+                    AccountName = "alex@example.com",
+                },
+                new ProviderUsage
+                {
+                    ProviderId = "gemini-cli.hourly",
+                    ProviderName = "Gemini CLI (Hourly)",
+                    RequestsUsed = 20,
+                    RequestsAvailable = 100,
+                    RequestsPercentage = 80,
+                    IsAvailable = true,
+                    AccountName = string.Empty,
+                },
+            },
+            new[] { "gemini" },
+            isPrivacyMode: false);
+
+        Assert.Equal(2, result.Usages.Count);
+        Assert.All(result.Usages, usage => Assert.Equal("alex@example.com", usage.AccountName));
+    }
+
+    [Fact]
     public void Process_WhenUsageUsesUnsupportedDottedProviderId_FiltersInactiveEntry()
     {
         var usage = new ProviderUsage

@@ -38,9 +38,7 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
         ArgumentNullException.ThrowIfNull(activeProviderIds);
 
         var accepted = new List<ProviderUsage>();
-        var activeSet = activeProviderIds
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var activeSet = this.BuildActiveProviderSet(activeProviderIds);
 
         var invalidIdentityCount = 0;
         var inactiveProviderFilteredCount = 0;
@@ -53,33 +51,29 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
         foreach (var usage in usages)
         {
             totalProcessedEntries++;
-            var normalized = this.NormalizeUsage(
-                usage,
-                isPrivacyMode,
-                ref normalizedCount,
-                ref privacyRedactedCount);
-            if (string.IsNullOrWhiteSpace(normalized.ProviderId))
+            if (!this.TryNormalizeUsageForProcessing(
+                    usage,
+                    isPrivacyMode,
+                    ref invalidIdentityCount,
+                    ref normalizedCount,
+                    ref privacyRedactedCount,
+                    out var normalized))
             {
-                invalidIdentityCount++;
-                this._logger.LogWarning("Rejecting usage entry with empty provider id.");
                 continue;
             }
 
-            if (!this.IsUsageForAnyActiveProvider(activeSet, normalized.ProviderId))
+            if (!this.PassesAuthorityStage(
+                    activeSet,
+                    normalized.ProviderId,
+                    ref inactiveProviderFilteredCount))
             {
-                inactiveProviderFilteredCount++;
                 continue;
             }
 
-            if (this.TryCreateDetailContractErrorUsage(normalized, out var contractErrorUsage))
-            {
-                normalized = contractErrorUsage;
-                detailContractAdjustedCount++;
-            }
+            normalized = this.ApplyDetailContractStage(normalized, ref detailContractAdjustedCount);
 
-            if (this.IsPlaceholderUnavailableUsage(normalized))
+            if (this.ShouldRejectPlaceholderStage(normalized, ref placeholderFilteredCount))
             {
-                placeholderFilteredCount++;
                 continue;
             }
 
@@ -108,6 +102,77 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             NormalizedCount = normalizedCount,
             PrivacyRedactedCount = privacyRedactedCount,
         };
+    }
+
+    private HashSet<string> BuildActiveProviderSet(IReadOnlyCollection<string> activeProviderIds)
+    {
+        return activeProviderIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private bool TryNormalizeUsageForProcessing(
+        ProviderUsage usage,
+        bool isPrivacyMode,
+        ref int invalidIdentityCount,
+        ref int normalizedCount,
+        ref int privacyRedactedCount,
+        out ProviderUsage normalized)
+    {
+        normalized = this.NormalizeUsage(
+            usage,
+            isPrivacyMode,
+            ref normalizedCount,
+            ref privacyRedactedCount);
+
+        if (!string.IsNullOrWhiteSpace(normalized.ProviderId))
+        {
+            return true;
+        }
+
+        invalidIdentityCount++;
+        this._logger.LogWarning("Rejecting usage entry with empty provider id.");
+        return false;
+    }
+
+    private bool PassesAuthorityStage(
+        HashSet<string> activeProviderIds,
+        string usageProviderId,
+        ref int inactiveProviderFilteredCount)
+    {
+        if (this.IsUsageForAnyActiveProvider(activeProviderIds, usageProviderId))
+        {
+            return true;
+        }
+
+        inactiveProviderFilteredCount++;
+        return false;
+    }
+
+    private ProviderUsage ApplyDetailContractStage(
+        ProviderUsage usage,
+        ref int detailContractAdjustedCount)
+    {
+        if (!this.TryCreateDetailContractErrorUsage(usage, out var contractErrorUsage))
+        {
+            return usage;
+        }
+
+        detailContractAdjustedCount++;
+        return contractErrorUsage;
+    }
+
+    private bool ShouldRejectPlaceholderStage(
+        ProviderUsage usage,
+        ref int placeholderFilteredCount)
+    {
+        if (!this.IsPlaceholderUnavailableUsage(usage))
+        {
+            return false;
+        }
+
+        placeholderFilteredCount++;
+        return true;
     }
 
     public ProviderUsageProcessingTelemetrySnapshot GetSnapshot()
