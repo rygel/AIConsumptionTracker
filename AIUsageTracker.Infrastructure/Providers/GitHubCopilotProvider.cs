@@ -131,17 +131,6 @@ public class GitHubCopilotProvider : ProviderBase
         return new[] { this.BuildUsageResult(state) };
     }
 
-    private string? ResolveToken(ProviderConfig config)
-    {
-        var token = this._authService.GetCurrentToken();
-        if (string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(config.ApiKey))
-        {
-            token = config.ApiKey;
-        }
-
-        return token;
-    }
-
     private static HttpRequestMessage CreateBearerRequest(string url, string token)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -159,6 +148,17 @@ public class GitHubCopilotProvider : ProviderBase
         request.Headers.TryAddWithoutValidation("X-Github-Api-Version", "2025-04-01");
         request.Headers.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("AIUsageTracker", "1.0"));
         return request;
+    }
+
+    private string? ResolveToken(ProviderConfig config)
+    {
+        var token = this._authService.GetCurrentToken();
+        if (string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(config.ApiKey))
+        {
+            token = config.ApiKey;
+        }
+
+        return token;
     }
 
     private async Task PopulateProfileAndCopilotDataAsync(string token, HttpResponseMessage response, CopilotUsageState state)

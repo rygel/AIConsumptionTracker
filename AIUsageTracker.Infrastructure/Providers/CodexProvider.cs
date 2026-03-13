@@ -189,13 +189,6 @@ public class CodexProvider : ProviderBase
         return false;
     }
 
-    private ProviderUsage CreateUnavailableUsageWithIdentity(string message, string? accountIdentity)
-    {
-        var usage = this.CreateUnavailableUsage(message);
-        usage.AccountName = accountIdentity ?? string.Empty;
-        return usage;
-    }
-
     private static string? ResolveKnownAccountIdentity(params string?[] candidates)
     {
         foreach (var candidate in candidates)
@@ -207,6 +200,13 @@ public class CodexProvider : ProviderBase
         }
 
         return null;
+    }
+
+    private ProviderUsage CreateUnavailableUsageWithIdentity(string message, string? accountIdentity)
+    {
+        var usage = this.CreateUnavailableUsage(message);
+        usage.AccountName = accountIdentity ?? string.Empty;
+        return usage;
     }
 
     private List<ProviderUsage> BuildUsages(
