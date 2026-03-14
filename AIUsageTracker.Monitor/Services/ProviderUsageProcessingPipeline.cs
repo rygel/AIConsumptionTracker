@@ -308,7 +308,9 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             ProviderName = providerName,
             RequestsUsed = requestsUsed,
             RequestsAvailable = requestsAvailable,
+#pragma warning disable CS0618 // RequestsPercentage: normalization pipeline sets raw field
             RequestsPercentage = requestsPercentage,
+#pragma warning restore CS0618
             PlanType = usage.PlanType,
             UsageUnit = usage.UsageUnit,
             IsQuotaBased = usage.IsQuotaBased,
@@ -335,9 +337,7 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             !this.StringEquals(providerName, usage.ProviderName) ||
             requestsUsed != usage.RequestsUsed ||
             requestsAvailable != usage.RequestsAvailable ||
-#pragma warning disable CS0618 // RequestsPercentage: normalization pipeline reads/writes raw field
-            requestsPercentage != usage.RequestsPercentage ||
-#pragma warning restore CS0618
+            requestsPercentage != usage.UsedPercent ||
             responseLatencyMs != usage.ResponseLatencyMs ||
             fetchedAt != usage.FetchedAt ||
             !this.StringEquals(description, usage.Description) ||
@@ -356,7 +356,9 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             ProviderName = providerName,
             RequestsUsed = requestsUsed,
             RequestsAvailable = requestsAvailable,
+#pragma warning disable CS0618 // RequestsPercentage: normalization pipeline sets raw field
             RequestsPercentage = requestsPercentage,
+#pragma warning restore CS0618
             PlanType = usage.PlanType,
             UsageUnit = usage.UsageUnit,
             IsQuotaBased = usage.IsQuotaBased,
@@ -443,6 +445,9 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
                 NextResetTime = detail.NextResetTime?.ToUniversalTime(),
                 DetailType = detail.DetailType,
                 QuotaBucketKind = detail.QuotaBucketKind,
+                PercentageValue = detail.PercentageValue,
+                PercentageSemantic = detail.PercentageSemantic,
+                IsStale = detail.IsStale,
             });
         }
 
@@ -506,7 +511,7 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             if (detail.DetailType == ProviderUsageDetailType.QuotaWindow &&
                 detail.QuotaBucketKind == WindowKind.None)
             {
-                validationErrors.Add("QuotaWindow details must have WindowKind set (Primary, Secondary, or Spark)");
+                validationErrors.Add("QuotaWindow details must have WindowKind set (Burst, Rolling, or ModelSpecific)");
             }
         }
 
@@ -521,7 +526,9 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             ProviderName = usage.ProviderName,
             RequestsUsed = 0,
             RequestsAvailable = 0,
+#pragma warning disable CS0618 // RequestsPercentage: normalization pipeline sets raw field
             RequestsPercentage = 0,
+#pragma warning restore CS0618
             PlanType = usage.PlanType,
             UsageUnit = usage.UsageUnit,
             IsQuotaBased = usage.IsQuotaBased,

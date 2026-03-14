@@ -55,6 +55,12 @@ public static class ProviderMetadataCatalog
         return providerId ?? string.Empty;
     }
 
+    public static string ResolveDisplayLabel(ProviderUsage usage)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+        return ResolveDisplayLabel(usage.ProviderId ?? string.Empty, usage.ProviderName);
+    }
+
     public static string ResolveDisplayLabel(string providerId, string? runtimeLabel = null)
     {
         if (TryGet(providerId, out var definition))
@@ -472,7 +478,7 @@ public static class ProviderMetadataCatalog
         return true;
     }
 
-    public static void NormalizeCanonicalConfigurations(List<ProviderConfig> configs)
+    public static void NormalizeCanonicalConfigurations(IList<ProviderConfig> configs)
     {
         NormalizeConfigOwnership(configs);
     }
@@ -502,7 +508,7 @@ public static class ProviderMetadataCatalog
         return definitions;
     }
 
-    private static void NormalizeConfigOwnership(List<ProviderConfig> configs)
+    private static void NormalizeConfigOwnership(IList<ProviderConfig> configs)
     {
         var nonCanonicalConfigs = configs
             .Where(config =>
@@ -528,14 +534,13 @@ public static class ProviderMetadataCatalog
             MergeConfigIntoCanonical(sourceConfig, canonicalConfig);
         }
 
-        configs.RemoveAll(config =>
+        foreach (var config in nonCanonicalConfigs)
         {
-            var ownerProviderId = GetCanonicalConfigOwnerId(config);
-            return !string.Equals(ownerProviderId, config.ProviderId, StringComparison.OrdinalIgnoreCase);
-        });
+            configs.Remove(config);
+        }
     }
 
-    private static ProviderConfig? GetOrCreateConfig(List<ProviderConfig> configs, string providerId)
+    private static ProviderConfig? GetOrCreateConfig(IList<ProviderConfig> configs, string providerId)
     {
         var existingConfig = configs.FirstOrDefault(config =>
             string.Equals(config.ProviderId, providerId, StringComparison.OrdinalIgnoreCase));
