@@ -162,7 +162,7 @@ public class ConfigService : IConfigService
                 {
                     // Update with discovered key
                     existingConfig.ApiKey = newConfig.ApiKey;
-                    existingConfig.AuthSource = newConfig.AuthSource;
+                    existingConfig.AuthSource = newConfig.AuthSource ?? string.Empty;
                     this._logger.LogInformation("Key updated: {ProviderId}", newConfig.ProviderId);
                     updatedWithKeys.Add($"{newConfig.ProviderId} ({newConfig.AuthSource ?? "unknown"})");
                 }

@@ -25,15 +25,16 @@ public class GitHubAuthService : IGitHubAuthService
     private readonly ILogger<GitHubAuthService> _logger;
     private string? _currentToken;
     private bool _cliTokenLookupAttempted;
-
-    /// <inheritdoc/>
-    public bool IsAuthenticated => !string.IsNullOrEmpty(this._currentToken);
+    private string? _cachedUsername;
 
     public GitHubAuthService(HttpClient httpClient, ILogger<GitHubAuthService> logger)
     {
         this._httpClient = httpClient;
         this._logger = logger;
     }
+
+    /// <inheritdoc/>
+    public bool IsAuthenticated => !string.IsNullOrEmpty(this._currentToken);
 
     /// <inheritdoc/>
     public async Task<(string DeviceCode, string UserCode, string VerificationUri, int ExpiresIn, int Interval)> InitiateDeviceFlowAsync()
@@ -173,8 +174,6 @@ public class GitHubAuthService : IGitHubAuthService
         this._currentToken = null;
     }
 
-    private string? _cachedUsername;
-
     /// <inheritdoc/>
     public async Task<string?> GetUsernameAsync()
     {
@@ -226,20 +225,6 @@ public class GitHubAuthService : IGitHubAuthService
         }
 
         this._cliTokenLookupAttempted = false;
-    }
-
-    // Helper class for JSON deserialization
-    private class DeviceFlowResponse
-    {
-        public string Device_code { get; set; } = string.Empty;
-
-        public string User_code { get; set; } = string.Empty;
-
-        public string Verification_uri { get; set; } = string.Empty;
-
-        public int Expires_in { get; set; }
-
-        public int Interval { get; set; }
     }
 
     private static string? TryLoadTokenFromHostsFile()
@@ -426,5 +411,19 @@ public class GitHubAuthService : IGitHubAuthService
             TimeSpan.FromSeconds(1));
 
         return userMatch.Success ? userMatch.Groups["user"].Value.Trim() : null;
+    }
+
+    // Helper class for JSON deserialization
+    private class DeviceFlowResponse
+    {
+        public string Device_code { get; set; } = string.Empty;
+
+        public string User_code { get; set; } = string.Empty;
+
+        public string Verification_uri { get; set; } = string.Empty;
+
+        public int Expires_in { get; set; }
+
+        public int Interval { get; set; }
     }
 }

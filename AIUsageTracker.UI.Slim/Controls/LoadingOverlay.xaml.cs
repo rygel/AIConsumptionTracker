@@ -12,7 +12,7 @@ namespace AIUsageTracker.UI.Slim.Controls;
 /// </summary>
 public partial class LoadingOverlay : UserControl
 {
-    public static readonly DependencyProperty IsVisibleProperty =
+    public static new readonly DependencyProperty IsVisibleProperty =
         DependencyProperty.Register(
             nameof(IsVisible),
             typeof(bool),
@@ -34,7 +34,7 @@ public partial class LoadingOverlay : UserControl
     /// <summary>
     /// Gets or sets a value indicating whether the overlay is visible.
     /// </summary>
-    public bool IsVisible
+    public new bool IsVisible
     {
         get => (bool)this.GetValue(IsVisibleProperty);
         set => this.SetValue(IsVisibleProperty, value);
@@ -66,7 +66,7 @@ public partial class LoadingOverlay : UserControl
         }
     }
 
-    private void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+    private new void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
     {
         // This triggers a re-evaluation of HasMessage binding
     }
