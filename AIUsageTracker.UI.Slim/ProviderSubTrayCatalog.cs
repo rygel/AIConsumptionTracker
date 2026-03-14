@@ -23,7 +23,6 @@ internal static class ProviderSubTrayCatalog
         return usage.Details
             .Where(detail =>
                 !string.IsNullOrWhiteSpace(detail.Name) &&
-                !detail.Name.StartsWith("[", StringComparison.Ordinal) &&
                 IsEligibleDetail(detail))
             .GroupBy(detail => detail.Name, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())

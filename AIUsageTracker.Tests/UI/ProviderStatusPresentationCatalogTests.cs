@@ -58,9 +58,9 @@ public sealed class ProviderStatusPresentationCatalogTests
             AccountName = "user@example.com",
             Details = new List<ProviderUsageDetail>
             {
-                new() { Name = "Gemini 2.5 Pro" },
-                new() { Name = "Gemini 2.5 Flash" },
-                new() { Name = "[internal]" },
+                new() { Name = "Gemini 2.5 Pro", DetailType = ProviderUsageDetailType.Model },
+                new() { Name = "Gemini 2.5 Flash", DetailType = ProviderUsageDetailType.Model },
+                new() { Name = "internal-metric", DetailType = ProviderUsageDetailType.Unknown },
             },
         };
 

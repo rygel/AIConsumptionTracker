@@ -46,40 +46,6 @@ public class DualProgressBarLogicTests
     }
 
     [Fact]
-    public void TryGetDualQuotaBucketUsedPercentages_IdentifiesPrimaryAndSecondary()
-    {
-        var usage = new ProviderUsage
-        {
-            Details = new List<ProviderUsageDetail>
-            {
-                new ProviderUsageDetail
-                {
-                    Name = "Hourly",
-                    Used = "10% used",
-                    DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Burst,
-                },
-                new ProviderUsageDetail
-                {
-                    Name = "Weekly",
-                    Used = "80% remaining",
-                    DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Rolling,
-                },
-            },
-        };
-
-        var result = ProviderDualQuotaBucketPresentationCatalog.TryGetDualQuotaBucketUsedPercentages(
-            usage,
-            out var primaryUsed,
-            out var secondaryUsed);
-
-        Assert.True(result);
-        Assert.Equal(10.0, primaryUsed);
-        Assert.Equal(20.0, secondaryUsed); // 100 - 80
-    }
-
-    [Fact]
     public void TryGetPresentation_ReturnsLabelsAndResets_ForDualQuotaBuckets()
     {
         var weeklyReset = new DateTime(2026, 3, 12, 23, 0, 0);

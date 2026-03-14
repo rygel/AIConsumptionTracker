@@ -121,7 +121,7 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         // Verify 5-hour quota is primary
         var primaryDetail = result.Details?.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Burst);
         Assert.NotNull(primaryDetail);
-        Assert.Equal("5-Hour Limit", primaryDetail!.Name);
+        Assert.Equal("Current Session", primaryDetail!.Name);
         Assert.True(primaryDetail.TryGetPercentageValue(out var percent, out _, out _));
         Assert.Equal(92, percent); // Detail stores actual utilization
     }

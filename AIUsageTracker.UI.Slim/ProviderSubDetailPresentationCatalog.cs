@@ -21,7 +21,7 @@ internal static class ProviderSubDetailPresentationCatalog
             return Array.Empty<ProviderUsageDetail>();
         }
 
-        if (ShouldSuppressSubDetailsForTooltipOnlyProvider(usage.ProviderId))
+        if (ProviderMetadataCatalog.IsTooltipOnlyProvider(usage.ProviderId ?? string.Empty))
         {
             return Array.Empty<ProviderUsageDetail>();
         }
@@ -76,27 +76,14 @@ internal static class ProviderSubDetailPresentationCatalog
                detail.DetailType == ProviderUsageDetailType.RateLimit;
     }
 
-    private static bool ShouldSuppressSubDetailsForTooltipOnlyProvider(string? providerId)
-    {
-        if (string.IsNullOrWhiteSpace(providerId))
-        {
-            return false;
-        }
-
-        return OpenCodeZenProvider.StaticDefinition.HandledProviderIds.Contains(providerId, StringComparer.OrdinalIgnoreCase);
-    }
-
     private static int GetDetailSortOrder(ProviderUsageDetail detail)
     {
-        return (detail.DetailType, detail.QuotaBucketKind) switch
+        return detail.DetailType switch
         {
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Burst) => 0,
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Rolling) => 1,
-            (ProviderUsageDetailType.QuotaWindow, _) => 2,
-            (ProviderUsageDetailType.Model, _) => 3,
-            (ProviderUsageDetailType.RateLimit, _) => 4,
-            (ProviderUsageDetailType.Other, _) => 5,
-            _ => 6,
+            ProviderUsageDetailType.Model => 0,
+            ProviderUsageDetailType.RateLimit => 1,
+            ProviderUsageDetailType.Other => 2,
+            _ => 3,
         };
     }
 }

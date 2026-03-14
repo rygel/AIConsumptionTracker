@@ -37,7 +37,6 @@ internal static class ProviderCardPresentationCatalog
             isMissing,
             isUnknown,
             isError,
-            isAggregateParent,
             isConsoleCheck,
             shouldHaveProgress,
             usedPercent,
@@ -62,20 +61,20 @@ internal static class ProviderCardPresentationCatalog
             isMissing,
             isUnknown,
             isError,
-            isAggregateParent,
             shouldHaveProgress,
             suppressSingleResetTime,
             usedPercent,
             remainingPercent,
             statusText,
-            ProviderCardStatusTone.Secondary);
+            ProviderCardStatusTone.Secondary,
+            hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.PrimaryUsedPercent : (double?)null,
+            hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.SecondaryUsedPercent : (double?)null);
     }
 
     private static bool TryCreateSpecialPresentation(
         bool isMissing,
         bool isUnknown,
         bool isError,
-        bool isAggregateParent,
         bool isConsoleCheck,
         bool shouldHaveProgress,
         double usedPercent,
@@ -89,7 +88,6 @@ internal static class ProviderCardPresentationCatalog
                 isMissing,
                 isUnknown,
                 isError,
-                isAggregateParent,
                 shouldHaveProgress,
                 false,
                 usedPercent,
@@ -111,7 +109,6 @@ internal static class ProviderCardPresentationCatalog
                 isMissing,
                 isUnknown,
                 isError,
-                isAggregateParent,
                 shouldHaveProgress,
                 false,
                 usedPercent,
@@ -127,7 +124,6 @@ internal static class ProviderCardPresentationCatalog
                 isMissing,
                 isUnknown,
                 isError,
-                isAggregateParent,
                 shouldHaveProgress,
                 false,
                 usedPercent,
@@ -156,7 +152,7 @@ internal static class ProviderCardPresentationCatalog
             return (string.IsNullOrWhiteSpace(description) ? "Per-model quotas" : description, false);
         }
 
-        if (ShouldUseTooltipOnlyInfoStatus(usage))
+        if (ProviderMetadataCatalog.IsTooltipOnlyProvider(usage.ProviderId ?? string.Empty))
         {
             return (GetTooltipOnlyCompactStatus(usage, description), false);
         }
@@ -188,12 +184,6 @@ internal static class ProviderCardPresentationCatalog
         return (description, false);
     }
 
-    private static bool ShouldUseTooltipOnlyInfoStatus(ProviderUsage usage)
-    {
-        var providerId = usage.ProviderId ?? string.Empty;
-        return OpenCodeZenProvider.StaticDefinition.HandledProviderIds.Contains(providerId, StringComparer.OrdinalIgnoreCase);
-    }
-
     private static string GetTooltipOnlyCompactStatus(ProviderUsage usage, string description)
     {
         if (!usage.IsAvailable)
@@ -219,25 +209,27 @@ internal static class ProviderCardPresentationCatalog
         bool isMissing,
         bool isUnknown,
         bool isError,
-        bool isAggregateParent,
         bool shouldHaveProgress,
         bool suppressSingleResetTime,
         double usedPercent,
         double remainingPercent,
         string statusText,
-        ProviderCardStatusTone statusTone)
+        ProviderCardStatusTone statusTone,
+        double? dualBucketPrimaryUsed = null,
+        double? dualBucketSecondaryUsed = null)
     {
         return new ProviderCardPresentation(
             IsMissing: isMissing,
             IsUnknown: isUnknown,
             IsError: isError,
-            IsAggregateParent: isAggregateParent,
             ShouldHaveProgress: shouldHaveProgress,
             SuppressSingleResetTime: suppressSingleResetTime,
             UsedPercent: usedPercent,
             RemainingPercent: remainingPercent,
             StatusText: statusText,
-            StatusTone: statusTone);
+            StatusTone: statusTone,
+            DualBucketPrimaryUsed: dualBucketPrimaryUsed,
+            DualBucketSecondaryUsed: dualBucketSecondaryUsed);
     }
 
     private static string BuildDualQuotaBucketStatusText(ProviderDualQuotaBucketPresentation presentation, bool showUsed)

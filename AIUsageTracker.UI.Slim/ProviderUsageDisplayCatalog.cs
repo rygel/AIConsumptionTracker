@@ -14,7 +14,6 @@ internal static class ProviderUsageDisplayCatalog
         var filteredUsages = usages
             .Where(usage => ProviderCapabilityCatalog.ShouldShowInMainWindow(usage.ProviderId ?? string.Empty))
             .ToList();
-        var hasAggregateParent = filteredUsages.Any(IsAggregateParent);
         var collapsedParentProviderIds = ResolveCollapsedParentProviderIds(filteredUsages);
 
         filteredUsages = filteredUsages
@@ -26,10 +25,39 @@ internal static class ProviderUsageDisplayCatalog
             .Select(SelectPreferredUsage)
             .ToList();
 
-        return new ProviderRenderPreparation(filteredUsages, hasAggregateParent);
+        return new ProviderRenderPreparation(filteredUsages);
     }
 
-    public static IReadOnlyList<ProviderUsage> CreateAggregateDetailUsages(ProviderUsage parentUsage)
+    /// <summary>
+    /// Expands providers that use synthetic aggregate child rendering into their individual
+    /// child cards, filtered by the user's hidden item preferences. Non-aggregate providers
+    /// and aggregate providers with no details are yielded as-is.
+    /// </summary>
+    public static IEnumerable<ProviderUsage> ExpandSyntheticAggregateChildren(
+        IEnumerable<ProviderUsage> usages,
+        IReadOnlyCollection<string> hiddenItemIds)
+    {
+        foreach (var usage in usages)
+        {
+            if (!ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty) ||
+                usage.Details?.Any() != true)
+            {
+                yield return usage;
+                continue;
+            }
+
+            var children = CreateAggregateDetailUsages(usage);
+            foreach (var child in children)
+            {
+                if (!hiddenItemIds.Contains(child.ProviderId ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+                {
+                    yield return child;
+                }
+            }
+        }
+    }
+
+    private static IReadOnlyList<ProviderUsage> CreateAggregateDetailUsages(ProviderUsage parentUsage)
     {
         var canonicalProviderId = ProviderCapabilityCatalog.GetCanonicalProviderId(parentUsage.ProviderId ?? string.Empty);
         if (!ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(canonicalProviderId) ||
@@ -49,11 +77,13 @@ internal static class ProviderUsageDisplayCatalog
         var aggregateDetailDisplaySuffix = ProviderMetadataCatalog.GetAggregateDetailDisplaySuffix(canonicalProviderId);
 
         return parentUsage.Details
+            .Where(detail => detail.DetailType == ProviderUsageDetailType.Model)
             .Select(detail => new { Detail = detail, ModelDisplayName = ResolveAggregateDetailDisplayName(detail) })
-            .Where(x => !string.IsNullOrWhiteSpace(x.ModelDisplayName) && !x.ModelDisplayName.StartsWith("[", StringComparison.Ordinal))
+            .Where(x => !string.IsNullOrWhiteSpace(x.ModelDisplayName))
             .GroupBy(x => x.ModelDisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
-            .OrderBy(x => x.ModelDisplayName, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => GetAggregateDetailSortOrder(x.Detail))
+            .ThenBy(x => x.ModelDisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(x => CreateAggregateDetailUsage(
                 canonicalProviderId,
                 aggregateDetailDisplaySuffix,
@@ -90,11 +120,6 @@ internal static class ProviderUsageDisplayCatalog
         };
     }
 
-    private static bool IsAggregateParent(ProviderUsage usage)
-    {
-        return ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty);
-    }
-
     private static ProviderUsage SelectPreferredUsage(IGrouping<string, ProviderUsage> group)
     {
         return group
@@ -119,7 +144,6 @@ internal static class ProviderUsageDisplayCatalog
         if (usage.Details?.Count > 0)
         {
             score += usage.Details.Count;
-            score += usage.Details.Count(detail => detail.DetailType == ProviderUsageDetailType.QuotaWindow) * 50;
         }
 
         if (usage.NextResetTime.HasValue)
@@ -175,5 +199,16 @@ internal static class ProviderUsageDisplayCatalog
         return string.IsNullOrWhiteSpace(detail.ModelName)
             ? string.Empty
             : detail.ModelName.Trim();
+    }
+
+    private static int GetAggregateDetailSortOrder(ProviderUsageDetail detail)
+    {
+        return detail.QuotaBucketKind switch
+        {
+            WindowKind.Burst => 0,
+            WindowKind.ModelSpecific => 1,
+            WindowKind.Rolling => 2,
+            _ => 3,
+        };
     }
 }

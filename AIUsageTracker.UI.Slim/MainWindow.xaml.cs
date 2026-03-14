@@ -1027,7 +1027,7 @@ public partial class MainWindow : Window
             var filteredUsages = renderPreparation.DisplayableUsages;
 
             this.LogDiagnostic(
-                $"[DIAGNOSTIC] Provider render counts: raw={usagesCopy.Count}, filtered={filteredUsages.Count}, hasAggregateParent={renderPreparation.HasAggregateParent}");
+                $"[DIAGNOSTIC] Provider render counts: raw={usagesCopy.Count}, filtered={filteredUsages.Count}");
 
             if (!filteredUsages.Any())
             {
@@ -1036,14 +1036,16 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var orderedUsages = ProviderMainWindowOrderingCatalog.OrderForMainWindow(
-                filteredUsages);
+            var orderedUsages = ProviderMainWindowOrderingCatalog.OrderForMainWindow(filteredUsages);
+            var expandedUsages = ProviderUsageDisplayCatalog.ExpandSyntheticAggregateChildren(
+                orderedUsages,
+                this._preferences.HiddenProviderItemIds);
 
             UIElement? currentHeader = null;
             StackPanel? currentContainer = null;
             bool? currentIsQuota = null;
 
-            foreach (var usage in orderedUsages)
+            foreach (var usage in expandedUsages)
             {
                 // Switch section if type changes
                 if (currentIsQuota != usage.IsQuotaBased)
@@ -1089,25 +1091,8 @@ public partial class MainWindow : Window
                     continue;
                 }
 
-                // Providers can declare synthetic aggregate child rendering in metadata.
-                if (ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty))
-                {
-                    if (usage.Details?.Any() == true)
-                    {
-                        this.AddAggregateDetailCards(usage, currentContainer);
-                    }
-                    else
-                    {
-                        this.AddAggregateDetailUnavailableNotice(usage, currentContainer);
-                    }
-
-                    continue;
-                }
-
-                // Standard provider card
                 this.AddProviderCard(usage, currentContainer);
 
-                // Sub-providers if available
                 if (usage.Details?.Any() == true)
                 {
                     this.AddCollapsibleSubProviders(usage, currentContainer);
@@ -1278,13 +1263,13 @@ public partial class MainWindow : Window
         // Background Progress Bar
         var pGrid = new Grid();
 
-        if (ProviderDualQuotaBucketPresentationCatalog.TryGetDualQuotaBucketUsedPercentages(usage, out var primaryUsed, out var secondaryUsed))
+        if (presentation.HasDualBuckets)
         {
             pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-            var primaryRow = this.CreateProgressLayer(primaryUsed, showUsed, opacity: 0.55);
-            var secondaryRow = this.CreateProgressLayer(secondaryUsed, showUsed, opacity: 0.35);
+            var primaryRow = this.CreateProgressLayer(presentation.DualBucketPrimaryUsed!.Value, showUsed, opacity: 0.55);
+            var secondaryRow = this.CreateProgressLayer(presentation.DualBucketSecondaryUsed!.Value, showUsed, opacity: 0.35);
             Grid.SetRow(primaryRow, 0);
             Grid.SetRow(secondaryRow, 1);
             pGrid.Children.Add(primaryRow);
@@ -1402,28 +1387,6 @@ public partial class MainWindow : Window
             .Select(this.GetRelativeTimeString)
             .ToList();
         return $"({string.Join(" | ", resetParts)})";
-    }
-
-    private void AddAggregateDetailCards(ProviderUsage usage, StackPanel container)
-    {
-        foreach (var modelUsage in ProviderUsageDisplayCatalog.CreateAggregateDetailUsages(usage))
-        {
-            this.AddProviderCard(modelUsage, container);
-        }
-    }
-
-    private void AddAggregateDetailUnavailableNotice(ProviderUsage usage, StackPanel container)
-    {
-        var reason = string.IsNullOrWhiteSpace(usage.Description)
-            ? "Model quota details are missing from the latest monitor refresh."
-            : usage.Description;
-        var providerName = ProviderCapabilityCatalog.GetConfiguredDisplayName(usage.ProviderId ?? string.Empty);
-
-        var message =
-            $"{providerName} model quotas unavailable. " +
-            $"{reason} Use Refresh to request live data from {providerName}.";
-
-        container.Children.Add(this.CreateInfoTextBlock(message));
     }
 
     private ToolTip CreateTopmostAwareToolTip(FrameworkElement placementTarget, object content)

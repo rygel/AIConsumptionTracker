@@ -111,8 +111,8 @@ internal static class ProviderStatusPresentationCatalog
             : "No account detected";
         var secondaryLines = new List<ProviderStatusLine>();
         var antigravitySubmodels = usage?.Details?
+            .Where(d => d.DetailType == ProviderUsageDetailType.Model && !string.IsNullOrWhiteSpace(d.Name))
             .Select(d => d.Name)
-            .Where(name => !string.IsNullOrWhiteSpace(name) && !name.StartsWith("[", StringComparison.Ordinal))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();

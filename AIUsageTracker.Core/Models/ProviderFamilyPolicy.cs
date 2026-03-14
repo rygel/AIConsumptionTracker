@@ -31,7 +31,8 @@ public static class ProviderFamilyPolicy
         ProviderFamilyMode familyMode)
     {
         return visibleDerivedProviderIds.Count > 0 ||
-               familyMode == ProviderFamilyMode.DynamicChildProviderRows;
+               familyMode == ProviderFamilyMode.DynamicChildProviderRows ||
+               familyMode == ProviderFamilyMode.SyntheticAggregateChildren;
     }
 
     public static bool BelongsToProviderFamily(

@@ -7,5 +7,4 @@ using AIUsageTracker.Core.Models;
 namespace AIUsageTracker.UI.Slim;
 
 internal sealed record ProviderRenderPreparation(
-    IReadOnlyList<ProviderUsage> DisplayableUsages,
-    bool HasAggregateParent);
+    IReadOnlyList<ProviderUsage> DisplayableUsages);

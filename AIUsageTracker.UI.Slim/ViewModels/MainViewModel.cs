@@ -203,9 +203,13 @@ public partial class MainViewModel : BaseViewModel
         var filteredUsages = renderPreparation.DisplayableUsages;
         var orderedUsages = ProviderMainWindowOrderingCatalog.OrderForMainWindow(filteredUsages);
 
+        var expandedUsages = ProviderUsageDisplayCatalog.ExpandSyntheticAggregateChildren(
+            orderedUsages,
+            prefs.HiddenProviderItemIds);
+
         // Group by quota-based vs pay-as-you-go
-        var quotaUsages = orderedUsages.Where(u => u.IsQuotaBased).ToList();
-        var paygoUsages = orderedUsages.Where(u => !u.IsQuotaBased).ToList();
+        var quotaUsages = expandedUsages.Where(u => u.IsQuotaBased).ToList();
+        var paygoUsages = expandedUsages.Where(u => !u.IsQuotaBased).ToList();
 
         this.Sections.Clear();
 
@@ -219,18 +223,7 @@ public partial class MainViewModel : BaseViewModel
 
             foreach (var usage in quotaUsages)
             {
-                if (ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty))
-                {
-                    // For aggregate providers, create cards from details
-                    foreach (var modelUsage in ProviderUsageDisplayCatalog.CreateAggregateDetailUsages(usage))
-                    {
-                        quotaSection.Items.Add(new ProviderCardViewModel(modelUsage, prefs, this.IsPrivacyMode));
-                    }
-                }
-                else
-                {
-                    quotaSection.Items.Add(new ProviderCardViewModel(usage, prefs, this.IsPrivacyMode));
-                }
+                quotaSection.Items.Add(new ProviderCardViewModel(usage, prefs, this.IsPrivacyMode));
             }
 
             this.Sections.Add(quotaSection);
@@ -246,17 +239,7 @@ public partial class MainViewModel : BaseViewModel
 
             foreach (var usage in paygoUsages)
             {
-                if (ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty))
-                {
-                    foreach (var modelUsage in ProviderUsageDisplayCatalog.CreateAggregateDetailUsages(usage))
-                    {
-                        paygoSection.Items.Add(new ProviderCardViewModel(modelUsage, prefs, this.IsPrivacyMode));
-                    }
-                }
-                else
-                {
-                    paygoSection.Items.Add(new ProviderCardViewModel(usage, prefs, this.IsPrivacyMode));
-                }
+                paygoSection.Items.Add(new ProviderCardViewModel(usage, prefs, this.IsPrivacyMode));
             }
 
             this.Sections.Add(paygoSection);

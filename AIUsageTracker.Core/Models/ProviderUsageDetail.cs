@@ -2,7 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-using System.ComponentModel;
 using System.Globalization;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -55,73 +54,6 @@ public class ProviderUsageDetail
 
     [JsonPropertyName("window_kind")]
     public WindowKind QuotaBucketKind { get; set; } = WindowKind.None;
-
-    [JsonIgnore]
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("Use QuotaBucketKind.")]
-    public WindowKind WindowKind
-    {
-        get => this.QuotaBucketKind;
-        set => this.QuotaBucketKind = value;
-    }
-
-    /// <summary>
-    /// Returns true if this detail represents a burst (short-term) quota window.
-    /// </summary>
-    public bool IsBurstQuotaBucket()
-    {
-        return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.QuotaBucketKind == WindowKind.Burst;
-    }
-
-    /// <summary>
-    /// Returns true if this detail represents a rolling (long-term) quota window.
-    /// </summary>
-    public bool IsRollingQuotaBucket()
-    {
-        return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.QuotaBucketKind == WindowKind.Rolling;
-    }
-
-    /// <summary>
-    /// Returns true if this detail represents a model-specific quota window.
-    /// </summary>
-    public bool IsModelSpecificQuotaBucket()
-    {
-        return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.QuotaBucketKind == WindowKind.ModelSpecific;
-    }
-
-    [Obsolete("Use IsBurstQuotaBucket() instead.")]
-    public bool IsPrimaryQuotaDetail()
-    {
-        return this.IsBurstQuotaBucket();
-    }
-
-    [Obsolete("Use IsRollingQuotaBucket() instead.")]
-    public bool IsSecondaryQuotaDetail()
-    {
-        return this.IsRollingQuotaBucket();
-    }
-
-    [Obsolete("Use IsBurstQuotaBucket() instead.")]
-    public bool IsPrimaryQuotaBucket()
-    {
-        return this.IsBurstQuotaBucket();
-    }
-
-    [Obsolete("Use IsRollingQuotaBucket() instead.")]
-    public bool IsSecondaryQuotaBucket()
-    {
-        return this.IsRollingQuotaBucket();
-    }
-
-    public bool IsWindowQuotaDetail()
-    {
-        return this.DetailType == ProviderUsageDetailType.QuotaWindow;
-    }
-
-    public bool IsCreditDetail()
-    {
-        return this.DetailType == ProviderUsageDetailType.Credit;
-    }
 
     public bool IsDisplayableSubProviderDetail()
     {

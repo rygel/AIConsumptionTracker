@@ -40,7 +40,6 @@ public sealed class ProviderCardPresentationCatalogTests
 
         var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: false);
 
-        Assert.False(presentation.IsAggregateParent);
         Assert.Equal("100% remaining", presentation.StatusText);
         Assert.True(presentation.ShouldHaveProgress);
     }
