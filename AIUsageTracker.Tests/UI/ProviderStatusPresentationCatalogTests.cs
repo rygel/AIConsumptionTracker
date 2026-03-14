@@ -93,7 +93,7 @@ public sealed class ProviderStatusPresentationCatalogTests
             ProviderInputMode.AutoDetectedStatus,
             isPrivacyMode: false);
 
-        Assert.Equal("Auto-Detected (Unknown)", presentation.PrimaryText);
+        Assert.Equal("Auto-Detected (No account detected)", presentation.PrimaryText);
     }
 
     [Fact]

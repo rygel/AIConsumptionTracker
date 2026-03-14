@@ -335,7 +335,9 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             !this.StringEquals(providerName, usage.ProviderName) ||
             requestsUsed != usage.RequestsUsed ||
             requestsAvailable != usage.RequestsAvailable ||
+#pragma warning disable CS0618 // RequestsPercentage: normalization pipeline reads/writes raw field
             requestsPercentage != usage.RequestsPercentage ||
+#pragma warning restore CS0618
             responseLatencyMs != usage.ResponseLatencyMs ||
             fetchedAt != usage.FetchedAt ||
             !this.StringEquals(description, usage.Description) ||
@@ -407,7 +409,9 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
 
     private double NormalizePercentage(ProviderUsage usage, double requestsUsed, double requestsAvailable)
     {
+#pragma warning disable CS0618 // RequestsPercentage: normalization validates raw field
         var original = usage.RequestsPercentage;
+#pragma warning restore CS0618
         var isFinite = !double.IsNaN(original) && !double.IsInfinity(original);
         var isInRange = original is >= 0 and <= 100;
 
@@ -459,7 +463,9 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
     {
         if (usage.RequestsAvailable != 0 ||
             usage.RequestsUsed != 0 ||
+#pragma warning disable CS0618 // RequestsPercentage: placeholder detection checks raw field
             usage.RequestsPercentage != 0 ||
+#pragma warning restore CS0618
             usage.IsAvailable)
         {
             return false;

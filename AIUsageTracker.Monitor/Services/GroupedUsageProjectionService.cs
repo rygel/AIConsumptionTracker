@@ -59,7 +59,9 @@ public static class GroupedUsageProjectionService
             IsQuotaBased = primary.IsQuotaBased,
             RequestsUsed = primary.RequestsUsed,
             RequestsAvailable = primary.RequestsAvailable,
+#pragma warning disable CS0618 // RequestsPercentage: pass-through of serialized field
             RequestsPercentage = primary.RequestsPercentage,
+#pragma warning restore CS0618
             Description = primary.Description,
             FetchedAt = group.Max(usage => usage.FetchedAt),
             NextResetTime = nextResetTime,
@@ -182,12 +184,8 @@ public static class GroupedUsageProjectionService
             .OrderBy(usage => usage.ProviderName, StringComparer.OrdinalIgnoreCase)
             .Select(usage =>
             {
-                var remainingPercentage = usage.IsQuotaBased
-                    ? UsageMath.ClampPercent(usage.RequestsPercentage)
-                    : UsageMath.ClampPercent(100.0 - usage.RequestsPercentage);
-                var usedPercentage = usage.IsQuotaBased
-                    ? UsageMath.ClampPercent(100.0 - remainingPercentage)
-                    : UsageMath.ClampPercent(usage.RequestsPercentage);
+                var remainingPercentage = UsageMath.ClampPercent(usage.RemainingPercent);
+                var usedPercentage = UsageMath.ClampPercent(usage.UsedPercent);
                 var quotaBuckets = BuildQuotaBucketsFromDetails(usage.Details ?? Array.Empty<ProviderUsageDetail>(), usage.IsQuotaBased);
                 var model = new AgentGroupedModelUsage
                 {

@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // RequestsPercentage: error-factory methods set raw serialized field
+
 using System.Diagnostics;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;

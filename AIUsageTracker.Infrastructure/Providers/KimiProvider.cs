@@ -72,12 +72,12 @@ public class KimiProvider : ProviderBase
                     ex,
                     "Kimi API response could not be deserialized. Unexpected format? Raw: {Raw}",
                     content.Length > 500 ? content[..500] : content);
-                return new[] { this.CreateUnavailableUsage("Unexpected response format", authSource: config.AuthSource) };
+                return new[] { this.CreateUnavailableUsage($"Failed to parse response: {ex.Message}", authSource: config.AuthSource) };
             }
 
             if (data == null || data.Usage == null)
             {
-                return new[] { this.CreateUnavailableUsage("Invalid response format", authSource: config.AuthSource) };
+                return new[] { this.CreateUnavailableUsage("Response missing usage data", authSource: config.AuthSource) };
             }
 
             double used = data.Usage.Used;
@@ -119,7 +119,7 @@ public class KimiProvider : ProviderBase
                     Description = $"{remaining} remaining{(!string.IsNullOrEmpty(data.Usage.ResetTime) ? $" (Resets: {this.FormatResetTime(data.Usage.ResetTime)})" : string.Empty)}",
                     NextResetTime = weeklyResetDt,
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Secondary,
+                    QuotaBucketKind = WindowKind.Rolling,
                     PercentageValue = weeklyUsedPct,
                     PercentageSemantic = PercentageValueSemantic.Used,
                     PercentageDecimalPlaces = 1,
@@ -215,25 +215,25 @@ public class KimiProvider : ProviderBase
     {
         if (string.Equals(unit, "TIME_UNIT_DAY", StringComparison.Ordinal) && duration >= 7)
         {
-            return WindowKind.Secondary;
+            return WindowKind.Rolling;
         }
 
         // Daily limits in some coding plans
         if (string.Equals(unit, "TIME_UNIT_DAY", StringComparison.Ordinal) && duration == 1)
         {
-            return WindowKind.Primary;
+            return WindowKind.Burst;
         }
 
         // 3h or 5h windows should be Primary
         if (string.Equals(unit, "TIME_UNIT_HOUR", StringComparison.Ordinal) && (duration == 3 || duration == 5))
         {
-            return WindowKind.Primary;
+            return WindowKind.Burst;
         }
 
         // Minutes-based windows (like 60m for 1h, 180m for 3h, 300m for 5h)
         if (string.Equals(unit, "TIME_UNIT_MINUTE", StringComparison.Ordinal) && (duration >= 60 && duration <= 300))
         {
-            return WindowKind.Primary;
+            return WindowKind.Burst;
         }
 
         return WindowKind.None;

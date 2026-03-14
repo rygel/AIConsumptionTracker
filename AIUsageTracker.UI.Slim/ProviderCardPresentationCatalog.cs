@@ -18,21 +18,18 @@ internal static class ProviderCardPresentationCatalog
         var description = usage.Description ?? string.Empty;
         var isMissing = description.Contains("not found", StringComparison.OrdinalIgnoreCase);
         var isConsoleCheck = description.Contains("Check Console", StringComparison.OrdinalIgnoreCase);
-        var isError = description.Contains("[Error]", StringComparison.OrdinalIgnoreCase);
+        var isError = description.Contains("[Error]", StringComparison.OrdinalIgnoreCase) ||
+            (!usage.IsAvailable && !isMissing && !string.IsNullOrWhiteSpace(description));
         var isUnknown = description.Contains("unknown", StringComparison.OrdinalIgnoreCase);
         var isAggregateParent = ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(providerId);
         var isStatusOnlyProvider = string.Equals(usage.UsageUnit, "Status", StringComparison.OrdinalIgnoreCase);
         var hasDualQuotaBucketPresentation = ProviderDualQuotaBucketPresentationCatalog.TryGetPresentation(usage, out var dualQuotaBucketPresentation);
-        var remainingPercent = usage.IsQuotaBased
-            ? usage.RequestsPercentage
-            : Math.Max(0, 100 - usage.RequestsPercentage);
-        var usedPercent = usage.IsQuotaBased
-            ? Math.Max(0, 100 - usage.RequestsPercentage)
-            : usage.RequestsPercentage;
+        var remainingPercent = usage.RemainingPercent;
+        var usedPercent = usage.UsedPercent;
         var shouldHaveProgress = usage.IsAvailable &&
             !isUnknown &&
             !isAggregateParent &&
-            (usage.RequestsPercentage > 0 || usage.IsQuotaBased) &&
+            (usage.UsedPercent > 0 || usage.IsQuotaBased) &&
             !isMissing &&
             !isError;
 
@@ -45,6 +42,7 @@ internal static class ProviderCardPresentationCatalog
             shouldHaveProgress,
             usedPercent,
             remainingPercent,
+            description,
             out var specialPresentation))
         {
             return specialPresentation;
@@ -82,6 +80,7 @@ internal static class ProviderCardPresentationCatalog
         bool shouldHaveProgress,
         double usedPercent,
         double remainingPercent,
+        string description,
         out ProviderCardPresentation presentation)
     {
         if (isMissing)
@@ -95,13 +94,19 @@ internal static class ProviderCardPresentationCatalog
                 false,
                 usedPercent,
                 remainingPercent,
-                "Key Missing",
+                description,
                 ProviderCardStatusTone.Missing);
             return true;
         }
 
         if (isError)
         {
+            var errorText = description.Replace("[Error]", string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(errorText))
+            {
+                errorText = description;
+            }
+
             presentation = CreatePresentation(
                 isMissing,
                 isUnknown,
@@ -111,7 +116,7 @@ internal static class ProviderCardPresentationCatalog
                 false,
                 usedPercent,
                 remainingPercent,
-                "Error",
+                errorText,
                 ProviderCardStatusTone.Error);
             return true;
         }
@@ -127,7 +132,7 @@ internal static class ProviderCardPresentationCatalog
                 false,
                 usedPercent,
                 remainingPercent,
-                "Check Console",
+                description,
                 ProviderCardStatusTone.Warning);
             return true;
         }
@@ -172,7 +177,7 @@ internal static class ProviderCardPresentationCatalog
 
         if (!isUnknown && !isStatusOnlyProvider && usage.PlanType == PlanType.Usage && usage.RequestsAvailable > 0)
         {
-            var clampedUsedPercent = UsageMath.ClampPercent(usage.RequestsPercentage);
+            var clampedUsedPercent = UsageMath.ClampPercent(usage.UsedPercent);
             return (
                 showUsed
                     ? $"{clampedUsedPercent:F0}% used"
@@ -263,7 +268,7 @@ internal static class ProviderCardPresentationCatalog
 
     private static string GetQuotaPercentStatusText(ProviderUsage usage, bool showUsed)
     {
-        var clampedRemainingPercent = UsageMath.ClampPercent(usage.RequestsPercentage);
+        var clampedRemainingPercent = UsageMath.ClampPercent(usage.RemainingPercent);
         return showUsed
             ? $"{100.0 - clampedRemainingPercent:F0}% used"
             : $"{clampedRemainingPercent:F0}% remaining";

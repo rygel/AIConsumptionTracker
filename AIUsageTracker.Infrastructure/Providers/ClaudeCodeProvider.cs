@@ -178,7 +178,7 @@ public class ClaudeCodeProvider : ProviderBase
             {
                 Name = "5-Hour Limit",
                 DetailType = ProviderUsageDetailType.QuotaWindow,
-                QuotaBucketKind = WindowKind.Primary,
+                QuotaBucketKind = WindowKind.Burst,
                 NextResetTime = response.FiveHour.ResetsAt,
             };
             fiveHourDetail.SetPercentageValue(
@@ -195,7 +195,7 @@ public class ClaudeCodeProvider : ProviderBase
             {
                 Name = "7-Day Limit",
                 DetailType = ProviderUsageDetailType.QuotaWindow,
-                QuotaBucketKind = WindowKind.Secondary,
+                QuotaBucketKind = WindowKind.Rolling,
                 NextResetTime = response.SevenDay.ResetsAt,
             };
             sevenDayDetail.SetPercentageValue(
@@ -325,15 +325,15 @@ public class ClaudeCodeProvider : ProviderBase
 
                 // Build detailed tooltip info
                 var tooltipDetails = new List<ProviderUsageDetail>();
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Rate Limit Tier", Used = rateLimitHeaders.GetTierName(), DetailType = ProviderUsageDetailType.Other, QuotaBucketKind = WindowKind.None });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Limit", Used = rateLimitHeaders.RequestsLimit.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.Other, QuotaBucketKind = WindowKind.None });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Remaining", Used = rateLimitHeaders.RequestsRemaining.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.Other, QuotaBucketKind = WindowKind.None });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Limit", Used = rateLimitHeaders.InputTokensLimit.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.Other, QuotaBucketKind = WindowKind.None });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Remaining", Used = rateLimitHeaders.InputTokensRemaining.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.Other, QuotaBucketKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Rate Limit Tier", Used = rateLimitHeaders.GetTierName(), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Limit", Used = rateLimitHeaders.RequestsLimit.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Remaining", Used = rateLimitHeaders.RequestsRemaining.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Limit", Used = rateLimitHeaders.InputTokensLimit.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Remaining", Used = rateLimitHeaders.InputTokensRemaining.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
                 tooltipDetails.Add(new ProviderUsageDetail
                 {
                     Name = "Current RPM Usage",
-                    DetailType = ProviderUsageDetailType.Other,
+                    DetailType = ProviderUsageDetailType.RateLimit,
                     QuotaBucketKind = WindowKind.None,
                     PercentageValue = usagePercentage,
                     PercentageSemantic = PercentageValueSemantic.Used,

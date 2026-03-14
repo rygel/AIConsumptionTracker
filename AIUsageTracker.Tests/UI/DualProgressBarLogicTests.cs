@@ -57,14 +57,14 @@ public class DualProgressBarLogicTests
                     Name = "Hourly",
                     Used = "10% used",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Primary,
+                    QuotaBucketKind = WindowKind.Burst,
                 },
                 new ProviderUsageDetail
                 {
                     Name = "Weekly",
                     Used = "80% remaining",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Secondary,
+                    QuotaBucketKind = WindowKind.Rolling,
                 },
             },
         };
@@ -93,7 +93,7 @@ public class DualProgressBarLogicTests
                     Name = "5-hour quota",
                     Used = "96% remaining (4% used)",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Primary,
+                    QuotaBucketKind = WindowKind.Burst,
                     NextResetTime = hourlyReset,
                 },
                 new ProviderUsageDetail
@@ -101,7 +101,7 @@ public class DualProgressBarLogicTests
                     Name = "Weekly quota",
                     Used = "49% remaining (51% used)",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Secondary,
+                    QuotaBucketKind = WindowKind.Rolling,
                     NextResetTime = weeklyReset,
                 },
             },

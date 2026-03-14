@@ -62,7 +62,9 @@ public abstract class ProviderBase : IProviderService
             UsageUnit = usageUnit ?? this.GetDefaultUsageUnit(),
             AuthSource = authSource ?? string.Empty,
             HttpStatus = httpStatus,
+#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
             RequestsPercentage = 0,
+#pragma warning restore CS0618
             RequestsUsed = 0,
             RequestsAvailable = 0,
         };

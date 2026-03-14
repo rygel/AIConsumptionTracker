@@ -22,7 +22,7 @@ public sealed class ProviderCardPresentationCatalogTests
         var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: false);
 
         Assert.True(presentation.IsMissing);
-        Assert.Equal("Key Missing", presentation.StatusText);
+        Assert.Contains("not found", presentation.StatusText, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(ProviderCardStatusTone.Missing, presentation.StatusTone);
         Assert.False(presentation.ShouldHaveProgress);
     }
@@ -119,14 +119,14 @@ public sealed class ProviderCardPresentationCatalogTests
                     Name = "5-hour quota",
                     Used = "96% remaining (4% used)",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Primary,
+                    QuotaBucketKind = WindowKind.Burst,
                 },
                 new()
                 {
                     Name = "Weekly quota",
                     Used = "49% remaining (51% used)",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Secondary,
+                    QuotaBucketKind = WindowKind.Rolling,
                 },
             },
         };

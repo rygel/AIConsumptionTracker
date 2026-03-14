@@ -12,16 +12,16 @@ internal static class ProviderTooltipPresentationCatalog
 {
     public static string? BuildContent(ProviderUsage usage, string friendlyName)
     {
+        var tooltipBuilder = new StringBuilder();
+        tooltipBuilder.AppendLine(friendlyName);
+        tooltipBuilder.AppendLine($"Status: {(usage.IsAvailable ? "Active" : "Inactive")}");
+        if (!string.IsNullOrEmpty(usage.Description))
+        {
+            tooltipBuilder.AppendLine($"Description: {usage.Description}");
+        }
+
         if (usage.Details?.Any() == true)
         {
-            var tooltipBuilder = new StringBuilder();
-            tooltipBuilder.AppendLine(friendlyName);
-            tooltipBuilder.AppendLine($"Status: {(usage.IsAvailable ? "Active" : "Inactive")}");
-            if (!string.IsNullOrEmpty(usage.Description))
-            {
-                tooltipBuilder.AppendLine($"Description: {usage.Description}");
-            }
-
             tooltipBuilder.AppendLine();
             tooltipBuilder.AppendLine("Rate Limits:");
             foreach (var detail in usage.Details
@@ -36,16 +36,16 @@ internal static class ProviderTooltipPresentationCatalog
 
                 tooltipBuilder.AppendLine($"  {GetDetailDisplayName(detail)}: {detailValue}");
             }
-
-            return tooltipBuilder.ToString().Trim();
         }
 
         if (!string.IsNullOrEmpty(usage.AuthSource))
         {
-            return $"{friendlyName}\nSource: {usage.AuthSource}";
+            tooltipBuilder.AppendLine();
+            tooltipBuilder.AppendLine($"Source: {usage.AuthSource}");
         }
 
-        return null;
+        var result = tooltipBuilder.ToString().Trim();
+        return string.IsNullOrWhiteSpace(result) ? null : result;
     }
 
     private static string GetDetailDisplayName(ProviderUsageDetail detail)
@@ -62,9 +62,9 @@ internal static class ProviderTooltipPresentationCatalog
     {
         return (detail.DetailType, detail.QuotaBucketKind) switch
         {
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Primary) => 0,
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Secondary) => 1,
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Spark) => 2,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Burst) => 0,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Rolling) => 1,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.ModelSpecific) => 2,
             (ProviderUsageDetailType.QuotaWindow, _) => 3,
             (ProviderUsageDetailType.Model, _) => 3,
             (ProviderUsageDetailType.Credit, _) => 4,

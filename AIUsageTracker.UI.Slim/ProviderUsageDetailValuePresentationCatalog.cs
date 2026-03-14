@@ -21,7 +21,7 @@ internal static class ProviderUsageDetailValuePresentationCatalog
             return detail.Used;
         }
 
-        return string.IsNullOrWhiteSpace(detail.Description) ? "Unknown" : detail.Description;
+        return string.IsNullOrWhiteSpace(detail.Description) ? "No data" : detail.Description;
     }
 
     public static string GetDisplayText(

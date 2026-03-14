@@ -72,7 +72,8 @@ internal static class ProviderSubDetailPresentationCatalog
         }
 
         return detail.DetailType == ProviderUsageDetailType.Model ||
-               detail.DetailType == ProviderUsageDetailType.Other;
+               detail.DetailType == ProviderUsageDetailType.Other ||
+               detail.DetailType == ProviderUsageDetailType.RateLimit;
     }
 
     private static bool ShouldSuppressSubDetailsForTooltipOnlyProvider(string? providerId)
@@ -89,12 +90,13 @@ internal static class ProviderSubDetailPresentationCatalog
     {
         return (detail.DetailType, detail.QuotaBucketKind) switch
         {
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Primary) => 0,
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Secondary) => 1,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Burst) => 0,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Rolling) => 1,
             (ProviderUsageDetailType.QuotaWindow, _) => 2,
             (ProviderUsageDetailType.Model, _) => 3,
-            (ProviderUsageDetailType.Other, _) => 4,
-            _ => 5,
+            (ProviderUsageDetailType.RateLimit, _) => 4,
+            (ProviderUsageDetailType.Other, _) => 5,
+            _ => 6,
         };
     }
 }

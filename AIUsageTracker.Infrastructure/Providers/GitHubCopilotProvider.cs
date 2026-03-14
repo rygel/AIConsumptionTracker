@@ -423,7 +423,7 @@ public class GitHubCopilotProvider : ProviderBase
                         Name = "Weekly Quota",
                         Description = $"{normalizedRemaining:F0} / {entitlement:F0} remaining",
                         DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Secondary,
+                        QuotaBucketKind = WindowKind.Rolling,
                         NextResetTime = state.ResetTime,
                         PercentageValue = usedPercent,
                         PercentageSemantic = PercentageValueSemantic.Used,
@@ -449,7 +449,7 @@ public class GitHubCopilotProvider : ProviderBase
                         Name = "5-hour Window",
                         Description = $"{normalizedRemaining:F0} / {uEnt:F0} remaining",
                         DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Primary,
+                        QuotaBucketKind = WindowKind.Burst,
                         PercentageValue = uUsedPercent,
                         PercentageSemantic = PercentageValueSemantic.Used,
                     });

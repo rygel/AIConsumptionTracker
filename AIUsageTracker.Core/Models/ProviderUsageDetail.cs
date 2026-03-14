@@ -50,6 +50,9 @@ public class ProviderUsageDetail
 
     public ProviderUsageDetailType DetailType { get; set; } = ProviderUsageDetailType.Unknown;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsStale { get; set; }
+
     [JsonPropertyName("window_kind")]
     public WindowKind QuotaBucketKind { get; set; } = WindowKind.None;
 
@@ -62,24 +65,52 @@ public class ProviderUsageDetail
         set => this.QuotaBucketKind = value;
     }
 
+    /// <summary>
+    /// Returns true if this detail represents a burst (short-term) quota window.
+    /// </summary>
+    public bool IsBurstQuotaBucket()
+    {
+        return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.QuotaBucketKind == WindowKind.Burst;
+    }
+
+    /// <summary>
+    /// Returns true if this detail represents a rolling (long-term) quota window.
+    /// </summary>
+    public bool IsRollingQuotaBucket()
+    {
+        return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.QuotaBucketKind == WindowKind.Rolling;
+    }
+
+    /// <summary>
+    /// Returns true if this detail represents a model-specific quota window.
+    /// </summary>
+    public bool IsModelSpecificQuotaBucket()
+    {
+        return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.QuotaBucketKind == WindowKind.ModelSpecific;
+    }
+
+    [Obsolete("Use IsBurstQuotaBucket() instead.")]
     public bool IsPrimaryQuotaDetail()
     {
-        return this.IsPrimaryQuotaBucket();
+        return this.IsBurstQuotaBucket();
     }
 
+    [Obsolete("Use IsRollingQuotaBucket() instead.")]
     public bool IsSecondaryQuotaDetail()
     {
-        return this.IsSecondaryQuotaBucket();
+        return this.IsRollingQuotaBucket();
     }
 
+    [Obsolete("Use IsBurstQuotaBucket() instead.")]
     public bool IsPrimaryQuotaBucket()
     {
-        return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.QuotaBucketKind == WindowKind.Primary;
+        return this.IsBurstQuotaBucket();
     }
 
+    [Obsolete("Use IsRollingQuotaBucket() instead.")]
     public bool IsSecondaryQuotaBucket()
     {
-        return this.DetailType == ProviderUsageDetailType.QuotaWindow && this.QuotaBucketKind == WindowKind.Secondary;
+        return this.IsRollingQuotaBucket();
     }
 
     public bool IsWindowQuotaDetail()
@@ -94,7 +125,7 @@ public class ProviderUsageDetail
 
     public bool IsDisplayableSubProviderDetail()
     {
-        return this.DetailType == ProviderUsageDetailType.Model || this.DetailType == ProviderUsageDetailType.Other;
+        return this.DetailType == ProviderUsageDetailType.Model || this.DetailType == ProviderUsageDetailType.Other || this.DetailType == ProviderUsageDetailType.RateLimit;
     }
 
     public void SetPercentageValue(double percentage, PercentageValueSemantic semantic, int decimalPlaces = 0, string? compatibilityText = null)

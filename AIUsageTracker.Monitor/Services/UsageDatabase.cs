@@ -190,7 +190,9 @@ public class UsageDatabase : IUsageDatabase
                 ProviderId = u.ProviderId,
                 RequestsUsed = u.RequestsUsed,
                 RequestsAvailable = u.RequestsAvailable,
+#pragma warning disable CS0618 // RequestsPercentage: pass-through for database serialization
                 RequestsPercentage = u.RequestsPercentage,
+#pragma warning restore CS0618
                 IsAvailable = u.IsAvailable ? 1 : 0,
                 StatusMessage = u.Description ?? string.Empty,
                 NextResetTime = u.NextResetTime?.ToString("O"),
@@ -422,6 +424,7 @@ public class UsageDatabase : IUsageDatabase
             NextResetTime = source.NextResetTime,
             DetailType = source.DetailType,
             QuotaBucketKind = source.QuotaBucketKind,
+            IsStale = source.IsStale,
         };
     }
 
@@ -560,6 +563,7 @@ public class UsageDatabase : IUsageDatabase
                 }
 
                 var staleDetail = CloneDetail(snapshot.Detail);
+                staleDetail.IsStale = true;
                 staleDetail.Description = AppendStaleSuffix(staleDetail.Description, snapshot.FetchedAtUtc);
                 currentDetails.Add(staleDetail);
                 currentKeys.Add(key);

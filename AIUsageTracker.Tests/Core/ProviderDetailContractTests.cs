@@ -33,9 +33,9 @@ public class ProviderDetailContractTests
         var validKinds = new[]
         {
             WindowKind.None,
-            WindowKind.Primary,
-            WindowKind.Secondary,
-            WindowKind.Spark,
+            WindowKind.Burst,
+            WindowKind.Rolling,
+            WindowKind.ModelSpecific,
         };
 
         foreach (var kind in validKinds)
@@ -51,7 +51,7 @@ public class ProviderDetailContractTests
         {
             Name = "5-hour quota",
             DetailType = ProviderUsageDetailType.QuotaWindow,
-            QuotaBucketKind = WindowKind.Primary,
+            QuotaBucketKind = WindowKind.Burst,
         };
 
         Assert.True(detail.QuotaBucketKind != WindowKind.None, "QuotaWindow details must have WindowKind set");
@@ -87,9 +87,9 @@ public class ProviderDetailContractTests
 
     [Theory]
     [InlineData(ProviderUsageDetailType.QuotaWindow, WindowKind.None, false)]
-    [InlineData(ProviderUsageDetailType.QuotaWindow, WindowKind.Primary, true)]
-    [InlineData(ProviderUsageDetailType.QuotaWindow, WindowKind.Secondary, true)]
-    [InlineData(ProviderUsageDetailType.QuotaWindow, WindowKind.Spark, true)]
+    [InlineData(ProviderUsageDetailType.QuotaWindow, WindowKind.Burst, true)]
+    [InlineData(ProviderUsageDetailType.QuotaWindow, WindowKind.Rolling, true)]
+    [InlineData(ProviderUsageDetailType.QuotaWindow, WindowKind.ModelSpecific, true)]
     [InlineData(ProviderUsageDetailType.Credit, WindowKind.None, true)]
     [InlineData(ProviderUsageDetailType.Model, WindowKind.None, true)]
     [InlineData(ProviderUsageDetailType.Other, WindowKind.None, true)]

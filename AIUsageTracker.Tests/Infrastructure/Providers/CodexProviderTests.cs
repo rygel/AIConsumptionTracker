@@ -124,8 +124,8 @@ public class CodexProviderTests : HttpProviderTestBase<CodexProvider>
             Assert.Equal("user@example.com", usage.AccountName);
             Assert.Equal(75.0, usage.RequestsPercentage);
             Assert.NotNull(usage.Details);
-            Assert.Contains(usage.Details, d => d.QuotaBucketKind == WindowKind.Primary);
-            Assert.Contains(usage.Details, d => d.QuotaBucketKind == WindowKind.Secondary);
+            Assert.Contains(usage.Details, d => d.QuotaBucketKind == WindowKind.Burst);
+            Assert.Contains(usage.Details, d => d.QuotaBucketKind == WindowKind.Rolling);
         }
         finally
         {

@@ -143,7 +143,7 @@ public sealed class ProviderUsageDisplayCatalogTests
                         Name = "Requests / Minute",
                         Used = "67.9%",
                         DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Primary,
+                        QuotaBucketKind = WindowKind.Burst,
                         NextResetTime = new DateTime(2026, 3, 12, 14, 38, 28),
                     },
                     new()
@@ -151,7 +151,7 @@ public sealed class ProviderUsageDisplayCatalogTests
                         Name = "Requests / Day",
                         Used = "97.5%",
                         DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Secondary,
+                        QuotaBucketKind = WindowKind.Rolling,
                         NextResetTime = new DateTime(2026, 3, 12, 14, 35, 2),
                     },
                     new()
@@ -159,7 +159,7 @@ public sealed class ProviderUsageDisplayCatalogTests
                         Name = "Requests / Hour",
                         Used = "88.0%",
                         DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Spark,
+                        QuotaBucketKind = WindowKind.ModelSpecific,
                         NextResetTime = new DateTime(2026, 3, 12, 15, 10, 0),
                     },
                 },
@@ -192,14 +192,14 @@ public sealed class ProviderUsageDisplayCatalogTests
                         Name = "Requests / Minute",
                         Used = "67.9%",
                         DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Primary,
+                        QuotaBucketKind = WindowKind.Burst,
                     },
                     new()
                     {
                         Name = "Requests / Hour",
                         Used = "88.0%",
                         DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Secondary,
+                        QuotaBucketKind = WindowKind.Rolling,
                     },
                     new()
                     {
@@ -266,21 +266,21 @@ public sealed class ProviderUsageDisplayCatalogTests
                     Name = "Requests / Minute",
                     Used = "67.9%",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Primary,
+                    QuotaBucketKind = WindowKind.Burst,
                 },
                 new()
                 {
                     Name = "Requests / Hour",
                     Used = "88.0%",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Secondary,
+                    QuotaBucketKind = WindowKind.Rolling,
                 },
                 new()
                 {
                     Name = "Requests / Day",
                     Used = "97.5%",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Spark,
+                    QuotaBucketKind = WindowKind.ModelSpecific,
                 },
             },
         };

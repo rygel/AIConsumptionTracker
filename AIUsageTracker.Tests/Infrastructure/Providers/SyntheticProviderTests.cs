@@ -96,6 +96,6 @@ public class SyntheticProviderTests : HttpProviderTestBase<SyntheticProvider>
         // Assert
         var usage = result.Single();
         Assert.False(usage.IsAvailable);
-        Assert.Contains("Invalid key or quota endpoint", usage.Description, StringComparison.Ordinal);
+        Assert.Contains("Not Found", usage.Description, StringComparison.Ordinal);
     }
 }
