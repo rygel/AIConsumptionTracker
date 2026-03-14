@@ -339,7 +339,7 @@ public class UsageDatabase : IUsageDatabase
             {
                 try
                 {
-                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(NormalizeLegacyDetailsJson(usage.DetailsJson!));
                 }
                 catch (JsonException ex)
                 {
@@ -428,6 +428,21 @@ public class UsageDatabase : IUsageDatabase
         };
     }
 
+    /// <summary>
+    /// Normalizes legacy "WindowKind" JSON key to "window_kind" before deserialization.
+    /// Old database records used PascalCase property names; the current model uses snake_case via JsonPropertyName.
+    /// </summary>
+    private static string NormalizeLegacyDetailsJson(string json)
+    {
+        // Fast path: if the JSON doesn't contain the old key, no work needed
+        if (!json.Contains("\"WindowKind\"", StringComparison.Ordinal))
+        {
+            return json;
+        }
+
+        return json.Replace("\"WindowKind\"", "\"window_kind\"");
+    }
+
     private static string AppendStaleSuffix(string description, DateTime lastSeenUtc)
     {
         var baseDescription = description ?? string.Empty;
@@ -485,7 +500,7 @@ public class UsageDatabase : IUsageDatabase
             List<ProviderUsageDetail>? parsedDetails;
             try
             {
-                parsedDetails = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(row.DetailsJson);
+                parsedDetails = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(NormalizeLegacyDetailsJson(row.DetailsJson));
             }
             catch (JsonException ex)
             {
@@ -611,7 +626,7 @@ public class UsageDatabase : IUsageDatabase
             {
                 try
                 {
-                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(NormalizeLegacyDetailsJson(usage.DetailsJson!));
                 }
                 catch (JsonException ex)
                 {
@@ -663,7 +678,7 @@ public class UsageDatabase : IUsageDatabase
             {
                 try
                 {
-                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(NormalizeLegacyDetailsJson(usage.DetailsJson!));
                 }
                 catch (JsonException ex)
                 {
@@ -721,7 +736,7 @@ public class UsageDatabase : IUsageDatabase
             {
                 try
                 {
-                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(NormalizeLegacyDetailsJson(usage.DetailsJson!));
                 }
                 catch (JsonException ex)
                 {
