@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
+
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
