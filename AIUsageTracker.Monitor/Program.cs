@@ -40,7 +40,7 @@ public class Program
             if (resolvedLogPath.UsedFallback)
             {
                 await Console.Error.WriteLineAsync(
-                    $"Preferred monitor log directory '{resolvedLogPath.PreferredDirectory}' unavailable. Using fallback '{resolvedLogPath.LogDirectory}'.");
+                    $"Preferred monitor log directory '{resolvedLogPath.PreferredDirectory}' unavailable. Using fallback '{resolvedLogPath.LogDirectory}'.").ConfigureAwait(false);
             }
 
             loggerFactory = LoggerFactory.Create(builder =>
@@ -278,7 +278,7 @@ public class Program
             }
             else
             {
-                await Console.Error.WriteLineAsync($"Monitor startup failed before logger initialization: {ex}");
+                await Console.Error.WriteLineAsync($"Monitor startup failed before logger initialization: {ex}").ConfigureAwait(false);
             }
 
             throw;

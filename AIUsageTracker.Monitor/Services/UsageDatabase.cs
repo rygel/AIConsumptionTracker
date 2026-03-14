@@ -2,6 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Globalization;
 using System.Text.Json;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
@@ -349,7 +350,7 @@ public class UsageDatabase : IUsageDatabase
 
             foreach (var usage in results)
             {
-                if (ProviderMetadataCatalog.TryGetUsageSemantics(usage.ProviderId, out var planType, out var isQuotaBased))
+                if (ProviderMetadataCatalog.TryGetUsageSemantics(usage.ProviderId ?? string.Empty, out var planType, out var isQuotaBased))
                 {
                     usage.PlanType = planType;
                     usage.IsQuotaBased = isQuotaBased;
@@ -495,7 +496,7 @@ public class UsageDatabase : IUsageDatabase
                 continue;
             }
 
-            if (!DateTime.TryParse(row.FetchedAt, out var parsedFetchedAt))
+            if (!DateTime.TryParse(row.FetchedAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedFetchedAt))
             {
                 continue;
             }

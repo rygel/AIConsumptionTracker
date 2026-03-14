@@ -135,7 +135,7 @@ public class OpenCodeZenProvider : ProviderBase
             Description = description,
             IsQuotaBased = false,
             PlanType = PlanType.Usage,
-            AuthSource = authSource,
+            AuthSource = authSource ?? string.Empty,
             RawJson = rawJson,
             HttpStatus = httpStatus,
         };

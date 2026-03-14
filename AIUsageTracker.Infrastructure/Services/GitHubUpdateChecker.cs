@@ -18,6 +18,18 @@ public class GitHubUpdateChecker : IUpdateCheckerService
     private readonly HttpClient _httpClient;
     private readonly UpdateChannel _channel;
 
+    public GitHubUpdateChecker(ILogger<GitHubUpdateChecker> logger, HttpClient httpClient, UpdateChannel channel = UpdateChannel.Stable)
+    {
+        this._logger = logger;
+        this._httpClient = httpClient;
+        this._channel = channel;
+
+        if (!this._httpClient.DefaultRequestHeaders.UserAgent.Any())
+        {
+            this._httpClient.DefaultRequestHeaders.Add("User-Agent", "AIUsageTracker");
+        }
+    }
+
     private string GetAppcastUrlForCurrentArchitecture()
     {
         var currentArch = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString().ToLower(System.Globalization.CultureInfo.InvariantCulture);
@@ -41,18 +53,6 @@ public class GitHubUpdateChecker : IUpdateCheckerService
         var url = ReleaseUrlCatalog.GetAppcastUrl(targetArch, this._channel == UpdateChannel.Beta);
         this._logger.LogDebug("Using appcast for architecture {Architecture} ({Channel}): {Url}", targetArch, this._channel, url);
         return url;
-    }
-
-    public GitHubUpdateChecker(ILogger<GitHubUpdateChecker> logger, HttpClient httpClient, UpdateChannel channel = UpdateChannel.Stable)
-    {
-        this._logger = logger;
-        this._httpClient = httpClient;
-        this._channel = channel;
-
-        if (!this._httpClient.DefaultRequestHeaders.UserAgent.Any())
-        {
-            this._httpClient.DefaultRequestHeaders.Add("User-Agent", "AIUsageTracker");
-        }
     }
 
     public async Task<AIUsageTracker.Core.Interfaces.UpdateInfo?> CheckForUpdatesAsync()

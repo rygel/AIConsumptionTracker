@@ -2,6 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Globalization;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
 
@@ -84,10 +85,10 @@ public class ImportService
                     {
                         var usage = new ProviderUsage
                         {
-                            FetchedAt = DateTime.Parse(values[0]),
+                            FetchedAt = DateTime.Parse(values[0], CultureInfo.InvariantCulture),
                             ProviderId = values[1].Trim(),
                             ProviderName = values[1].Trim(),
-                            RequestsUsed = double.TryParse(values[3], out var used) ? used : 0,
+                            RequestsUsed = double.TryParse(values[3], NumberStyles.None, CultureInfo.InvariantCulture, out var used) ? used : 0,
                             UsageUnit = values[5].Trim(),
                         };
 
