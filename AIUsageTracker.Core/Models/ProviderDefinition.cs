@@ -44,7 +44,9 @@ public sealed class ProviderDefinition
         IEnumerable<string>? authIdentityCandidatePathTemplates = null,
         IEnumerable<ProviderAuthFileSchema>? sessionAuthFileSchemas = null,
         IEnumerable<string>? sessionIdentityProfileRootProperties = null,
-        string? derivedModelDisplaySuffix = null)
+        string? derivedModelDisplaySuffix = null,
+        bool isTooltipOnly = false,
+        IEnumerable<(string ItemId, string Label)>? mainWindowVisibilityItems = null)
     {
         if (string.IsNullOrWhiteSpace(providerId))
         {
@@ -94,6 +96,9 @@ public sealed class ProviderDefinition
             ?? Array.Empty<ProviderAuthFileSchema>();
         this.SessionIdentityProfileRootProperties = NormalizeValues(sessionIdentityProfileRootProperties);
         this.DerivedModelDisplaySuffix = derivedModelDisplaySuffix;
+        this.IsTooltipOnly = isTooltipOnly;
+        this.MainWindowVisibilityItems = mainWindowVisibilityItems?.ToArray()
+            ?? Array.Empty<(string ItemId, string Label)>();
 
         var normalizedHandledIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -198,6 +203,10 @@ public sealed class ProviderDefinition
         ProviderFamilyPolicy.UsesChildProviderRowsForGroupedModels(this.FamilyMode);
 
     public string? DerivedModelDisplaySuffix { get; }
+
+    public bool IsTooltipOnly { get; }
+
+    public IReadOnlyList<(string ItemId, string Label)> MainWindowVisibilityItems { get; }
 
     public bool HandlesProviderId(string providerId)
     {

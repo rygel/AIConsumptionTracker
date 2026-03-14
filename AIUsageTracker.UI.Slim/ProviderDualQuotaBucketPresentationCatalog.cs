@@ -8,21 +8,6 @@ namespace AIUsageTracker.UI.Slim;
 
 internal static class ProviderDualQuotaBucketPresentationCatalog
 {
-    public static bool TryGetDualQuotaBucketUsedPercentages(ProviderUsage usage, out double primaryUsed, out double secondaryUsed)
-    {
-        primaryUsed = 0;
-        secondaryUsed = 0;
-
-        if (!TryGetPresentation(usage, out var presentation))
-        {
-            return false;
-        }
-
-        primaryUsed = presentation.PrimaryUsedPercent;
-        secondaryUsed = presentation.SecondaryUsedPercent;
-        return true;
-    }
-
     public static bool TryGetPresentation(ProviderUsage usage, out ProviderDualQuotaBucketPresentation presentation)
     {
         presentation = null!;

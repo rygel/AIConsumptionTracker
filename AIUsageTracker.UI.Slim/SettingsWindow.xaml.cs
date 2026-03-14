@@ -950,6 +950,7 @@ public partial class SettingsWindow : Window
         this.AggressiveTopmostCheck.IsChecked = this._preferences.AggressiveAlwaysOnTop;
         this.ForceWin32TopmostCheck.IsChecked = this._preferences.ForceWin32Topmost;
         this.ApplyDisplayModePreference();
+        this.PopulateProviderVisibilitySettings();
         this.ThemeCombo.DisplayMemberPath = nameof(ThemeOption.Label);
         this.ThemeCombo.SelectedValuePath = nameof(ThemeOption.Value);
         this.ThemeCombo.ItemsSource = this.GetThemeOptions();
@@ -990,6 +991,43 @@ public partial class SettingsWindow : Window
         if (this.ShowUsedPercentagesCheck != null)
         {
             this.ShowUsedPercentagesCheck.IsChecked = this._displayPreferences.ShouldShowUsedPercentages(this._preferences);
+        }
+    }
+
+    private void PopulateProviderVisibilitySettings()
+    {
+        this.ProviderCardVisibilityPanel.Children.Clear();
+        var hidden = this._preferences.HiddenProviderItemIds;
+        var providers = ProviderMetadataCatalog.Definitions
+            .Where(d => d.MainWindowVisibilityItems.Count > 0)
+            .ToList();
+
+        foreach (var definition in providers)
+        {
+            this.ProviderCardVisibilityPanel.Children.Add(new TextBlock
+            {
+                Text = definition.DisplayName,
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 0, 0, 4),
+                Foreground = (Brush)this.FindResource("SecondaryText"),
+            });
+
+            for (var i = 0; i < definition.MainWindowVisibilityItems.Count; i++)
+            {
+                var (itemId, label) = definition.MainWindowVisibilityItems[i];
+                var isLast = i == definition.MainWindowVisibilityItems.Count - 1;
+                var checkBox = new CheckBox
+                {
+                    Content = label,
+                    Tag = itemId,
+                    IsChecked = !hidden.Contains(itemId, StringComparer.OrdinalIgnoreCase),
+                    Margin = new Thickness(15, 2, 0, isLast ? 20 : 2),
+                    Foreground = (Brush)this.FindResource("SecondaryText"),
+                };
+                checkBox.Checked += this.ProviderVisibility_Changed;
+                checkBox.Unchecked += this.ProviderVisibility_Changed;
+                this.ProviderCardVisibilityPanel.Children.Add(checkBox);
+            }
         }
     }
 
@@ -1877,6 +1915,33 @@ public partial class SettingsWindow : Window
 
         this.ApplyNotificationControlsState();
         this.ScheduleAutoSave();
+    }
+
+    private void ProviderVisibility_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!this.IsInitialized || sender is not CheckBox { Tag: string itemId } cb)
+        {
+            return;
+        }
+
+        this.SetHiddenProviderItemId(itemId, !(cb.IsChecked ?? true));
+        this.ScheduleAutoSave();
+    }
+
+    private void SetHiddenProviderItemId(string id, bool hidden)
+    {
+        var list = this._preferences.HiddenProviderItemIds;
+        if (hidden)
+        {
+            if (!list.Contains(id, StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(id);
+            }
+        }
+        else
+        {
+            list.RemoveAll(x => string.Equals(x, id, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     private void LayoutSetting_TextChanged(object sender, TextChangedEventArgs e)

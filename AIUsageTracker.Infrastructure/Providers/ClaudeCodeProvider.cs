@@ -44,6 +44,7 @@ public class ClaudeCodeProvider : ProviderBase
         isQuotaBased: true,
         defaultConfigType: "quota-based",
         autoIncludeWhenUnconfigured: true,
+        familyMode: ProviderFamilyMode.SyntheticAggregateChildren,
         discoveryEnvironmentVariables: new[] { "ANTHROPIC_API_KEY", "CLAUDE_API_KEY" },
         iconAssetName: "anthropic",
         fallbackBadgeColorHex: "#FFA500",
@@ -55,6 +56,13 @@ public class ClaudeCodeProvider : ProviderBase
         sessionAuthFileSchemas: new[]
         {
             new ProviderAuthFileSchema("claudeAiOauth", "accessToken"),
+        },
+        mainWindowVisibilityItems: new (string, string)[]
+        {
+            ("claude-code.current-session", "Current Session (5-hour quota)"),
+            ("claude-code.sonnet", "Sonnet (7-day model quota)"),
+            ("claude-code.opus", "Opus (7-day model quota)"),
+            ("claude-code.all-models", "All Models (7-day combined)"),
         });
 
     /// <inheritdoc/>
@@ -249,16 +257,17 @@ public class ClaudeCodeProvider : ProviderBase
         // Determine the "main" percentage to show - use the higher of the two quotas
         var mainPercent = Math.Max(primaryPercent, secondaryPercent);
 
-        // Build details for the sub-provider cards
+        // All quota windows become Model-type sub-cards (SyntheticAggregateChildren).
+        // QuotaBucketKind controls display ordering: Burst → Sonnet/Opus → Rolling.
         var details = new List<ProviderUsageDetail>();
 
-        // 5-hour quota bucket
+        // Current session (5-hour burst quota)
         if (response.FiveHour != null)
         {
             var fiveHourDetail = new ProviderUsageDetail
             {
-                Name = "5-Hour Limit",
-                DetailType = ProviderUsageDetailType.QuotaWindow,
+                Name = "Current Session",
+                DetailType = ProviderUsageDetailType.Model,
                 QuotaBucketKind = WindowKind.Burst,
                 NextResetTime = response.FiveHour.ResetsAt,
             };
@@ -269,31 +278,15 @@ public class ClaudeCodeProvider : ProviderBase
             details.Add(fiveHourDetail);
         }
 
-        // 7-day quota bucket
-        if (response.SevenDay != null)
-        {
-            var sevenDayDetail = new ProviderUsageDetail
-            {
-                Name = "7-Day Limit",
-                DetailType = ProviderUsageDetailType.QuotaWindow,
-                QuotaBucketKind = WindowKind.Rolling,
-                NextResetTime = response.SevenDay.ResetsAt,
-            };
-            sevenDayDetail.SetPercentageValue(
-                response.SevenDay.Utilization,
-                PercentageValueSemantic.Used,
-                decimalPlaces: 0);
-            details.Add(sevenDayDetail);
-        }
-
         // Model-specific breakdowns
         if (response.SevenDaySonnet != null)
         {
             var sonnetDetail = new ProviderUsageDetail
             {
-                Name = "Sonnet (7-day)",
+                Name = "Sonnet",
                 DetailType = ProviderUsageDetailType.Model,
-                QuotaBucketKind = WindowKind.None,
+                QuotaBucketKind = WindowKind.ModelSpecific,
+                NextResetTime = response.SevenDay?.ResetsAt,
             };
             sonnetDetail.SetPercentageValue(
                 response.SevenDaySonnet.Utilization,
@@ -306,9 +299,10 @@ public class ClaudeCodeProvider : ProviderBase
         {
             var opusDetail = new ProviderUsageDetail
             {
-                Name = "Opus (7-day)",
+                Name = "Opus",
                 DetailType = ProviderUsageDetailType.Model,
-                QuotaBucketKind = WindowKind.None,
+                QuotaBucketKind = WindowKind.ModelSpecific,
+                NextResetTime = response.SevenDay?.ResetsAt,
             };
             opusDetail.SetPercentageValue(
                 response.SevenDayOpus.Utilization,
@@ -317,21 +311,25 @@ public class ClaudeCodeProvider : ProviderBase
             details.Add(opusDetail);
         }
 
-        // Determine reset time - use the sooner of the two quota resets
-        DateTime? nextReset = null;
-        if (response.FiveHour?.ResetsAt != null && response.SevenDay?.ResetsAt != null)
+        // All-models 7-day rolling quota
+        if (response.SevenDay != null)
         {
-            nextReset = response.FiveHour.ResetsAt < response.SevenDay.ResetsAt
-                ? response.FiveHour.ResetsAt
-                : response.SevenDay.ResetsAt;
-        }
-        else
-        {
-            nextReset = response.FiveHour?.ResetsAt ?? response.SevenDay?.ResetsAt;
+            var sevenDayDetail = new ProviderUsageDetail
+            {
+                Name = "All Models",
+                DetailType = ProviderUsageDetailType.Model,
+                QuotaBucketKind = WindowKind.Rolling,
+                NextResetTime = response.SevenDay.ResetsAt,
+            };
+            sevenDayDetail.SetPercentageValue(
+                response.SevenDay.Utilization,
+                PercentageValueSemantic.Used,
+                decimalPlaces: 0);
+            details.Add(sevenDayDetail);
         }
 
-        // Build description
-        var description = $"5h: {primaryPercent:F0}% | 7d: {secondaryPercent:F0}%";
+        // Build description — sub-cards carry the detail; parent shows a compact summary.
+        var description = $"5h: {primaryPercent:F0}% used | 7d: {secondaryPercent:F0}% used";
         if (response.ExtraUsage?.IsEnabled == true)
         {
             description += " | Extra usage enabled";
@@ -354,7 +352,7 @@ public class ClaudeCodeProvider : ProviderBase
             IsAvailable = true,
             Description = description,
             Details = details,
-            NextResetTime = nextReset,
+            NextResetTime = response.FiveHour?.ResetsAt,
             RawJson = rawJson,
             HttpStatus = httpStatus,
         };

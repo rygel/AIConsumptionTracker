@@ -35,15 +35,6 @@ public class MonitorContractGuardrailTests
     }
 
     [Fact]
-    public void MonitorScanKeysEndpoint_UsesSharedScanKeysResponseContract()
-    {
-        var endpointPath = GetRepoPath("AIUsageTracker.Monitor", "Endpoints", "MonitorConfigEndpoints.cs");
-        var source = File.ReadAllText(endpointPath);
-
-        Assert.Contains("new AgentScanKeysResponse", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void MonitorUsageEndpoints_DoNotExposeLegacyProviderCapabilitiesRoute()
     {
         var endpointPath = GetRepoPath("AIUsageTracker.Monitor", "Endpoints", "MonitorUsageEndpoints.cs");
@@ -70,15 +61,6 @@ public class MonitorContractGuardrailTests
         var source = File.ReadAllText(monitorClientContractPath);
 
         Assert.DoesNotContain("GetProviderCapabilitiesAsync", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void GroupedUsageProjection_UsesExplicitChildRows_WhenProvidersEmitThem()
-    {
-        var projectionPath = GetRepoPath("AIUsageTracker.Monitor", "Services", "GroupedUsageProjectionService.cs");
-        var source = File.ReadAllText(projectionPath);
-
-        Assert.Contains("BuildModelsFromExplicitChildRows", source, StringComparison.Ordinal);
     }
 
     [Fact]

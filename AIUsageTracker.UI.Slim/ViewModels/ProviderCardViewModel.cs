@@ -71,33 +71,11 @@ public partial class ProviderCardViewModel : BaseViewModel
 
     public bool IsQuotaBased => this.Usage.IsQuotaBased;
 
-    public bool HasDualQuotaBuckets => ProviderDualQuotaBucketPresentationCatalog.TryGetPresentation(this.Usage, out _);
+    public bool HasDualQuotaBuckets => this._presentation?.HasDualBuckets ?? false;
 
-    public double PrimaryUsedPercent
-    {
-        get
-        {
-            if (ProviderDualQuotaBucketPresentationCatalog.TryGetDualQuotaBucketUsedPercentages(this.Usage, out var primary, out _))
-            {
-                return primary;
-            }
+    public double PrimaryUsedPercent => this._presentation?.DualBucketPrimaryUsed ?? 0;
 
-            return 0;
-        }
-    }
-
-    public double SecondaryUsedPercent
-    {
-        get
-        {
-            if (ProviderDualQuotaBucketPresentationCatalog.TryGetDualQuotaBucketUsedPercentages(this.Usage, out _, out var secondary))
-            {
-                return secondary;
-            }
-
-            return 0;
-        }
-    }
+    public double SecondaryUsedPercent => this._presentation?.DualBucketSecondaryUsed ?? 0;
 
     public string? ResetBadgeText
     {

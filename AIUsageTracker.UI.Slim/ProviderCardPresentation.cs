@@ -8,10 +8,14 @@ internal sealed record ProviderCardPresentation(
     bool IsMissing,
     bool IsUnknown,
     bool IsError,
-    bool IsAggregateParent,
     bool ShouldHaveProgress,
     bool SuppressSingleResetTime,
     double UsedPercent,
     double RemainingPercent,
     string StatusText,
-    ProviderCardStatusTone StatusTone);
+    ProviderCardStatusTone StatusTone,
+    double? DualBucketPrimaryUsed = null,
+    double? DualBucketSecondaryUsed = null)
+{
+    public bool HasDualBuckets => this.DualBucketPrimaryUsed.HasValue;
+}

@@ -24,7 +24,6 @@ public sealed class ProviderUsageDisplayCatalogTests
         Assert.Equal(2, preparation.DisplayableUsages.Count);
         Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
         Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "antigravity", StringComparison.Ordinal));
-        Assert.False(preparation.HasAggregateParent);
     }
 
     [Fact]
@@ -90,7 +89,7 @@ public sealed class ProviderUsageDisplayCatalogTests
     }
 
     [Fact]
-    public void CreateAggregateDetailUsages_ReturnsEmpty_WhenProviderDoesNotUseSyntheticChildren()
+    public void ExpandSyntheticAggregateChildren_YieldsParentAsIs_WhenProviderDoesNotUseSyntheticChildren()
     {
         var detail = new ProviderUsageDetail
         {
@@ -105,7 +104,12 @@ public sealed class ProviderUsageDisplayCatalogTests
             Details = new List<ProviderUsageDetail> { detail },
         };
 
-        Assert.Empty(ProviderUsageDisplayCatalog.CreateAggregateDetailUsages(parent));
+        var result = ProviderUsageDisplayCatalog.ExpandSyntheticAggregateChildren(
+            new[] { parent },
+            Array.Empty<string>()).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("antigravity", result[0].ProviderId);
     }
 
     [Fact]

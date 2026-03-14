@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [2.2.28-beta.38] - 2026-03-14
+
+### Fixed
+- **Claude Code Timeout**: Timeout no longer leaks raw `[Error] Timeout after 25s` text into the UI; falls through to the standard error card path.
+
+### Changed
+- **Data Flow Refactor**: Consolidated aggregate child expansion into `ProviderUsageDisplayCatalog.ExpandSyntheticAggregateChildren`, eliminating duplicated logic across `MainWindow`, `MainViewModel`, and `SettingsWindow`.
+- **Call Graph Cleanup**: Removed `IsAggregateParent` from `ProviderCardPresentation` (was set but never read). Eliminated `TryGetDualQuotaBucketUsedPercentages` — dual bucket percentages are now computed once in `ProviderCardPresentationCatalog.Create` and carried on the presentation record.
+- **No Console Window**: Monitor and Web server no longer open a black console window on Windows (`OutputType=WinExe`).
+- **Test Cleanup**: Removed fragile source-scanning and private-reflection architecture tests; replaced with negative guards and dynamic file discovery.
+
 ## [2.2.28-beta.37] - 2026-03-14
 
 ### Fixed

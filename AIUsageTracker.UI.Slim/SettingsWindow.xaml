@@ -367,6 +367,11 @@
                                       ToolTip="Display used percentages instead of remaining percentages for quota-style providers"
                                       Checked="LayoutSetting_Changed" Unchecked="LayoutSetting_Changed"/>
 
+                            <!-- Provider Card Visibility (populated dynamically in code-behind) -->
+                            <TextBlock Text="Provider Card Visibility" FontWeight="Bold" FontSize="14"
+                                       Margin="0,0,0,8" Foreground="{DynamicResource PrimaryText}"/>
+                            <StackPanel x:Name="ProviderCardVisibilityPanel"/>
+
                             <!-- Font Settings -->
                             <TextBlock Text="Font Settings" FontWeight="Bold" FontSize="14" 
                                        Margin="0,0,0,15" Foreground="{DynamicResource PrimaryText}"/>

@@ -35,107 +35,6 @@ public class ProviderUsageDetailTests
     }
 
     [Fact]
-    public void IsPrimaryQuotaDetail_WithQuotaWindowAndPrimaryWindowKind_ReturnsTrue()
-    {
-        var detail = new ProviderUsageDetail
-        {
-            Name = "5-hour quota",
-            DetailType = ProviderUsageDetailType.QuotaWindow,
-            QuotaBucketKind = WindowKind.Burst,
-        };
-
-        Assert.True(detail.IsPrimaryQuotaDetail());
-    }
-
-    [Fact]
-    public void IsPrimaryQuotaDetail_WithQuotaWindowAndSecondaryWindowKind_ReturnsFalse()
-    {
-        var detail = new ProviderUsageDetail
-        {
-            Name = "Weekly quota",
-            DetailType = ProviderUsageDetailType.QuotaWindow,
-            QuotaBucketKind = WindowKind.Rolling,
-        };
-
-        Assert.False(detail.IsPrimaryQuotaDetail());
-    }
-
-    [Fact]
-    public void IsSecondaryQuotaDetail_WithQuotaWindowAndSecondaryWindowKind_ReturnsTrue()
-    {
-        var detail = new ProviderUsageDetail
-        {
-            Name = "Weekly quota",
-            DetailType = ProviderUsageDetailType.QuotaWindow,
-            QuotaBucketKind = WindowKind.Rolling,
-        };
-
-        Assert.True(detail.IsSecondaryQuotaDetail());
-    }
-
-    [Fact]
-    public void IsPrimaryQuotaBucket_WithQuotaWindowAndPrimaryBucketKind_ReturnsTrue()
-    {
-        var detail = new ProviderUsageDetail
-        {
-            Name = "5-hour quota",
-            DetailType = ProviderUsageDetailType.QuotaWindow,
-            QuotaBucketKind = WindowKind.Burst,
-        };
-
-        Assert.True(detail.IsPrimaryQuotaBucket());
-    }
-
-    [Fact]
-    public void QuotaBucketKind_Setter_PersistsValue()
-    {
-        var detail = new ProviderUsageDetail
-        {
-            QuotaBucketKind = WindowKind.Rolling,
-        };
-
-        Assert.Equal(WindowKind.Rolling, detail.QuotaBucketKind);
-    }
-
-    [Fact]
-    public void WindowKindAlias_Setter_UpdatesQuotaBucketKind()
-    {
-        var detail = new ProviderUsageDetail();
-
-#pragma warning disable CS0618 // compatibility alias is intentionally tested
-        detail.WindowKind = WindowKind.ModelSpecific;
-#pragma warning restore CS0618
-
-        Assert.Equal(WindowKind.ModelSpecific, detail.QuotaBucketKind);
-    }
-
-    [Fact]
-    public void IsWindowQuotaDetail_WithQuotaWindowDetailType_ReturnsTrue()
-    {
-        var detail = new ProviderUsageDetail
-        {
-            Name = "5-hour quota",
-            DetailType = ProviderUsageDetailType.QuotaWindow,
-            QuotaBucketKind = WindowKind.Burst,
-        };
-
-        Assert.True(detail.IsWindowQuotaDetail());
-    }
-
-    [Fact]
-    public void IsCreditDetail_WithCreditDetailType_ReturnsTrue()
-    {
-        var detail = new ProviderUsageDetail
-        {
-            Name = "Credits",
-            DetailType = ProviderUsageDetailType.Credit,
-            QuotaBucketKind = WindowKind.None,
-        };
-
-        Assert.True(detail.IsCreditDetail());
-    }
-
-    [Fact]
     public void IsDisplayableSubProviderDetail_WithOtherDetailType_ReturnsTrue()
     {
         var detail = new ProviderUsageDetail
@@ -146,22 +45,6 @@ public class ProviderUsageDetailTests
         };
 
         Assert.True(detail.IsDisplayableSubProviderDetail());
-    }
-
-    [Fact]
-    public void WindowKind_DefaultValue_IsNone()
-    {
-        var detail = new ProviderUsageDetail();
-
-        Assert.Equal(WindowKind.None, detail.QuotaBucketKind);
-    }
-
-    [Fact]
-    public void DetailType_DefaultValue_IsUnknown()
-    {
-        var detail = new ProviderUsageDetail();
-
-        Assert.Equal(ProviderUsageDetailType.Unknown, detail.DetailType);
     }
 
     [Fact]

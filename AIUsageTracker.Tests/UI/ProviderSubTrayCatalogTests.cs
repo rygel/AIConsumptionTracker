@@ -19,7 +19,7 @@ public sealed class ProviderSubTrayCatalogTests
                 new() { Name = "Gemini 2.5 Pro", Used = "45% used", DetailType = ProviderUsageDetailType.Model },
                 new() { Name = "Gemini 2.5 Flash", Used = "12% used", DetailType = ProviderUsageDetailType.Model },
                 new() { Name = "Gemini 2.5 Pro", Used = "50% used", DetailType = ProviderUsageDetailType.Model },
-                new() { Name = "[internal]", Used = "10% used", DetailType = ProviderUsageDetailType.Model },
+                new() { Name = "internal-metric", Used = "10% used", DetailType = ProviderUsageDetailType.Unknown },
                 new() { Name = "Credits", Used = "Unlimited", DetailType = ProviderUsageDetailType.Credit },
             },
         };

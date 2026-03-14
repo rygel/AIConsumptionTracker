@@ -9,21 +9,19 @@ namespace AIUsageTracker.Tests.Architecture;
 public class SlimGroupedUsageGuardrailTests
 {
     [Fact]
-    public void MainWindow_UsesGroupedUsageEndpointForDisplayData()
+    public void MainWindow_DoesNotUseDeprecatedUsageEndpoints()
     {
         var source = File.ReadAllText(GetRepoPath("AIUsageTracker.UI.Slim", "MainWindow.xaml.cs"));
 
-        Assert.Contains("GetGroupedUsageAsync", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_monitorService.GetUsageAsync()", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_monitorService.GetProviderCapabilitiesAsync()", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void SettingsWindow_UsesGroupedUsageEndpointForDisplayData()
+    public void SettingsWindow_DoesNotUseDeprecatedUsageEndpoints()
     {
         var source = File.ReadAllText(GetRepoPath("AIUsageTracker.UI.Slim", "SettingsWindow.xaml.cs"));
 
-        Assert.Contains("GetGroupedUsageAsync", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_monitorService.GetUsageAsync()", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_monitorService.GetProviderCapabilitiesAsync()", source, StringComparison.Ordinal);
     }
@@ -46,15 +44,10 @@ public class SlimGroupedUsageGuardrailTests
     }
 
     [Fact]
-    public void DerivedModelDisplayNaming_UsesProviderCatalog_NotGeminiSpecificHardcodes()
+    public void DerivedModelDisplayNaming_DoesNotHardcodeGeminiSuffix_InDisplayAdapter()
     {
         var adapterSource = File.ReadAllText(GetRepoPath("AIUsageTracker.UI.Slim", "GroupedUsageDisplayAdapter.cs"));
-        Assert.Contains("GetDerivedModelDisplayName", adapterSource, StringComparison.Ordinal);
         Assert.DoesNotContain("[Gemini CLI]", adapterSource, StringComparison.Ordinal);
-
-        var geminiSource = File.ReadAllText(GetRepoPath("AIUsageTracker.Infrastructure", "Providers", "GeminiProvider.cs"));
-        Assert.Contains("visibleDerivedProviderIds", geminiSource, StringComparison.Ordinal);
-        Assert.Contains("derivedModelDisplaySuffix: \"[Gemini CLI]\"", geminiSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -68,37 +61,20 @@ public class SlimGroupedUsageGuardrailTests
     }
 
     [Fact]
-    public void SlimQuotaPresentation_UsesQuotaBucketKindNaming()
+    public void SlimQuotaPresentation_DoesNotUseObsoleteWindowKindProperty()
     {
         var files = new[]
         {
             GetRepoPath("AIUsageTracker.UI.Slim", "ProviderDualQuotaBucketPresentationCatalog.cs"),
             GetRepoPath("AIUsageTracker.UI.Slim", "ProviderTooltipPresentationCatalog.cs"),
-            GetRepoPath("AIUsageTracker.UI.Slim", "ProviderSubDetailPresentationCatalog.cs"),
+            GetRepoPath("AIUsageTracker.UI.Slim", "GroupedUsageDisplayAdapter.cs"),
         };
 
         foreach (var path in files)
         {
             var source = File.ReadAllText(path);
             Assert.DoesNotContain(".WindowKind", source, StringComparison.Ordinal);
-            Assert.Contains(".QuotaBucketKind", source, StringComparison.Ordinal);
         }
-
-        var groupedAdapterSource = File.ReadAllText(GetRepoPath("AIUsageTracker.UI.Slim", "GroupedUsageDisplayAdapter.cs"));
-        Assert.DoesNotContain(".WindowKind", groupedAdapterSource, StringComparison.Ordinal);
-        Assert.Contains("QuotaBucketKind =", groupedAdapterSource, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ProviderUsageDetail_UsesQuotaBucketKindAsCanonicalContractProperty()
-    {
-        var source = File.ReadAllText(GetRepoPath("AIUsageTracker.Core", "Models", "ProviderUsageDetail.cs"));
-
-        Assert.Contains("[JsonPropertyName(\"window_kind\")]", source, StringComparison.Ordinal);
-        Assert.Contains("public WindowKind QuotaBucketKind", source, StringComparison.Ordinal);
-        Assert.Contains("[JsonIgnore]", source, StringComparison.Ordinal);
-        Assert.Contains("[Obsolete(\"Use QuotaBucketKind.\")]", source, StringComparison.Ordinal);
-        Assert.Contains("public WindowKind WindowKind", source, StringComparison.Ordinal);
     }
 
     private static string GetRepoPath(params string[] segments)

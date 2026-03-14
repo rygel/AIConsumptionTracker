@@ -72,7 +72,8 @@ public class OpenCodeZenProvider : ProviderBase
         displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["opencode-go"] = "Opencode Go",
-        });
+        },
+        isTooltipOnly: true);
 
     /// <inheritdoc/>
     public override ProviderDefinition Definition => StaticDefinition;

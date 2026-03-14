@@ -268,6 +268,11 @@ public static class ProviderMetadataCatalog
                ProviderFamilyPolicy.UsesChildProviderRowsForGroupedModels(definition.FamilyMode);
     }
 
+    public static bool IsTooltipOnlyProvider(string providerId)
+    {
+        return TryGet(providerId, out var definition) && definition.IsTooltipOnly;
+    }
+
     public static bool ShouldShowInMainWindow(string providerId)
     {
         return TryGet(providerId, out var definition) && definition.ShowInMainWindow;

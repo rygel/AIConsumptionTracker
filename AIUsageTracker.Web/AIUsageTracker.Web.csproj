@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
+    <OutputType>WinExe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>

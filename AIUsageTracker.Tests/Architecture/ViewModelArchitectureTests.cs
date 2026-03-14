@@ -108,40 +108,4 @@ public class ViewModelArchitectureTests
             string.Join(Environment.NewLine, violations));
     }
 
-    [Fact]
-    public void ViewModels_ShouldUse_ObservableProperties()
-    {
-        var viewModelTypes = typeof(MainViewModel).Assembly.GetTypes()
-            .Where(t => typeof(BaseViewModel).IsAssignableFrom(t) &&
-                        !t.IsAbstract &&
-                        t != typeof(BaseViewModel) &&
-                        t != typeof(AsyncViewModel))
-            .ToList();
-
-        var violations = new List<string>();
-
-        foreach (var type in viewModelTypes)
-        {
-            // Get all public properties that are read-write
-            var publicProperties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-                .Where(p => p.CanRead && p.CanWrite)
-                .ToList();
-
-            // Check if the type has any ObservableProperty-attributed fields
-            var hasObservableFields = type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
-                .Any(f => f.Name.StartsWith("_", StringComparison.Ordinal) &&
-                          f.GetCustomAttributes()
-                              .Any(a => a.GetType().Name.Contains("ObservableProperty", StringComparison.Ordinal)));
-
-            // If the type has public settable properties but no observable fields, it might be missing [ObservableProperty]
-            if (publicProperties.Count > 0 && !hasObservableFields)
-            {
-                // This is just a warning check - some ViewModels may use computed properties
-                // which is acceptable. Skip if all properties are computed or read-only.
-            }
-        }
-
-        // This test passes by design - it's here as a guardrail for future changes
-        Assert.True(true, "ViewModel observable property check passed");
-    }
 }

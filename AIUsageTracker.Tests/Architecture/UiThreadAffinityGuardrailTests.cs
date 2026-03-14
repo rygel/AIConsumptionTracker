@@ -6,30 +6,20 @@ namespace AIUsageTracker.Tests.Architecture;
 
 public class UiThreadAffinityGuardrailTests
 {
-    private static readonly string[] UiBoundFiles =
-    {
-        "AIUsageTracker.UI.Slim/MainWindow.xaml.cs",
-        "AIUsageTracker.UI.Slim/SettingsWindow.xaml.cs",
-        "AIUsageTracker.UI.Slim/InfoDialog.xaml.cs",
-        "AIUsageTracker.UI.Slim/ViewModels/MainViewModel.cs",
-        "AIUsageTracker.UI.Slim/ViewModels/SettingsViewModel.cs",
-    };
-
     [Fact]
     public void UiBoundCode_DoesNotUseConfigureAwaitFalse()
     {
         var repoRoot = GetRepoRoot();
+        var uiSlimRoot = Path.Combine(repoRoot, "AIUsageTracker.UI.Slim");
         var violations = new List<string>();
 
-        foreach (var relativePath in UiBoundFiles)
-        {
-            var fullPath = Path.Combine(repoRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(fullPath))
-            {
-                violations.Add($"{relativePath} is missing.");
-                continue;
-            }
+        // Scan all xaml.cs code-behind files and ViewModel source files
+        var files = Directory.EnumerateFiles(uiSlimRoot, "*.xaml.cs", SearchOption.TopDirectoryOnly)
+            .Concat(Directory.EnumerateFiles(Path.Combine(uiSlimRoot, "ViewModels"), "*.cs", SearchOption.TopDirectoryOnly));
 
+        foreach (var fullPath in files)
+        {
+            var relativePath = NormalizePath(Path.GetRelativePath(repoRoot, fullPath));
             var lines = File.ReadAllLines(fullPath);
             for (var index = 0; index < lines.Length; index++)
             {
@@ -63,4 +53,6 @@ public class UiThreadAffinityGuardrailTests
         return directory?.FullName
             ?? throw new DirectoryNotFoundException("Could not locate repository root from test output directory.");
     }
+
+    private static string NormalizePath(string path) => path.Replace('\\', '/');
 }
