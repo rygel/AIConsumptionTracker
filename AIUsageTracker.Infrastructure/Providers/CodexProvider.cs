@@ -292,6 +292,26 @@ public class CodexProvider : ProviderBase
         return DateTime.UtcNow.AddSeconds(resetSeconds.Value).ToLocalTime();
     }
 
+    private static double ResolveEffectiveUsedPercent(
+        double primaryUsedPercent,
+        double? secondaryUsedPercent,
+        double? sparkPrimaryUsedPercent,
+        double? sparkSecondaryUsedPercent)
+    {
+        // Return the highest usage percentage across all windows.
+        // This ensures the parent entry shows meaningful data even if the API
+        // returns 0 for rate_limit.primary_window but has usage in other windows.
+        var candidates = new[]
+        {
+            primaryUsedPercent,
+            secondaryUsedPercent ?? 0.0,
+            sparkPrimaryUsedPercent ?? 0.0,
+            sparkSecondaryUsedPercent ?? 0.0,
+        };
+
+        return candidates.Max();
+    }
+
     private static string FormatResetDescription(double? resetAfterSeconds)
     {
         if (!resetAfterSeconds.HasValue || resetAfterSeconds.Value <= 0)
@@ -508,7 +528,14 @@ public class CodexProvider : ProviderBase
         var modelNames = ResolveModelNames(root, sparkWindow);
         var accountIdentity = ResolveAccountIdentity(root, jwtEmail, authIdentity, accountId);
 
-        var remainingPercent = Math.Clamp(100.0 - primaryUsedPercent, 0.0, 100.0);
+        // Use the highest usage percentage across all windows for the parent display.
+        // The API may return 0 for primary_window but have actual usage in spark/secondary windows.
+        var effectiveUsedPercent = ResolveEffectiveUsedPercent(
+            primaryUsedPercent,
+            secondaryUsedPercent,
+            sparkWindow.PrimaryUsedPercent,
+            sparkWindow.SecondaryUsedPercent);
+        var remainingPercent = Math.Clamp(100.0 - effectiveUsedPercent, 0.0, 100.0);
         var details = BuildDetails(
             primaryUsedPercent,
             primaryResetSeconds,
@@ -531,7 +558,7 @@ public class CodexProvider : ProviderBase
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
                 IsAvailable = true,
-                Description = BuildUsageDescription(remainingPercent, primaryUsedPercent, sparkWindow.PrimaryUsedPercent, planType),
+                Description = BuildUsageDescription(remainingPercent, effectiveUsedPercent, sparkWindow.PrimaryUsedPercent, planType),
                 AccountName = accountIdentity ?? string.Empty,
                 AuthSource = AuthSource.CodexNative(planType),
                 NextResetTime = nextResetTime,

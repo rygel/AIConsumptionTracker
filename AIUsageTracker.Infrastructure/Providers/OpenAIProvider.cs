@@ -337,8 +337,13 @@ public class OpenAIProvider : ProviderBase
         }
 
         var planType = doc.RootElement.ReadString("plan_type") ?? "chatgpt";
-        var used = doc.RootElement.ReadDouble("rate_limit", "primary_window", "used_percent") ?? 0.0;
+        var primaryUsed = doc.RootElement.ReadDouble("rate_limit", "primary_window", "used_percent") ?? 0.0;
+        var secondaryUsed = doc.RootElement.ReadDouble("rate_limit", "secondary_window", "used_percent") ?? 0.0;
         var nextResetTime = ResolveResetTime(doc.RootElement);
+
+        // Use the higher of primary or secondary window usage for the main display.
+        // The API may return 0 for primary_window but have actual usage in secondary_window.
+        var used = Math.Max(primaryUsed, secondaryUsed);
         var remaining = Math.Clamp(100.0 - used, 0.0, 100.0);
 
         return new ProviderUsage
