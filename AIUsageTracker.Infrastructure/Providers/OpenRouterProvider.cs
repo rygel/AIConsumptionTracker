@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
+
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
@@ -114,10 +116,10 @@ public class OpenRouterProvider : ProviderBase
                 };
             }
 
-                this._logger.LogDebug(
-                    "Successfully parsed credits data - Total: {Total}, Usage: {Usage}",
-                    creditsData.Data.TotalCredits,
-                    creditsData.Data.TotalUsage);
+            this._logger.LogDebug(
+                "Successfully parsed credits data - Total: {Total}, Usage: {Usage}",
+                creditsData.Data.TotalCredits,
+                creditsData.Data.TotalUsage);
         }
         catch (Exception ex)
         {
