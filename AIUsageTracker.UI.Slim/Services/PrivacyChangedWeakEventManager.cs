@@ -15,6 +15,23 @@ namespace AIUsageTracker.UI.Slim.Services;
 /// </remarks>
 public class PrivacyChangedWeakEventManager : WeakEventManager
 {
+    private static PrivacyChangedWeakEventManager CurrentManager
+    {
+        get
+        {
+            var managerType = typeof(PrivacyChangedWeakEventManager);
+            var manager = (PrivacyChangedWeakEventManager?)GetCurrentManager(managerType);
+
+            if (manager == null)
+            {
+                manager = new PrivacyChangedWeakEventManager();
+                SetCurrentManager(managerType, manager);
+            }
+
+            return manager;
+        }
+    }
+
     private PrivacyChangedWeakEventManager()
     {
     }
@@ -45,23 +62,6 @@ public class PrivacyChangedWeakEventManager : WeakEventManager
         }
 
         CurrentManager.ProtectedRemoveHandler(typeof(App), handler);
-    }
-
-    private static PrivacyChangedWeakEventManager CurrentManager
-    {
-        get
-        {
-            var managerType = typeof(PrivacyChangedWeakEventManager);
-            var manager = (PrivacyChangedWeakEventManager?)GetCurrentManager(managerType);
-
-            if (manager == null)
-            {
-                manager = new PrivacyChangedWeakEventManager();
-                SetCurrentManager(managerType, manager);
-            }
-
-            return manager;
-        }
     }
 
     /// <inheritdoc />

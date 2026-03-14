@@ -58,19 +58,6 @@ public class UsageDatabase : IUsageDatabase
         migrationService.RunMigrations();
     }
 
-    private class LoggerProvider : ILoggerProvider
-    {
-        private readonly ILogger _logger;
-
-        public LoggerProvider(ILogger logger) => this._logger = logger;
-
-        public ILogger CreateLogger(string categoryName) => this._logger;
-
-        public void Dispose()
-        {
-        }
-    }
-
     public async Task StoreProviderAsync(ProviderConfig config, string? friendlyName = null)
     {
         await this._semaphore.WaitAsync().ConfigureAwait(false);
@@ -573,10 +560,6 @@ public class UsageDatabase : IUsageDatabase
         }
     }
 
-    private sealed record RecentProviderDetailsRow(string ProviderId, string DetailsJson, string FetchedAt);
-
-    private sealed record RecentDetailSnapshot(ProviderUsageDetail Detail, DateTime FetchedAtUtc);
-
     public async Task<List<ProviderUsage>> GetHistoryAsync(int limit = 100)
     {
         await this._semaphore.WaitAsync().ConfigureAwait(false);
@@ -795,6 +778,23 @@ public class UsageDatabase : IUsageDatabase
         finally
         {
             this._semaphore.Release();
+        }
+    }
+
+    private sealed record RecentProviderDetailsRow(string ProviderId, string DetailsJson, string FetchedAt);
+
+    private sealed record RecentDetailSnapshot(ProviderUsageDetail Detail, DateTime FetchedAtUtc);
+
+    private class LoggerProvider : ILoggerProvider
+    {
+        private readonly ILogger _logger;
+
+        public LoggerProvider(ILogger logger) => this._logger = logger;
+
+        public ILogger CreateLogger(string categoryName) => this._logger;
+
+        public void Dispose()
+        {
         }
     }
 }

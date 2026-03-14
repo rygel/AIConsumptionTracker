@@ -25,15 +25,16 @@ public class GitHubAuthService : IGitHubAuthService
     private readonly ILogger<GitHubAuthService> _logger;
     private string? _currentToken;
     private bool _cliTokenLookupAttempted;
-
-    /// <inheritdoc/>
-    public bool IsAuthenticated => !string.IsNullOrEmpty(this._currentToken);
+    private string? _cachedUsername;
 
     public GitHubAuthService(HttpClient httpClient, ILogger<GitHubAuthService> logger)
     {
         this._httpClient = httpClient;
         this._logger = logger;
     }
+
+    /// <inheritdoc/>
+    public bool IsAuthenticated => !string.IsNullOrEmpty(this._currentToken);
 
     /// <inheritdoc/>
     public async Task<(string DeviceCode, string UserCode, string VerificationUri, int ExpiresIn, int Interval)> InitiateDeviceFlowAsync()
@@ -172,8 +173,6 @@ public class GitHubAuthService : IGitHubAuthService
     {
         this._currentToken = null;
     }
-
-    private string? _cachedUsername;
 
     /// <inheritdoc/>
     public async Task<string?> GetUsernameAsync()

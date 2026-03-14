@@ -19,6 +19,10 @@ public class CodexProvider : ProviderBase
     private const string UsageEndpoint = "https://chatgpt.com/backend-api/wham/usage";
     private const string AuthClaimKey = "https://api.openai.com/auth";
 
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<CodexProvider> _logger;
+    private readonly string? _authFilePath;
+
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "codex",
         displayName: "OpenAI (Codex)",
@@ -66,10 +70,6 @@ public class CodexProvider : ProviderBase
     public override ProviderDefinition Definition => StaticDefinition;
 
     public override string ProviderId => StaticDefinition.ProviderId;
-
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<CodexProvider> _logger;
-    private readonly string? _authFilePath;
 
     public CodexProvider(HttpClient httpClient, ILogger<CodexProvider> logger)
     {
@@ -738,15 +738,6 @@ public class CodexProvider : ProviderBase
         return null;
     }
 
-    private sealed class CodexAuth
-    {
-        public string? AccessToken { get; set; }
-
-        public string? AccountId { get; set; }
-
-        public string? Identity { get; set; }
-    }
-
     private readonly record struct SparkWindow(
         string? Label,
         string? ModelName,
@@ -758,5 +749,14 @@ public class CodexProvider : ProviderBase
         public bool HasWindowData => this.PrimaryUsedPercent.HasValue || this.SecondaryUsedPercent.HasValue;
 
         public double? UsedPercent => this.PrimaryUsedPercent ?? this.SecondaryUsedPercent;
+    }
+
+    private sealed class CodexAuth
+    {
+        public string? AccessToken { get; set; }
+
+        public string? AccountId { get; set; }
+
+        public string? Identity { get; set; }
     }
 }

@@ -62,6 +62,9 @@ public class MonitorService : IMonitorService
 
     public static IReadOnlyList<string> DiagnosticsLog => _diagnosticsLog;
 
+    /// <inheritdoc/>
+    public IReadOnlyList<string> LastAgentErrors { get; private set; } = new List<string>();
+
     private static HttpClient GetOrCreateHttpClient()
     {
         if (_sharedHttpClient == null)
@@ -71,9 +74,6 @@ public class MonitorService : IMonitorService
 
         return _sharedHttpClient;
     }
-
-    /// <inheritdoc/>
-    public IReadOnlyList<string> LastAgentErrors { get; private set; } = new List<string>();
 
     public static void LogDiagnostic(string message)
     {

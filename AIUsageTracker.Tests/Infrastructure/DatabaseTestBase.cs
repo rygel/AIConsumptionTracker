@@ -16,14 +16,6 @@ public abstract class DatabaseTestBase : IDisposable
 {
     private readonly SqliteConnection _sharedConnection;
 
-    protected string DbPath { get; }
-
-    protected string ConnectionString { get; }
-
-    protected IMemoryCache Cache { get; }
-
-    protected WebDatabaseService DatabaseService { get; }
-
     protected DatabaseTestBase()
     {
         // Use a real file for WebDatabaseService because it creates its own connections
@@ -49,6 +41,14 @@ public abstract class DatabaseTestBase : IDisposable
 
         this.DatabaseService = new WebDatabaseService(this.Cache, NullLogger<WebDatabaseService>.Instance, mockPathProvider.Object);
     }
+
+    protected string DbPath { get; }
+
+    protected string ConnectionString { get; }
+
+    protected IMemoryCache Cache { get; }
+
+    protected WebDatabaseService DatabaseService { get; }
 
     private void InitializeSchema()
     {

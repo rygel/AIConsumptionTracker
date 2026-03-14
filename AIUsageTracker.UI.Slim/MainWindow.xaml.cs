@@ -86,10 +86,6 @@ public partial class MainWindow : Window
     private bool _isSettingsDialogOpen;
     private bool _isTooltipOpen;
 
-    internal Func<(Window Dialog, Func<bool> HasChanges)> SettingsDialogFactory { get; set; } = CreateDefaultSettingsDialog;
-
-    internal Func<Window, bool?> ShowOwnedDialog { get; set; } = static dialog => dialog.ShowDialog();
-
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
@@ -296,6 +292,10 @@ public partial class MainWindow : Window
             this.LogWindowFocusTransition($"IsVisibleChanged -> {this.IsVisible}");
         };
     }
+
+    internal Func<(Window Dialog, Func<bool> HasChanges)> SettingsDialogFactory { get; set; } = CreateDefaultSettingsDialog;
+
+    internal Func<Window, bool?> ShowOwnedDialog { get; set; } = static dialog => dialog.ShowDialog();
 
     private void ApplyVersionDisplay()
     {

@@ -36,6 +36,34 @@ public class GeminiProvider : ProviderBase
     private readonly string? _geminiConfigDirectoryOverride;
     private readonly string? _currentDirectoryOverride;
 
+    public GeminiProvider(HttpClient httpClient, ILogger<GeminiProvider> logger)
+        : this(httpClient, logger, null, null, null, null)
+    {
+    }
+
+    // Constructor for testing
+    internal GeminiProvider(HttpClient httpClient, ILogger<GeminiProvider> logger, string? accountsPathOverride, string? oauthCredsPathOverride)
+        : this(httpClient, logger, accountsPathOverride, oauthCredsPathOverride, null, null)
+    {
+    }
+
+    // Constructor for testing
+    internal GeminiProvider(
+        HttpClient httpClient,
+        ILogger<GeminiProvider> logger,
+        string? accountsPathOverride,
+        string? oauthCredsPathOverride,
+        string? geminiConfigDirectoryOverride,
+        string? currentDirectoryOverride)
+    {
+        this._httpClient = httpClient;
+        this._logger = logger;
+        this._accountsPathOverride = accountsPathOverride;
+        this._oauthCredsPathOverride = oauthCredsPathOverride;
+        this._geminiConfigDirectoryOverride = geminiConfigDirectoryOverride;
+        this._currentDirectoryOverride = currentDirectoryOverride;
+    }
+
     public static ProviderDefinition StaticDefinition { get; } = new(
         providerId: "gemini-cli",
         displayName: "Google Gemini",
@@ -79,34 +107,6 @@ public class GeminiProvider : ProviderBase
 
     /// <inheritdoc/>
     public override string ProviderId => StaticDefinition.ProviderId;
-
-    public GeminiProvider(HttpClient httpClient, ILogger<GeminiProvider> logger)
-        : this(httpClient, logger, null, null, null, null)
-    {
-    }
-
-    // Constructor for testing
-    internal GeminiProvider(HttpClient httpClient, ILogger<GeminiProvider> logger, string? accountsPathOverride, string? oauthCredsPathOverride)
-        : this(httpClient, logger, accountsPathOverride, oauthCredsPathOverride, null, null)
-    {
-    }
-
-    // Constructor for testing
-    internal GeminiProvider(
-        HttpClient httpClient,
-        ILogger<GeminiProvider> logger,
-        string? accountsPathOverride,
-        string? oauthCredsPathOverride,
-        string? geminiConfigDirectoryOverride,
-        string? currentDirectoryOverride)
-    {
-        this._httpClient = httpClient;
-        this._logger = logger;
-        this._accountsPathOverride = accountsPathOverride;
-        this._oauthCredsPathOverride = oauthCredsPathOverride;
-        this._geminiConfigDirectoryOverride = geminiConfigDirectoryOverride;
-        this._currentDirectoryOverride = currentDirectoryOverride;
-    }
 
     /// <inheritdoc/>
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)

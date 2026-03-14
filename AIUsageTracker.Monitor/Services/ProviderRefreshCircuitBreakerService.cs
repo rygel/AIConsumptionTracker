@@ -16,19 +16,6 @@ public class ProviderRefreshCircuitBreakerService
     private readonly object _providerFailureLock = new();
     private readonly Dictionary<string, ProviderFailureState> _providerFailureStates = new(StringComparer.OrdinalIgnoreCase);
 
-    private sealed class ProviderFailureState
-    {
-        public int ConsecutiveFailures { get; set; }
-
-        public DateTime? CircuitOpenUntilUtc { get; set; }
-
-        public DateTime? LastRefreshAttemptUtc { get; set; }
-
-        public DateTime? LastSuccessfulRefreshUtc { get; set; }
-
-        public string? LastError { get; set; }
-    }
-
     public ProviderRefreshCircuitBreakerService(ILogger<ProviderRefreshCircuitBreakerService> logger)
     {
         this._logger = logger;
@@ -238,5 +225,18 @@ public class ProviderRefreshCircuitBreakerService
         var exponent = Math.Min(backoffLevel, 6);
         var seconds = CircuitBreakerBaseBackoff.TotalSeconds * Math.Pow(2, exponent);
         return TimeSpan.FromSeconds(Math.Min(seconds, CircuitBreakerMaxBackoff.TotalSeconds));
+    }
+
+    private sealed class ProviderFailureState
+    {
+        public int ConsecutiveFailures { get; set; }
+
+        public DateTime? CircuitOpenUntilUtc { get; set; }
+
+        public DateTime? LastRefreshAttemptUtc { get; set; }
+
+        public DateTime? LastSuccessfulRefreshUtc { get; set; }
+
+        public string? LastError { get; set; }
     }
 }

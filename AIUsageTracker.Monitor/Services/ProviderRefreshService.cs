@@ -38,11 +38,6 @@ public class ProviderRefreshService : BackgroundService
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
     private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(5);
 
-    public static void SetDebugMode(bool debug)
-    {
-        _debugMode = debug;
-    }
-
     public ProviderRefreshService(
         ILogger<ProviderRefreshService> logger,
         ILoggerFactory loggerFactory,
@@ -82,6 +77,11 @@ public class ProviderRefreshService : BackgroundService
         this._refreshNotificationService = dependencies.RefreshNotificationService;
         this._startupSequenceService = dependencies.StartupSequenceService;
         this._usageProcessingPipeline = dependencies.UsageProcessingPipeline;
+    }
+
+    public static void SetDebugMode(bool debug)
+    {
+        _debugMode = debug;
     }
 
     public bool QueueManualRefresh(

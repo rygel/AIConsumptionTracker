@@ -6,12 +6,12 @@ namespace AIUsageTracker.Tests.Infrastructure;
 
 public abstract class IntegrationTestBase : IDisposable
 {
-    protected string TestRootPath { get; }
-
     protected IntegrationTestBase()
     {
         this.TestRootPath = TestTempPaths.CreateDirectory("ai-tracker-int-tests");
     }
+
+    protected string TestRootPath { get; }
 
     protected string CreateFile(string relativePath, string content)
     {
