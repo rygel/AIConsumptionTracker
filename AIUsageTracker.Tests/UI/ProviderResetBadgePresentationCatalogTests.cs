@@ -24,7 +24,7 @@ public class ProviderResetBadgePresentationCatalogTests
                     Name = "5-hour quota",
                     Used = "80% remaining (20% used)",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Primary,
+                    QuotaBucketKind = WindowKind.Burst,
                     NextResetTime = now.AddHours(1),
                 },
                 new()
@@ -32,7 +32,7 @@ public class ProviderResetBadgePresentationCatalogTests
                     Name = "Weekly quota",
                     Used = "65% remaining (35% used)",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Secondary,
+                    QuotaBucketKind = WindowKind.Rolling,
                     NextResetTime = now.AddDays(2),
                 },
             },

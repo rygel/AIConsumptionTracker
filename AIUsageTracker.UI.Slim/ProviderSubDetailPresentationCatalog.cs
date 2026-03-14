@@ -89,8 +89,8 @@ internal static class ProviderSubDetailPresentationCatalog
     {
         return (detail.DetailType, detail.QuotaBucketKind) switch
         {
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Primary) => 0,
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Secondary) => 1,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Burst) => 0,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Rolling) => 1,
             (ProviderUsageDetailType.QuotaWindow, _) => 2,
             (ProviderUsageDetailType.Model, _) => 3,
             (ProviderUsageDetailType.Other, _) => 4,

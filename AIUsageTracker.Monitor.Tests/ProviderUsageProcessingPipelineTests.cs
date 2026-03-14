@@ -370,7 +370,7 @@ public class ProviderUsageProcessingPipelineTests
                     Name = "Weekly Quota",
                     Used = "14% used",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Secondary,
+                    QuotaBucketKind = WindowKind.Rolling,
                     NextResetTime = futureReset,
                 },
             ],

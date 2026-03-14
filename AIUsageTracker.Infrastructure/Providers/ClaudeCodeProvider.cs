@@ -178,7 +178,7 @@ public class ClaudeCodeProvider : ProviderBase
             {
                 Name = "5-Hour Limit",
                 DetailType = ProviderUsageDetailType.QuotaWindow,
-                QuotaBucketKind = WindowKind.Primary,
+                QuotaBucketKind = WindowKind.Burst,
                 NextResetTime = response.FiveHour.ResetsAt,
             };
             fiveHourDetail.SetPercentageValue(
@@ -195,7 +195,7 @@ public class ClaudeCodeProvider : ProviderBase
             {
                 Name = "7-Day Limit",
                 DetailType = ProviderUsageDetailType.QuotaWindow,
-                QuotaBucketKind = WindowKind.Secondary,
+                QuotaBucketKind = WindowKind.Rolling,
                 NextResetTime = response.SevenDay.ResetsAt,
             };
             sevenDayDetail.SetPercentageValue(

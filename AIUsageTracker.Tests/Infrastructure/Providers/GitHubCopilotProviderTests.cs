@@ -130,8 +130,8 @@ public class GitHubCopilotProviderTests : HttpProviderTestBase<GitHubCopilotProv
         Assert.Equal(100.0, usage.RequestsAvailable);
         Assert.Contains("Weekly Quota", usage.Description, StringComparison.Ordinal);
         Assert.NotNull(usage.Details);
-        Assert.Contains(usage.Details!, detail => string.Equals(detail.Name, "5-hour Window", StringComparison.Ordinal) && detail.QuotaBucketKind == WindowKind.Primary);
-        Assert.Contains(usage.Details!, detail => string.Equals(detail.Name, "Weekly Quota", StringComparison.Ordinal) && detail.QuotaBucketKind == WindowKind.Secondary);
+        Assert.Contains(usage.Details!, detail => string.Equals(detail.Name, "5-hour Window", StringComparison.Ordinal) && detail.QuotaBucketKind == WindowKind.Burst);
+        Assert.Contains(usage.Details!, detail => string.Equals(detail.Name, "Weekly Quota", StringComparison.Ordinal) && detail.QuotaBucketKind == WindowKind.Rolling);
     }
 
     [Fact]
@@ -300,7 +300,7 @@ public class GitHubCopilotProviderTests : HttpProviderTestBase<GitHubCopilotProv
         Assert.NotNull(usage.Details);
         var weekly = Assert.Single(
             usage.Details!.Where(d => string.Equals(d.Name, "Weekly Quota", StringComparison.Ordinal)));
-        Assert.Equal(WindowKind.Secondary, weekly.QuotaBucketKind);
+        Assert.Equal(WindowKind.Rolling, weekly.QuotaBucketKind);
         Assert.Contains("49% used", weekly.Used, StringComparison.Ordinal);
         Assert.Contains("152 / 300 remaining", weekly.Description, StringComparison.Ordinal);
     }

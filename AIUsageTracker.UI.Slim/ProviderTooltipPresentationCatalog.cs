@@ -62,9 +62,9 @@ internal static class ProviderTooltipPresentationCatalog
     {
         return (detail.DetailType, detail.QuotaBucketKind) switch
         {
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Primary) => 0,
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Secondary) => 1,
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Spark) => 2,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Burst) => 0,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Rolling) => 1,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.ModelSpecific) => 2,
             (ProviderUsageDetailType.QuotaWindow, _) => 3,
             (ProviderUsageDetailType.Model, _) => 3,
             (ProviderUsageDetailType.Credit, _) => 4,

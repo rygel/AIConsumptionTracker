@@ -97,7 +97,7 @@ public class OpenAIProvider : ProviderBase
                 Description = reset.HasValue && reset.Value > 0 ? $"Resets in {(int)reset.Value}s" : string.Empty,
                 NextResetTime = primaryResetTime,
                 DetailType = ProviderUsageDetailType.QuotaWindow,
-                QuotaBucketKind = WindowKind.Primary,
+                QuotaBucketKind = WindowKind.Burst,
                 PercentageValue = primaryRemaining,
                 PercentageSemantic = PercentageValueSemantic.Remaining,
             });
@@ -115,7 +115,7 @@ public class OpenAIProvider : ProviderBase
                 Description = weeklyReset.HasValue && weeklyReset.Value > 0 ? $"Resets in {(int)weeklyReset.Value}s" : string.Empty,
                 NextResetTime = weeklyResetTime,
                 DetailType = ProviderUsageDetailType.QuotaWindow,
-                QuotaBucketKind = WindowKind.Secondary,
+                QuotaBucketKind = WindowKind.Rolling,
                 PercentageValue = secondaryRemaining,
                 PercentageSemantic = PercentageValueSemantic.Remaining,
             });

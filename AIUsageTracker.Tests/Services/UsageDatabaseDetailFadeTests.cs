@@ -130,7 +130,7 @@ public sealed class UsageDatabaseDetailFadeTests : IDisposable
                     {
                         Name = "Quota Bucket (Primary)",
                         DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Primary,
+                        QuotaBucketKind = WindowKind.Burst,
                         Used = "65.0%",
                     },
                 },
@@ -339,7 +339,7 @@ public sealed class UsageDatabaseDetailFadeTests : IDisposable
                         Name = "Weekly Quota",
                         Used = "14% used",
                         DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Secondary,
+                        QuotaBucketKind = WindowKind.Rolling,
                         NextResetTime = weeklyReset,
                     },
                 },

@@ -181,7 +181,7 @@ public class KimiProviderTests : HttpProviderTestBase<KimiProvider>
         Assert.Equal(3, usage.Details!.Count);
 
         // Verify 5-hour limit is Primary
-        var primaryDetail = usage.Details.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Primary);
+        var primaryDetail = usage.Details.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Burst);
         Assert.NotNull(primaryDetail);
         Assert.Equal("5h Limit", primaryDetail!.Name);
         Assert.True(primaryDetail.TryGetPercentageValue(out var primaryUsed, out var semantic, out _));
@@ -232,7 +232,7 @@ public class KimiProviderTests : HttpProviderTestBase<KimiProvider>
         Assert.Equal(85, usage.RequestsPercentage);
 
         // Verify 5-hour limit shows 92% used
-        var primaryDetail = usage.Details?.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Primary);
+        var primaryDetail = usage.Details?.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Burst);
         Assert.NotNull(primaryDetail);
         Assert.True(primaryDetail!.TryGetPercentageValue(out var fiveHourUsed, out _, out _));
         Assert.Equal(92, fiveHourUsed); // (1000 - 80) / 1000 * 100 = 92% used
@@ -289,7 +289,7 @@ public class KimiProviderTests : HttpProviderTestBase<KimiProvider>
         Assert.Equal(9200, usage.RequestsUsed);
 
         // Verify weekly detail shows 92% used
-        var secondaryDetails = usage.Details?.Where(d => d.QuotaBucketKind == WindowKind.Secondary).ToList();
+        var secondaryDetails = usage.Details?.Where(d => d.QuotaBucketKind == WindowKind.Rolling).ToList();
         Assert.NotNull(secondaryDetails);
         Assert.True(secondaryDetails!.Count >= 1);
 
@@ -383,8 +383,8 @@ public class KimiProviderTests : HttpProviderTestBase<KimiProvider>
         Assert.NotNull(usage.Details);
 
         // Should have: Secondary (weekly from usage block) + Primary (300min window from limits)
-        var primary = usage.Details!.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Primary);
-        var secondary = usage.Details!.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Secondary);
+        var primary = usage.Details!.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Burst);
+        var secondary = usage.Details!.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Rolling);
         Assert.NotNull(primary);   // 300-minute window → Primary
         Assert.NotNull(secondary); // usage block → Secondary
         Assert.Equal("5h Limit", primary!.Name);
@@ -437,8 +437,8 @@ public class KimiProviderTests : HttpProviderTestBase<KimiProvider>
         Assert.NotNull(usage.Details);
         Assert.Equal(3, usage.Details.Count); // Weekly from usage + Hourly + Weekly from limits
 
-        var hourlyDetail = usage.Details.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Primary);
-        var weeklyDetails = usage.Details.Where(d => d.QuotaBucketKind == WindowKind.Secondary).ToList();
+        var hourlyDetail = usage.Details.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Burst);
+        var weeklyDetails = usage.Details.Where(d => d.QuotaBucketKind == WindowKind.Rolling).ToList();
 
         Assert.NotNull(hourlyDetail);
         Assert.Equal(2, weeklyDetails.Count); // Both weekly limit from usage and from limits array
@@ -478,7 +478,7 @@ public class KimiProviderTests : HttpProviderTestBase<KimiProvider>
         var result = await this._provider.GetUsageAsync(this.Config);
         var usage = result.Single();
 
-        var primaryDetail = usage.Details?.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Primary);
+        var primaryDetail = usage.Details?.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Burst);
         Assert.NotNull(primaryDetail);
         Assert.Equal("3h Limit", primaryDetail!.Name);
     }
@@ -513,7 +513,7 @@ public class KimiProviderTests : HttpProviderTestBase<KimiProvider>
         var result = await this._provider.GetUsageAsync(this.Config);
         var usage = result.Single();
 
-        var primaryDetail = usage.Details?.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Primary);
+        var primaryDetail = usage.Details?.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Burst);
         Assert.NotNull(primaryDetail);
         Assert.Equal("1d Limit", primaryDetail!.Name); // Duration is formatted as "1d" not "Daily"
     }

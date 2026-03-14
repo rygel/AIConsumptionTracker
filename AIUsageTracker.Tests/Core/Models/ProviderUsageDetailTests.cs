@@ -41,7 +41,7 @@ public class ProviderUsageDetailTests
         {
             Name = "5-hour quota",
             DetailType = ProviderUsageDetailType.QuotaWindow,
-            QuotaBucketKind = WindowKind.Primary,
+            QuotaBucketKind = WindowKind.Burst,
         };
 
         Assert.True(detail.IsPrimaryQuotaDetail());
@@ -54,7 +54,7 @@ public class ProviderUsageDetailTests
         {
             Name = "Weekly quota",
             DetailType = ProviderUsageDetailType.QuotaWindow,
-            QuotaBucketKind = WindowKind.Secondary,
+            QuotaBucketKind = WindowKind.Rolling,
         };
 
         Assert.False(detail.IsPrimaryQuotaDetail());
@@ -67,7 +67,7 @@ public class ProviderUsageDetailTests
         {
             Name = "Weekly quota",
             DetailType = ProviderUsageDetailType.QuotaWindow,
-            QuotaBucketKind = WindowKind.Secondary,
+            QuotaBucketKind = WindowKind.Rolling,
         };
 
         Assert.True(detail.IsSecondaryQuotaDetail());
@@ -80,7 +80,7 @@ public class ProviderUsageDetailTests
         {
             Name = "5-hour quota",
             DetailType = ProviderUsageDetailType.QuotaWindow,
-            QuotaBucketKind = WindowKind.Primary,
+            QuotaBucketKind = WindowKind.Burst,
         };
 
         Assert.True(detail.IsPrimaryQuotaBucket());
@@ -91,10 +91,10 @@ public class ProviderUsageDetailTests
     {
         var detail = new ProviderUsageDetail
         {
-            QuotaBucketKind = WindowKind.Secondary,
+            QuotaBucketKind = WindowKind.Rolling,
         };
 
-        Assert.Equal(WindowKind.Secondary, detail.QuotaBucketKind);
+        Assert.Equal(WindowKind.Rolling, detail.QuotaBucketKind);
     }
 
     [Fact]
@@ -103,10 +103,10 @@ public class ProviderUsageDetailTests
         var detail = new ProviderUsageDetail();
 
 #pragma warning disable CS0618 // compatibility alias is intentionally tested
-        detail.WindowKind = WindowKind.Spark;
+        detail.WindowKind = WindowKind.ModelSpecific;
 #pragma warning restore CS0618
 
-        Assert.Equal(WindowKind.Spark, detail.QuotaBucketKind);
+        Assert.Equal(WindowKind.ModelSpecific, detail.QuotaBucketKind);
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class ProviderUsageDetailTests
         {
             Name = "5-hour quota",
             DetailType = ProviderUsageDetailType.QuotaWindow,
-            QuotaBucketKind = WindowKind.Primary,
+            QuotaBucketKind = WindowKind.Burst,
         };
 
         Assert.True(detail.IsWindowQuotaDetail());
@@ -171,7 +171,7 @@ public class ProviderUsageDetailTests
         {
             Name = "Requests / Hour",
             DetailType = ProviderUsageDetailType.QuotaWindow,
-            QuotaBucketKind = WindowKind.Primary,
+            QuotaBucketKind = WindowKind.Burst,
         };
         var options = new JsonSerializerOptions
         {
@@ -199,7 +199,7 @@ public class ProviderUsageDetailTests
             options);
 
         Assert.NotNull(detail);
-        Assert.Equal(WindowKind.Secondary, detail!.QuotaBucketKind);
+        Assert.Equal(WindowKind.Rolling, detail!.QuotaBucketKind);
         Assert.Equal(ProviderUsageDetailType.QuotaWindow, detail.DetailType);
     }
 

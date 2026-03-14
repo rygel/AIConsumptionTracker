@@ -114,8 +114,8 @@ public sealed class ProviderSubDetailPresentationCatalogTests
             ProviderId = "gemini-cli",
             Details = new List<ProviderUsageDetail>
             {
-                new() { Name = "Requests / Day", DetailType = ProviderUsageDetailType.QuotaWindow, QuotaBucketKind = WindowKind.Secondary },
-                new() { Name = "Requests / Minute", DetailType = ProviderUsageDetailType.QuotaWindow, QuotaBucketKind = WindowKind.Primary },
+                new() { Name = "Requests / Day", DetailType = ProviderUsageDetailType.QuotaWindow, QuotaBucketKind = WindowKind.Rolling },
+                new() { Name = "Requests / Minute", DetailType = ProviderUsageDetailType.QuotaWindow, QuotaBucketKind = WindowKind.Burst },
                 new() { Name = "Ignored Credit", DetailType = ProviderUsageDetailType.Credit },
             },
         };

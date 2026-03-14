@@ -119,7 +119,7 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         Assert.Contains("Extra usage enabled", result.Description);
 
         // Verify 5-hour quota is primary
-        var primaryDetail = result.Details?.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Primary);
+        var primaryDetail = result.Details?.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Burst);
         Assert.NotNull(primaryDetail);
         Assert.Equal("5-Hour Limit", primaryDetail!.Name);
         Assert.True(primaryDetail.TryGetPercentageValue(out var percent, out _, out _));
