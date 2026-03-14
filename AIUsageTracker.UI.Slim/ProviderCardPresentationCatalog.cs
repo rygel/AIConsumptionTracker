@@ -18,7 +18,8 @@ internal static class ProviderCardPresentationCatalog
         var description = usage.Description ?? string.Empty;
         var isMissing = description.Contains("not found", StringComparison.OrdinalIgnoreCase);
         var isConsoleCheck = description.Contains("Check Console", StringComparison.OrdinalIgnoreCase);
-        var isError = description.Contains("[Error]", StringComparison.OrdinalIgnoreCase);
+        var isError = description.Contains("[Error]", StringComparison.OrdinalIgnoreCase) ||
+            (!usage.IsAvailable && !isMissing && !string.IsNullOrWhiteSpace(description));
         var isUnknown = description.Contains("unknown", StringComparison.OrdinalIgnoreCase);
         var isAggregateParent = ProviderCapabilityCatalog.ShouldRenderAggregateDetailsInMainWindow(providerId);
         var isStatusOnlyProvider = string.Equals(usage.UsageUnit, "Status", StringComparison.OrdinalIgnoreCase);
@@ -45,6 +46,7 @@ internal static class ProviderCardPresentationCatalog
             shouldHaveProgress,
             usedPercent,
             remainingPercent,
+            description,
             out var specialPresentation))
         {
             return specialPresentation;
@@ -82,6 +84,7 @@ internal static class ProviderCardPresentationCatalog
         bool shouldHaveProgress,
         double usedPercent,
         double remainingPercent,
+        string description,
         out ProviderCardPresentation presentation)
     {
         if (isMissing)
@@ -102,6 +105,12 @@ internal static class ProviderCardPresentationCatalog
 
         if (isError)
         {
+            var errorText = description.Replace("[Error]", string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(errorText))
+            {
+                errorText = "Error";
+            }
+
             presentation = CreatePresentation(
                 isMissing,
                 isUnknown,
@@ -111,7 +120,7 @@ internal static class ProviderCardPresentationCatalog
                 false,
                 usedPercent,
                 remainingPercent,
-                "Error",
+                errorText,
                 ProviderCardStatusTone.Error);
             return true;
         }
