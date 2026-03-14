@@ -291,7 +291,9 @@ public class Program
                     Id = history.ProviderId,
                     Used = history.RequestsUsed,
                     Avail = history.RequestsAvailable,
+#pragma warning disable CS0618 // RequestsPercentage: database seeder pass-through
                     Perc = history.RequestsPercentage,
+#pragma warning restore CS0618
                     IsAvail = history.IsAvailable,
                     Msg = history.StatusMessage,
                     Next = history.NextResetTime,

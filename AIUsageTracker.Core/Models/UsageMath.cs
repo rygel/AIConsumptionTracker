@@ -166,9 +166,7 @@ public static class UsageMath
     {
         ArgumentNullException.ThrowIfNull(usage);
 
-        var percentage = ClampPercent(usage.RequestsPercentage);
-        var isQuota = usage.IsQuotaBased;
-        return isQuota ? ClampPercent(100 - percentage) : percentage;
+        return ClampPercent(usage.UsedPercent);
     }
 
     private static bool TryParseUsedPercent(string value, out double percent)

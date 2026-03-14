@@ -11,4 +11,5 @@ public enum ProviderUsageDetailType
     Credit = 2,
     Model = 3,
     Other = 4,
+    RateLimit = 5,
 }

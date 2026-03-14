@@ -33,7 +33,9 @@ internal static class GroupedUsageDisplayAdapter
                 IsQuotaBased = provider.IsQuotaBased,
                 RequestsUsed = provider.RequestsUsed,
                 RequestsAvailable = provider.RequestsAvailable,
+#pragma warning disable CS0618 // RequestsPercentage: pass-through of serialized field
                 RequestsPercentage = provider.RequestsPercentage,
+#pragma warning restore CS0618
                 Description = provider.Description,
                 FetchedAt = provider.FetchedAt,
                 NextResetTime = provider.NextResetTime,

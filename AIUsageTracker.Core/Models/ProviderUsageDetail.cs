@@ -50,6 +50,9 @@ public class ProviderUsageDetail
 
     public ProviderUsageDetailType DetailType { get; set; } = ProviderUsageDetailType.Unknown;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsStale { get; set; }
+
     [JsonPropertyName("window_kind")]
     public WindowKind QuotaBucketKind { get; set; } = WindowKind.None;
 
@@ -122,7 +125,7 @@ public class ProviderUsageDetail
 
     public bool IsDisplayableSubProviderDetail()
     {
-        return this.DetailType == ProviderUsageDetailType.Model || this.DetailType == ProviderUsageDetailType.Other;
+        return this.DetailType == ProviderUsageDetailType.Model || this.DetailType == ProviderUsageDetailType.Other || this.DetailType == ProviderUsageDetailType.RateLimit;
     }
 
     public void SetPercentageValue(double percentage, PercentageValueSemantic semantic, int decimalPlaces = 0, string? compatibilityText = null)

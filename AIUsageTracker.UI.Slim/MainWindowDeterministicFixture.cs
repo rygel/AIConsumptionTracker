@@ -73,7 +73,9 @@ internal static class MainWindowDeterministicFixture
             IsQuotaBased = isQuotaBased,
             PlanType = planType,
             DisplayAsFraction = isQuotaBased,
+#pragma warning disable CS0618 // RequestsPercentage: test fixture pass-through
             RequestsPercentage = usageScenario.RequestsPercentage,
+#pragma warning restore CS0618
             RequestsUsed = usageScenario.RequestsUsed,
             RequestsAvailable = usageScenario.RequestsAvailable,
             Description = usageScenario.Description,

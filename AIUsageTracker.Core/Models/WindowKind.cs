@@ -26,24 +26,28 @@ public enum WindowKind
     /// Short-term burst limit window (e.g., 3-hour or 5-hour quota).
     /// Semantically equivalent to <see cref="Burst"/>.
     /// </summary>
+    [Obsolete("Use WindowKind.Burst instead.")]
     Primary = 1,
 
     /// <summary>
     /// Long-term rolling limit window (e.g., 7-day or weekly quota).
     /// Semantically equivalent to <see cref="Rolling"/>.
     /// </summary>
+    [Obsolete("Use WindowKind.Rolling instead.")]
     Secondary = 2,
 
     /// <summary>
     /// Model-specific limit window (e.g., Codex Spark model quota).
     /// Semantically equivalent to <see cref="ModelSpecific"/>.
     /// </summary>
+    [Obsolete("Use WindowKind.ModelSpecific instead.")]
     Spark = 3,
 
     /// <summary>
     /// Short-term burst limit window (e.g., 3-hour or 5-hour quota).
     /// Preferred semantic name for <see cref="Primary"/>.
     /// </summary>
+#pragma warning disable CS0618 // Aliases reference obsolete members by design
     Burst = Primary,
 
     /// <summary>
@@ -57,4 +61,5 @@ public enum WindowKind
     /// Preferred semantic name for <see cref="Spark"/>.
     /// </summary>
     ModelSpecific = Spark,
+#pragma warning restore CS0618
 }

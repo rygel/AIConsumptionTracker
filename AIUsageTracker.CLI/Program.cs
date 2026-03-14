@@ -523,7 +523,7 @@ public class Program
 
             foreach (var u in usage)
             {
-                var usedPct = u.IsQuotaBased ? (100.0 - u.RequestsPercentage) : u.RequestsPercentage;
+                var usedPct = u.UsedPercent;
                 var pct = u.IsAvailable ? $"{usedPct:F0}%" : "-";
 
                 // Handle missing PlanType or IsQuotaBased if relying on serialized data

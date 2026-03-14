@@ -312,7 +312,7 @@ public class ProviderRefreshService : BackgroundService
         {
             var status = usage.IsAvailable ? "OK" : "FAILED";
             var message = usage.IsAvailable
-                ? $"{usage.RequestsPercentage:F1}% used"
+                ? $"{usage.UsedPercent:F1}% used"
                 : usage.Description;
             this._logger.LogDebug("  {ProviderId}: [{Status}] {Message}", usage.ProviderId, status, message);
         }

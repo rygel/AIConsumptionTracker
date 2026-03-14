@@ -52,7 +52,7 @@ public partial class App
                 var isQuota = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
                 var statusText = ProviderCardPresentationCatalog.Create(usage, showUsed).StatusText;
                 var providerLabel = ProviderCapabilityCatalog.ResolveDisplayLabel(usage);
-                desiredIcons[config.ProviderId] = ($"{providerLabel}: {statusText}", usage.RequestsPercentage, isQuota);
+                desiredIcons[config.ProviderId] = ($"{providerLabel}: {statusText}", usage.RemainingPercent, isQuota);
             }
 
             if (config.EnabledSubTrays == null || usage.Details == null)
