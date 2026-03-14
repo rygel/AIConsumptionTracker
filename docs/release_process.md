@@ -233,5 +233,5 @@ Examples:
 ## Related Documentation
 
 - [CHANGELOG.md](../CHANGELOG.md) - Release notes and version history
-- [AGENTS.md](../AGENTS.md) - Development guidelines including release notes guidelines
+- [AGENTS.md](AGENTS.md) - Development guidelines including release notes guidelines
 - `.github/workflows/release.yml` - Release workflow definition
