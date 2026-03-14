@@ -231,7 +231,7 @@ public class OpenAIProvider : ProviderBase
         catch (Exception ex)
         {
             this._logger.LogError(ex, "OpenAI session check failed");
-            return new[] { this.CreateUnavailableUsage("Session lookup failed") };
+            return new[] { this.CreateUnavailableUsageFromException(ex) };
         }
     }
 

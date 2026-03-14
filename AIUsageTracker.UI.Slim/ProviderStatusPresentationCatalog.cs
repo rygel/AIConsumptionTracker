@@ -108,7 +108,7 @@ internal static class ProviderStatusPresentationCatalog
         var hasAccountInfo = !string.IsNullOrWhiteSpace(accountInfo) && accountInfo is not ("Unknown" or "User");
         var displayAccount = hasAccountInfo
             ? (isPrivacyMode ? MaskAccountIdentifier(accountInfo!) : accountInfo!)
-            : "Unknown";
+            : "No account detected";
         var secondaryLines = new List<ProviderStatusLine>();
         var antigravitySubmodels = usage?.Details?
             .Select(d => d.Name)

@@ -72,12 +72,12 @@ public class KimiProvider : ProviderBase
                     ex,
                     "Kimi API response could not be deserialized. Unexpected format? Raw: {Raw}",
                     content.Length > 500 ? content[..500] : content);
-                return new[] { this.CreateUnavailableUsage("Unexpected response format", authSource: config.AuthSource) };
+                return new[] { this.CreateUnavailableUsage($"Failed to parse response: {ex.Message}", authSource: config.AuthSource) };
             }
 
             if (data == null || data.Usage == null)
             {
-                return new[] { this.CreateUnavailableUsage("Invalid response format", authSource: config.AuthSource) };
+                return new[] { this.CreateUnavailableUsage("Response missing usage data", authSource: config.AuthSource) };
             }
 
             double used = data.Usage.Used;

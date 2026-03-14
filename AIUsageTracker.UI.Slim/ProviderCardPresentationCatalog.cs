@@ -98,7 +98,7 @@ internal static class ProviderCardPresentationCatalog
                 false,
                 usedPercent,
                 remainingPercent,
-                "Key Missing",
+                description,
                 ProviderCardStatusTone.Missing);
             return true;
         }
@@ -108,7 +108,7 @@ internal static class ProviderCardPresentationCatalog
             var errorText = description.Replace("[Error]", string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(errorText))
             {
-                errorText = "Error";
+                errorText = description;
             }
 
             presentation = CreatePresentation(
@@ -136,7 +136,7 @@ internal static class ProviderCardPresentationCatalog
                 false,
                 usedPercent,
                 remainingPercent,
-                "Check Console",
+                description,
                 ProviderCardStatusTone.Warning);
             return true;
         }

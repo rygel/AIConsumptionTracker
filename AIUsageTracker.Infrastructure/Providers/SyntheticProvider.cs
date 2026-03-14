@@ -69,13 +69,13 @@ public sealed class SyntheticProvider : ProviderBase
 
             if (content.Trim().Equals("Not Found", StringComparison.OrdinalIgnoreCase))
             {
-                return new[] { this.CreateUnavailableUsage("Invalid key or quota endpoint", (int)response.StatusCode, config.AuthSource) };
+                return new[] { this.CreateUnavailableUsage("Endpoint returned 'Not Found' - check API key", (int)response.StatusCode, config.AuthSource) };
             }
 
             using var document = JsonDocument.Parse(content);
             if (!TryResolveUsage(document.RootElement, out var total, out var used, out var resetRaw))
             {
-                return new[] { this.CreateUnavailableUsage("Unexpected quota response format", (int)response.StatusCode, config.AuthSource) };
+                return new[] { this.CreateUnavailableUsage("Response missing quota fields (total/used/reset)", (int)response.StatusCode, config.AuthSource) };
             }
 
             var remainingPercent = Math.Clamp(((total - used) / total) * 100.0, 0, 100);
@@ -112,7 +112,7 @@ public sealed class SyntheticProvider : ProviderBase
         catch (Exception ex)
         {
             this._logger.LogError(ex, "Synthetic provider check failed");
-            return new[] { this.CreateUnavailableUsage("Connection failed", 503, config.AuthSource) };
+            return new[] { this.CreateUnavailableUsageFromException(ex, authSource: config.AuthSource) };
         }
     }
 

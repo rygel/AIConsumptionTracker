@@ -22,7 +22,7 @@ public sealed class ProviderCardPresentationCatalogTests
         var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: false);
 
         Assert.True(presentation.IsMissing);
-        Assert.Equal("Key Missing", presentation.StatusText);
+        Assert.Contains("not found", presentation.StatusText, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(ProviderCardStatusTone.Missing, presentation.StatusTone);
         Assert.False(presentation.ShouldHaveProgress);
     }

@@ -577,7 +577,7 @@ public class KimiProviderTests : HttpProviderTestBase<KimiProvider>
 
         var usage = result.Single();
         Assert.False(usage.IsAvailable);
-        Assert.Contains("Unexpected response format", usage.Description);
+        Assert.Contains("Failed to parse response", usage.Description);
     }
 
     [Fact]
