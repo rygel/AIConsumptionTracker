@@ -65,12 +65,47 @@ internal static class ProviderDualQuotaBucketPresentationCatalog
     private static int GetWindowOrder(WindowKind kind, List<QuotaWindowDefinition>? windows)
     {
         var idx = windows?.FindIndex(w => w.Kind == kind) ?? -1;
-        return idx >= 0 ? idx : 99;
+        if (idx >= 0)
+        {
+            return idx;
+        }
+
+        // Default ordering when no declaration exists: short windows (Burst) above long ones (Rolling).
+        return kind switch
+        {
+            WindowKind.Burst => 10,
+            WindowKind.Rolling => 20,
+            _ => 99,
+        };
     }
 
     private static string GetWindowLabel(ProviderUsageDetail detail, List<QuotaWindowDefinition>? windows, string fallback)
     {
+        // When the detail name carries explicit duration info (e.g. "5h Limit", "1 Day Limit"),
+        // extract it as the label. This is more accurate than the static DualBarLabel when multiple
+        // window lengths share the same WindowKind (e.g. Kimi Burst covers both 5h and 1-day windows).
+        var nameLabel = ExtractDurationLabelFromDetailName(detail.Name);
+        if (!string.IsNullOrWhiteSpace(nameLabel))
+        {
+            return nameLabel;
+        }
+
         var declared = windows?.FirstOrDefault(w => w.Kind == detail.QuotaBucketKind);
         return declared?.DualBarLabel ?? fallback;
+    }
+
+    /// <summary>
+    /// Strips the " Limit" suffix from a detail name to produce a compact label.
+    /// E.g. "5h Limit" → "5h", "Weekly Limit" → "Weekly". Returns null when the suffix is absent.
+    /// </summary>
+    private static string? ExtractDurationLabelFromDetailName(string? name)
+    {
+        const string suffix = " Limit";
+        if (string.IsNullOrWhiteSpace(name) || !name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return name[..^suffix.Length].Trim();
     }
 }

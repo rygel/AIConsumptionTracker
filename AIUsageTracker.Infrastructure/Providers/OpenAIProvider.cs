@@ -132,13 +132,16 @@ public class OpenAIProvider : ProviderBase
         var reset = root.ReadDouble("rate_limit", "primary_window", "reset_after_seconds");
         var primaryResetTime = ResolveWindowResetTime(root, "primary_window");
 
-        if (used.HasValue)
+        // Emit the Burst detail when usage OR reset timer is present. When the window just reset
+        // the API may omit used_percent (returning only reset_after_seconds), so a used-only guard
+        // would silently drop the bar, preventing dual-bar rendering on the parent card.
+        if (used.HasValue || primaryResetTime.HasValue)
         {
-            var primaryRemaining = Math.Clamp(100.0 - used.Value, 0.0, 100.0);
+            var primaryRemaining = Math.Clamp(100.0 - (used ?? 0.0), 0.0, 100.0);
             details.Add(new ProviderUsageDetail
             {
                 Name = "5-hour quota",
-                Description = reset.HasValue && reset.Value > 0 ? $"Resets in {(int)reset.Value}s" : string.Empty,
+                Description = FormatResetDescription(reset),
                 NextResetTime = primaryResetTime,
                 DetailType = ProviderUsageDetailType.QuotaWindow,
                 QuotaBucketKind = WindowKind.Burst,
@@ -150,13 +153,13 @@ public class OpenAIProvider : ProviderBase
         var weeklyUsed = root.ReadDouble("rate_limit", "secondary_window", "used_percent");
         var weeklyReset = root.ReadDouble("rate_limit", "secondary_window", "reset_after_seconds");
         var weeklyResetTime = ResolveWindowResetTime(root, "secondary_window");
-        if (weeklyUsed.HasValue)
+        if (weeklyUsed.HasValue || weeklyResetTime.HasValue)
         {
-            var secondaryRemaining = Math.Clamp(100.0 - weeklyUsed.Value, 0.0, 100.0);
+            var secondaryRemaining = Math.Clamp(100.0 - (weeklyUsed ?? 0.0), 0.0, 100.0);
             details.Add(new ProviderUsageDetail
             {
                 Name = "Weekly quota",
-                Description = weeklyReset.HasValue && weeklyReset.Value > 0 ? $"Resets in {(int)weeklyReset.Value}s" : string.Empty,
+                Description = FormatResetDescription(weeklyReset),
                 NextResetTime = weeklyResetTime,
                 DetailType = ProviderUsageDetailType.QuotaWindow,
                 QuotaBucketKind = WindowKind.Rolling,
@@ -197,9 +200,10 @@ public class OpenAIProvider : ProviderBase
         var resetSeconds = root.ReadDouble("rate_limit", windowName, "reset_after_seconds")
                           ?? root.ReadDouble("rate_limit", windowName, "reset_after");
 
-        if (resetSeconds.HasValue && resetSeconds.Value > 0)
+        var resetFromSeconds = ResolveResetTimeFromSeconds(resetSeconds);
+        if (resetFromSeconds.HasValue)
         {
-            return DateTime.UtcNow.AddSeconds(resetSeconds.Value).ToLocalTime();
+            return resetFromSeconds;
         }
 
         var resetAtIso = root.ReadString("rate_limit", windowName, "resets_at")

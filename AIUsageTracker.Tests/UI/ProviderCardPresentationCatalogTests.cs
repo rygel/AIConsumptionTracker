@@ -3,6 +3,7 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.UI.Slim;
 
 namespace AIUsageTracker.Tests.UI;
@@ -160,6 +161,100 @@ public sealed class ProviderCardPresentationCatalogTests
 
         Assert.Equal("5h 96% remaining | Weekly 49% remaining", presentation.StatusText);
         Assert.True(presentation.SuppressSingleResetTime);
+    }
+
+    [Fact]
+    public void Create_ExtractsDurationLabelFromDetailName_ForKimiStyleLimitNames()
+    {
+        // Kimi detail names follow "{duration} Limit" format (e.g. "5h Limit", "Weekly Limit").
+        // GetWindowLabel should extract the duration prefix rather than falling back to
+        // the static DualBarLabel ("Daily"), which is inaccurate for sub-day windows.
+        var burstDetail = new ProviderUsageDetail
+        {
+            Name = "5h Limit",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Burst,
+        };
+        burstDetail.SetPercentageValue(0.0, PercentageValueSemantic.Used);
+
+        var rollingDetail = new ProviderUsageDetail
+        {
+            Name = "Weekly Limit",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Rolling,
+        };
+        rollingDetail.SetPercentageValue(25.0, PercentageValueSemantic.Used);
+
+        var usage = new ProviderUsage
+        {
+            ProviderId = "kimi-for-coding",
+            IsAvailable = true,
+            IsQuotaBased = true,
+            UsedPercent = 25,
+            Details = new List<ProviderUsageDetail> { rollingDetail, burstDetail },
+        };
+
+        var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: true);
+
+        // "5h Limit" → "5h" (not "Daily"), "Weekly Limit" → "Weekly"
+        // Short window (5h/Burst) is top bar (Primary), long window (Weekly/Rolling) is bottom.
+        Assert.Equal("5h 0% used | Weekly 25% used", presentation.StatusText);
+    }
+
+    // --- Pipeline regression tests ---
+    // These tests verify the full pipeline from AgentGroupedUsageSnapshot through
+    // GroupedUsageDisplayAdapter → ProviderCardPresentationCatalog so that bugs
+    // suppressed by a broken intermediate layer cannot be masked.
+
+    [Fact]
+    public void Pipeline_KimiProviderQuotaDetails_ProducesDualBarOnParentCard()
+    {
+        // Regression: Kimi has no Model-type details, only QuotaWindow.
+        // Before the fix, ProviderQuotaDetails was never carried through the pipeline,
+        // parentUsage.Details was null, and TryGetPresentation returned false — no dual bar.
+        var weeklyDetail = new ProviderUsageDetail
+        {
+            Name = "Weekly Limit",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Rolling,
+        };
+        weeklyDetail.SetPercentageValue(25.0, PercentageValueSemantic.Used, decimalPlaces: 1);
+
+        var burstDetail = new ProviderUsageDetail
+        {
+            Name = "5h Limit",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Burst,
+        };
+        burstDetail.SetPercentageValue(0.0, PercentageValueSemantic.Used, decimalPlaces: 1);
+
+        var snapshot = new AgentGroupedUsageSnapshot
+        {
+            Providers = new[]
+            {
+                new AgentGroupedProviderUsage
+                {
+                    ProviderId = "kimi-for-coding",
+                    IsAvailable = true,
+                    IsQuotaBased = true,
+                    UsedPercent = 25,
+                    Models = Array.Empty<AgentGroupedModelUsage>(),
+                    ProviderQuotaDetails = new[] { weeklyDetail, burstDetail },
+                },
+            },
+        };
+
+        var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
+        var parent = Assert.Single(usages, u => string.Equals(u.ProviderId, "kimi-for-coding", StringComparison.Ordinal));
+
+        var presentation = ProviderCardPresentationCatalog.Create(parent, showUsed: false);
+
+        Assert.True(presentation.HasDualBuckets, "Kimi parent card must render dual progress bars");
+        Assert.True(presentation.ShouldHaveProgress);
+        Assert.Equal(0, presentation.DualBucketPrimaryUsed!.Value, precision: 0);   // 5h (Burst) top bar
+        Assert.Equal(25, presentation.DualBucketSecondaryUsed!.Value, precision: 0); // Weekly (Rolling) bottom bar
+        Assert.Contains("Weekly", presentation.StatusText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("5h", presentation.StatusText, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

@@ -22,7 +22,14 @@ internal static class GroupedUsageDisplayAdapter
                      .Where(provider => !string.IsNullOrWhiteSpace(provider.ProviderId))
                      .OrderBy(provider => provider.ProviderId, StringComparer.OrdinalIgnoreCase))
         {
-            var details = BuildModelDetails(provider);
+            // Provider-level quota window details (e.g. Codex 5h + Weekly, Kimi 5h + Weekly)
+            // drive dual bar rendering on the parent card. When present they take priority over
+            // model details — the model details are still used by BuildVisibleDerivedRows below.
+            // Fall back to model details only for providers that have no explicit quota windows
+            // (e.g. usage-plan providers whose parent card shows aggregate model breakdown).
+            var parentDetails = provider.ProviderQuotaDetails.Count > 0
+                ? (IReadOnlyList<ProviderUsageDetail>)provider.ProviderQuotaDetails
+                : BuildModelDetails(provider);
             var parentUsage = new ProviderUsage
             {
                 ProviderId = provider.ProviderId,
@@ -37,7 +44,7 @@ internal static class GroupedUsageDisplayAdapter
                 Description = provider.Description,
                 FetchedAt = provider.FetchedAt,
                 NextResetTime = provider.NextResetTime,
-                Details = details.Count > 0 ? details : null,
+                Details = parentDetails.Count > 0 ? parentDetails.ToList() : null,
             };
 
             usages.Add(parentUsage);
@@ -161,7 +168,7 @@ internal static class GroupedUsageDisplayAdapter
                     Description = bucket.Description ?? string.Empty,
                     NextResetTime = bucket.NextResetTime,
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.None,
+                    QuotaBucketKind = bucket.QuotaBucketKind,
                 };
 
                 if (parentIsQuotaBased)

@@ -51,6 +51,7 @@ public static class GroupedUsageProjectionService
                 .FirstOrDefault();
 
         var displayName = ResolveProviderDisplayName(primary, canonicalProviderId);
+        var providerQuotaDetails = ExtractProviderQuotaDetails(primary);
         return new AgentGroupedProviderUsage
         {
             ProviderId = canonicalProviderId,
@@ -67,7 +68,22 @@ public static class GroupedUsageProjectionService
             NextResetTime = nextResetTime,
             ModelCount = models.Count,
             Models = models,
+            ProviderQuotaDetails = providerQuotaDetails,
         };
+    }
+
+    private static IReadOnlyList<ProviderUsageDetail> ExtractProviderQuotaDetails(ProviderUsage primary)
+    {
+        if (primary.Details == null || primary.Details.Count == 0)
+        {
+            return Array.Empty<ProviderUsageDetail>();
+        }
+
+        return primary.Details
+            .Where(d => d.DetailType == ProviderUsageDetailType.QuotaWindow
+                        && d.QuotaBucketKind != WindowKind.None
+                        && string.IsNullOrWhiteSpace(d.ModelName))
+            .ToList();
     }
 
     private static string ResolveProviderDisplayName(ProviderUsage primary, string canonicalProviderId)
@@ -286,6 +302,7 @@ public static class GroupedUsageProjectionService
                 RemainingPercentage = remainingPercent,
                 NextResetTime = detail.NextResetTime,
                 Description = detail.Description ?? string.Empty,
+                QuotaBucketKind = detail.QuotaBucketKind,
             });
         }
 

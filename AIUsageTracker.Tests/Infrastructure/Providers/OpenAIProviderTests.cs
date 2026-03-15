@@ -213,6 +213,49 @@ public class OpenAIProviderTests : HttpProviderTestBase<OpenAIProvider>
         return $"{header}.{payload}.";
     }
 
+    [Fact]
+    public async Task GetUsageAsync_NativeSession_BurstWindowJustReset_EmitsBurstDetailWith100Remaining()
+    {
+        // Regression: when the 5h burst window just reset, the API may omit used_percent and
+        // only return reset_after_seconds. The previous guard `if (used.HasValue)` would skip
+        // the Burst detail entirely, preventing dual-bar rendering on the parent card.
+        // With the fix, the Burst detail is emitted with 100% remaining (0% used).
+        this.Config.ApiKey = "session-token";
+
+        this.SetupHttpResponse("https://chatgpt.com/backend-api/wham/usage", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent(JsonSerializer.Serialize(new
+            {
+                plan_type = "plus",
+                rate_limit = new
+                {
+                    // Burst window just reset — API omits used_percent, only reset timer present
+                    primary_window = new { reset_after_seconds = 18000 },
+                    secondary_window = new { used_percent = 30.0, reset_after_seconds = 604800 },
+                },
+            })),
+        });
+
+        var result = await this._provider.GetUsageAsync(this.Config);
+
+        var usage = result.Single();
+        Assert.True(usage.IsAvailable);
+        Assert.NotNull(usage.Details);
+
+        // Burst detail must be present even though used_percent was absent
+        var burstDetail = usage.Details.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Burst);
+        Assert.NotNull(burstDetail);
+        Assert.Equal("5-hour quota", burstDetail!.Name);
+        Assert.Equal(100.0, burstDetail.PercentageValue);
+        Assert.Equal(PercentageValueSemantic.Remaining, burstDetail.PercentageSemantic);
+
+        // Rolling detail must still be present
+        var rollingDetail = usage.Details.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Rolling);
+        Assert.NotNull(rollingDetail);
+        Assert.Equal(70.0, rollingDetail!.PercentageValue);
+    }
+
     private static string Base64UrlEncode(string value)
     {
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(value))

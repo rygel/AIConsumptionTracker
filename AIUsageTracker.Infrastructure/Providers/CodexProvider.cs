@@ -273,22 +273,6 @@ public class CodexProvider : ProviderBase
         return string.IsNullOrWhiteSpace(normalized) ? fallback : normalized;
     }
 
-    private static bool LooksLikeModelName(string label)
-    {
-        if (string.IsNullOrWhiteSpace(label))
-        {
-            return false;
-        }
-
-        var lower = label.ToLowerInvariant();
-        return lower.Contains("gpt") ||
-               lower.Contains("codex") ||
-               lower.Contains("spark") ||
-               lower.Contains("claude") ||
-               lower.Contains("gemini") ||
-               lower.Contains("sonnet");
-    }
-
     private static DateTime? ResolveNextResetTime(double? primaryResetSeconds, double? sparkResetSeconds)
     {
         var resetSeconds = primaryResetSeconds ?? sparkResetSeconds;
@@ -318,26 +302,6 @@ public class CodexProvider : ProviderBase
         };
 
         return candidates.Max();
-    }
-
-    private static string FormatResetDescription(double? resetAfterSeconds)
-    {
-        if (!resetAfterSeconds.HasValue || resetAfterSeconds.Value <= 0)
-        {
-            return string.Empty;
-        }
-
-        return $"Resets in {(int)resetAfterSeconds.Value}s";
-    }
-
-    private static DateTime? ResolveDetailResetTime(double? resetAfterSeconds)
-    {
-        if (!resetAfterSeconds.HasValue || resetAfterSeconds.Value <= 0)
-        {
-            return null;
-        }
-
-        return DateTime.UtcNow.AddSeconds(resetAfterSeconds.Value).ToLocalTime();
     }
 
     private static SparkWindow ExtractSparkWindow(JsonElement root)
@@ -536,7 +500,7 @@ public class CodexProvider : ProviderBase
         var secondaryUsedPercent = root.ReadDouble("rate_limit", "secondary_window", "used_percent");
         var secondaryResetSeconds = root.ReadDouble("rate_limit", "secondary_window", "reset_after_seconds");
         var sparkWindow = ExtractSparkWindow(root);
-        var modelNames = ResolveModelNames(root, sparkWindow);
+        var primaryModelName = ResolveModelName(root);
         var accountIdentity = ResolveAccountIdentity(root, jwtEmail, authIdentity, accountId);
 
         // Use the highest usage percentage across all windows for the parent display.
@@ -547,13 +511,25 @@ public class CodexProvider : ProviderBase
             sparkWindow.PrimaryUsedPercent,
             sparkWindow.SecondaryUsedPercent);
         var remainingPercent = Math.Clamp(100.0 - effectiveUsedPercent, 0.0, 100.0);
+
+        // Spark's effective constraint is the max of its own 5h window, the Spark-block secondary
+        // window, and the shared weekly quota. All three sources must be considered.
+        // Spark's own secondary window (additional_rate_limits[spark]) is an independent counter
+        // from the main rate_limit.secondary_window. Prefer Spark's own when present; fall back
+        // to the main secondary only when Spark has no secondary window of its own.
+        var sparkEffectiveWeeklyForParent = sparkWindow.SecondaryUsedPercent ?? secondaryUsedPercent ?? 0.0;
+        var effectiveSparkPercent = sparkWindow.HasWindowData
+            ? (double?)Math.Max(sparkWindow.PrimaryUsedPercent ?? 0.0, sparkEffectiveWeeklyForParent)
+            : null;
+
         var details = BuildDetails(
             primaryUsedPercent,
+            effectiveUsedPercent,
             primaryResetSeconds,
             secondaryUsedPercent,
             secondaryResetSeconds,
             sparkWindow,
-            modelNames,
+            primaryModelName,
             root);
         var nextResetTime = ResolveNextResetTime(primaryResetSeconds, sparkWindow.PrimaryResetAfterSeconds);
         var usages = new List<ProviderUsage>
@@ -568,7 +544,7 @@ public class CodexProvider : ProviderBase
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
                 IsAvailable = true,
-                Description = BuildUsageDescription(remainingPercent, effectiveUsedPercent, sparkWindow.PrimaryUsedPercent, planType),
+                Description = BuildUsageDescription(remainingPercent, effectiveUsedPercent, effectiveSparkPercent, planType),
                 AccountName = accountIdentity ?? string.Empty,
                 AuthSource = AuthSource.CodexNative(planType),
                 NextResetTime = nextResetTime,
@@ -627,30 +603,62 @@ public class CodexProvider : ProviderBase
 
     private static List<ProviderUsageDetail> BuildDetails(
         double primaryUsedPercent,
+        double effectiveUsedPercent,
         double? primaryResetSeconds,
         double? secondaryUsedPercent,
         double? secondaryResetSeconds,
         SparkWindow sparkWindow,
-        (string PrimaryModelName, string? SparkModelName) modelNames,
+        string primaryModelName,
         JsonElement root)
     {
         var primaryRemaining = Math.Clamp(100.0 - primaryUsedPercent, 0.0, 100.0);
+        var effectiveRemaining = Math.Clamp(100.0 - effectiveUsedPercent, 0.0, 100.0);
+
+        // For the Model detail, use the Spark-specific effective remaining when Spark window data
+        // exists. Spark's additional_rate_limits[spark].rate_limit.secondary_window is an
+        // independent counter from the main rate_limit.secondary_window — they track separate
+        // weekly quotas. Prefer Spark's own secondary when present; fall back to the main
+        // secondary only when the Spark block has no secondary window.
+        // Setting ModelName lets GroupedUsageProjectionService scope the model-level QW details
+        // (added below) to this model so the child card can render a dual bar.
+        var sparkEffectiveWeeklyUsed = sparkWindow.SecondaryUsedPercent ?? secondaryUsedPercent ?? 0.0;
+        var sparkEffectiveUsed = sparkWindow.HasWindowData
+            ? (double?)Math.Max(sparkWindow.PrimaryUsedPercent ?? 0.0, sparkEffectiveWeeklyUsed)
+            : null;
+        var modelDetailRemaining = sparkEffectiveUsed.HasValue
+            ? Math.Clamp(100.0 - sparkEffectiveUsed.Value, 0.0, 100.0)
+            : effectiveRemaining;
+
+        // When Spark window data is present, use the Spark model's identifier for the Model
+        // detail so that:
+        //   1. BuildModelsFromDetails can scope the model-scoped QW details (added below) to
+        //      this model by matching ModelName.
+        //   2. ProviderDerivedModelAssignmentResolver can match the codex.spark DerivedModelSelector
+        //      which looks for "spark" in ModelId/ModelName.
+        // sparkWindow.Label is the limit_name (e.g. "GPT-5.3-Codex-Spark"); .ModelName is the
+        // API model field (e.g. "gpt-5.3-codex-spark"). Either contains "spark" and satisfies
+        // the selector. Fall back to primaryModelName only when no Spark window exists.
+        var sparkModelDetailId = sparkWindow.HasWindowData
+            ? (sparkWindow.ModelName ?? sparkWindow.Label ?? primaryModelName)
+            : primaryModelName;
+
         var details = new List<ProviderUsageDetail>
         {
             new()
             {
-                Name = modelNames.PrimaryModelName,
+                Name = sparkModelDetailId,
+                ModelName = sparkModelDetailId,
                 Description = "Model quota",
                 DetailType = ProviderUsageDetailType.Model,
-                QuotaBucketKind = WindowKind.Burst,
-                PercentageValue = primaryRemaining,
+                QuotaBucketKind = WindowKind.None,
+                PercentageValue = modelDetailRemaining,
                 PercentageSemantic = PercentageValueSemantic.Remaining,
             },
             new()
             {
                 Name = "5-hour quota",
                 Description = FormatResetDescription(primaryResetSeconds),
-                NextResetTime = ResolveDetailResetTime(primaryResetSeconds),
+                NextResetTime = ResolveResetTimeFromSeconds(primaryResetSeconds),
                 DetailType = ProviderUsageDetailType.QuotaWindow,
                 QuotaBucketKind = WindowKind.Burst,
                 PercentageValue = primaryRemaining,
@@ -665,7 +673,7 @@ public class CodexProvider : ProviderBase
             {
                 Name = "Weekly quota",
                 Description = FormatResetDescription(secondaryResetSeconds),
-                NextResetTime = ResolveDetailResetTime(secondaryResetSeconds),
+                NextResetTime = ResolveResetTimeFromSeconds(secondaryResetSeconds),
                 DetailType = ProviderUsageDetailType.QuotaWindow,
                 QuotaBucketKind = WindowKind.Rolling,
                 PercentageValue = secondaryRemaining,
@@ -675,19 +683,81 @@ public class CodexProvider : ProviderBase
 
         if (sparkWindow.HasWindowData)
         {
-            var sparkUsedPercent = sparkWindow.PrimaryUsedPercent ?? sparkWindow.SecondaryUsedPercent;
-            if (sparkUsedPercent.HasValue)
+            // HasWindowData means at least one usage percentage or reset timer is present.
+            // When only reset timers are present (burst just reset, API omits used_percent),
+            // PrimaryUsedPercent is null → sparkOwnUsed defaults to 0 (100% remaining on burst).
+            // The effective Spark constraint is the max across all windows: Spark's own 5h,
+            // the Spark-block secondary (additional_rate_limits[spark].rate_limit.secondary_window),
+            // and the shared weekly (rate_limit.secondary_window). sparkEffectiveWeeklyUsed already
+            // combines the latter two; max with sparkPrimary gives the overall binding value.
+            // sparkOwnUsed represents only the Spark 5h burst window — defaulting to 0 when the
+            // primary window has reset and the API omits used_percent entirely. The secondary
+            // (weekly) is NOT a fallback here: it's already captured in sparkEffectiveWeeklyUsed
+            // and used below for the Rolling bar.
+            var sparkOwnUsed = sparkWindow.PrimaryUsedPercent ?? 0.0;
+            var sparkEffectiveUsedForDetail = Math.Max(sparkOwnUsed, sparkEffectiveWeeklyUsed);
+            var sparkRemaining = Math.Clamp(100.0 - sparkEffectiveUsedForDetail, 0.0, 100.0);
+
+            // Reset times: each detail gets the reset time of its own binding source.
+            // sparkBurstResetSeconds — the 5h Spark window (primary, falling back to secondary).
+            // weeklyResetSeconds — whichever weekly source is more constrained (higher used %).
+            // sparkModelSpecificResetSeconds — reset of whichever window is the overall binding
+            //   constraint for the provider-level Spark detail.
+            var sparkBurstResetSeconds = sparkWindow.PrimaryResetAfterSeconds ?? sparkWindow.SecondaryResetAfterSeconds;
+            // Use Spark's own secondary reset time when available; fall back to main secondary.
+            var weeklyResetSeconds = sparkWindow.SecondaryResetAfterSeconds ?? secondaryResetSeconds;
+            var sparkModelSpecificResetSeconds = sparkEffectiveWeeklyUsed > sparkOwnUsed
+                ? weeklyResetSeconds
+                : sparkBurstResetSeconds;
+
+            // Provider-level Spark detail (Kind=ModelSpecific) drives the third value on the parent
+            // card and is used as a visual cue that a Spark quota exists.
+            details.Add(new ProviderUsageDetail
             {
-                var sparkRemaining = Math.Clamp(100.0 - sparkUsedPercent.Value, 0.0, 100.0);
-                var sparkResetAfterSeconds = sparkWindow.PrimaryResetAfterSeconds ?? sparkWindow.SecondaryResetAfterSeconds;
+                Name = $"Spark ({sparkWindow.Label ?? "window"})",
+                Description = FormatResetDescription(sparkModelSpecificResetSeconds),
+                NextResetTime = ResolveResetTimeFromSeconds(sparkModelSpecificResetSeconds),
+                DetailType = ProviderUsageDetailType.QuotaWindow,
+                QuotaBucketKind = WindowKind.ModelSpecific,
+                PercentageValue = sparkRemaining,
+                PercentageSemantic = PercentageValueSemantic.Remaining,
+            });
+
+            // Model-scoped QW details (ModelName set) are excluded from provider-level
+            // ProviderQuotaDetails but are picked up by BuildModelsFromDetails and scoped to
+            // the Spark model. This gives the codex.spark child card its own dual bar showing
+            // Spark's 5h window and the binding weekly constraint independently.
+            var sparkOwnRemaining = Math.Clamp(100.0 - sparkOwnUsed, 0.0, 100.0);
+            details.Add(new ProviderUsageDetail
+            {
+                Name = "Spark 5h quota",
+                ModelName = sparkModelDetailId,
+                Description = FormatResetDescription(sparkBurstResetSeconds),
+                NextResetTime = ResolveResetTimeFromSeconds(sparkBurstResetSeconds),
+                DetailType = ProviderUsageDetailType.QuotaWindow,
+                QuotaBucketKind = WindowKind.Burst,
+                PercentageValue = sparkOwnRemaining,
+                PercentageSemantic = PercentageValueSemantic.Remaining,
+            });
+
+            // Add the Rolling (weekly) detail for the Spark model whenever ANY weekly data is
+            // available — usage percentages OR reset timers. Using only .HasValue on usage would
+            // silently drop the Rolling bar when the weekly window just reset and the API omits
+            // used_percent (same class of bug as HasWindowData).
+            var hasAnyWeeklyData = sparkWindow.SecondaryUsedPercent.HasValue || secondaryUsedPercent.HasValue
+                || sparkWindow.SecondaryResetAfterSeconds.HasValue || secondaryResetSeconds.HasValue;
+            if (hasAnyWeeklyData)
+            {
+                var weeklyRemainingForModel = Math.Clamp(100.0 - sparkEffectiveWeeklyUsed, 0.0, 100.0);
                 details.Add(new ProviderUsageDetail
                 {
-                    Name = $"Spark ({sparkWindow.Label ?? "window"})",
-                    Description = FormatResetDescription(sparkResetAfterSeconds),
-                    NextResetTime = ResolveDetailResetTime(sparkResetAfterSeconds),
+                    Name = "Weekly quota",
+                    ModelName = sparkModelDetailId,
+                    Description = FormatResetDescription(weeklyResetSeconds),
+                    NextResetTime = ResolveResetTimeFromSeconds(weeklyResetSeconds),
                     DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.ModelSpecific,
-                    PercentageValue = sparkRemaining,
+                    QuotaBucketKind = WindowKind.Rolling,
+                    PercentageValue = weeklyRemainingForModel,
                     PercentageSemantic = PercentageValueSemantic.Remaining,
                 });
             }
@@ -713,39 +783,14 @@ public class CodexProvider : ProviderBase
         return details;
     }
 
-    private static (string PrimaryModelName, string? SparkModelName) ResolveModelNames(JsonElement root, SparkWindow sparkWindow)
+    private static string ResolveModelName(JsonElement root)
     {
         var primaryRaw = root.ReadString("model_name")
                          ?? root.ReadString("model")
                          ?? root.ReadString("rate_limit", "primary_window", "model_name")
                          ?? root.ReadString("rate_limit", "primary_window", "model")
                          ?? root.ReadString("rate_limit", "primary_window", "limit_name");
-        var primaryModelName = NormalizeModelName(primaryRaw, "OpenAI") ?? "OpenAI";
-
-        string? sparkModelName = null;
-        if (sparkWindow.HasWindowData)
-        {
-            sparkModelName = ResolveSparkModelName(sparkWindow);
-        }
-
-        return (primaryModelName, sparkModelName);
-    }
-
-    private static string? ResolveSparkModelName(SparkWindow sparkWindow)
-    {
-        var explicitModelName = NormalizeModelName(sparkWindow.ModelName, null);
-        if (!string.IsNullOrWhiteSpace(explicitModelName))
-        {
-            return explicitModelName;
-        }
-
-        var label = NormalizeModelName(sparkWindow.Label, null);
-        if (!string.IsNullOrWhiteSpace(label) && LooksLikeModelName(label))
-        {
-            return label;
-        }
-
-        return null;
+        return NormalizeModelName(primaryRaw, "OpenAI") ?? "OpenAI";
     }
 
     private readonly record struct SparkWindow(
@@ -756,9 +801,13 @@ public class CodexProvider : ProviderBase
         double? SecondaryUsedPercent,
         double? SecondaryResetAfterSeconds)
     {
-        public bool HasWindowData => this.PrimaryUsedPercent.HasValue || this.SecondaryUsedPercent.HasValue;
-
-        public double? UsedPercent => this.PrimaryUsedPercent ?? this.SecondaryUsedPercent;
+        /// <summary>
+        /// True when any meaningful window data is present — usage percentages or reset timers.
+        /// Allows the Spark block to be processed even when the burst window just reset and the
+        /// API omits used_percent (returning only reset_after_seconds).
+        /// </summary>
+        public bool HasWindowData => this.PrimaryUsedPercent.HasValue || this.SecondaryUsedPercent.HasValue
+            || this.PrimaryResetAfterSeconds.HasValue || this.SecondaryResetAfterSeconds.HasValue;
     }
 
     private sealed class CodexAuth
