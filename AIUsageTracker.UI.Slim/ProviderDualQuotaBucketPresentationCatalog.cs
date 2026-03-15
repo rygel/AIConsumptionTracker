@@ -65,7 +65,18 @@ internal static class ProviderDualQuotaBucketPresentationCatalog
     private static int GetWindowOrder(WindowKind kind, List<QuotaWindowDefinition>? windows)
     {
         var idx = windows?.FindIndex(w => w.Kind == kind) ?? -1;
-        return idx >= 0 ? idx : 99;
+        if (idx >= 0)
+        {
+            return idx;
+        }
+
+        // Default ordering when no declaration exists: short windows (Burst) above long ones (Rolling).
+        return kind switch
+        {
+            WindowKind.Burst => 10,
+            WindowKind.Rolling => 20,
+            _ => 99,
+        };
     }
 
     private static string GetWindowLabel(ProviderUsageDetail detail, List<QuotaWindowDefinition>? windows, string fallback)

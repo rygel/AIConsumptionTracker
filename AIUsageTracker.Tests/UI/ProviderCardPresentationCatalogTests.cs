@@ -197,7 +197,8 @@ public sealed class ProviderCardPresentationCatalogTests
         var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: true);
 
         // "5h Limit" → "5h" (not "Daily"), "Weekly Limit" → "Weekly"
-        Assert.Equal("Weekly 25% used | 5h 0% used", presentation.StatusText);
+        // Short window (5h/Burst) is top bar (Primary), long window (Weekly/Rolling) is bottom.
+        Assert.Equal("5h 0% used | Weekly 25% used", presentation.StatusText);
     }
 
     // --- Pipeline regression tests ---
@@ -250,8 +251,8 @@ public sealed class ProviderCardPresentationCatalogTests
 
         Assert.True(presentation.HasDualBuckets, "Kimi parent card must render dual progress bars");
         Assert.True(presentation.ShouldHaveProgress);
-        Assert.Equal(25, presentation.DualBucketPrimaryUsed!.Value, precision: 0);  // Weekly 25%
-        Assert.Equal(0, presentation.DualBucketSecondaryUsed!.Value, precision: 0); // 5h 0%
+        Assert.Equal(0, presentation.DualBucketPrimaryUsed!.Value, precision: 0);   // 5h (Burst) top bar
+        Assert.Equal(25, presentation.DualBucketSecondaryUsed!.Value, precision: 0); // Weekly (Rolling) bottom bar
         Assert.Contains("Weekly", presentation.StatusText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("5h", presentation.StatusText, StringComparison.OrdinalIgnoreCase);
     }

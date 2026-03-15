@@ -80,7 +80,9 @@ public static class GroupedUsageProjectionService
         }
 
         return primary.Details
-            .Where(d => d.DetailType == ProviderUsageDetailType.QuotaWindow && d.QuotaBucketKind != WindowKind.None)
+            .Where(d => d.DetailType == ProviderUsageDetailType.QuotaWindow
+                        && d.QuotaBucketKind != WindowKind.None
+                        && string.IsNullOrWhiteSpace(d.ModelName))
             .ToList();
     }
 
@@ -300,6 +302,7 @@ public static class GroupedUsageProjectionService
                 RemainingPercentage = remainingPercent,
                 NextResetTime = detail.NextResetTime,
                 Description = detail.Description ?? string.Empty,
+                QuotaBucketKind = detail.QuotaBucketKind,
             });
         }
 

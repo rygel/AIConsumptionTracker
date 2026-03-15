@@ -286,10 +286,14 @@ public class CodexProviderTests : HttpProviderTestBase<CodexProvider>
             var parent = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
             Assert.NotNull(parent.Details);
 
-            var sparkDetail = Assert.Single(
-                parent.Details!,
-                d => d.DetailType == ProviderUsageDetailType.QuotaWindow &&
-                     d.Name.Contains("Spark", StringComparison.OrdinalIgnoreCase));
+            // Provider-level Spark detail (ModelSpecific kind, no ModelName) drives the parent card.
+            // There may also be model-scoped Spark details (with ModelName set) for the child card.
+            var sparkQwDetails = parent.Details!
+                .Where(d => d.DetailType == ProviderUsageDetailType.QuotaWindow &&
+                            d.Name.Contains("Spark", StringComparison.OrdinalIgnoreCase) &&
+                            string.IsNullOrWhiteSpace(d.ModelName))
+                .ToList();
+            var sparkDetail = Assert.Single(sparkQwDetails);
 
             // Spark QuotaWindow detail must show 98% used (the secondary/weekly constraint),
             // not 0% (the Spark 5h window that just reset).
@@ -298,7 +302,7 @@ public class CodexProviderTests : HttpProviderTestBase<CodexProvider>
             Assert.Equal(98, sparkQwUsed!.Value, precision: 0);
 
             // The Model detail drives the codex.spark child card.
-            // It must also reflect the effective constraint (98% weekly) so the child
+            // It must also reflect the effective Spark constraint (98% weekly) so the child
             // card does not show the misleading "0% used" from the just-reset 5h window.
             var modelDetail = Assert.Single(
                 parent.Details!,
@@ -374,6 +378,184 @@ string.Equals(detail.Name, "5-hour quota", StringComparison.Ordinal));
                 parent.Details!,
                 detail => detail.DetailType == ProviderUsageDetailType.QuotaWindow &&
 string.Equals(detail.Name, "Weekly quota", StringComparison.Ordinal));
+        }
+        finally
+        {
+            TestTempPaths.CleanupPath(tempDir);
+        }
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_SparkSecondaryWindowIsBindingConstraint_ModelDetailReflectsSparkSecondaryAsync()
+    {
+        // Regression: when additional_rate_limits[spark].rate_limit.secondary_window is more
+        // heavily used than the Spark 5h primary window, the Model detail (and thus the child
+        // card) must reflect the secondary constraint, not just the Spark primary window.
+        // Previously, sparkPrimary ?? sparkSecondary dropped sparkSecondary when sparkPrimary
+        // was present, causing the child card to show e.g. 40% when the real constraint is 75%.
+        var tempDir = TestTempPaths.CreateDirectory("codex-test-spark-secondary-binding");
+        var authPath = Path.Combine(tempDir, "auth.json");
+        var token = CreateJwt("user@example.com", "plus");
+
+        await File.WriteAllTextAsync(authPath, JsonSerializer.Serialize(new
+        {
+            tokens = new
+            {
+                access_token = token,
+            },
+        }));
+
+        this.SetupHttpResponse("https://chatgpt.com/backend-api/wham/usage", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent(JsonSerializer.Serialize(new
+            {
+                plan_type = "plus",
+                rate_limit = new
+                {
+                    primary_window = new { used_percent = 20, reset_after_seconds = 18000 },
+                    // No secondary_window in the main rate_limit — weekly only in spark block.
+                },
+                additional_rate_limits = new object[]
+                {
+                    new
+                    {
+                        limit_name = "GPT-5.3-Codex-Spark",
+                        rate_limit = new
+                        {
+                            primary_window = new { used_percent = 40, reset_after_seconds = 18000 },
+                            secondary_window = new { used_percent = 75, reset_after_seconds = 604800 },
+                        },
+                    },
+                },
+            })),
+        });
+
+        var provider = new CodexProvider(this.HttpClient, this.Logger.Object, authPath);
+
+        try
+        {
+            var usages = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).ToList();
+            var parent = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
+            Assert.NotNull(parent.Details);
+
+            // Model detail must use the binding Spark constraint (75%) not just the 5h primary (40%).
+            var modelDetail = Assert.Single(
+                parent.Details!,
+                d => d.DetailType == ProviderUsageDetailType.Model);
+            var modelUsed = UsageMath.GetEffectiveUsedPercent(modelDetail);
+            Assert.NotNull(modelUsed);
+            Assert.Equal(75, modelUsed!.Value, precision: 0);
+
+            // Provider-level Spark ModelSpecific detail must also reflect 75%.
+            var sparkDetail = Assert.Single(
+                parent.Details!,
+                d => d.DetailType == ProviderUsageDetailType.QuotaWindow &&
+                     d.QuotaBucketKind == WindowKind.ModelSpecific &&
+                     string.IsNullOrWhiteSpace(d.ModelName));
+            var sparkUsed = UsageMath.GetEffectiveUsedPercent(sparkDetail);
+            Assert.NotNull(sparkUsed);
+            Assert.Equal(75, sparkUsed!.Value, precision: 0);
+
+            // Model-scoped Rolling detail must be present even though rate_limit.secondary_window
+            // is absent — the weekly data comes from the Spark block's secondary_window.
+            Assert.Contains(
+                parent.Details!,
+                d => d.DetailType == ProviderUsageDetailType.QuotaWindow &&
+                     d.QuotaBucketKind == WindowKind.Rolling &&
+                     string.Equals(d.ModelName, modelDetail.ModelName, StringComparison.Ordinal));
+        }
+        finally
+        {
+            TestTempPaths.CleanupPath(tempDir);
+        }
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_SparkBurstWindowJustReset_EmitsModelScopedDualBarDetails()
+    {
+        // Regression: when the Spark 5h burst window just reset, the API omits used_percent
+        // and only returns reset_after_seconds. Previously HasWindowData checked only usage
+        // values → evaluated to false → entire spark block skipped → no model-scoped QW details
+        // → BuildSummaryQuotaBuckets fallback → single "effective" bucket (Kind=None) → no dual
+        // bars on the child card, and 0% used displayed.
+        // With the fix, HasWindowData also considers reset timers → spark block runs →
+        // Burst detail gets 0% used (100% remaining) + Rolling detail from weekly data.
+        var tempDir = TestTempPaths.CreateDirectory("codex-test-spark-burst-reset");
+        var authPath = Path.Combine(tempDir, "auth.json");
+        var token = CreateJwt("user@example.com", "plus");
+
+        await File.WriteAllTextAsync(authPath, JsonSerializer.Serialize(new
+        {
+            tokens = new
+            {
+                access_token = token,
+            },
+        }));
+
+        this.SetupHttpResponse("https://chatgpt.com/backend-api/wham/usage", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent(JsonSerializer.Serialize(new
+            {
+                plan_type = "plus",
+                rate_limit = new
+                {
+                    // Primary (5h) window: has usage data
+                    primary_window = new { used_percent = 20, reset_after_seconds = 18000 },
+                    // Weekly window present in main block
+                    secondary_window = new { used_percent = 19, reset_after_seconds = 604800 },
+                },
+                additional_rate_limits = new object[]
+                {
+                    new
+                    {
+                        limit_name = "GPT-5.3-Codex-Spark",
+                        rate_limit = new
+                        {
+                            // Burst window just reset — API omits used_percent, only reset timer present
+                            primary_window = new { reset_after_seconds = 18000 },
+                            secondary_window = new { used_percent = 19, reset_after_seconds = 604800 },
+                        },
+                    },
+                },
+            })),
+        });
+
+        var provider = new CodexProvider(this.HttpClient, this.Logger.Object, authPath);
+
+        try
+        {
+            var usages = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).ToList();
+            var parent = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
+            Assert.NotNull(parent.Details);
+
+            // Model detail must be present (HasWindowData must be true even with no primary used_percent)
+            var modelDetail = Assert.Single(
+                parent.Details!,
+                d => d.DetailType == ProviderUsageDetailType.Model);
+
+            // The binding constraint is the weekly (19%) since the burst just reset (0%).
+            var modelUsed = UsageMath.GetEffectiveUsedPercent(modelDetail);
+            Assert.NotNull(modelUsed);
+            Assert.Equal(19, modelUsed!.Value, precision: 0);
+
+            // Model-scoped Burst detail must be present (burst window 100% remaining after reset)
+            var sparkBurstDetail = Assert.Single(
+                parent.Details!,
+                d => d.DetailType == ProviderUsageDetailType.QuotaWindow &&
+                     d.QuotaBucketKind == WindowKind.Burst &&
+                     string.Equals(d.ModelName, modelDetail.ModelName, StringComparison.Ordinal));
+            var burstRemaining = sparkBurstDetail.PercentageValue;
+            Assert.NotNull(burstRemaining);
+            Assert.Equal(100, burstRemaining!.Value, precision: 0);
+
+            // Model-scoped Rolling detail must also be present for dual bar rendering
+            Assert.Contains(
+                parent.Details!,
+                d => d.DetailType == ProviderUsageDetailType.QuotaWindow &&
+                     d.QuotaBucketKind == WindowKind.Rolling &&
+                     string.Equals(d.ModelName, modelDetail.ModelName, StringComparison.Ordinal));
         }
         finally
         {

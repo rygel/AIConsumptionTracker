@@ -515,4 +515,130 @@ public class GroupedUsageDisplayAdapterTests
         var burst = Assert.Single(parent.Details, d => d.QuotaBucketKind == WindowKind.Burst);
         Assert.Equal("5h Limit", burst.Name);
     }
+
+    [Fact]
+    public void Expand_CodexSparkModelWithBurstAndRollingBuckets_GivesChildCardDualBarDetails()
+    {
+        // Regression: when the Spark model has QuotaBuckets with Burst and Rolling kinds,
+        // the child codex.spark card must have Details with those kinds so
+        // ProviderDualQuotaBucketPresentationCatalog.TryGetPresentation can render dual bars.
+        var snapshot = new AgentGroupedUsageSnapshot
+        {
+            Providers = new[]
+            {
+                new AgentGroupedProviderUsage
+                {
+                    ProviderId = "codex",
+                    IsAvailable = true,
+                    IsQuotaBased = true,
+                    UsedPercent = 98,
+                    Models = new[]
+                    {
+                        new AgentGroupedModelUsage
+                        {
+                            ModelId = "GPT-5.3-Codex-Spark",
+                            ModelName = "GPT-5.3-Codex-Spark",
+                            RemainingPercentage = 2,
+                            UsedPercentage = 98,
+                            EffectiveRemainingPercentage = 2,
+                            EffectiveUsedPercentage = 98,
+                            EffectiveDescription = "2.0% Remaining",
+                            QuotaBuckets = new[]
+                            {
+                                new AgentGroupedQuotaBucketUsage
+                                {
+                                    BucketId = "spark-5h-quota",
+                                    BucketName = "Spark 5h quota",
+                                    RemainingPercentage = 100,
+                                    UsedPercentage = 0,
+                                    QuotaBucketKind = WindowKind.Burst,
+                                },
+                                new AgentGroupedQuotaBucketUsage
+                                {
+                                    BucketId = "weekly-quota",
+                                    BucketName = "Weekly quota",
+                                    RemainingPercentage = 2,
+                                    UsedPercentage = 98,
+                                    QuotaBucketKind = WindowKind.Rolling,
+                                },
+                            },
+                        },
+                    },
+                    ProviderQuotaDetails = Array.Empty<ProviderUsageDetail>(),
+                },
+            },
+        };
+
+        var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
+
+        var spark = Assert.Single(usages, u => string.Equals(u.ProviderId, "codex.spark", StringComparison.Ordinal));
+        Assert.NotNull(spark.Details);
+        Assert.Equal(2, spark.Details!.Count);
+        Assert.Single(spark.Details, d => d.QuotaBucketKind == WindowKind.Burst);
+        Assert.Single(spark.Details, d => d.QuotaBucketKind == WindowKind.Rolling);
+
+        // Effective used must reflect the binding constraint (98%), not the burst window (0%)
+        Assert.Equal(98, spark.UsedPercent, 1);
+    }
+
+    [Fact]
+    public void Expand_CodexSnapshot_PrefersProviderQuotaDetails_ForParentCard_WhenModelsAlsoPresent()
+    {
+        // Regression: when a provider has both Models (for child card building) and ProviderQuotaDetails
+        // (5h + Weekly windows), the parent card must use the QuotaWindow details — not the Model details.
+        // If model details win, TryGetPresentation finds no QuotaWindow entries and the parent never
+        // renders dual progress bars.
+        var burstDetail = new ProviderUsageDetail
+        {
+            Name = "5-hour quota",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Burst,
+        };
+        burstDetail.SetPercentageValue(20.0, PercentageValueSemantic.Used);
+
+        var rollingDetail = new ProviderUsageDetail
+        {
+            Name = "Weekly quota",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Rolling,
+        };
+        rollingDetail.SetPercentageValue(10.0, PercentageValueSemantic.Used);
+
+        var snapshot = new AgentGroupedUsageSnapshot
+        {
+            Providers = new[]
+            {
+                new AgentGroupedProviderUsage
+                {
+                    ProviderId = "codex",
+                    IsAvailable = true,
+                    IsQuotaBased = true,
+                    UsedPercent = 20,
+                    Models = new[]
+                    {
+                        new AgentGroupedModelUsage
+                        {
+                            ModelId = "gpt-5.3-codex-spark",
+                            ModelName = "GPT-5.3-Codex-Spark",
+                            RemainingPercentage = 80,
+                        },
+                    },
+                    ProviderQuotaDetails = new[] { burstDetail, rollingDetail },
+                },
+            },
+        };
+
+        var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
+
+        var parent = Assert.Single(usages, u => string.Equals(u.ProviderId, "codex", StringComparison.Ordinal));
+        Assert.NotNull(parent.Details);
+
+        // Parent must have the QuotaWindow details (for dual bar), not the Model detail.
+        Assert.All(parent.Details!, d => Assert.Equal(ProviderUsageDetailType.QuotaWindow, d.DetailType));
+        Assert.Single(parent.Details!, d => d.QuotaBucketKind == WindowKind.Burst);
+        Assert.Single(parent.Details!, d => d.QuotaBucketKind == WindowKind.Rolling);
+
+        // Child card must still be built from the model.
+        Assert.Single(usages, u => string.Equals(u.ProviderId, "codex.spark", StringComparison.Ordinal));
+    }
 }

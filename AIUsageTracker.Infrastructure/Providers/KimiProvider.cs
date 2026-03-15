@@ -40,8 +40,8 @@ public class KimiProvider : ProviderBase
         FallbackBadgeInitial = "K",
         QuotaWindows = new QuotaWindowDefinition[]
         {
-            new(WindowKind.Rolling, "Weekly"),
             new(WindowKind.Burst,   "Daily"),
+            new(WindowKind.Rolling, "Weekly"),
         },
     };
 

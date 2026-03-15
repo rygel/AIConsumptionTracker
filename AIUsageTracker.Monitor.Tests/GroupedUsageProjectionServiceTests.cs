@@ -273,6 +273,98 @@ public sealed class GroupedUsageProjectionServiceTests
     }
 
     [Fact]
+    public void Build_CodexUsageWithModelScopedSparkDetails_CreatesSparkModelWithDualBarBuckets()
+    {
+        // Regression: CodexProvider emits model-scoped QW details (Burst=Spark5h, Rolling=Weekly)
+        // so BuildModelsFromDetails can scope them to the Spark model's QuotaBuckets.
+        // Those model-scoped details must NOT appear in ProviderQuotaDetails (parent card only shows
+        // provider-level windows). The Spark model's QuotaBuckets must carry correct QuotaBucketKind
+        // values so the child card can render dual bars.
+        const string sparkModelId = "GPT-5.3-Codex-Spark";
+
+        var modelDetail = new ProviderUsageDetail
+        {
+            Name = sparkModelId,
+            ModelName = sparkModelId,
+            DetailType = ProviderUsageDetailType.Model,
+            QuotaBucketKind = WindowKind.None,
+        };
+        modelDetail.SetPercentageValue(2.0, PercentageValueSemantic.Remaining); // 98% effective used
+
+        // Model-scoped Burst: Spark's own 5h window just reset (100% remaining)
+        var sparkBurstDetail = new ProviderUsageDetail
+        {
+            Name = "Spark 5h quota",
+            ModelName = sparkModelId,
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Burst,
+        };
+        sparkBurstDetail.SetPercentageValue(100.0, PercentageValueSemantic.Remaining);
+
+        // Model-scoped Rolling: shared weekly window is 98% used
+        var sparkRollingDetail = new ProviderUsageDetail
+        {
+            Name = "Weekly quota",
+            ModelName = sparkModelId,
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Rolling,
+        };
+        sparkRollingDetail.SetPercentageValue(2.0, PercentageValueSemantic.Remaining);
+
+        // Provider-level windows (no ModelName) — these go into ProviderQuotaDetails
+        var providerBurst = new ProviderUsageDetail
+        {
+            Name = "5-hour quota",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Burst,
+        };
+        providerBurst.SetPercentageValue(100.0, PercentageValueSemantic.Remaining);
+
+        var providerRolling = new ProviderUsageDetail
+        {
+            Name = "Weekly quota",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Rolling,
+        };
+        providerRolling.SetPercentageValue(2.0, PercentageValueSemantic.Remaining);
+
+        var usages = new[]
+        {
+            new ProviderUsage
+            {
+                ProviderId = "codex",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                UsedPercent = 98,
+                FetchedAt = DateTime.UtcNow,
+                Details = new List<ProviderUsageDetail>
+                {
+                    modelDetail,
+                    sparkBurstDetail,
+                    sparkRollingDetail,
+                    providerBurst,
+                    providerRolling,
+                },
+            },
+        };
+
+        var snapshot = GroupedUsageProjectionService.Build(usages);
+
+        var provider = Assert.Single(snapshot.Providers);
+        var spark = Assert.Single(provider.Models);
+        Assert.Equal(sparkModelId, spark.ModelId);
+
+        // Child card buckets must carry Burst and Rolling kinds for dual bar rendering
+        Assert.Equal(2, spark.QuotaBuckets.Count);
+        Assert.Single(spark.QuotaBuckets, b => b.QuotaBucketKind == WindowKind.Burst);
+        Assert.Single(spark.QuotaBuckets, b => b.QuotaBucketKind == WindowKind.Rolling);
+
+        // Provider-level windows only — model-scoped details must be excluded
+        Assert.Equal(2, provider.ProviderQuotaDetails.Count);
+        Assert.All(provider.ProviderQuotaDetails, d => Assert.True(string.IsNullOrWhiteSpace(d.ModelName)));
+    }
+
+    [Fact]
     public void Build_KimiUsage_ExcludesNoneKindDetails_FromProviderQuotaDetails()
     {
         // Details with QuotaBucketKind == None (e.g. Credit-type or unknown windows) must
