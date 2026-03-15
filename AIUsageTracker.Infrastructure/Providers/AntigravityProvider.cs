@@ -947,6 +947,7 @@ public class AntigravityProvider : ProviderBase
             {
                 ProviderId = childId,
                 ProviderName = childName,
+                ParentProviderId = this.ProviderId,
                 UsedPercent = 100 - detailRemaining,
                 RequestsUsed = 100 - detailRemaining,
                 RequestsAvailable = 100,

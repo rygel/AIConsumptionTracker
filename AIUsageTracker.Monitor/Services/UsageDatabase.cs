@@ -72,6 +72,11 @@ public class UsageDatabase : IUsageDatabase
         }
     }
 
+    private static async Task EnableForeignKeysAsync(SqliteConnection connection)
+    {
+        await connection.ExecuteAsync("PRAGMA foreign_keys = ON").ConfigureAwait(false);
+    }
+
     public async Task StoreProviderAsync(ProviderConfig config, string? friendlyName = null)
     {
         await this._semaphore.WaitAsync().ConfigureAwait(false);
@@ -79,6 +84,7 @@ public class UsageDatabase : IUsageDatabase
         {
             using var connection = new SqliteConnection(this._connectionString);
             await connection.OpenAsync().ConfigureAwait(false);
+            await EnableForeignKeysAsync(connection).ConfigureAwait(false);
 
             const string sql = @"
                 INSERT INTO providers (
@@ -135,6 +141,7 @@ public class UsageDatabase : IUsageDatabase
         {
             using var connection = new SqliteConnection(this._connectionString);
             await connection.OpenAsync().ConfigureAwait(false);
+            await EnableForeignKeysAsync(connection).ConfigureAwait(false);
 
             const string providerUpsertSql = @"
                 INSERT INTO providers (
@@ -166,13 +173,15 @@ public class UsageDatabase : IUsageDatabase
                     requests_used, requests_available, requests_percentage,
                     is_available, status_message, next_reset_time, fetched_at,
                     details_json, response_latency_ms, http_status,
-                    upstream_response_validity, upstream_response_note
+                    upstream_response_validity, upstream_response_note,
+                    parent_provider_id
                 ) VALUES (
                     @ProviderId,
                     @RequestsUsed, @RequestsAvailable, @RequestsPercentage,
                     @IsAvailable, @StatusMessage, @NextResetTime, @FetchedAt,
                     @DetailsJson, @ResponseLatencyMs, @HttpStatus,
-                    @UpstreamResponseValidity, @UpstreamResponseNote
+                    @UpstreamResponseValidity, @UpstreamResponseNote,
+                    @ParentProviderId
                 )";
 
             var providerUpsertParameters = validUsages.Select(u => new
@@ -207,6 +216,7 @@ public class UsageDatabase : IUsageDatabase
                 UpstreamResponseNote = string.IsNullOrWhiteSpace(u.UpstreamResponseNote)
                     ? UpstreamResponseValidityCatalog.Evaluate(u).Note
                     : u.UpstreamResponseNote,
+                ParentProviderId = u.ParentProviderId,
             });
 
             await connection.ExecuteAsync(sql, parameters).ConfigureAwait(false);
@@ -224,6 +234,7 @@ public class UsageDatabase : IUsageDatabase
         {
             using var connection = new SqliteConnection(this._connectionString);
             await connection.OpenAsync().ConfigureAwait(false);
+            await EnableForeignKeysAsync(connection).ConfigureAwait(false);
 
             const string sql = @"
                 INSERT INTO raw_snapshots (provider_id, raw_json, http_status, fetched_at)
@@ -281,6 +292,7 @@ public class UsageDatabase : IUsageDatabase
         {
             using var connection = new SqliteConnection(this._connectionString);
             await connection.OpenAsync().ConfigureAwait(false);
+            await EnableForeignKeysAsync(connection).ConfigureAwait(false);
 
             const string sql = @"
                 INSERT INTO reset_events (
@@ -324,7 +336,8 @@ public class UsageDatabase : IUsageDatabase
                        COALESCE(h.upstream_response_validity, 0) AS UpstreamResponseValidity,
                        COALESCE(h.upstream_response_note, '') AS UpstreamResponseNote,
                        COALESCE(p.account_name, '') AS AccountName,
-                       COALESCE(p.auth_source, '') AS AuthSource
+                       COALESCE(p.auth_source, '') AS AuthSource,
+                       h.parent_provider_id AS ParentProviderId
                 FROM provider_history h
                 LEFT JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.id IN (

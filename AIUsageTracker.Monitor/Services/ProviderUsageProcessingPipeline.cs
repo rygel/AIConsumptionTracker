@@ -282,6 +282,7 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
         {
             ProviderId = providerId,
             ProviderName = providerName,
+            ParentProviderId = usage.ParentProviderId,
             RequestsUsed = requestsUsed,
             RequestsAvailable = requestsAvailable,
             UsedPercent = requestsPercentage,
@@ -330,6 +331,7 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
         {
             ProviderId = providerId,
             ProviderName = providerName,
+            ParentProviderId = usage.ParentProviderId,
             RequestsUsed = requestsUsed,
             RequestsAvailable = requestsAvailable,
             UsedPercent = requestsPercentage,

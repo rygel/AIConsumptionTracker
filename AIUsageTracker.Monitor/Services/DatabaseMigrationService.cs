@@ -190,12 +190,13 @@ public class DatabaseMigrationService
                 upstream_response_note TEXT NOT NULL DEFAULT '',
                 fetched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 details_json TEXT,
+                parent_provider_id TEXT REFERENCES providers(provider_id) ON DELETE SET NULL,
                 FOREIGN KEY (provider_id) REFERENCES providers(provider_id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS raw_snapshots (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                provider_id TEXT NOT NULL,
+                provider_id TEXT NOT NULL REFERENCES providers(provider_id) ON DELETE CASCADE,
                 raw_json TEXT NOT NULL,
                 http_status INTEGER NOT NULL DEFAULT 200,
                 fetched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -226,6 +227,7 @@ public class DatabaseMigrationService
         EnsureColumn(connection, "provider_history", "http_status", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(connection, "provider_history", "upstream_response_validity", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumn(connection, "provider_history", "upstream_response_note", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn(connection, "provider_history", "parent_provider_id", "TEXT");
 
         ExecuteNonQuery(
             connection,

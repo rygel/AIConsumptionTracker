@@ -50,6 +50,13 @@ public class ProviderUsage
 
     public string AuthSource { get; set; } = string.Empty;
 
+    /// <summary>
+    /// For child/derived provider rows, the provider_id of the parent.
+    /// Null for top-level (non-derived) providers.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParentProviderId { get; set; }
+
     public IReadOnlyList<ProviderUsageDetail>? Details { get; set; }
 
     // Temporary property for database serialization - not serialized to JSON
