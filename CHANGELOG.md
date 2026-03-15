@@ -2,9 +2,10 @@
 
 ## [Unreleased]
 
-## [2.3.0] - 2026-03-15
+## [2.3.0] - 2026-03-16
 
 ### Added
+- **Card Visibility Controls**: Settings → Providers tab now has a "Card Visibility" section listing every card currently shown in the main window. Each card has an individual checkbox to hide or show it. Standalone providers (Kimi, Z.ai, etc.) appear as flat checkboxes; multi-card providers (Codex, Gemini, Antigravity, Claude Code) appear under a bold heading with one checkbox per sub-card. The list is derived from the same live pipeline as the main window, so it automatically includes all runtime model cards (e.g. every Antigravity model, every Gemini quota window) without any static configuration.
 - **Claude Code OAuth Integration**: OAuth usage endpoint for Claude subscription users with dual quota buckets (5-hour burst + 7-day rolling window), per-model breakdowns (Sonnet/Opus), and extra usage status.
 - **Dual Progress Bars**: Full support for displaying burst and rolling quota bars simultaneously on Kimi, OpenAI Codex, and GitHub Copilot cards.
 - **Burn Rate Forecasting**: Forecast methods, confidence levels, and trend detection for provider usage projections.
