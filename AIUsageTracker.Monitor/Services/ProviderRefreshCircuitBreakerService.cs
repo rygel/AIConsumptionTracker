@@ -199,8 +199,13 @@ public class ProviderRefreshCircuitBreakerService
             return false;
         }
 
-        return string.IsNullOrWhiteSpace(usage.Description) ||
-               !usage.Description.StartsWith("[Error]", StringComparison.OrdinalIgnoreCase);
+        // Typed state takes priority
+        if (usage.State == ProviderUsageState.Error)
+        {
+            return false;
+        }
+
+        return usage.State != ProviderUsageState.Error;
     }
 
     private static string GetFailureMessage(IReadOnlyCollection<ProviderUsage> providerUsages)

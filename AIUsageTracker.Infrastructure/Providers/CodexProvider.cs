@@ -2,8 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
-
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -19,48 +17,56 @@ namespace AIUsageTracker.Infrastructure.Providers;
 public class CodexProvider : ProviderBase
 {
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "codex",
-        displayName: "OpenAI (Codex)",
-        planType: PlanType.Coding,
+        "codex",
+        "OpenAI (Codex)",
+        PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
-        includeInWellKnownProviders: true,
-        displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        defaultConfigType: "quota-based")
+    {
+        IncludeInWellKnownProviders = true,
+        DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["codex.spark"] = "OpenAI (GPT-5.3 Codex Spark)",
         },
-        familyMode: ProviderFamilyMode.VisibleDerivedProviders,
-        discoveryEnvironmentVariables: new[] { "CODEX_API_KEY" },
-        visibleDerivedProviderIds: new[] { "codex.spark" },
-        settingsAdditionalProviderIds: new[] { "codex.spark" },
-        preferDisplayNameOverridesForDerivedProviderIds: true,
-        derivedModelSelectors: new[]
+        FamilyMode = ProviderFamilyMode.VisibleDerivedProviders,
+        DiscoveryEnvironmentVariables = new[] { "CODEX_API_KEY" },
+        VisibleDerivedProviderIds = new[] { "codex.spark" },
+        SettingsAdditionalProviderIds = new[] { "codex.spark" },
+        PreferDisplayNameOverridesForDerivedProviderIds = true,
+        DerivedModelSelectors = new[]
         {
             new ProviderDerivedModelSelector(
                 derivedProviderId: "codex.spark",
                 modelIdContains: new[] { "spark" },
                 modelNameContains: new[] { "spark" }),
         },
-        settingsMode: ProviderSettingsMode.SessionAuthStatus,
-        sessionStatusLabel: "OpenAI (Codex)",
-        sessionIdentitySource: ProviderSessionIdentitySource.Codex,
-        supportsAccountIdentity: true,
-        iconAssetName: "openai",
-        fallbackBadgeColorHex: "#008B8B",
-        fallbackBadgeInitial: "AI",
-        authIdentityCandidatePathTemplates: new[]
+        SettingsMode = ProviderSettingsMode.SessionAuthStatus,
+        SessionStatusLabel = "OpenAI (Codex)",
+        SessionIdentitySource = ProviderSessionIdentitySource.Codex,
+        SupportsAccountIdentity = true,
+        IconAssetName = "openai",
+        FallbackBadgeColorHex = "#008B8B",
+        FallbackBadgeInitial = "AI",
+        AuthIdentityCandidatePathTemplates = new[]
         {
             "%USERPROFILE%\\.codex\\auth.json",
             "%APPDATA%\\codex\\auth.json",
         },
-        sessionAuthFileSchemas: new[]
+        SessionAuthFileSchemas = new[]
         {
             new ProviderAuthFileSchema("tokens", "access_token", "account_id", "id_token"),
         },
-        sessionIdentityProfileRootProperties: new[]
+        SessionIdentityProfileRootProperties = new[]
         {
             ProviderEndpoints.OpenAI.ProfileClaimKey,
-        });
+        },
+        QuotaWindows = new QuotaWindowDefinition[]
+        {
+            new(WindowKind.Burst,         "5h"),
+            new(WindowKind.Rolling,       "Weekly"),
+            new(WindowKind.ModelSpecific, "Spark"),
+        },
+    };
 
     private const string UsageEndpoint = "https://chatgpt.com/backend-api/wham/usage";
     private const string AuthClaimKey = "https://api.openai.com/auth";
@@ -105,7 +111,7 @@ public class CodexProvider : ProviderBase
 
             if (string.IsNullOrWhiteSpace(accessToken))
             {
-                return new[] { this.CreateUnavailableUsageWithIdentity("Codex auth token not found (~/.codex/auth.json or CODEX_API_KEY)", knownAccountIdentity) };
+                return new[] { this.CreateUnavailableUsageWithIdentity("Codex auth token not found (~/.codex/auth.json or CODEX_API_KEY)", knownAccountIdentity, ProviderUsageState.Missing) };
             }
 
             var resolvedAccessToken = accessToken!;
@@ -505,9 +511,12 @@ public class CodexProvider : ProviderBase
         return null;
     }
 
-    private ProviderUsage CreateUnavailableUsageWithIdentity(string message, string? accountIdentity)
+    private ProviderUsage CreateUnavailableUsageWithIdentity(
+        string message,
+        string? accountIdentity,
+        ProviderUsageState state = ProviderUsageState.Error)
     {
-        var usage = this.CreateUnavailableUsage(message);
+        var usage = this.CreateUnavailableUsage(message, state: state);
         usage.AccountName = accountIdentity ?? string.Empty;
         return usage;
     }
@@ -553,10 +562,9 @@ public class CodexProvider : ProviderBase
             {
                 ProviderId = this.ProviderId,
                 ProviderName = StaticDefinition.DisplayName,
-                RequestsPercentage = remainingPercent,
-                RequestsUsed = 100.0 - remainingPercent,
+                UsedPercent = effectiveUsedPercent,
+                RequestsUsed = effectiveUsedPercent,
                 RequestsAvailable = 100.0,
-                UsageUnit = "Quota %",
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
                 IsAvailable = true,
@@ -696,7 +704,7 @@ public class CodexProvider : ProviderBase
             details.Add(new ProviderUsageDetail
             {
                 Name = "Credits",
-                Used = creditValue,
+                Description = creditValue,
                 DetailType = ProviderUsageDetailType.Credit,
                 QuotaBucketKind = WindowKind.None,
             });

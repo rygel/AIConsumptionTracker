@@ -2,7 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
 
 using System.Globalization;
 using System.Net.Http.Json;
@@ -26,17 +25,19 @@ public class DeepSeekProvider : ProviderBase
     }
 
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "deepseek",
-        displayName: "DeepSeek",
-        planType: PlanType.Usage,
+        "deepseek",
+        "DeepSeek",
+        PlanType.Usage,
         isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go",
-        includeInWellKnownProviders: true,
-        discoveryEnvironmentVariables: new[] { "DEEPSEEK_API_KEY" },
-        rooConfigPropertyNames: new[] { "deepseekApiKey" },
-        iconAssetName: "deepseek",
-        fallbackBadgeColorHex: "#00BFFF",
-        fallbackBadgeInitial: "DS");
+        defaultConfigType: "pay-as-you-go")
+    {
+        IncludeInWellKnownProviders = true,
+        DiscoveryEnvironmentVariables = new[] { "DEEPSEEK_API_KEY" },
+        RooConfigPropertyNames = new[] { "deepseekApiKey" },
+        IconAssetName = "deepseek",
+        FallbackBadgeColorHex = "#00BFFF",
+        FallbackBadgeInitial = "DS",
+    };
 
     public override ProviderDefinition Definition => StaticDefinition;
 
@@ -51,7 +52,8 @@ public class DeepSeekProvider : ProviderBase
                 this.CreateUnavailableUsage(
                 "API Key missing",
                 planType: PlanType.Usage,
-                isQuotaBased: false),
+                isQuotaBased: false,
+                state: ProviderUsageState.Missing),
             };
         }
 
@@ -79,7 +81,7 @@ public class DeepSeekProvider : ProviderBase
                     PlanType = PlanType.Usage,
                     IsQuotaBased = false,
                     HttpStatus = (int)response.StatusCode,
-                    RequestsPercentage = 0,
+                    UsedPercent = 0,
                     RequestsUsed = 0,
                     RequestsAvailable = 0,
                     RawJson = content,
@@ -112,8 +114,7 @@ public class DeepSeekProvider : ProviderBase
                     details.Add(new ProviderUsageDetail
                     {
                         Name = detailName,
-                        Used = $"{currencySymbol}{info.TotalBalance.ToString("F2", CultureInfo.InvariantCulture)}",
-                        Description = $"{currencySymbol}{info.ToppedUpBalance.ToString("F2", CultureInfo.InvariantCulture)} (Topped-up: {currencySymbol}{info.ToppedUpBalance.ToString("F2", CultureInfo.InvariantCulture)}, Granted: {currencySymbol}{info.GrantedBalance.ToString("F2", CultureInfo.InvariantCulture)})",
+                        Description = $"{currencySymbol}{info.TotalBalance.ToString("F2", CultureInfo.InvariantCulture)} (Topped-up: {currencySymbol}{info.ToppedUpBalance.ToString("F2", CultureInfo.InvariantCulture)}, Granted: {currencySymbol}{info.GrantedBalance.ToString("F2", CultureInfo.InvariantCulture)})",
                         DetailType = ProviderUsageDetailType.Credit,
                         QuotaBucketKind = WindowKind.None,
                     });
@@ -133,10 +134,10 @@ public class DeepSeekProvider : ProviderBase
                 ProviderId = this.ProviderId,
                 ProviderName = "DeepSeek",
                 IsAvailable = true,
-                RequestsPercentage = 0, // Pay-as-you-go/Balance model
+                UsedPercent = 0,
                 RequestsUsed = 0,
                 RequestsAvailable = 0,
-                UsageUnit = "Currency",
+                IsCurrencyUsage = true,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
                 Description = mainDescription,

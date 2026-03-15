@@ -2,7 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
 
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
@@ -27,23 +26,30 @@ public class GitHubCopilotProvider : ProviderBase
     }
 
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "github-copilot",
-        displayName: "GitHub Copilot",
-        planType: PlanType.Coding,
+        "github-copilot",
+        "GitHub Copilot",
+        PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
-        autoIncludeWhenUnconfigured: true,
-        includeInWellKnownProviders: true,
-        settingsMode: ProviderSettingsMode.ExternalAuthStatus,
-        supportsAccountIdentity: true,
-        iconAssetName: "github",
-        fallbackBadgeColorHex: "#9370DB",
-        fallbackBadgeInitial: "GH",
-        authIdentityCandidatePathTemplates: new[]
+        defaultConfigType: "quota-based")
+    {
+        AutoIncludeWhenUnconfigured = true,
+        IncludeInWellKnownProviders = true,
+        SettingsMode = ProviderSettingsMode.ExternalAuthStatus,
+        SupportsAccountIdentity = true,
+        IconAssetName = "github",
+        FallbackBadgeColorHex = "#9370DB",
+        FallbackBadgeInitial = "GH",
+        AuthIdentityCandidatePathTemplates = new[]
         {
             "%APPDATA%\\GitHub CLI\\hosts.yml",
             "%USERPROFILE%\\.config\\gh\\hosts.yml",
-        });
+        },
+        QuotaWindows = new QuotaWindowDefinition[]
+        {
+            new(WindowKind.Rolling, "Weekly"),
+            new(WindowKind.Burst,   "5h"),
+        },
+    };
 
     public override ProviderDefinition Definition => StaticDefinition;
 
@@ -73,10 +79,10 @@ public class GitHubCopilotProvider : ProviderBase
                     ProviderName = "GitHub Copilot",
                     AccountName = username,
                     IsAvailable = false,
+                    State = ProviderUsageState.Missing,
                     Description = "Not authenticated. Please login in Settings.",
                     PlanType = PlanType.Coding,
                     IsQuotaBased = true,
-                    UsageUnit = "Requests",
                 },
             };
         }
@@ -115,6 +121,7 @@ public class GitHubCopilotProvider : ProviderBase
             {
                 state.Description = $"Error: {response.StatusCode}";
                 state.IsAvailable = false;
+                state.State = ProviderUsageState.Error;
             }
         }
         catch (HttpRequestException ex)
@@ -122,12 +129,14 @@ public class GitHubCopilotProvider : ProviderBase
             this._logger.LogError(ex, "Network error fetching GitHub profile");
             state.Description = "Network Error: Unable to reach GitHub";
             state.IsAvailable = false;
+            state.State = ProviderUsageState.Error;
         }
         catch (Exception ex)
         {
             this._logger.LogError(ex, "Failed to fetch GitHub profile");
             state.Description = $"Error: {ex.Message}";
             state.IsAvailable = false;
+            state.State = ProviderUsageState.Error;
         }
 
         return new[] { this.BuildUsageResult(state) };
@@ -482,11 +491,11 @@ public class GitHubCopilotProvider : ProviderBase
             ProviderName = "GitHub Copilot",
             AccountName = HasMeaningfulUsername(state.Username) ? state.Username : string.Empty,
             IsAvailable = state.IsAvailable,
+            State = state.State,
             Description = BuildFinalDescription(state),
-            RequestsPercentage = state.Percentage,
+            UsedPercent = 100.0 - state.Percentage,
             RequestsAvailable = state.CostLimit,
             RequestsUsed = state.CostUsed,
-            UsageUnit = "Requests",
             PlanType = PlanType.Coding,
             IsQuotaBased = true,
             AuthSource = string.IsNullOrEmpty(state.PlanName) ? AuthSource.Unknown : state.PlanName,
@@ -500,6 +509,8 @@ public class GitHubCopilotProvider : ProviderBase
     private sealed class CopilotUsageState
     {
         public bool IsAvailable { get; set; }
+
+        public ProviderUsageState State { get; set; } = ProviderUsageState.Available;
 
         public string Description { get; set; } = string.Empty;
 

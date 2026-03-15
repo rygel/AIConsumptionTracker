@@ -2,7 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
 
 using System.Diagnostics;
 using System.Globalization;
@@ -41,22 +40,24 @@ public class AntigravityProvider : ProviderBase
     }
 
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "antigravity",
-        displayName: "Google Antigravity",
-        planType: PlanType.Coding,
+        "antigravity",
+        "Google Antigravity",
+        PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
-        autoIncludeWhenUnconfigured: true,
-        includeInWellKnownProviders: true,
-        familyMode: ProviderFamilyMode.DynamicChildProviderRows,
-        settingsMode: ProviderSettingsMode.AutoDetectedStatus,
-        refreshOnStartupWithCachedData: true,
-        aggregateDetailDisplaySuffix: "[Antigravity]",
-        supportsAccountIdentity: true,
-        iconAssetName: "google",
-        fallbackBadgeColorHex: "#1E90FF",
-        fallbackBadgeInitial: "G",
-        derivedModelDisplaySuffix: "[Antigravity]");
+        defaultConfigType: "quota-based")
+    {
+        AutoIncludeWhenUnconfigured = true,
+        IncludeInWellKnownProviders = true,
+        FamilyMode = ProviderFamilyMode.DynamicChildProviderRows,
+        SettingsMode = ProviderSettingsMode.AutoDetectedStatus,
+        RefreshOnStartupWithCachedData = true,
+        AggregateDetailDisplaySuffix = "[Antigravity]",
+        SupportsAccountIdentity = true,
+        IconAssetName = "google",
+        FallbackBadgeColorHex = "#1E90FF",
+        FallbackBadgeInitial = "G",
+        DerivedModelDisplaySuffix = "[Antigravity]",
+    };
 
     /// <inheritdoc/>
     public override ProviderDefinition Definition => StaticDefinition;
@@ -104,7 +105,7 @@ public class AntigravityProvider : ProviderBase
                                 ProviderId = this.ProviderId,
                                 ProviderName = this.Definition.DisplayName,
                                 IsAvailable = true,
-                                RequestsPercentage = 0,
+                                UsedPercent = 0,
                                 RequestsUsed = 0,
                                 RequestsAvailable = this._cachedUsage.RequestsAvailable,
                                 Details = null,
@@ -129,7 +130,7 @@ public class AntigravityProvider : ProviderBase
                         ProviderId = this.ProviderId,
                         ProviderName = this.Definition.DisplayName,
                         IsAvailable = true,
-                        RequestsPercentage = 0,
+                        UsedPercent = 0,
                         RequestsUsed = 0,
                         RequestsAvailable = this._cachedUsage.RequestsAvailable,
                         Details = null,
@@ -150,7 +151,7 @@ public class AntigravityProvider : ProviderBase
                         ProviderId = this.ProviderId,
                         ProviderName = this.Definition.DisplayName,
                         IsAvailable = true,
-                        RequestsPercentage = 0,
+                        UsedPercent = 0,
                         RequestsUsed = 0,
                         RequestsAvailable = 0,
                         Description = appRunning
@@ -245,7 +246,7 @@ public class AntigravityProvider : ProviderBase
                      ProviderId = this.ProviderId,
                      ProviderName = this.Definition.DisplayName,
                      IsAvailable = true,
-                     RequestsPercentage = 0,
+                     UsedPercent = 0,
                      RequestsUsed = 0,
                      RequestsAvailable = 0,
                      Description = "Not running",
@@ -292,7 +293,7 @@ public class AntigravityProvider : ProviderBase
                 ProviderId = this.ProviderId,
                 ProviderName = this.Definition.DisplayName,
                 IsAvailable = true,
-                RequestsPercentage = 0,
+                UsedPercent = 0,
                 RequestsUsed = 0,
                 RequestsAvailable = 0,
                 Description = IsAntigravityDesktopRunning()
@@ -433,7 +434,8 @@ public class AntigravityProvider : ProviderBase
     private static List<ProviderUsageDetail> SortDetails(List<ProviderUsageDetail> details)
     {
         return details
-            .OrderBy(d => d.Name.StartsWith("[Credits]", StringComparison.Ordinal) ? "0" + d.Name : "1" + d.Name, StringComparer.Ordinal)
+            .OrderBy(d => d.DetailType == ProviderUsageDetailType.Credit ? 0 : 1)
+            .ThenBy(d => d.Name, StringComparer.Ordinal)
             .ToList();
     }
 
@@ -460,7 +462,6 @@ public class AntigravityProvider : ProviderBase
 
         summary.RequestsAvailable = totalLimit;
         summary.RequestsUsed = totalUsed;
-        summary.UsageUnit = "Tokens";
         summary.DisplayAsFraction = true;
     }
 
@@ -820,10 +821,6 @@ public class AntigravityProvider : ProviderBase
             {
                 detail.SetPercentageValue(remainingPct.Value, PercentageValueSemantic.Remaining);
             }
-            else
-            {
-                detail.Used = "Unknown";
-            }
 
             details.Add(detail);
 
@@ -846,10 +843,9 @@ public class AntigravityProvider : ProviderBase
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
                     IsAvailable = true,
-                    RequestsPercentage = 0,
+                    UsedPercent = 0,
                     RequestsUsed = 0,
                     RequestsAvailable = 0,
-                    UsageUnit = "Quota %",
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
                     Description = "Usage unknown (no model quota data)",
@@ -909,10 +905,9 @@ public class AntigravityProvider : ProviderBase
         {
             ProviderId = this.ProviderId,
             ProviderName = this.Definition.DisplayName,
-            RequestsPercentage = remainingPctTotal,
+            UsedPercent = 100 - remainingPctTotal,
             RequestsUsed = 100 - remainingPctTotal,
             RequestsAvailable = 100,
-            UsageUnit = "Quota %",
             IsQuotaBased = true,
             PlanType = PlanType.Coding,
             Description = $"{remainingPctTotal.ToString("F1", CultureInfo.InvariantCulture)}% Remaining",
@@ -934,7 +929,7 @@ public class AntigravityProvider : ProviderBase
 
         foreach (var detail in sortedDetails)
         {
-            var usedPercent = UsageMath.GetEffectiveUsedPercent(detail, parentIsQuota: true);
+            var usedPercent = UsageMath.GetEffectiveUsedPercent(detail);
             var detailRemaining = usedPercent.HasValue
                 ? Math.Clamp(100 - usedPercent.Value, 0, 100)
                 : 0;
@@ -952,10 +947,10 @@ public class AntigravityProvider : ProviderBase
             {
                 ProviderId = childId,
                 ProviderName = childName,
-                RequestsPercentage = detailRemaining,
+                ParentProviderId = this.ProviderId,
+                UsedPercent = 100 - detailRemaining,
                 RequestsUsed = 100 - detailRemaining,
                 RequestsAvailable = 100,
-                UsageUnit = "Quota %",
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
                 Description = $"{detailRemaining.ToString("F0", CultureInfo.InvariantCulture)}% Remaining",
@@ -971,7 +966,8 @@ public class AntigravityProvider : ProviderBase
             {
                 childUsage.RequestsAvailable = detailTotal.Value;
                 childUsage.RequestsUsed = detailUsed ?? 0;
-                childUsage.UsageUnit = "Tokens";
+                // Actual token counts available; display as fraction
+
             }
 
             results.Add(childUsage);

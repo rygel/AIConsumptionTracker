@@ -2,7 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
 
 using System.Diagnostics;
 using System.Globalization;
@@ -62,18 +61,20 @@ public class OpenCodeZenProvider : ProviderBase
     }
 
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "opencode-zen",
-        displayName: ProviderDisplayName,
-        planType: PlanType.Usage,
+        "opencode-zen",
+        ProviderDisplayName,
+        PlanType.Usage,
         isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go",
-        autoIncludeWhenUnconfigured: true,
-        handledProviderIds: new[] { "opencode-zen", "opencode-go" },
-        displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        defaultConfigType: "pay-as-you-go")
+    {
+        AutoIncludeWhenUnconfigured = true,
+        AdditionalHandledProviderIds = new[] { "opencode-go" },
+        DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["opencode-go"] = "Opencode Go",
         },
-        isTooltipOnly: true);
+        IsTooltipOnly = true,
+    };
 
     /// <inheritdoc/>
     public override ProviderDefinition Definition => StaticDefinition;
@@ -99,7 +100,8 @@ public class OpenCodeZenProvider : ProviderBase
                     "CLI not found at expected path",
                     config.AuthSource,
                     $"CLI not found at path: {this._cliPath}",
-                    404),
+                    404,
+                    ProviderUsageState.Missing),
             };
         }
 
@@ -128,7 +130,8 @@ public class OpenCodeZenProvider : ProviderBase
         string description,
         string? authSource,
         string rawJson,
-        int httpStatus)
+        int httpStatus,
+        ProviderUsageState state = ProviderUsageState.Error)
     {
         return new ProviderUsage
         {
@@ -136,6 +139,7 @@ public class OpenCodeZenProvider : ProviderBase
             ProviderName = ProviderDisplayName,
             IsAvailable = false,
             Description = description,
+            State = state,
             IsQuotaBased = false,
             PlanType = PlanType.Usage,
             AuthSource = authSource ?? string.Empty,
@@ -158,10 +162,10 @@ public class OpenCodeZenProvider : ProviderBase
         {
             ProviderId = providerId,
             ProviderName = ProviderDisplayName,
-            RequestsPercentage = 0.0,
+            UsedPercent = 0.0,
             RequestsUsed = totalCost,
             RequestsAvailable = 0.0,
-            UsageUnit = "USD",
+            IsCurrencyUsage = true,
             IsQuotaBased = false,
             PlanType = PlanType.Usage,
             IsAvailable = true,

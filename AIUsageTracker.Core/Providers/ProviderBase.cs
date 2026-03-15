@@ -49,7 +49,7 @@ public abstract class ProviderBase : IProviderService
         string? authSource = null,
         PlanType planType = PlanType.Coding,
         bool isQuotaBased = true,
-        string? usageUnit = null)
+        ProviderUsageState state = ProviderUsageState.Error)
     {
         return new ProviderUsage
         {
@@ -57,22 +57,15 @@ public abstract class ProviderBase : IProviderService
             ProviderName = this.Definition.DisplayName ?? this.ProviderId,
             IsAvailable = false,
             Description = description,
+            State = state,
             PlanType = planType,
             IsQuotaBased = isQuotaBased,
-            UsageUnit = usageUnit ?? this.GetDefaultUsageUnit(),
             AuthSource = authSource ?? string.Empty,
             HttpStatus = httpStatus,
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
-            RequestsPercentage = 0,
-#pragma warning restore CS0618
+            UsedPercent = 0,
             RequestsUsed = 0,
             RequestsAvailable = 0,
         };
-    }
-
-    protected virtual string GetDefaultUsageUnit()
-    {
-        return "Credits";
     }
 
     protected virtual ProviderUsage CreateUnavailableUsageFromStatus(

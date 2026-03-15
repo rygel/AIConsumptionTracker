@@ -12,6 +12,23 @@ public sealed class GroupedUsageProjectionServiceTests
     [Fact]
     public void Build_ProjectsSingleProviderWithModelArray_FromModelDetails()
     {
+        var modelDetail = new ProviderUsageDetail
+        {
+            Name = "Gemini 2.5 Flash Lite",
+            ModelName = "gemini-2.5-flash-lite",
+            DetailType = ProviderUsageDetailType.Model,
+            QuotaBucketKind = WindowKind.None,
+        };
+        modelDetail.SetPercentageValue(96.7, PercentageValueSemantic.Remaining);
+
+        var quotaDetail = new ProviderUsageDetail
+        {
+            Name = "Quota Bucket (Primary)",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Burst,
+        };
+        quotaDetail.SetPercentageValue(65.7, PercentageValueSemantic.Remaining);
+
         var usages = new[]
         {
             new ProviderUsage
@@ -22,26 +39,9 @@ public sealed class GroupedUsageProjectionServiceTests
                 IsQuotaBased = true,
                 RequestsUsed = 35,
                 RequestsAvailable = 100,
-                RequestsPercentage = 65,
+                UsedPercent = 35,
                 FetchedAt = DateTime.UtcNow,
-                Details = new List<ProviderUsageDetail>
-                {
-                    new()
-                    {
-                        Name = "Gemini 2.5 Flash Lite",
-                        ModelName = "gemini-2.5-flash-lite",
-                        Used = "96.7%",
-                        DetailType = ProviderUsageDetailType.Model,
-                        QuotaBucketKind = WindowKind.None,
-                    },
-                    new()
-                    {
-                        Name = "Quota Bucket (Primary)",
-                        Used = "65.7%",
-                        DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Burst,
-                    },
-                },
+                Details = new List<ProviderUsageDetail> { modelDetail, quotaDetail },
             },
             new ProviderUsage
             {
@@ -51,7 +51,7 @@ public sealed class GroupedUsageProjectionServiceTests
                 IsQuotaBased = true,
                 RequestsUsed = 93,
                 RequestsAvailable = 100,
-                RequestsPercentage = 7,
+                UsedPercent = 93,
                 FetchedAt = DateTime.UtcNow,
             },
         };
@@ -89,7 +89,7 @@ public sealed class GroupedUsageProjectionServiceTests
                 IsQuotaBased = true,
                 RequestsUsed = 50,
                 RequestsAvailable = 100,
-                RequestsPercentage = 50,
+                UsedPercent = 50,
                 FetchedAt = now,
                 Details = null,
             },
@@ -101,7 +101,7 @@ public sealed class GroupedUsageProjectionServiceTests
                 IsQuotaBased = true,
                 RequestsUsed = 10,
                 RequestsAvailable = 100,
-                RequestsPercentage = 90,
+                UsedPercent = 10,
                 FetchedAt = now,
             },
         };
@@ -117,6 +117,14 @@ public sealed class GroupedUsageProjectionServiceTests
     [Fact]
     public void Build_KeepsProviderWithEmptyModelArray_WhenNoModelDataExists()
     {
+        var weeklyDetail = new ProviderUsageDetail
+        {
+            Name = "Weekly Quota",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Rolling,
+        };
+        weeklyDetail.SetPercentageValue(14.0, PercentageValueSemantic.Used);
+
         var usages = new[]
         {
             new ProviderUsage
@@ -127,19 +135,10 @@ public sealed class GroupedUsageProjectionServiceTests
                 IsQuotaBased = true,
                 RequestsUsed = 0,
                 RequestsAvailable = 0,
-                RequestsPercentage = 0,
+                UsedPercent = 0,
                 Description = "Not authenticated",
                 FetchedAt = DateTime.UtcNow,
-                Details = new List<ProviderUsageDetail>
-                {
-                    new()
-                    {
-                        Name = "Weekly Quota",
-                        Used = "14% used",
-                        DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Rolling,
-                    },
-                },
+                Details = new List<ProviderUsageDetail> { weeklyDetail },
             },
         };
 
@@ -154,6 +153,42 @@ public sealed class GroupedUsageProjectionServiceTests
     [Fact]
     public void Build_MapsModelScopedQuotaBuckets_ToMatchingModels()
     {
+        var flashLiteModel = new ProviderUsageDetail
+        {
+            Name = "Gemini 2.5 Flash Lite",
+            ModelName = "gemini-2.5-flash-lite",
+            DetailType = ProviderUsageDetailType.Model,
+            QuotaBucketKind = WindowKind.None,
+        };
+        flashLiteModel.SetPercentageValue(90.0, PercentageValueSemantic.Remaining);
+
+        var flashPreviewModel = new ProviderUsageDetail
+        {
+            Name = "Gemini 3 Flash Preview",
+            ModelName = "gemini-3-flash-preview",
+            DetailType = ProviderUsageDetailType.Model,
+            QuotaBucketKind = WindowKind.None,
+        };
+        flashPreviewModel.SetPercentageValue(60.0, PercentageValueSemantic.Remaining);
+
+        var flashLiteQuota = new ProviderUsageDetail
+        {
+            Name = "Requests / Minute",
+            ModelName = "gemini-2.5-flash-lite",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Burst,
+        };
+        flashLiteQuota.SetPercentageValue(95.0, PercentageValueSemantic.Remaining);
+
+        var flashPreviewQuota = new ProviderUsageDetail
+        {
+            Name = "Requests / Minute",
+            ModelName = "gemini-3-flash-preview",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Burst,
+        };
+        flashPreviewQuota.SetPercentageValue(70.0, PercentageValueSemantic.Remaining);
+
         var usages = new[]
         {
             new ProviderUsage
@@ -164,42 +199,14 @@ public sealed class GroupedUsageProjectionServiceTests
                 IsQuotaBased = true,
                 RequestsUsed = 20,
                 RequestsAvailable = 100,
-                RequestsPercentage = 80,
+                UsedPercent = 20,
                 FetchedAt = DateTime.UtcNow,
                 Details = new List<ProviderUsageDetail>
                 {
-                    new()
-                    {
-                        Name = "Gemini 2.5 Flash Lite",
-                        ModelName = "gemini-2.5-flash-lite",
-                        Used = "90.0%",
-                        DetailType = ProviderUsageDetailType.Model,
-                        QuotaBucketKind = WindowKind.None,
-                    },
-                    new()
-                    {
-                        Name = "Gemini 3 Flash Preview",
-                        ModelName = "gemini-3-flash-preview",
-                        Used = "60.0%",
-                        DetailType = ProviderUsageDetailType.Model,
-                        QuotaBucketKind = WindowKind.None,
-                    },
-                    new()
-                    {
-                        Name = "Requests / Minute",
-                        ModelName = "gemini-2.5-flash-lite",
-                        Used = "95.0% remaining (5.0% used)",
-                        DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Burst,
-                    },
-                    new()
-                    {
-                        Name = "Requests / Minute",
-                        ModelName = "gemini-3-flash-preview",
-                        Used = "70.0% remaining (30.0% used)",
-                        DetailType = ProviderUsageDetailType.QuotaWindow,
-                        QuotaBucketKind = WindowKind.Burst,
-                    },
+                    flashLiteModel,
+                    flashPreviewModel,
+                    flashLiteQuota,
+                    flashPreviewQuota,
                 },
             },
         };

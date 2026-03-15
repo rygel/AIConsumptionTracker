@@ -2,8 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
-
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text;
@@ -19,27 +17,28 @@ namespace AIUsageTracker.Infrastructure.Providers;
 public class GeminiProvider : ProviderBase
 {
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "gemini-cli",
-        displayName: "Google Gemini",
-        planType: PlanType.Coding,
+        "gemini-cli",
+        "Google Gemini",
+        PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
-        autoIncludeWhenUnconfigured: true,
-        includeInWellKnownProviders: true,
-        handledProviderIds: new[] { "gemini-cli", "gemini" },
-        displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        defaultConfigType: "quota-based")
+    {
+        AutoIncludeWhenUnconfigured = true,
+        IncludeInWellKnownProviders = true,
+        AdditionalHandledProviderIds = new[] { "gemini" },
+        DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["gemini-cli.minute"] = "Gemini CLI (Minute)",
             ["gemini-cli.hourly"] = "Gemini CLI (Hourly)",
             ["gemini-cli.daily"] = "Gemini CLI (Daily)",
         },
-        familyMode: ProviderFamilyMode.VisibleDerivedProviders,
-        visibleDerivedProviderIds: new[] { "gemini-cli.minute", "gemini-cli.hourly", "gemini-cli.daily" },
-        settingsAdditionalProviderIds: new[] { "gemini-cli.minute", "gemini-cli.hourly", "gemini-cli.daily" },
-        discoveryEnvironmentVariables: new[] { "GEMINI_API_KEY", "GOOGLE_API_KEY" },
-        rooConfigPropertyNames: new[] { "geminiApiKey" },
-        supportsAccountIdentity: true,
-        derivedModelSelectors: new[]
+        FamilyMode = ProviderFamilyMode.VisibleDerivedProviders,
+        VisibleDerivedProviderIds = new[] { "gemini-cli.minute", "gemini-cli.hourly", "gemini-cli.daily" },
+        SettingsAdditionalProviderIds = new[] { "gemini-cli.minute", "gemini-cli.hourly", "gemini-cli.daily" },
+        DiscoveryEnvironmentVariables = new[] { "GEMINI_API_KEY", "GOOGLE_API_KEY" },
+        RooConfigPropertyNames = new[] { "geminiApiKey" },
+        SupportsAccountIdentity = true,
+        DerivedModelSelectors = new[]
         {
             new ProviderDerivedModelSelector(
                 derivedProviderId: "gemini-cli.minute",
@@ -51,10 +50,11 @@ public class GeminiProvider : ProviderBase
                 derivedProviderId: "gemini-cli.daily",
                 modelIdContains: new[] { "day", "daily" }),
         },
-        iconAssetName: "google",
-        fallbackBadgeColorHex: "#1E90FF",
-        fallbackBadgeInitial: "G",
-        derivedModelDisplaySuffix: "[Gemini CLI]");
+        IconAssetName = "google",
+        FallbackBadgeColorHex = "#1E90FF",
+        FallbackBadgeInitial = "G",
+        DerivedModelDisplaySuffix = "[Gemini CLI]",
+    };
 
     // Public OAuth client ID embedded in the open-source gemini-cli tool.
     // This is NOT a secret — it is intentionally public and shipped with the CLI.
@@ -126,6 +126,7 @@ public class GeminiProvider : ProviderBase
                     IsAvailable = false,
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
+                    State = ProviderUsageState.Missing,
                     Description = "No Gemini accounts found",
                 },
             };
@@ -194,10 +195,9 @@ public class GeminiProvider : ProviderBase
                 {
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
-                    RequestsPercentage = remainingPercentage,
+                    UsedPercent = usedPercentage,
                     RequestsUsed = usedPercentage,
                     RequestsAvailable = 100,
-                    UsageUnit = "Quota %",
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
                     AccountName = account.Email, // Separate usage per account
@@ -217,6 +217,7 @@ public class GeminiProvider : ProviderBase
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
+                    State = ProviderUsageState.Error,
                     Description = $"Error: {ex.Message}",
                     AccountName = account.Email,
                 });
@@ -237,6 +238,7 @@ public class GeminiProvider : ProviderBase
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
+                    State = ProviderUsageState.Error,
                     Description = "Failed to fetch quota for any account",
                 },
             };

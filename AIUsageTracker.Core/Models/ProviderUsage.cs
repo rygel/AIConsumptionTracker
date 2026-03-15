@@ -16,38 +16,22 @@ public class ProviderUsage
 
     public double RequestsAvailable { get; set; }
 
-    [Obsolete("Use UsedPercent or RemainingPercent for unambiguous semantics.")]
-    public double RequestsPercentage { get; set; }
-
     /// <summary>
-    /// Gets the percentage of quota/budget consumed (0–100), regardless of whether the provider is quota-based.
+    /// Gets or sets the percentage of quota/budget consumed (0–100), regardless of whether the provider is quota-based.
     /// </summary>
-    [JsonIgnore]
-    public double UsedPercent
-    {
-#pragma warning disable CS0618 // Computed from RequestsPercentage by design
-        get => this.IsQuotaBased
-            ? Math.Max(0, 100 - this.RequestsPercentage)
-            : this.RequestsPercentage;
-#pragma warning restore CS0618
-    }
+    [JsonPropertyName("used_percent")]
+    public double UsedPercent { get; set; }
 
     /// <summary>
     /// Gets the percentage of quota/budget remaining (0–100), regardless of whether the provider is quota-based.
     /// </summary>
     [JsonIgnore]
-    public double RemainingPercent
-    {
-#pragma warning disable CS0618 // Computed from RequestsPercentage by design
-        get => this.IsQuotaBased
-            ? this.RequestsPercentage
-            : Math.Max(0, 100 - this.RequestsPercentage);
-#pragma warning restore CS0618
-    }
+    public double RemainingPercent => Math.Max(0, 100.0 - this.UsedPercent);
 
     public PlanType PlanType { get; set; } = PlanType.Usage;
 
-    public string UsageUnit { get; set; } = "USD";
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsCurrencyUsage { get; set; }
 
     public bool IsQuotaBased { get; set; }
 
@@ -57,7 +41,21 @@ public class ProviderUsage
 
     public string Description { get; set; } = string.Empty;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    [JsonConverter(typeof(JsonStringEnumConverter<ProviderUsageState>))]
+    public ProviderUsageState State { get; set; } = ProviderUsageState.Available;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsStatusOnly { get; set; }
+
     public string AuthSource { get; set; } = string.Empty;
+
+    /// <summary>
+    /// For child/derived provider rows, the provider_id of the parent.
+    /// Null for top-level (non-derived) providers.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParentProviderId { get; set; }
 
     public IReadOnlyList<ProviderUsageDetail>? Details { get; set; }
 
@@ -75,6 +73,11 @@ public class ProviderUsage
 
     public double ResponseLatencyMs { get; set; }
 
+    /// <summary>
+    /// Raw JSON response from the provider API. Intentional audit trail — stored in the database
+    /// and privacy-redacted in the processing pipeline when privacy mode is enabled.
+    /// Not surfaced in the UI; used for diagnostics and post-hoc debugging.
+    /// </summary>
     public string? RawJson { get; set; }
 
     public int HttpStatus { get; set; } = 200;

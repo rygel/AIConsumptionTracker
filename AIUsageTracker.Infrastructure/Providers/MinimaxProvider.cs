@@ -2,7 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
 
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -30,23 +29,25 @@ public class MinimaxProvider : ProviderBase
     }
 
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: ChinaProviderId,
-        displayName: "Minimax (China)",
-        planType: PlanType.Coding,
+        ChinaProviderId,
+        "Minimax (China)",
+        PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
-        includeInWellKnownProviders: true,
-        handledProviderIds: new[] { ChinaProviderId, InternationalProviderId, InternationalLegacyProviderId },
-        displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        defaultConfigType: "quota-based")
+    {
+        IncludeInWellKnownProviders = true,
+        AdditionalHandledProviderIds = new[] { InternationalProviderId, InternationalLegacyProviderId },
+        DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             [InternationalProviderId] = "Minimax (International)",
             [InternationalLegacyProviderId] = "Minimax (International)",
         },
-        settingsAdditionalProviderIds: new[] { InternationalProviderId },
-        discoveryEnvironmentVariables: new[] { "MINIMAX_API_KEY" },
-        iconAssetName: "minimax",
-        fallbackBadgeColorHex: "#00CED1",
-        fallbackBadgeInitial: "MM");
+        SettingsAdditionalProviderIds = new[] { InternationalProviderId },
+        DiscoveryEnvironmentVariables = new[] { "MINIMAX_API_KEY" },
+        IconAssetName = "minimax",
+        FallbackBadgeColorHex = "#00CED1",
+        FallbackBadgeInitial = "MM",
+    };
 
     /// <inheritdoc/>
     public override ProviderDefinition Definition => StaticDefinition;
@@ -71,6 +72,7 @@ public class MinimaxProvider : ProviderBase
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
                 Description = "API Key not found.",
+                State = ProviderUsageState.Missing,
             },
             };
         }
@@ -176,20 +178,16 @@ public class MinimaxProvider : ProviderBase
 
         var utilization = total > 0 ? (used / total) * 100.0 : 0;
 
-        // For quota-based providers, RequestsPercentage represents REMAINING percentage
-        var remainingPercent = Math.Clamp(100.0 - utilization, 0, 100);
-
         return new[]
         {
             new ProviderUsage
         {
             ProviderId = config.ProviderId,
             ProviderName = providerLabel,
-            RequestsPercentage = remainingPercent,
+            UsedPercent = Math.Clamp(utilization, 0, 100),
             RequestsUsed = used,
             RequestsAvailable = total,
             PlanType = PlanType.Coding,
-            UsageUnit = "Tokens",
             IsQuotaBased = true,
             Description = $"{used:N0} tokens used" + (total > 0 ? $" / {total:N0} limit" : string.Empty),
             RawJson = responseString,

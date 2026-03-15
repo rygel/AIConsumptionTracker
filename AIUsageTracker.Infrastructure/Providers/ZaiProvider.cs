@@ -2,8 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
-
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -25,21 +23,23 @@ public class ZaiProvider : ProviderBase
     }
 
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "zai-coding-plan",
-        displayName: "Z.ai Coding Plan",
-        planType: PlanType.Coding,
+        "zai-coding-plan",
+        "Z.ai Coding Plan",
+        PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
-        handledProviderIds: new[] { "zai-coding-plan", "zai" },
-        displayNameOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        defaultConfigType: "quota-based")
+    {
+        AdditionalHandledProviderIds = new[] { "zai" },
+        DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["zai"] = "Z.AI",
         },
-        discoveryEnvironmentVariables: new[] { "ZAI_API_KEY", "Z_AI_API_KEY" },
-        rooConfigPropertyNames: new[] { "zaiApiKey" },
-        iconAssetName: "zai",
-        fallbackBadgeColorHex: "#20B2AA",
-        fallbackBadgeInitial: "Z");
+        DiscoveryEnvironmentVariables = new[] { "ZAI_API_KEY", "Z_AI_API_KEY" },
+        RooConfigPropertyNames = new[] { "zaiApiKey" },
+        IconAssetName = "zai",
+        FallbackBadgeColorHex = "#20B2AA",
+        FallbackBadgeInitial = "Z",
+    };
 
     /// <inheritdoc/>
     public override ProviderDefinition Definition => StaticDefinition;
@@ -304,21 +304,22 @@ public class ZaiProvider : ProviderBase
             };
         }
 
-        var finalRequestsPercentage = Math.Min(remainingPercent.Value, 100);
+        var finalRemainingPercent = Math.Min(remainingPercent.Value, 100);
+        var finalUsedPercent = Math.Max(0, 100.0 - finalRemainingPercent);
 
         if (!hasRawLimitData)
         {
             finalRequestsAvailable = 100;
-            finalRequestsUsedReal = Math.Max(0, 100 - finalRequestsPercentage);
+            finalRequestsUsedReal = Math.Max(0, 100 - finalRemainingPercent);
         }
 
-        var finalDescription = (string.IsNullOrEmpty(detailInfo) ? $"{finalRequestsPercentage.ToString("F1", CultureInfo.InvariantCulture)}% remaining" : detailInfo) + resetStr;
+        var finalDescription = (string.IsNullOrEmpty(detailInfo) ? $"{finalRemainingPercent.ToString("F1", CultureInfo.InvariantCulture)}% remaining" : detailInfo) + resetStr;
 
         this._logger.LogInformation(
-            "Z.AI Provider Usage - ProviderId: {ProviderId}, ProviderName: {ProviderName}, RequestsPercentage: {RequestsPercentage}%, RequestsUsed: {RequestsUsed}%, Description: {Description}, IsAvailable: {IsAvailable}",
+            "Z.AI Provider Usage - ProviderId: {ProviderId}, ProviderName: {ProviderName}, UsedPercent: {UsedPercent}%, RequestsUsed: {RequestsUsed}%, Description: {Description}, IsAvailable: {IsAvailable}",
             this.ProviderId,
             providerLabel,
-            finalRequestsPercentage,
+            finalUsedPercent,
             finalRequestsUsedReal,
             finalDescription,
             true);
@@ -329,10 +330,9 @@ public class ZaiProvider : ProviderBase
         {
             ProviderId = this.ProviderId,
             ProviderName = providerLabel,
-            RequestsPercentage = finalRequestsPercentage,
+            UsedPercent = finalUsedPercent,
             RequestsUsed = finalRequestsUsedReal,  // Store actual used count/percentage
             RequestsAvailable = finalRequestsAvailable, // Store actual total limit
-            UsageUnit = finalRequestsAvailable > 100 ? "Tokens" : "Quota %",
             IsQuotaBased = true,
             PlanType = PlanType.Coding,
             DisplayAsFraction = finalRequestsAvailable > 100, // Explicitly request fraction display if we have real numbers

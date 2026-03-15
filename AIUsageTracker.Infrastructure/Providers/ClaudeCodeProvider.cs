@@ -2,7 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
 
 using System.Diagnostics;
 using System.Globalization;
@@ -38,32 +37,34 @@ public class ClaudeCodeProvider : ProviderBase
     }
 
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "claude-code",
-        displayName: "Claude Code",
-        planType: PlanType.Usage,
+        "claude-code",
+        "Claude Code",
+        PlanType.Usage,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
-        autoIncludeWhenUnconfigured: true,
-        familyMode: ProviderFamilyMode.SyntheticAggregateChildren,
-        discoveryEnvironmentVariables: new[] { "ANTHROPIC_API_KEY", "CLAUDE_API_KEY" },
-        iconAssetName: "anthropic",
-        fallbackBadgeColorHex: "#FFA500",
-        fallbackBadgeInitial: "C",
-        authIdentityCandidatePathTemplates: new[]
+        defaultConfigType: "quota-based")
+    {
+        AutoIncludeWhenUnconfigured = true,
+        FamilyMode = ProviderFamilyMode.SyntheticAggregateChildren,
+        DiscoveryEnvironmentVariables = new[] { "ANTHROPIC_API_KEY", "CLAUDE_API_KEY" },
+        IconAssetName = "anthropic",
+        FallbackBadgeColorHex = "#FFA500",
+        FallbackBadgeInitial = "C",
+        AuthIdentityCandidatePathTemplates = new[]
         {
             "%USERPROFILE%\\.claude\\.credentials.json",
         },
-        sessionAuthFileSchemas: new[]
+        SessionAuthFileSchemas = new[]
         {
             new ProviderAuthFileSchema("claudeAiOauth", "accessToken"),
         },
-        mainWindowVisibilityItems: new (string, string)[]
+        QuotaWindows = new QuotaWindowDefinition[]
         {
-            ("claude-code.current-session", "Current Session (5-hour quota)"),
-            ("claude-code.sonnet", "Sonnet (7-day model quota)"),
-            ("claude-code.opus", "Opus (7-day model quota)"),
-            ("claude-code.all-models", "All Models (7-day combined)"),
-        });
+            new(WindowKind.Burst,         "5h",     ChildProviderId: "claude-code.current-session", SettingsLabel: "Current Session (5-hour quota)", DetailName: "Current Session"),
+            new(WindowKind.ModelSpecific, "Sonnet",  ChildProviderId: "claude-code.sonnet",          SettingsLabel: "Sonnet (7-day model quota)",    DetailName: "Sonnet"),
+            new(WindowKind.ModelSpecific, "Opus",    ChildProviderId: "claude-code.opus",            SettingsLabel: "Opus (7-day model quota)",      DetailName: "Opus"),
+            new(WindowKind.Rolling,       "7-day",   ChildProviderId: "claude-code.all-models",      SettingsLabel: "All Models (7-day combined)",   DetailName: "All Models"),
+        },
+    };
 
     /// <inheritdoc/>
     public override ProviderDefinition Definition => StaticDefinition;
@@ -85,7 +86,8 @@ public class ClaudeCodeProvider : ProviderBase
                 ProviderName = "Claude Code",
                 IsAvailable = false,
                 Description = "No API key configured",
-                UsageUnit = "Status",
+                State = ProviderUsageState.Missing,
+                IsStatusOnly = true,
                 IsQuotaBased = true,
                 PlanType = PlanType.Usage,
                 RawJson = "{\"source\":\"claude-code\",\"status\":\"api_key_missing\"}",
@@ -335,18 +337,13 @@ public class ClaudeCodeProvider : ProviderBase
             description += " | Extra usage enabled";
         }
 
-        // For quota-based providers, RequestsPercentage represents REMAINING percentage
-        // The UI expects this semantic: higher RequestsPercentage = more quota remaining
-        var remainingPercent = 100 - mainPercent;
-
         return new ProviderUsage
         {
             ProviderId = this.ProviderId,
             ProviderName = "Claude Code",
-            RequestsPercentage = remainingPercent,
+            UsedPercent = mainPercent,
             RequestsUsed = mainPercent,
             RequestsAvailable = 100,
-            UsageUnit = "%",
             IsQuotaBased = true,
             PlanType = PlanType.Coding,
             IsAvailable = true,
@@ -404,11 +401,11 @@ public class ClaudeCodeProvider : ProviderBase
 
                 // Build detailed tooltip info
                 var tooltipDetails = new List<ProviderUsageDetail>();
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Rate Limit Tier", Used = rateLimitHeaders.GetTierName(), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Limit", Used = rateLimitHeaders.RequestsLimit.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Remaining", Used = rateLimitHeaders.RequestsRemaining.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Limit", Used = rateLimitHeaders.InputTokensLimit.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
-                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Remaining", Used = rateLimitHeaders.InputTokensRemaining.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Rate Limit Tier", Description = rateLimitHeaders.GetTierName(), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Limit", Description = rateLimitHeaders.RequestsLimit.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Requests/min Remaining", Description = rateLimitHeaders.RequestsRemaining.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Limit", Description = rateLimitHeaders.InputTokensLimit.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
+                tooltipDetails.Add(new ProviderUsageDetail { Name = "Input Tokens/min Remaining", Description = rateLimitHeaders.InputTokensRemaining.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), DetailType = ProviderUsageDetailType.RateLimit, QuotaBucketKind = WindowKind.None });
                 tooltipDetails.Add(new ProviderUsageDetail
                 {
                     Name = "Current RPM Usage",
@@ -423,10 +420,9 @@ public class ClaudeCodeProvider : ProviderBase
                 {
                     ProviderId = this.ProviderId,
                     ProviderName = "Claude Code",
-                    RequestsPercentage = usagePercentage,
+                    UsedPercent = usagePercentage,
                     RequestsUsed = 0, // Anthropic doesn't provide cost via API
                     RequestsAvailable = 0,
-                    UsageUnit = "RPM",
                     IsQuotaBased = false,
                     PlanType = PlanType.Usage,
                     IsAvailable = true,
@@ -515,7 +511,7 @@ public class ClaudeCodeProvider : ProviderBase
                         ProviderName = "Claude Code",
                         IsAvailable = true,
                         Description = "Connected (API key configured)",
-                        UsageUnit = "Status",
+                        IsStatusOnly = true,
                         IsQuotaBased = false,
                         PlanType = PlanType.Usage,
                         RawJson = "{\"source\":\"claude-cli\",\"status\":\"process_start_failed\"}",
@@ -552,7 +548,7 @@ public class ClaudeCodeProvider : ProviderBase
                         ProviderName = "Claude Code",
                         IsAvailable = true,
                         Description = "Connected (API key configured)",
-                        UsageUnit = "Status",
+                        IsStatusOnly = true,
                         IsQuotaBased = false,
                         PlanType = PlanType.Usage,
                         RawJson = string.IsNullOrWhiteSpace(error) ? "{\"source\":\"claude-cli\",\"status\":\"failed\"}" : error,
@@ -576,7 +572,7 @@ public class ClaudeCodeProvider : ProviderBase
                     ProviderName = "Claude Code",
                     IsAvailable = true,
                     Description = "Connected (API key configured)",
-                    UsageUnit = "Status",
+                    IsStatusOnly = true,
                     IsQuotaBased = false,
                     PlanType = PlanType.Usage,
                     RawJson = ex.ToString(),
@@ -621,10 +617,10 @@ public class ClaudeCodeProvider : ProviderBase
         {
             ProviderId = this.ProviderId,
             ProviderName = "Claude Code",
-            RequestsPercentage = Math.Min(usagePercentage, 100),
+            UsedPercent = Math.Min(usagePercentage, 100),
             RequestsUsed = currentUsage,
             RequestsAvailable = budgetLimit,
-            UsageUnit = "USD",
+            IsCurrencyUsage = true,
             IsQuotaBased = false,
             PlanType = PlanType.Usage,
             IsAvailable = true,

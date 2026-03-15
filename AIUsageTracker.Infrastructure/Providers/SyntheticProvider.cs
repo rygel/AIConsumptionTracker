@@ -2,7 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
 
 using System.Globalization;
 using System.Net.Http.Headers;
@@ -27,16 +26,18 @@ public sealed class SyntheticProvider : ProviderBase
     }
 
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "synthetic",
-        displayName: "Synthetic.new",
-        planType: PlanType.Coding,
+        "synthetic",
+        "Synthetic.new",
+        PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
-        discoveryEnvironmentVariables: new[] { "SYNTHETIC_API_KEY" },
-        rooConfigPropertyNames: new[] { "syntheticApiKey" },
-        iconAssetName: "synthetic",
-        fallbackBadgeColorHex: "#FFD700",
-        fallbackBadgeInitial: "Sy");
+        defaultConfigType: "quota-based")
+    {
+        DiscoveryEnvironmentVariables = new[] { "SYNTHETIC_API_KEY" },
+        RooConfigPropertyNames = new[] { "syntheticApiKey" },
+        IconAssetName = "synthetic",
+        FallbackBadgeColorHex = "#FFD700",
+        FallbackBadgeInitial = "Sy",
+    };
 
     public override ProviderDefinition Definition => StaticDefinition;
 
@@ -48,7 +49,7 @@ public sealed class SyntheticProvider : ProviderBase
     {
         if (string.IsNullOrWhiteSpace(config.ApiKey))
         {
-            return new[] { this.CreateUnavailableUsage("API Key missing", 401, config.AuthSource) };
+            return new[] { this.CreateUnavailableUsage("API Key missing", 401, config.AuthSource, state: ProviderUsageState.Missing) };
         }
 
         var endpoint = string.IsNullOrWhiteSpace(config.BaseUrl)
@@ -96,10 +97,9 @@ public sealed class SyntheticProvider : ProviderBase
                 {
                     ProviderId = this.ProviderId,
                     ProviderName = "Synthetic.new",
-                    RequestsPercentage = remainingPercent,
+                    UsedPercent = Math.Clamp(used / total * 100.0, 0, 100),
                     RequestsUsed = used,
                     RequestsAvailable = total,
-                    UsageUnit = "Credits",
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
                     IsAvailable = true,

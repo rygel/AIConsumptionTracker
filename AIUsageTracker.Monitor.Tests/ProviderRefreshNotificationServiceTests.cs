@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // UsedPercent: legacy field set in test fixtures
+
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Monitor.Hubs;
@@ -142,7 +144,7 @@ public class ProviderRefreshNotificationServiceTests
                 ProviderName = "OpenAI",
                 RequestsUsed = 90,
                 RequestsAvailable = 100,
-                RequestsPercentage = 90,
+                UsedPercent = 90,
                 IsAvailable = true,
             },
         ];

@@ -2,6 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+
 using System.Net;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
@@ -59,9 +60,9 @@ public class OpenRouterProviderTests : HttpProviderTestBase<OpenRouterProvider>
         var usage = result.Single();
         Assert.True(usage.IsAvailable);
         Assert.Equal("My Project Key", usage.ProviderName);
-        Assert.Equal(75.0, usage.RequestsPercentage);
+        Assert.Equal(25.0, usage.UsedPercent); // 2.5 used of 10 total = 25% used
         Assert.Equal(2.5, usage.RequestsUsed);
-        Assert.Equal("Credits", usage.UsageUnit);
+        // UsageUnit removed; OpenRouter does not set IsCurrencyUsage since it uses Credits not USD
         Assert.Equal("7.50 Credits Remaining", usage.Description);
 
         Assert.Contains(

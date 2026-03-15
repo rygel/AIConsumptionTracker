@@ -131,9 +131,6 @@ public class AntigravityProviderTests : HttpProviderTestBase<AntigravityProvider
 
         Assert.NotNull(summary.Details);
         Assert.Contains(summary.Details!, detail => string.Equals(detail.Name, "gpt-oss", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(summary.Details!, detail =>
-            string.Equals(detail.Name, "gpt-oss", StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(detail.Used, "Unknown", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -157,8 +154,11 @@ public class AntigravityProviderTests : HttpProviderTestBase<AntigravityProvider
             usage => string.Equals(usage.ProviderId, "antigravity.gemini-3-flash", StringComparison.Ordinal));
 
         Assert.Equal("Google Antigravity", summary.ProviderName);
-        Assert.Equal("100% remaining", geminiFlashDetail.Used);
-        Assert.Equal(100, geminiFlashChild.RequestsPercentage);
+        // Detail description contains reset info, not remaining text
+        Assert.True(geminiFlashDetail.TryGetPercentageValue(out var pct, out var sem, out _));
+        Assert.Equal(100.0, pct, 1); // 100% remaining fraction
+        Assert.Equal(PercentageValueSemantic.Remaining, sem);
+        Assert.Equal(0, geminiFlashChild.UsedPercent); // 0% used (100% remaining)
         Assert.Equal(0, geminiFlashChild.RequestsUsed);
         Assert.Equal(100, geminiFlashChild.RequestsAvailable);
         Assert.True(geminiFlashChild.DisplayAsFraction);

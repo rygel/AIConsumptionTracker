@@ -2,8 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
-
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -36,41 +34,48 @@ public class OpenAIProvider : ProviderBase
     }
 
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "openai",
-        displayName: "OpenAI (API)",
-        planType: PlanType.Coding,
+        "openai",
+        "OpenAI (API)",
+        PlanType.Coding,
         isQuotaBased: true,
-        defaultConfigType: "quota-based",
-        discoveryEnvironmentVariables: new[] { "OPENAI_API_KEY" },
-        rooConfigPropertyNames: new[] { "openAiApiKey" },
-        explicitApiKeyPrefixes: new[] { "sk-" },
-        sessionAuthCanonicalProviderId: "codex",
-        sessionAuthMigrationDescription: "Migrated from OpenAI session config",
-        settingsMode: ProviderSettingsMode.SessionAuthStatus,
-        useSessionAuthStatusWhenQuotaBasedOrSessionToken: true,
-        sessionStatusLabel: "OpenAI (API)",
-        showInMainWindow: false,
-        sessionIdentitySource: ProviderSessionIdentitySource.OpenAi,
-        supportsAccountIdentity: true,
-        showInSettings: false,
-        iconAssetName: "openai",
-        fallbackBadgeColorHex: "#008B8B",
-        fallbackBadgeInitial: "AI",
-        authIdentityCandidatePathTemplates: new[]
+        defaultConfigType: "quota-based")
+    {
+        DiscoveryEnvironmentVariables = new[] { "OPENAI_API_KEY" },
+        RooConfigPropertyNames = new[] { "openAiApiKey" },
+        ExplicitApiKeyPrefixes = new[] { "sk-" },
+        SessionAuthCanonicalProviderId = "codex",
+        SessionAuthMigrationDescription = "Migrated from OpenAI session config",
+        SettingsMode = ProviderSettingsMode.SessionAuthStatus,
+        UseSessionAuthStatusWhenQuotaBasedOrSessionToken = true,
+        SessionStatusLabel = "OpenAI (API)",
+        ShowInMainWindow = false,
+        SessionIdentitySource = ProviderSessionIdentitySource.OpenAi,
+        SupportsAccountIdentity = true,
+        ShowInSettings = false,
+        IconAssetName = "openai",
+        FallbackBadgeColorHex = "#008B8B",
+        FallbackBadgeInitial = "AI",
+        AuthIdentityCandidatePathTemplates = new[]
         {
             "%USERPROFILE%\\.local\\share\\opencode\\auth.json",
             "%APPDATA%\\opencode\\auth.json",
             "%LOCALAPPDATA%\\opencode\\auth.json",
             "%USERPROFILE%\\.opencode\\auth.json",
         },
-        sessionAuthFileSchemas: new[]
+        SessionAuthFileSchemas = new[]
         {
             new ProviderAuthFileSchema("openai", "access", "accountId", "id_token"),
         },
-        sessionIdentityProfileRootProperties: new[]
+        SessionIdentityProfileRootProperties = new[]
         {
             ProviderEndpoints.OpenAI.ProfileClaimKey,
-        });
+        },
+        QuotaWindows = new QuotaWindowDefinition[]
+        {
+            new(WindowKind.Burst,   "5h"),
+            new(WindowKind.Rolling, "Weekly"),
+        },
+    };
 
     /// <inheritdoc/>
     public override ProviderDefinition Definition => StaticDefinition;
@@ -100,7 +105,7 @@ public class OpenAIProvider : ProviderBase
         {
             return new[]
             {
-                this.CreateUnavailableUsage("OpenAI API key or OpenCode session not found."),
+                this.CreateUnavailableUsage("OpenAI API key or OpenCode session not found.", state: ProviderUsageState.Missing),
             };
         }
 
@@ -167,7 +172,7 @@ public class OpenAIProvider : ProviderBase
             details.Add(new ProviderUsageDetail
             {
                 Name = "Credits",
-                Used = unlimited == true ? "Unlimited" : credits?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "Unknown",
+                Description = unlimited == true ? "Unlimited" : credits?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "Unknown",
                 DetailType = ProviderUsageDetailType.Credit,
                 QuotaBucketKind = WindowKind.None,
             });
@@ -248,6 +253,7 @@ public class OpenAIProvider : ProviderBase
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
+                    State = ProviderUsageState.Missing,
                     Description = "Project keys (sk-proj-...) not supported yet. Use a standard user API key.",
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
@@ -270,11 +276,11 @@ public class OpenAIProvider : ProviderBase
                         ProviderId = this.ProviderId,
                         ProviderName = this.Definition.DisplayName,
                         IsAvailable = true,
-                        RequestsPercentage = 0,
+                        UsedPercent = 0,
                         IsQuotaBased = true,
                         PlanType = PlanType.Coding,
                         Description = "Connected (API Key)",
-                        UsageUnit = "Status",
+                        IsStatusOnly = true,
                     },
                 };
             }
@@ -286,6 +292,7 @@ public class OpenAIProvider : ProviderBase
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
+                    State = ProviderUsageState.Error,
                     Description = $"Invalid Key ({response.StatusCode})",
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
@@ -302,6 +309,7 @@ public class OpenAIProvider : ProviderBase
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
+                    State = ProviderUsageState.Error,
                     Description = "Connection Failed",
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
@@ -356,10 +364,9 @@ public class OpenAIProvider : ProviderBase
             IsAvailable = true,
             IsQuotaBased = true,
             PlanType = PlanType.Coding,
-            RequestsPercentage = remaining,
+            UsedPercent = used,
             RequestsUsed = used,
             RequestsAvailable = 100,
-            UsageUnit = "Quota %",
             Description = $"{remaining:F0}% remaining ({used:F0}% used) | Plan: {planType}",
             AuthSource = AuthSource.OpenCodeSession,
             NextResetTime = nextResetTime,

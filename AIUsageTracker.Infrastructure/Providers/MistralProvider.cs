@@ -2,7 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
 
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -28,15 +27,17 @@ public class MistralProvider : ProviderBase
     }
 
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "mistral",
-        displayName: "Mistral",
-        planType: PlanType.Usage,
+        "mistral",
+        "Mistral",
+        PlanType.Usage,
         isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go",
-        rooConfigPropertyNames: new[] { "mistralApiKey" },
-        iconAssetName: "mistral",
-        fallbackBadgeColorHex: "#FF4500",
-        fallbackBadgeInitial: "Mi");
+        defaultConfigType: "pay-as-you-go")
+    {
+        RooConfigPropertyNames = new[] { "mistralApiKey" },
+        IconAssetName = "mistral",
+        FallbackBadgeColorHex = "#FF4500",
+        FallbackBadgeInitial = "Mi",
+    };
 
     /// <inheritdoc/>
     public override ProviderDefinition Definition => StaticDefinition;
@@ -56,7 +57,7 @@ public class MistralProvider : ProviderBase
 
         if (string.IsNullOrEmpty(apiKey))
         {
-            return new[] { this.CreateUnavailableUsage("API Key missing") };
+            return new[] { this.CreateUnavailableUsage("API Key missing", state: ProviderUsageState.Missing) };
         }
 
         // Mistral does not have a public usage/billing API endpoint
@@ -78,11 +79,11 @@ public class MistralProvider : ProviderBase
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
                     IsAvailable = true,
-                    RequestsPercentage = 0,
+                    UsedPercent = 0,
                     IsQuotaBased = false,
                     PlanType = PlanType.Usage,
                     Description = "Connected (Check Dashboard)",
-                    UsageUnit = "Status",
+                    IsStatusOnly = true,
                     RawJson = content,
                     HttpStatus = (int)response.StatusCode,
                 },

@@ -72,6 +72,11 @@ public class UsageDatabase : IUsageDatabase
         }
     }
 
+    private static async Task EnableForeignKeysAsync(SqliteConnection connection)
+    {
+        await connection.ExecuteAsync("PRAGMA foreign_keys = ON").ConfigureAwait(false);
+    }
+
     public async Task StoreProviderAsync(ProviderConfig config, string? friendlyName = null)
     {
         await this._semaphore.WaitAsync().ConfigureAwait(false);
@@ -79,6 +84,7 @@ public class UsageDatabase : IUsageDatabase
         {
             using var connection = new SqliteConnection(this._connectionString);
             await connection.OpenAsync().ConfigureAwait(false);
+            await EnableForeignKeysAsync(connection).ConfigureAwait(false);
 
             const string sql = @"
                 INSERT INTO providers (
@@ -135,6 +141,7 @@ public class UsageDatabase : IUsageDatabase
         {
             using var connection = new SqliteConnection(this._connectionString);
             await connection.OpenAsync().ConfigureAwait(false);
+            await EnableForeignKeysAsync(connection).ConfigureAwait(false);
 
             const string providerUpsertSql = @"
                 INSERT INTO providers (
@@ -166,13 +173,15 @@ public class UsageDatabase : IUsageDatabase
                     requests_used, requests_available, requests_percentage,
                     is_available, status_message, next_reset_time, fetched_at,
                     details_json, response_latency_ms, http_status,
-                    upstream_response_validity, upstream_response_note
+                    upstream_response_validity, upstream_response_note,
+                    parent_provider_id
                 ) VALUES (
                     @ProviderId,
                     @RequestsUsed, @RequestsAvailable, @RequestsPercentage,
                     @IsAvailable, @StatusMessage, @NextResetTime, @FetchedAt,
                     @DetailsJson, @ResponseLatencyMs, @HttpStatus,
-                    @UpstreamResponseValidity, @UpstreamResponseNote
+                    @UpstreamResponseValidity, @UpstreamResponseNote,
+                    @ParentProviderId
                 )";
 
             var providerUpsertParameters = validUsages.Select(u => new
@@ -191,9 +200,7 @@ public class UsageDatabase : IUsageDatabase
                 ProviderId = u.ProviderId,
                 RequestsUsed = u.RequestsUsed,
                 RequestsAvailable = u.RequestsAvailable,
-#pragma warning disable CS0618 // RequestsPercentage: pass-through for database serialization
-                RequestsPercentage = u.RequestsPercentage,
-#pragma warning restore CS0618
+                RequestsPercentage = u.UsedPercent,
                 IsAvailable = u.IsAvailable ? 1 : 0,
                 StatusMessage = u.Description ?? string.Empty,
                 NextResetTime = u.NextResetTime?.ToString("O"),
@@ -209,6 +216,7 @@ public class UsageDatabase : IUsageDatabase
                 UpstreamResponseNote = string.IsNullOrWhiteSpace(u.UpstreamResponseNote)
                     ? UpstreamResponseValidityCatalog.Evaluate(u).Note
                     : u.UpstreamResponseNote,
+                ParentProviderId = u.ParentProviderId,
             });
 
             await connection.ExecuteAsync(sql, parameters).ConfigureAwait(false);
@@ -226,6 +234,7 @@ public class UsageDatabase : IUsageDatabase
         {
             using var connection = new SqliteConnection(this._connectionString);
             await connection.OpenAsync().ConfigureAwait(false);
+            await EnableForeignKeysAsync(connection).ConfigureAwait(false);
 
             const string sql = @"
                 INSERT INTO raw_snapshots (provider_id, raw_json, http_status, fetched_at)
@@ -283,6 +292,7 @@ public class UsageDatabase : IUsageDatabase
         {
             using var connection = new SqliteConnection(this._connectionString);
             await connection.OpenAsync().ConfigureAwait(false);
+            await EnableForeignKeysAsync(connection).ConfigureAwait(false);
 
             const string sql = @"
                 INSERT INTO reset_events (
@@ -318,7 +328,7 @@ public class UsageDatabase : IUsageDatabase
                 SELECT h.provider_id AS ProviderId,
                        COALESCE(NULLIF(p.provider_name, ''), h.provider_id) AS ProviderName,
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
-                       h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
+                       h.requests_percentage AS UsedPercent, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
                        h.next_reset_time AS NextResetTime, h.details_json AS DetailsJson,
                        h.response_latency_ms AS ResponseLatencyMs,
@@ -326,7 +336,8 @@ public class UsageDatabase : IUsageDatabase
                        COALESCE(h.upstream_response_validity, 0) AS UpstreamResponseValidity,
                        COALESCE(h.upstream_response_note, '') AS UpstreamResponseNote,
                        COALESCE(p.account_name, '') AS AccountName,
-                       COALESCE(p.auth_source, '') AS AuthSource
+                       COALESCE(p.auth_source, '') AS AuthSource,
+                       h.parent_provider_id AS ParentProviderId
                 FROM provider_history h
                 LEFT JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.id IN (
@@ -340,11 +351,12 @@ public class UsageDatabase : IUsageDatabase
             {
                 try
                 {
-                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(NormalizeLegacyDetailsJson(usage.DetailsJson!));
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
                 }
                 catch (JsonException ex)
                 {
-                    this._logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    this._logger.LogError(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    usage.Details = new List<ProviderUsageDetail>();
                 }
             }
 
@@ -359,11 +371,6 @@ public class UsageDatabase : IUsageDatabase
                 }
 
                 usage.ProviderName = ProviderMetadataCatalog.ResolveDisplayLabel(usage.ProviderId ?? string.Empty, usage.ProviderName);
-
-                if (!usage.DisplayAsFraction && usage.IsQuotaBased && usage.RequestsAvailable > 100)
-                {
-                    usage.DisplayAsFraction = true;
-                }
 
                 ApplyUpstreamResponseValidity(usage);
             }
@@ -393,28 +400,15 @@ public class UsageDatabase : IUsageDatabase
             Name = source.Name,
             ModelName = source.ModelName,
             GroupName = source.GroupName,
-            Used = source.Used,
             Description = source.Description,
             NextResetTime = source.NextResetTime,
             DetailType = source.DetailType,
             QuotaBucketKind = source.QuotaBucketKind,
+            PercentageValue = source.PercentageValue,
+            PercentageSemantic = source.PercentageSemantic,
+            PercentageDecimalPlaces = source.PercentageDecimalPlaces,
             IsStale = source.IsStale,
         };
-    }
-
-    /// <summary>
-    /// Normalizes legacy "WindowKind" JSON key to "window_kind" before deserialization.
-    /// Old database records used PascalCase property names; the current model uses snake_case via JsonPropertyName.
-    /// </summary>
-    private static string NormalizeLegacyDetailsJson(string json)
-    {
-        // Fast path: if the JSON doesn't contain the old key, no work needed
-        if (!json.Contains("\"WindowKind\"", StringComparison.Ordinal))
-        {
-            return json;
-        }
-
-        return json.Replace("\"WindowKind\"", "\"window_kind\"");
     }
 
     private static string AppendStaleSuffix(string description, DateTime lastSeenUtc)
@@ -474,11 +468,11 @@ public class UsageDatabase : IUsageDatabase
             List<ProviderUsageDetail>? parsedDetails;
             try
             {
-                parsedDetails = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(NormalizeLegacyDetailsJson(row.DetailsJson));
+                parsedDetails = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(row.DetailsJson);
             }
             catch (JsonException ex)
             {
-                this._logger.LogWarning(ex, "Failed to parse historical details_json for provider {ProviderId}", row.ProviderId);
+                this._logger.LogError(ex, "Failed to parse historical details_json for provider {ProviderId}", row.ProviderId);
                 continue;
             }
 
@@ -581,7 +575,7 @@ public class UsageDatabase : IUsageDatabase
             var sql = $@"
                 SELECT h.provider_id AS ProviderId, p.provider_name AS ProviderName,
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
-                       h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
+                       h.requests_percentage AS UsedPercent, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
                        h.next_reset_time AS NextResetTime,
                        h.details_json AS DetailsJson,
@@ -600,11 +594,12 @@ public class UsageDatabase : IUsageDatabase
             {
                 try
                 {
-                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(NormalizeLegacyDetailsJson(usage.DetailsJson!));
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
                 }
                 catch (JsonException ex)
                 {
-                    this._logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    this._logger.LogError(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    usage.Details = new List<ProviderUsageDetail>();
                 }
             }
 
@@ -632,7 +627,7 @@ public class UsageDatabase : IUsageDatabase
             var sql = $@"
                 SELECT h.provider_id AS ProviderId, p.provider_name AS ProviderName,
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
-                       h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
+                       h.requests_percentage AS UsedPercent, h.is_available AS IsAvailable,
                        h.status_message AS Description, h.fetched_at AS FetchedAt,
                        h.next_reset_time AS NextResetTime,
                        h.details_json AS DetailsJson,
@@ -652,11 +647,12 @@ public class UsageDatabase : IUsageDatabase
             {
                 try
                 {
-                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(NormalizeLegacyDetailsJson(usage.DetailsJson!));
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
                 }
                 catch (JsonException ex)
                 {
-                    this._logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    this._logger.LogError(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    usage.Details = new List<ProviderUsageDetail>();
                 }
             }
 
@@ -685,7 +681,7 @@ public class UsageDatabase : IUsageDatabase
                 WITH RankedHistory AS (
                     SELECT h.provider_id AS ProviderId, p.provider_name AS ProviderName,
                            h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
-                           h.requests_percentage AS RequestsPercentage, h.is_available AS IsAvailable,
+                           h.requests_percentage AS UsedPercent, h.is_available AS IsAvailable,
                            h.status_message AS Description, h.fetched_at AS FetchedAt,
                            h.next_reset_time AS NextResetTime,
                            h.details_json AS DetailsJson,
@@ -698,7 +694,7 @@ public class UsageDatabase : IUsageDatabase
                     JOIN providers p ON h.provider_id = p.provider_id
                 )
                 SELECT ProviderId, ProviderName, RequestsUsed, RequestsAvailable,
-                       RequestsPercentage, IsAvailable, Description, FetchedAt, NextResetTime,
+                       UsedPercent, IsAvailable, Description, FetchedAt, NextResetTime,
                        DetailsJson, ResponseLatencyMs, HttpStatus, UpstreamResponseValidity, UpstreamResponseNote
                 FROM RankedHistory
                 WHERE pos <= @Count
@@ -710,11 +706,12 @@ public class UsageDatabase : IUsageDatabase
             {
                 try
                 {
-                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(NormalizeLegacyDetailsJson(usage.DetailsJson!));
+                    usage.Details = JsonSerializer.Deserialize<List<ProviderUsageDetail>>(usage.DetailsJson!);
                 }
                 catch (JsonException ex)
                 {
-                    this._logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    this._logger.LogError(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    usage.Details = new List<ProviderUsageDetail>();
                 }
             }
 

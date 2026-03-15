@@ -17,21 +17,21 @@ internal static class ProviderCardPresentationCatalog
         var providerId = usage.ProviderId ?? string.Empty;
         var isStale = usage.Details?.Any(d => d.IsStale) == true;
         var description = usage.Description ?? string.Empty;
-        var isMissing = description.Contains("not found", StringComparison.OrdinalIgnoreCase);
-        var isConsoleCheck = description.Contains("Check Console", StringComparison.OrdinalIgnoreCase);
-        var isError = description.Contains("[Error]", StringComparison.OrdinalIgnoreCase) ||
-            (!usage.IsAvailable && !isMissing && !string.IsNullOrWhiteSpace(description));
-        var isUnknown = description.Contains("unknown", StringComparison.OrdinalIgnoreCase);
+        var isMissing = usage.State == ProviderUsageState.Missing;
+        var isConsoleCheck = usage.State == ProviderUsageState.ConsoleCheck;
+        var isError = usage.State == ProviderUsageState.Error;
+        var isUnknown = usage.State == ProviderUsageState.Unknown;
         var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
         var isAggregateParent = ProviderMetadataCatalog.ShouldRenderAggregateDetailsInMainWindow(providerId)
             && string.Equals(providerId, canonicalProviderId, StringComparison.OrdinalIgnoreCase);
-        var isStatusOnlyProvider = string.Equals(usage.UsageUnit, "Status", StringComparison.OrdinalIgnoreCase);
+        var isStatusOnlyProvider = usage.IsStatusOnly;
         var hasDualQuotaBucketPresentation = ProviderDualQuotaBucketPresentationCatalog.TryGetPresentation(usage, out var dualQuotaBucketPresentation);
         var remainingPercent = usage.RemainingPercent;
         var usedPercent = usage.UsedPercent;
         var shouldHaveProgress = usage.IsAvailable &&
             !isUnknown &&
             !isAggregateParent &&
+            !isStatusOnlyProvider &&
             (usage.UsedPercent > 0 || usage.IsQuotaBased) &&
             !isMissing &&
             !isError;
@@ -103,11 +103,7 @@ internal static class ProviderCardPresentationCatalog
 
         if (isError)
         {
-            var errorText = description.Replace("[Error]", string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(errorText))
-            {
-                errorText = description;
-            }
+            var errorText = description;
 
             presentation = CreatePresentation(
                 isMissing,
@@ -197,13 +193,12 @@ internal static class ProviderCardPresentationCatalog
 
         if (usage.PlanType == PlanType.Usage && usage.RequestsUsed >= 0)
         {
-            if (string.Equals(usage.UsageUnit, "USD", StringComparison.OrdinalIgnoreCase))
+            if (usage.IsCurrencyUsage)
             {
                 return $"${usage.RequestsUsed.ToString("F2", CultureInfo.InvariantCulture)}";
             }
 
-            var unit = string.IsNullOrWhiteSpace(usage.UsageUnit) ? string.Empty : $" {usage.UsageUnit}";
-            return $"{usage.RequestsUsed.ToString("F2", CultureInfo.InvariantCulture)}{unit}";
+            return usage.RequestsUsed.ToString("F2", CultureInfo.InvariantCulture);
         }
 
         return description;
@@ -266,9 +261,8 @@ internal static class ProviderCardPresentationCatalog
 
     private static string GetQuotaPercentStatusText(ProviderUsage usage, bool showUsed)
     {
-        var clampedRemainingPercent = UsageMath.ClampPercent(usage.RemainingPercent);
         return showUsed
-            ? $"{100.0 - clampedRemainingPercent:F0}% used"
-            : $"{clampedRemainingPercent:F0}% remaining";
+            ? $"{UsageMath.ClampPercent(usage.UsedPercent):F0}% used"
+            : $"{UsageMath.ClampPercent(usage.RemainingPercent):F0}% remaining";
     }
 }

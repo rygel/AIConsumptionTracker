@@ -2,7 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: provider sets raw serialized field
 
 using System.Globalization;
 using System.Net.Http.Json;
@@ -25,17 +24,19 @@ public class OpenRouterProvider : ProviderBase
     }
 
     public static ProviderDefinition StaticDefinition { get; } = new(
-        providerId: "openrouter",
-        displayName: "OpenRouter",
-        planType: PlanType.Usage,
+        "openrouter",
+        "OpenRouter",
+        PlanType.Usage,
         isQuotaBased: true,
-        defaultConfigType: "pay-as-you-go",
-        includeInWellKnownProviders: true,
-        discoveryEnvironmentVariables: new[] { "OPENROUTER_API_KEY" },
-        rooConfigPropertyNames: new[] { "openrouterApiKey" },
-        iconAssetName: "openai",
-        fallbackBadgeColorHex: "#483D8B",
-        fallbackBadgeInitial: "OR");
+        defaultConfigType: "pay-as-you-go")
+    {
+        IncludeInWellKnownProviders = true,
+        DiscoveryEnvironmentVariables = new[] { "OPENROUTER_API_KEY" },
+        RooConfigPropertyNames = new[] { "openrouterApiKey" },
+        IconAssetName = "openai",
+        FallbackBadgeColorHex = "#483D8B",
+        FallbackBadgeInitial = "OR",
+    };
 
     /// <inheritdoc/>
     public override ProviderDefinition Definition => StaticDefinition;
@@ -56,7 +57,8 @@ public class OpenRouterProvider : ProviderBase
                 this.CreateUnavailableUsage(
                 "API Key missing - please configure OPENROUTER_API_KEY",
                 planType: PlanType.Usage,
-                isQuotaBased: false),
+                isQuotaBased: false,
+                state: ProviderUsageState.Missing),
             };
         }
 
@@ -173,7 +175,6 @@ public class OpenRouterProvider : ProviderBase
 
                     if (keyData.Data.Limit > 0)
                     {
-                        string resetStr = string.Empty;
                         DateTime? nextResetTime = null;
 
                         if (!string.IsNullOrEmpty(keyData.Data.LimitReset))
@@ -185,7 +186,6 @@ public class OpenRouterProvider : ProviderBase
                                 var diff = dt.ToLocalTime() - DateTime.Now;
                                 if (diff.TotalSeconds > 0)
                                 {
-                                    resetStr = $" (Resets: ({dt.ToLocalTime():MMM dd HH:mm}))";
                                     nextResetTime = dt.ToLocalTime();
                                     this._logger.LogDebug("Limit reset time parsed successfully: {ResetTime}", nextResetTime);
                                 }
@@ -199,8 +199,7 @@ public class OpenRouterProvider : ProviderBase
                         details.Add(new ProviderUsageDetail
                         {
                             Name = "Spending Limit",
-                            Description = $"{keyData.Data.Limit.ToString("F2", CultureInfo.InvariantCulture)}{resetStr}",
-                            Used = string.Empty,
+                            Description = keyData.Data.Limit.ToString("F2", CultureInfo.InvariantCulture),
                             NextResetTime = nextResetTime,
                             DetailType = ProviderUsageDetailType.Other,
                             QuotaBucketKind = WindowKind.None,
@@ -215,7 +214,6 @@ public class OpenRouterProvider : ProviderBase
                     {
                         Name = "Free Tier",
                         Description = keyData.Data.IsFreeTier ? "Yes" : "No",
-                        Used = string.Empty,
                         DetailType = ProviderUsageDetailType.Other,
                         QuotaBucketKind = WindowKind.None,
                     });
@@ -255,14 +253,9 @@ public class OpenRouterProvider : ProviderBase
         string mainReset = string.Empty;
         DateTime? spendingLimitResetTime = null;
         var spendingLimitDetail = details.FirstOrDefault(d => d.DetailType == ProviderUsageDetailType.Other && d.NextResetTime.HasValue);
-        if (spendingLimitDetail != null && spendingLimitDetail.Description.Contains("(Resets:", StringComparison.Ordinal))
+        if (spendingLimitDetail?.NextResetTime.HasValue == true)
         {
-            var idx = spendingLimitDetail.Description.IndexOf("(Resets:", StringComparison.Ordinal);
-            if (idx >= 0)
-            {
-                mainReset = " " + spendingLimitDetail.Description.Substring(idx);
-            }
-
+            mainReset = $" (Resets: ({spendingLimitDetail.NextResetTime.Value.ToLocalTime():MMM dd HH:mm}))";
             spendingLimitResetTime = spendingLimitDetail.NextResetTime;
         }
 
@@ -272,11 +265,10 @@ public class OpenRouterProvider : ProviderBase
         {
             ProviderId = config.ProviderId,
             ProviderName = label,
-            RequestsPercentage = remainingPercentage,
+            UsedPercent = 100.0 - remainingPercentage,
             RequestsUsed = used,
             RequestsAvailable = total,
             PlanType = PlanType.Usage,
-            UsageUnit = "Credits",
             IsQuotaBased = true,
             IsAvailable = true,
             Description = $"{remaining.ToString("F2", CultureInfo.InvariantCulture)} Credits Remaining{mainReset}",

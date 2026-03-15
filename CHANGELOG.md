@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [2.2.28-beta.40] - 2026-03-15
+
+### Fixed
+- **Kimi Dual Bar Wrong Percentage**: Kimi card was showing 75% used when actual weekly usage was 25%. Root cause: `ProviderDualQuotaBucketPresentationCatalog` had a `?? orderedBuckets[1]` fallback that silently selected a second detail with the *same* `WindowKind` as the first, causing both bar segments to reference the same Rolling bucket. Removed the fallback entirely — dual bar now requires genuinely different `WindowKind`s; if no such pair exists, `TryGetPresentation` returns false and the card falls back to a single bar.
+- **Kimi Duplicate Rolling Detail**: `KimiProvider` was adding a "Weekly Limit" detail from `data.Usage` *and* a "7d Limit" detail from `data.Limits` — both classified as `WindowKind.Rolling`. After the fallback removal above, the duplicate caused `TryGetPresentation` to find no different-kind second detail. Fixed by skipping the `data.Usage` weekly detail when `data.Limits` already contains a 7-day (Rolling) entry.
+- **Dead Fallback Arm in UsageMath**: `GetEffectiveUsedPercent(ProviderUsageDetail)` had an unreachable arm that treated `PercentageSemantic.None` on a `QuotaWindow` detail as "remaining" and silently inverted the value. All providers now set `PercentageSemantic` explicitly, so this arm was dead code and a latent trap. Removed.
+- **Codex Double-Inversion**: `CodexProvider` computed `UsedPercent = 100.0 - remainingPercent` where `remainingPercent` was already `100 - effectiveUsedPercent`, resulting in `100 - (100 - x) = x` — a harmless no-op but confusing. Simplified to use `effectiveUsedPercent` directly.
+- **Status Text Round-Trip**: `GetQuotaPercentStatusText` was computing remaining as `100 - RemainingPercent` (i.e. `100 - (100 - UsedPercent)`) instead of reading `UsedPercent` directly. Fixed to use `UsedPercent` and `RemainingPercent` directly.
+
 ## [2.2.28-beta.39] - 2026-03-14
 
 ### Fixed

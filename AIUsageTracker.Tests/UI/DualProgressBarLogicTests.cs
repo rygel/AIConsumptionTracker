@@ -38,10 +38,10 @@ public class DualProgressBarLogicTests
     [Fact]
     public void GetEffectiveUsedPercent_CalculatesCorrectly()
     {
-        var quotaUsage = new ProviderUsage { RequestsPercentage = 80, IsQuotaBased = true };
-        var paygUsage = new ProviderUsage { RequestsPercentage = 20, IsQuotaBased = false };
+        var quotaUsage = new ProviderUsage { UsedPercent = 80, IsQuotaBased = true };
+        var paygUsage = new ProviderUsage { UsedPercent = 20, IsQuotaBased = false };
 
-        Assert.Equal(20.0, UsageMath.GetEffectiveUsedPercent(quotaUsage)); // 100 - 80
+        Assert.Equal(80.0, UsageMath.GetEffectiveUsedPercent(quotaUsage)); // UsedPercent is the used ratio
         Assert.Equal(20.0, UsageMath.GetEffectiveUsedPercent(paygUsage));
     }
 
@@ -50,33 +50,37 @@ public class DualProgressBarLogicTests
     {
         var weeklyReset = new DateTime(2026, 3, 12, 23, 0, 0);
         var hourlyReset = new DateTime(2026, 3, 7, 1, 0, 0);
+        var burstDetail = new ProviderUsageDetail
+        {
+            Name = "5-hour quota",
+            Description = "96% remaining (4% used)",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Burst,
+            NextResetTime = hourlyReset,
+        };
+        burstDetail.SetPercentageValue(4.0, PercentageValueSemantic.Used);
+
+        var rollingDetail = new ProviderUsageDetail
+        {
+            Name = "Weekly quota",
+            Description = "49% remaining (51% used)",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Rolling,
+            NextResetTime = weeklyReset,
+        };
+        rollingDetail.SetPercentageValue(51.0, PercentageValueSemantic.Used);
+
         var usage = new ProviderUsage
         {
-            Details = new List<ProviderUsageDetail>
-            {
-                new ProviderUsageDetail
-                {
-                    Name = "5-hour quota",
-                    Used = "96% remaining (4% used)",
-                    DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Burst,
-                    NextResetTime = hourlyReset,
-                },
-                new ProviderUsageDetail
-                {
-                    Name = "Weekly quota",
-                    Used = "49% remaining (51% used)",
-                    DetailType = ProviderUsageDetailType.QuotaWindow,
-                    QuotaBucketKind = WindowKind.Rolling,
-                    NextResetTime = weeklyReset,
-                },
-            },
+            ProviderId = "codex",
+            IsQuotaBased = true,
+            Details = new List<ProviderUsageDetail> { burstDetail, rollingDetail },
         };
 
         var result = ProviderDualQuotaBucketPresentationCatalog.TryGetPresentation(usage, out var presentation);
 
         Assert.True(result);
-        Assert.Equal("5-hour", presentation.PrimaryLabel);
+        Assert.Equal("5h", presentation.PrimaryLabel);
         Assert.Equal(4.0, presentation.PrimaryUsedPercent);
         Assert.Equal(hourlyReset, presentation.PrimaryResetTime);
         Assert.Equal("Weekly", presentation.SecondaryLabel);
@@ -95,7 +99,7 @@ public class DualProgressBarLogicTests
                 new()
                 {
                     Name = "Requests / Hour",
-                    Used = "80% remaining (20% used)",
+                    Description = "80% remaining (20% used)",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
                     QuotaBucketKind = WindowKind.None,
                     NextResetTime = new DateTime(2026, 3, 12, 10, 0, 0),
@@ -103,7 +107,7 @@ public class DualProgressBarLogicTests
                 new()
                 {
                     Name = "Requests / Day",
-                    Used = "35% remaining (65% used)",
+                    Description = "35% remaining (65% used)",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
                     QuotaBucketKind = WindowKind.None,
                     NextResetTime = new DateTime(2026, 3, 12, 20, 0, 0),

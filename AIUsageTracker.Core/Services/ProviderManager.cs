@@ -2,8 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-#pragma warning disable CS0618 // RequestsPercentage: error-factory methods set raw serialized field
-
 using System.Diagnostics;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
@@ -209,7 +207,8 @@ public class ProviderManager : IDisposable
             ProviderId = config.ProviderId,
             ProviderName = defaults.DisplayName,
             Description = $"[Error] Timeout after {ProviderRequestTimeout.TotalSeconds:F0}s",
-            RequestsPercentage = 0,
+            State = ProviderUsageState.Error,
+            UsedPercent = 0,
             IsAvailable = false,
             IsQuotaBased = defaults.IsQuotaBased,
             PlanType = defaults.PlanType,
@@ -229,7 +228,7 @@ public class ProviderManager : IDisposable
             ProviderId = config.ProviderId,
             ProviderName = defaults.DisplayName,
             Description = message,
-            RequestsPercentage = 0,
+            UsedPercent = 0,
             IsAvailable = false,
             IsQuotaBased = defaults.IsQuotaBased,
             PlanType = defaults.PlanType,
@@ -248,7 +247,8 @@ public class ProviderManager : IDisposable
             ProviderId = config.ProviderId,
             ProviderName = defaults.DisplayName,
             Description = $"[Error] {message}",
-            RequestsPercentage = 0,
+            State = ProviderUsageState.Error,
+            UsedPercent = 0,
             IsAvailable = true,
             IsQuotaBased = defaults.IsQuotaBased,
             PlanType = defaults.PlanType,
@@ -266,9 +266,10 @@ public class ProviderManager : IDisposable
             ProviderId = config.ProviderId,
             ProviderName = defaults.DisplayName,
             Description = "Usage unknown (provider integration missing)",
-            RequestsPercentage = 0,
+            State = ProviderUsageState.Unknown,
+            UsedPercent = 0,
             IsAvailable = false,
-            UsageUnit = "Status",
+            IsStatusOnly = true,
             IsQuotaBased = defaults.IsQuotaBased,
             PlanType = defaults.PlanType,
             ResponseLatencyMs = 0,

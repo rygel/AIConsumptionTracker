@@ -3,6 +3,7 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
 
@@ -27,24 +28,24 @@ internal static class ProviderDualQuotaBucketPresentationCatalog
             return false;
         }
 
-        // Find the first two distinct quota windows for dual bar display.
-        // Priority: Burst (5h) > Rolling (weekly) > ModelSpecific (spark)
-        // This allows dual bars for any combination: Burst+Rolling, Burst+ModelSpecific, Rolling+ModelSpecific
+        // Prefer declaration-based ordering and labels; fall back to heuristics.
+        ProviderMetadataCatalog.TryGet(usage.ProviderId ?? string.Empty, out var definition);
+        var declaredWindows = definition?.QuotaWindows.Where(w => w.Kind != WindowKind.None).ToList();
+
         var orderedBuckets = quotaBuckets
-            .OrderBy(detail => GetWindowKindPriority(detail.QuotaBucketKind))
+            .OrderBy(detail => GetWindowOrder(detail.QuotaBucketKind, declaredWindows))
             .ToList();
 
         var firstDetail = orderedBuckets[0];
-        var secondDetail = orderedBuckets.Skip(1).FirstOrDefault(d => d.QuotaBucketKind != firstDetail.QuotaBucketKind)
-                           ?? orderedBuckets[1];
+        var secondDetail = orderedBuckets.Skip(1).FirstOrDefault(d => d.QuotaBucketKind != firstDetail.QuotaBucketKind);
 
-        if (firstDetail == secondDetail)
+        if (secondDetail == null)
         {
             return false;
         }
 
-        var parsedFirst = UsageMath.GetEffectiveUsedPercent(firstDetail, usage.IsQuotaBased);
-        var parsedSecond = UsageMath.GetEffectiveUsedPercent(secondDetail, usage.IsQuotaBased);
+        var parsedFirst = UsageMath.GetEffectiveUsedPercent(firstDetail);
+        var parsedSecond = UsageMath.GetEffectiveUsedPercent(secondDetail);
 
         if (!parsedFirst.HasValue || !parsedSecond.HasValue)
         {
@@ -52,36 +53,24 @@ internal static class ProviderDualQuotaBucketPresentationCatalog
         }
 
         presentation = new ProviderDualQuotaBucketPresentation(
-            PrimaryLabel: SimplifyQuotaBucketLabel(firstDetail.Name, "Burst"),
+            PrimaryLabel: GetWindowLabel(firstDetail, declaredWindows, "Burst"),
             PrimaryUsedPercent: parsedFirst.Value,
             PrimaryResetTime: firstDetail.NextResetTime,
-            SecondaryLabel: SimplifyQuotaBucketLabel(secondDetail.Name, "Rolling"),
+            SecondaryLabel: GetWindowLabel(secondDetail, declaredWindows, "Rolling"),
             SecondaryUsedPercent: parsedSecond.Value,
             SecondaryResetTime: secondDetail.NextResetTime);
         return true;
     }
 
-    private static int GetWindowKindPriority(WindowKind kind)
+    private static int GetWindowOrder(WindowKind kind, List<QuotaWindowDefinition>? windows)
     {
-        return kind switch
-        {
-            WindowKind.Burst => 0,
-            WindowKind.Rolling => 1,
-            WindowKind.ModelSpecific => 2,
-            _ => 99,
-        };
+        var idx = windows?.FindIndex(w => w.Kind == kind) ?? -1;
+        return idx >= 0 ? idx : 99;
     }
 
-    private static string SimplifyQuotaBucketLabel(string? rawLabel, string fallback)
+    private static string GetWindowLabel(ProviderUsageDetail detail, List<QuotaWindowDefinition>? windows, string fallback)
     {
-        if (string.IsNullOrWhiteSpace(rawLabel))
-        {
-            return fallback;
-        }
-
-        var label = rawLabel.Trim();
-        label = label.Replace(" quota", string.Empty, StringComparison.OrdinalIgnoreCase);
-        label = label.Replace(" limit", string.Empty, StringComparison.OrdinalIgnoreCase);
-        return string.IsNullOrWhiteSpace(label) ? fallback : label;
+        var declared = windows?.FirstOrDefault(w => w.Kind == detail.QuotaBucketKind);
+        return declared?.DualBarLabel ?? fallback;
     }
 }

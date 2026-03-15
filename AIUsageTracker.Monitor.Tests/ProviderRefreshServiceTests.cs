@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // UsedPercent: legacy field set in test fixtures
+
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -431,7 +433,7 @@ public class ProviderRefreshServiceTests
 
         scenario.Database.Verify(
             d => d.StoreHistoryAsync(It.Is<IEnumerable<ProviderUsage>>(items =>
-                items.Any(u => u.ProviderId == "codex" && Math.Abs(u.RequestsPercentage - 50) < 0.001))),
+                items.Any(u => u.ProviderId == "codex" && Math.Abs(u.UsedPercent - 50) < 0.001))),
             Times.Once);
     }
 
@@ -554,7 +556,7 @@ public class ProviderRefreshServiceTests
             ProviderName = "OpenAI (Codex)",
             RequestsUsed = 5,
             RequestsAvailable = 10,
-            RequestsPercentage = 50,
+            UsedPercent = 50,
             IsAvailable = true,
         };
 
@@ -581,12 +583,14 @@ public class ProviderRefreshServiceTests
     private static Mock<IProviderService> CreateCodexProvider()
     {
         var providerDefinition = new ProviderDefinition(
-            providerId: "codex",
-            displayName: "OpenAI (Codex)",
-            planType: PlanType.Usage,
+            "codex",
+            "OpenAI (Codex)",
+            PlanType.Usage,
             isQuotaBased: false,
-            defaultConfigType: "pay-as-you-go",
-            autoIncludeWhenUnconfigured: true);
+            defaultConfigType: "pay-as-you-go")
+        {
+            AutoIncludeWhenUnconfigured = true,
+        };
         var provider = new Mock<IProviderService>();
         provider.SetupGet(p => p.ProviderId).Returns("codex");
         provider.SetupGet(p => p.Definition).Returns(providerDefinition);
@@ -599,7 +603,7 @@ public class ProviderRefreshServiceTests
                     ProviderName = "OpenAI (Codex)",
                     RequestsUsed = 2,
                     RequestsAvailable = 10,
-                    RequestsPercentage = 20,
+                    UsedPercent = 20,
                     IsAvailable = true,
                 },
             });

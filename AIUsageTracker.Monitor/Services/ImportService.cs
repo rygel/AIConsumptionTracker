@@ -74,7 +74,7 @@ public class ImportService
                     }
 
                     var values = line.Split(',');
-                    if (values.Length < 5)
+                    if (values.Length < 4)
                     {
                         errors.Add($"Invalid CSV line: {line}");
                         skipped++;
@@ -89,7 +89,6 @@ public class ImportService
                             ProviderId = values[1].Trim(),
                             ProviderName = values[1].Trim(),
                             RequestsUsed = double.TryParse(values[3], NumberStyles.None, CultureInfo.InvariantCulture, out var used) ? used : 0,
-                            UsageUnit = values[5].Trim(),
                         };
 
                         await this._database.StoreHistoryAsync(new[] { usage }).ConfigureAwait(false);

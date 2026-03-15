@@ -50,7 +50,7 @@ public class UsageAlertsServiceTests
             {
                 ProviderId = "test",
                 ProviderName = "Test Provider",
-                RequestsPercentage = 95.0,
+                UsedPercent = 95.0,
                 IsAvailable = true,
             },
         };
@@ -74,7 +74,7 @@ public class UsageAlertsServiceTests
             {
                 ProviderId = "test",
                 ProviderName = "Test Provider",
-                RequestsPercentage = 5.0,
+                UsedPercent = 95.0,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
                 IsAvailable = true,
@@ -100,7 +100,7 @@ public class UsageAlertsServiceTests
             {
                 ProviderId = "test",
                 ProviderName = "Test Provider",
-                RequestsPercentage = 30.0,
+                UsedPercent = 30.0,
                 IsQuotaBased = true,
                 PlanType = PlanType.Coding,
                 IsAvailable = true,
@@ -126,7 +126,7 @@ public class UsageAlertsServiceTests
             {
                 ProviderId = "test",
                 ProviderName = "Test Provider",
-                RequestsPercentage = 95.0,
+                UsedPercent = 95.0,
                 IsAvailable = true,
             },
         };
@@ -150,7 +150,7 @@ public class UsageAlertsServiceTests
             {
                 ProviderId = "test",
                 ProviderName = "Test Provider",
-                RequestsPercentage = 95.0,
+                UsedPercent = 95.0,
                 IsAvailable = true,
             },
         };
@@ -179,7 +179,7 @@ public class UsageAlertsServiceTests
             {
                 ProviderId = "test",
                 ProviderName = "Test Provider",
-                RequestsPercentage = 95.0,
+                UsedPercent = 95.0,
                 IsAvailable = true,
             },
         };
@@ -211,7 +211,7 @@ public class UsageAlertsServiceTests
             {
                 ProviderId = "test",
                 ProviderName = "Test Provider",
-                RequestsPercentage = 95.0,
+                UsedPercent = 95.0,
                 IsAvailable = true,
             },
         };

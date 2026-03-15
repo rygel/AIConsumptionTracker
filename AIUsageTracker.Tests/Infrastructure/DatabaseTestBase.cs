@@ -79,12 +79,13 @@ public abstract class DatabaseTestBase : IDisposable
                 upstream_response_note TEXT NOT NULL DEFAULT '',
                 fetched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 details_json TEXT,
+                parent_provider_id TEXT REFERENCES providers(provider_id) ON DELETE SET NULL,
                 FOREIGN KEY (provider_id) REFERENCES providers(provider_id) ON DELETE CASCADE
             );
 
             CREATE TABLE raw_snapshots (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                provider_id TEXT NOT NULL,
+                provider_id TEXT NOT NULL REFERENCES providers(provider_id) ON DELETE CASCADE,
                 raw_json TEXT NOT NULL,
                 http_status INTEGER NOT NULL DEFAULT 200,
                 fetched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP

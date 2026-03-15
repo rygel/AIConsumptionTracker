@@ -48,7 +48,6 @@ public class MockProviderService : IProviderService
             requestsUsed: 2.5,
             requestsAvailable: 10,
             planType: PlanType.Usage,
-            usageUnit: "USD",
             description: "$2.50 / $10.00 used");
     }
 
@@ -61,7 +60,6 @@ public class MockProviderService : IProviderService
             requestsUsed: 150,
             requestsAvailable: 1500,
             planType: PlanType.Coding,
-            usageUnit: "Requests",
             description: "150 / 1500 requests");
     }
 
@@ -74,7 +72,6 @@ public class MockProviderService : IProviderService
             requestsUsed: 500,
             requestsAvailable: 10000,
             planType: PlanType.Coding,
-            usageUnit: "Tokens",
             description: "500 / 10,000 tokens");
     }
 
@@ -87,7 +84,6 @@ public class MockProviderService : IProviderService
             requestsUsed: 4,
             requestsAvailable: 10,
             planType: PlanType.Usage,
-            usageUnit: "USD",
             description: "$6.00 remaining");
     }
 
@@ -100,7 +96,6 @@ public class MockProviderService : IProviderService
             requestsUsed: 1,
             requestsAvailable: 5,
             planType: PlanType.Coding,
-            usageUnit: "Requests",
             description: "1 / 5 requests");
     }
 
@@ -145,7 +140,6 @@ public class MockProviderService : IProviderService
         double requestsUsed,
         double requestsAvailable,
         PlanType planType,
-        string usageUnit,
         string description)
     {
         return new MockProviderService
@@ -158,11 +152,10 @@ public class MockProviderService : IProviderService
                     {
                         ProviderId = providerId,
                         ProviderName = providerName,
-                        RequestsPercentage = requestsPercentage,
+                        UsedPercent = requestsPercentage,
                         RequestsUsed = requestsUsed,
                         RequestsAvailable = requestsAvailable,
                         PlanType = planType,
-                        UsageUnit = usageUnit,
                         Description = description,
                         IsAvailable = true,
                     },

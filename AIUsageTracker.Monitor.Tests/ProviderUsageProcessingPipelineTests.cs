@@ -29,7 +29,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderName = "OpenAI",
             RequestsUsed = 10,
             RequestsAvailable = 100,
-            RequestsPercentage = 10,
+            UsedPercent = 10,
             IsAvailable = true,
             Details = new[]
             {
@@ -107,8 +107,9 @@ public class ProviderUsageProcessingPipelineTests
             ProviderName = "OpenRouter",
             RequestsUsed = 0,
             RequestsAvailable = 0,
-            RequestsPercentage = 0,
+            UsedPercent = 0,
             IsAvailable = false,
+            State = ProviderUsageState.Missing,
             Description = "API Key missing",
         };
 
@@ -130,7 +131,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderName = "OpenRouter",
             RequestsUsed = 1,
             RequestsAvailable = 10,
-            RequestsPercentage = 10,
+            UsedPercent = 10,
             IsAvailable = true,
             AccountName = "user@example.com",
             ConfigKey = "config-key",
@@ -158,7 +159,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderName = "Z.AI",
             RequestsUsed = 30,
             RequestsAvailable = 100,
-            RequestsPercentage = double.NaN,
+            UsedPercent = double.NaN,
             IsQuotaBased = false,
             IsAvailable = true,
         };
@@ -169,7 +170,7 @@ public class ProviderUsageProcessingPipelineTests
             isPrivacyMode: false);
 
         var processed = Assert.Single(result.Usages);
-        Assert.Equal(30d, processed.RequestsPercentage);
+        Assert.Equal(30d, processed.UsedPercent);
         Assert.True(result.NormalizedCount >= 1);
     }
 
@@ -182,7 +183,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderName = "Claude Sonnet",
             RequestsUsed = 50,
             RequestsAvailable = 100,
-            RequestsPercentage = 50,
+            UsedPercent = 50,
             IsAvailable = true,
         };
 
@@ -204,7 +205,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderName = "Gemini CLI (Hourly)",
             RequestsUsed = 20,
             RequestsAvailable = 100,
-            RequestsPercentage = 80,
+            UsedPercent = 80,
             IsAvailable = true,
         };
 
@@ -230,7 +231,7 @@ public class ProviderUsageProcessingPipelineTests
                     ProviderName = "Gemini CLI (Daily)",
                     RequestsUsed = 10,
                     RequestsAvailable = 100,
-                    RequestsPercentage = 90,
+                    UsedPercent = 90,
                     IsAvailable = true,
                     AccountName = "alex@example.com",
                 },
@@ -240,7 +241,7 @@ public class ProviderUsageProcessingPipelineTests
                     ProviderName = "Gemini CLI (Hourly)",
                     RequestsUsed = 20,
                     RequestsAvailable = 100,
-                    RequestsPercentage = 80,
+                    UsedPercent = 80,
                     IsAvailable = true,
                     AccountName = string.Empty,
                 },
@@ -261,7 +262,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderName = "Unexpected Child",
             RequestsUsed = 20,
             RequestsAvailable = 100,
-            RequestsPercentage = 20,
+            UsedPercent = 20,
             IsAvailable = true,
         };
 
@@ -283,7 +284,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderName = "Invalid",
             RequestsUsed = 10,
             RequestsAvailable = 100,
-            RequestsPercentage = 10,
+            UsedPercent = 10,
             IsAvailable = true,
         };
 
@@ -305,7 +306,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderName = "Not Active",
             RequestsUsed = 1,
             RequestsAvailable = 10,
-            RequestsPercentage = 10,
+            UsedPercent = 10,
             IsAvailable = true,
         };
 
@@ -327,7 +328,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderName = " OpenAI ",
             RequestsUsed = -5,
             RequestsAvailable = -10,
-            RequestsPercentage = -20,
+            UsedPercent = -20,
             IsAvailable = false,
             Description = " ",
             FetchedAt = default,
@@ -344,7 +345,7 @@ public class ProviderUsageProcessingPipelineTests
         Assert.Equal("OpenAI", processed.ProviderName);
         Assert.Equal(0, processed.RequestsUsed);
         Assert.Equal(0, processed.RequestsAvailable);
-        Assert.Equal(0, processed.RequestsPercentage);
+        Assert.Equal(0, processed.UsedPercent);
         Assert.Equal("Unavailable", processed.Description);
         Assert.Equal(0, processed.ResponseLatencyMs);
         Assert.Equal(0, processed.HttpStatus);
@@ -368,7 +369,7 @@ public class ProviderUsageProcessingPipelineTests
                 new ProviderUsageDetail
                 {
                     Name = "Weekly Quota",
-                    Used = "14% used",
+                    Description = "14% used",
                     DetailType = ProviderUsageDetailType.QuotaWindow,
                     QuotaBucketKind = WindowKind.Rolling,
                     NextResetTime = futureReset,
@@ -439,7 +440,7 @@ public class ProviderUsageProcessingPipelineTests
                 IsAvailable = true,
                 RequestsUsed = double.NaN,
                 RequestsAvailable = 100,
-                RequestsPercentage = double.PositiveInfinity,
+                UsedPercent = double.PositiveInfinity,
                 RawJson = "{ \"key\": \"value\" }",
                 AccountName = "user@example.com",
                 ConfigKey = "cfg-openai",
@@ -462,10 +463,11 @@ public class ProviderUsageProcessingPipelineTests
                 ProviderId = "openai",
                 ProviderName = "OpenAI",
                 IsAvailable = false,
+                State = ProviderUsageState.Missing,
                 Description = "API Key missing",
                 RequestsUsed = 0,
                 RequestsAvailable = 0,
-                RequestsPercentage = 0,
+                UsedPercent = 0,
             },
             new ProviderUsage
             {
@@ -496,7 +498,7 @@ public class ProviderUsageProcessingPipelineTests
                 IsAvailable = true,
                 RequestsUsed = 5,
                 RequestsAvailable = 100,
-                RequestsPercentage = 5,
+                UsedPercent = 5,
                 FetchedAt = DateTime.UtcNow,
             },
         ];
@@ -525,9 +527,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderId = "codex",
             ProviderName = "Codex",
             IsAvailable = true,
-#pragma warning disable CS0618 // RequestsPercentage: test setup
-            RequestsPercentage = 65,
-#pragma warning restore CS0618
+            UsedPercent = 65,
             IsQuotaBased = true,
             Details = new[] { detail },
         };
@@ -562,9 +562,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderId = "codex",
             IsAvailable = true,
             IsQuotaBased = true,
-#pragma warning disable CS0618 // RequestsPercentage: test setup
-            RequestsPercentage = 80,
-#pragma warning restore CS0618
+            UsedPercent = 80,
             Details = new[] { detail },
         };
 
@@ -597,9 +595,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderId = "codex",
             IsAvailable = true,
             IsQuotaBased = true,
-#pragma warning disable CS0618 // RequestsPercentage: test setup
-            RequestsPercentage = 60,
-#pragma warning restore CS0618
+            UsedPercent = 60,
             Details = new[] { detail },
         };
 
@@ -629,9 +625,7 @@ public class ProviderUsageProcessingPipelineTests
             ProviderId = "codex",
             IsAvailable = true,
             IsQuotaBased = true,
-#pragma warning disable CS0618 // RequestsPercentage: test setup
-            RequestsPercentage = 50,
-#pragma warning restore CS0618
+            UsedPercent = 50,
             Details = new[] { detail },
         };
 

@@ -5,7 +5,7 @@
 namespace AIUsageTracker.UI.Slim;
 
 internal sealed record FixtureUsageScenario(
-    double RequestsPercentage = 0,
+    double UsedPercent = 0,
     double RequestsUsed = 0,
     double RequestsAvailable = 0,
     string Description = "Connected",

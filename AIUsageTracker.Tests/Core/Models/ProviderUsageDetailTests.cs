@@ -64,7 +64,7 @@ public class ProviderUsageDetailTests
 
         var json = JsonSerializer.Serialize(detail, options);
 
-        Assert.Contains("\"window_kind\":\"primary\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"window_kind\":\"burst\"", json, StringComparison.Ordinal);
         Assert.DoesNotContain("quota_bucket_kind", json, StringComparison.Ordinal);
     }
 
@@ -78,7 +78,7 @@ public class ProviderUsageDetailTests
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
 
         var detail = JsonSerializer.Deserialize<ProviderUsageDetail>(
-            "{\"name\":\"Requests / Day\",\"detail_type\":\"quota_window\",\"window_kind\":\"secondary\"}",
+            "{\"name\":\"Requests / Day\",\"detail_type\":\"quota_window\",\"window_kind\":\"rolling\"}",
             options);
 
         Assert.NotNull(detail);
@@ -87,7 +87,7 @@ public class ProviderUsageDetailTests
     }
 
     [Fact]
-    public void SetPercentageValue_PopulatesTypedPercentageAndCompatibilityText()
+    public void SetPercentageValue_PopulatesTypedPercentageFields()
     {
         var detail = new ProviderUsageDetail();
 
@@ -97,21 +97,6 @@ public class ProviderUsageDetailTests
         Assert.Equal(73.5, percentage);
         Assert.Equal(PercentageValueSemantic.Remaining, semantic);
         Assert.Equal(1, decimalPlaces);
-        Assert.Equal("73.5% remaining", detail.Used);
-    }
-
-    [Fact]
-    public void Used_LegacySemanticText_BackfillsTypedPercentageFields()
-    {
-        var detail = new ProviderUsageDetail
-        {
-            Used = "42% used",
-        };
-
-        Assert.True(detail.TryGetPercentageValue(out var percentage, out var semantic, out var decimalPlaces));
-        Assert.Equal(42, percentage);
-        Assert.Equal(PercentageValueSemantic.Used, semantic);
-        Assert.Equal(0, decimalPlaces);
     }
 
     [Fact]

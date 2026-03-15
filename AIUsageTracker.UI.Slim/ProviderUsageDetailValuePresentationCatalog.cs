@@ -16,22 +16,16 @@ internal static class ProviderUsageDetailValuePresentationCatalog
             return FormatPercentage(percentage, semantic, decimalPlaces, includeComplement);
         }
 
-        if (!string.IsNullOrWhiteSpace(detail.Used))
-        {
-            return detail.Used;
-        }
-
         return string.IsNullOrWhiteSpace(detail.Description) ? "No data" : detail.Description;
     }
 
     public static string GetDisplayText(
         ProviderUsageDetail detail,
-        bool parentIsQuota,
         bool showUsed,
         bool includeSemanticLabel,
         bool includeComplement = false)
     {
-        var usedPercent = UsageMath.GetEffectiveUsedPercent(detail, parentIsQuota);
+        var usedPercent = UsageMath.GetEffectiveUsedPercent(detail);
         if (!usedPercent.HasValue)
         {
             return GetStoredDisplayText(detail, includeComplement: false);
