@@ -57,12 +57,12 @@ public class ClaudeCodeProvider : ProviderBase
         {
             new ProviderAuthFileSchema("claudeAiOauth", "accessToken"),
         },
-        mainWindowVisibilityItems: new (string, string)[]
+        quotaWindows: new QuotaWindowDefinition[]
         {
-            ("claude-code.current-session", "Current Session (5-hour quota)"),
-            ("claude-code.sonnet", "Sonnet (7-day model quota)"),
-            ("claude-code.opus", "Opus (7-day model quota)"),
-            ("claude-code.all-models", "All Models (7-day combined)"),
+            new(WindowKind.Burst,         "5h",     ChildProviderId: "claude-code.current-session", SettingsLabel: "Current Session (5-hour quota)", DetailName: "Current Session"),
+            new(WindowKind.ModelSpecific, "Sonnet",  ChildProviderId: "claude-code.sonnet",          SettingsLabel: "Sonnet (7-day model quota)",    DetailName: "Sonnet"),
+            new(WindowKind.ModelSpecific, "Opus",    ChildProviderId: "claude-code.opus",            SettingsLabel: "Opus (7-day model quota)",      DetailName: "Opus"),
+            new(WindowKind.Rolling,       "7-day",   ChildProviderId: "claude-code.all-models",      SettingsLabel: "All Models (7-day combined)",   DetailName: "All Models"),
         });
 
     /// <inheritdoc/>

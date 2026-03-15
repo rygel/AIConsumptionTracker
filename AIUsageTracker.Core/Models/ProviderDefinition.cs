@@ -46,6 +46,7 @@ public sealed class ProviderDefinition
         IEnumerable<string>? sessionIdentityProfileRootProperties = null,
         string? derivedModelDisplaySuffix = null,
         bool isTooltipOnly = false,
+        IEnumerable<QuotaWindowDefinition>? quotaWindows = null,
         IEnumerable<(string ItemId, string Label)>? mainWindowVisibilityItems = null)
     {
         if (string.IsNullOrWhiteSpace(providerId))
@@ -97,8 +98,15 @@ public sealed class ProviderDefinition
         this.SessionIdentityProfileRootProperties = NormalizeValues(sessionIdentityProfileRootProperties);
         this.DerivedModelDisplaySuffix = derivedModelDisplaySuffix;
         this.IsTooltipOnly = isTooltipOnly;
-        this.MainWindowVisibilityItems = mainWindowVisibilityItems?.ToArray()
-            ?? Array.Empty<(string ItemId, string Label)>();
+        this.QuotaWindows = quotaWindows?.ToArray() ?? Array.Empty<QuotaWindowDefinition>();
+        this.MainWindowVisibilityItems = mainWindowVisibilityItems != null
+            ? mainWindowVisibilityItems.ToArray()
+            : familyMode == ProviderFamilyMode.SyntheticAggregateChildren
+                ? this.QuotaWindows
+                    .Where(w => w.ChildProviderId != null)
+                    .Select(w => (w.ChildProviderId!, w.SettingsLabel ?? w.DualBarLabel))
+                    .ToArray()
+                : Array.Empty<(string ItemId, string Label)>();
 
         var normalizedHandledIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -205,6 +213,8 @@ public sealed class ProviderDefinition
     public string? DerivedModelDisplaySuffix { get; }
 
     public bool IsTooltipOnly { get; }
+
+    public IReadOnlyList<QuotaWindowDefinition> QuotaWindows { get; }
 
     public IReadOnlyList<(string ItemId, string Label)> MainWindowVisibilityItems { get; }
 

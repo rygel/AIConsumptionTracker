@@ -60,6 +60,12 @@ public class CodexProvider : ProviderBase
         sessionIdentityProfileRootProperties: new[]
         {
             ProviderEndpoints.OpenAI.ProfileClaimKey,
+        },
+        quotaWindows: new QuotaWindowDefinition[]
+        {
+            new(WindowKind.Burst,         "5h"),
+            new(WindowKind.Rolling,       "Weekly"),
+            new(WindowKind.ModelSpecific, "Spark"),
         });
 
     private const string UsageEndpoint = "https://chatgpt.com/backend-api/wham/usage";

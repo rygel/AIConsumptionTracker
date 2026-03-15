@@ -154,7 +154,7 @@ public sealed class ProviderCardPresentationCatalogTests
 
         var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: false);
 
-        Assert.Equal("5-hour 96% remaining | Weekly 49% remaining", presentation.StatusText);
+        Assert.Equal("5h 96% remaining | Weekly 49% remaining", presentation.StatusText);
         Assert.True(presentation.SuppressSingleResetTime);
     }
 

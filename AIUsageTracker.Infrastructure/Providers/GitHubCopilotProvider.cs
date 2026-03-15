@@ -43,6 +43,11 @@ public class GitHubCopilotProvider : ProviderBase
         {
             "%APPDATA%\\GitHub CLI\\hosts.yml",
             "%USERPROFILE%\\.config\\gh\\hosts.yml",
+        },
+        quotaWindows: new QuotaWindowDefinition[]
+        {
+            new(WindowKind.Rolling, "Weekly"),
+            new(WindowKind.Burst,   "5h"),
         });
 
     public override ProviderDefinition Definition => StaticDefinition;

@@ -37,7 +37,12 @@ public class KimiProvider : ProviderBase
         discoveryEnvironmentVariables: new[] { "KIMI_API_KEY", "MOONSHOT_API_KEY" },
         iconAssetName: "kimi",
         fallbackBadgeColorHex: "#BA55D3",
-        fallbackBadgeInitial: "K");
+        fallbackBadgeInitial: "K",
+        quotaWindows: new QuotaWindowDefinition[]
+        {
+            new(WindowKind.Rolling, "Weekly"),
+            new(WindowKind.Burst,   "Daily"),
+        });
 
     public override ProviderDefinition Definition => StaticDefinition;
 

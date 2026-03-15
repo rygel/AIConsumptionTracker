@@ -70,6 +70,11 @@ public class OpenAIProvider : ProviderBase
         sessionIdentityProfileRootProperties: new[]
         {
             ProviderEndpoints.OpenAI.ProfileClaimKey,
+        },
+        quotaWindows: new QuotaWindowDefinition[]
+        {
+            new(WindowKind.Burst,   "5h"),
+            new(WindowKind.Rolling, "Weekly"),
         });
 
     /// <inheritdoc/>
