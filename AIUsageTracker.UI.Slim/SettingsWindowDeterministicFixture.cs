@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // Used/RequestsPercentage: fixture sets legacy fields for UI testing
+
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
 

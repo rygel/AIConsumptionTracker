@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // Used: legacy field read in presentation catalog for compatibility
+
 using System.Globalization;
 using AIUsageTracker.Core.Models;
 

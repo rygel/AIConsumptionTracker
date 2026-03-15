@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // UsageUnit: informational legacy field read in presentation catalog
+
 using System.Globalization;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
@@ -193,7 +195,7 @@ internal static class ProviderCardPresentationCatalog
 
         if (usage.PlanType == PlanType.Usage && usage.RequestsUsed >= 0)
         {
-            if (usage.IsCurrencyUsage)
+            if (string.Equals(usage.UsageUnit, "USD", StringComparison.OrdinalIgnoreCase))
             {
                 return $"${usage.RequestsUsed.ToString("F2", CultureInfo.InvariantCulture)}";
             }

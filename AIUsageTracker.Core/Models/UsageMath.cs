@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // Used: legacy string fallback retained for DB snapshot compatibility
+
 using System.Text.RegularExpressions;
 
 namespace AIUsageTracker.Core.Models;

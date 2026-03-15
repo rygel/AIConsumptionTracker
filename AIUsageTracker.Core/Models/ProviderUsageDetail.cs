@@ -23,6 +23,7 @@ public class ProviderUsageDetail
 
     public string GroupName { get; set; } = string.Empty;
 
+    [Obsolete("Set PercentageValue and PercentageSemantic instead. Used is retained for legacy deserialization.")]
     public string Used
     {
         get => !string.IsNullOrWhiteSpace(this._used) ? this._used : this.GetCompatibilityDisplayValue();

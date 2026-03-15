@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // UsageUnit: informational legacy field read in export
+
 using System.Globalization;
 using System.Text;
 using System.Text.Json;

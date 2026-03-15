@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // UsageUnit: legacy field verified in provider tests
+
 using System.Net;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;

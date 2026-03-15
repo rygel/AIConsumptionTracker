@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // Used: legacy field retained for DB snapshot compatibility
+
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;

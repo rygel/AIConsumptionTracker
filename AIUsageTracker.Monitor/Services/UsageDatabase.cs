@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // Used/RequestsPercentage: retained for DB snapshot compatibility
+
 using System.Globalization;
 using System.Text.Json;
 using AIUsageTracker.Core.Interfaces;
@@ -344,7 +346,8 @@ public class UsageDatabase : IUsageDatabase
                 }
                 catch (JsonException ex)
                 {
-                    this._logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    this._logger.LogError(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    usage.Details = new List<ProviderUsageDetail>();
                 }
             }
 
@@ -359,11 +362,6 @@ public class UsageDatabase : IUsageDatabase
                 }
 
                 usage.ProviderName = ProviderMetadataCatalog.ResolveDisplayLabel(usage.ProviderId ?? string.Empty, usage.ProviderName);
-
-                if (!usage.DisplayAsFraction && usage.IsQuotaBased && usage.RequestsAvailable > 100)
-                {
-                    usage.DisplayAsFraction = true;
-                }
 
                 ApplyUpstreamResponseValidity(usage);
             }
@@ -478,7 +476,7 @@ public class UsageDatabase : IUsageDatabase
             }
             catch (JsonException ex)
             {
-                this._logger.LogWarning(ex, "Failed to parse historical details_json for provider {ProviderId}", row.ProviderId);
+                this._logger.LogError(ex, "Failed to parse historical details_json for provider {ProviderId}", row.ProviderId);
                 continue;
             }
 
@@ -604,7 +602,8 @@ public class UsageDatabase : IUsageDatabase
                 }
                 catch (JsonException ex)
                 {
-                    this._logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    this._logger.LogError(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    usage.Details = new List<ProviderUsageDetail>();
                 }
             }
 
@@ -656,7 +655,8 @@ public class UsageDatabase : IUsageDatabase
                 }
                 catch (JsonException ex)
                 {
-                    this._logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    this._logger.LogError(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    usage.Details = new List<ProviderUsageDetail>();
                 }
             }
 
@@ -714,7 +714,8 @@ public class UsageDatabase : IUsageDatabase
                 }
                 catch (JsonException ex)
                 {
-                    this._logger.LogWarning(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    this._logger.LogError(ex, "Failed to parse details_json for provider {ProviderId}", usage.ProviderId);
+                    usage.Details = new List<ProviderUsageDetail>();
                 }
             }
 

@@ -47,6 +47,7 @@ public class ProviderUsage
 
     public PlanType PlanType { get; set; } = PlanType.Usage;
 
+    [Obsolete("Informational only. Use IsStatusOnly and other typed fields instead.")]
     public string UsageUnit { get; set; } = "USD";
 
     public bool IsQuotaBased { get; set; }
@@ -63,9 +64,6 @@ public class ProviderUsage
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsStatusOnly { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool IsCurrencyUsage { get; set; }
 
     public string AuthSource { get; set; } = string.Empty;
 

@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // Used/RequestsPercentage: legacy fields set in test fixtures
+
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.UI.Slim;
 
@@ -172,7 +174,6 @@ public sealed class ProviderCardPresentationCatalogTests
             IsAvailable = true,
             PlanType = PlanType.Usage,
             UsageUnit = "USD",
-            IsCurrencyUsage = true,
             RequestsUsed = 12.34,
             Description = "$12.34 (4 sessions, 198 msgs, 7 days)",
         };

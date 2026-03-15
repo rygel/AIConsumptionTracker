@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // UsageUnit/RequestsPercentage: provider sets raw serialized fields
+
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Exceptions;

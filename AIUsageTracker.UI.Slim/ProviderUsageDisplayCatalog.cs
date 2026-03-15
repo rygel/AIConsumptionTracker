@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // UsageUnit/RequestsPercentage: catalog reads/sets legacy serialized fields
+
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
 

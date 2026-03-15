@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // RequestsPercentage: legacy field set in mock
+
 using System;
 using System.Threading.Tasks;
 using AIUsageTracker.Core.Interfaces;

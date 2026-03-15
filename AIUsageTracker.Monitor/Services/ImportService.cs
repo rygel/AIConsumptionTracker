@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable CS0618 // UsageUnit: legacy field set during CSV import for backward compat
+
 using System.Globalization;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;

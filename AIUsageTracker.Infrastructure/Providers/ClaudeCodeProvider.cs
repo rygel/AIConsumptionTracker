@@ -630,7 +630,6 @@ public class ClaudeCodeProvider : ProviderBase
             RequestsUsed = currentUsage,
             RequestsAvailable = budgetLimit,
             UsageUnit = "USD",
-            IsCurrencyUsage = true,
             IsQuotaBased = false,
             PlanType = PlanType.Usage,
             IsAvailable = true,
