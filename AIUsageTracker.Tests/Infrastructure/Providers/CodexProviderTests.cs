@@ -637,6 +637,94 @@ string.Equals(detail.Name, "Weekly quota", StringComparison.Ordinal));
         }
     }
 
+    [Fact]
+    public async Task GetUsageAsync_SparkWeeklyFullyConsumed_NoMainSecondaryWindow_EmitsDualBarDetails()
+    {
+        // Production regression: real API response has rate_limit.secondary_window = null (absent),
+        // and additional_rate_limits[spark].primary_window.used_percent = 0 (burst just reset),
+        // secondary_window.used_percent = 100 (weekly fully consumed).
+        // Verify: child card shows TWO bars — Burst at 0% used (100% remaining) and
+        // Rolling at 100% used (0% remaining). Without hasAnyWeeklyData including spark secondary,
+        // the Rolling bar would be silently dropped.
+        var tempDir = TestTempPaths.CreateDirectory("codex-test-spark-weekly-full");
+        var authPath = Path.Combine(tempDir, "auth.json");
+        var token = CreateJwt("user@example.com", "plus");
+
+        await File.WriteAllTextAsync(authPath, JsonSerializer.Serialize(new
+        {
+            tokens = new { access_token = token },
+        }));
+
+        this.SetupHttpResponse("https://chatgpt.com/backend-api/wham/usage", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent(JsonSerializer.Serialize(new
+            {
+                plan_type = "plus",
+                rate_limit = new
+                {
+                    // Main burst window: 0% used (just reset)
+                    primary_window = new { used_percent = 0, reset_after_seconds = 18000 },
+                    // NOTE: no secondary_window — it is null/absent in the real API response
+                },
+                additional_rate_limits = new object[]
+                {
+                    new
+                    {
+                        limit_name = "GPT-5.3-Codex-Spark",
+                        rate_limit = new
+                        {
+                            allowed = false,
+                            limit_reached = true,
+                            primary_window = new { used_percent = 0, reset_after_seconds = 18000 },
+                            secondary_window = new { used_percent = 100, reset_after_seconds = 194425 },
+                        },
+                    },
+                },
+            })),
+        });
+
+        var provider = new CodexProvider(this.HttpClient, this.Logger.Object, authPath);
+
+        try
+        {
+            var usages = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).ToList();
+            var parent = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
+            Assert.NotNull(parent.Details);
+
+            // Model detail must contain "spark" for DerivedModelSelector to match
+            var modelDetail = Assert.Single(parent.Details!, d => d.DetailType == ProviderUsageDetailType.Model);
+            Assert.Contains("spark", modelDetail.ModelName, StringComparison.OrdinalIgnoreCase);
+
+            // effectiveUsedPercent = max(0, 0, 0, 100) = 100 (driven by spark weekly)
+            Assert.Equal(100, parent.UsedPercent, precision: 0);
+
+            // Model-scoped Burst detail: burst just reset → 0% used = 100% remaining
+            var burstDetail = Assert.Single(
+                parent.Details!,
+                d => d.DetailType == ProviderUsageDetailType.QuotaWindow &&
+                     d.QuotaBucketKind == WindowKind.Burst &&
+                     string.Equals(d.ModelName, modelDetail.ModelName, StringComparison.Ordinal));
+            Assert.NotNull(burstDetail.PercentageValue);
+            Assert.Equal(100, burstDetail.PercentageValue!.Value, precision: 0); // 100% remaining
+            Assert.Equal(PercentageValueSemantic.Remaining, burstDetail.PercentageSemantic);
+
+            // Model-scoped Rolling detail: weekly fully consumed → 100% used = 0% remaining
+            var rollingDetail = Assert.Single(
+                parent.Details!,
+                d => d.DetailType == ProviderUsageDetailType.QuotaWindow &&
+                     d.QuotaBucketKind == WindowKind.Rolling &&
+                     string.Equals(d.ModelName, modelDetail.ModelName, StringComparison.Ordinal));
+            Assert.NotNull(rollingDetail.PercentageValue);
+            Assert.Equal(0, rollingDetail.PercentageValue!.Value, precision: 0); // 0% remaining
+            Assert.Equal(PercentageValueSemantic.Remaining, rollingDetail.PercentageSemantic);
+        }
+        finally
+        {
+            TestTempPaths.CleanupPath(tempDir);
+        }
+    }
+
     private static string CreateJwt(string email, string planType)
     {
         var headerJson = JsonSerializer.Serialize(new { alg = "HS256", typ = "JWT" });
