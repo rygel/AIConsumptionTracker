@@ -78,6 +78,7 @@ public class GitHubCopilotProvider : ProviderBase
                     ProviderName = "GitHub Copilot",
                     AccountName = username,
                     IsAvailable = false,
+                    State = ProviderUsageState.Missing,
                     Description = "Not authenticated. Please login in Settings.",
                     PlanType = PlanType.Coding,
                     IsQuotaBased = true,
@@ -120,6 +121,7 @@ public class GitHubCopilotProvider : ProviderBase
             {
                 state.Description = $"Error: {response.StatusCode}";
                 state.IsAvailable = false;
+                state.State = ProviderUsageState.Error;
             }
         }
         catch (HttpRequestException ex)
@@ -127,12 +129,14 @@ public class GitHubCopilotProvider : ProviderBase
             this._logger.LogError(ex, "Network error fetching GitHub profile");
             state.Description = "Network Error: Unable to reach GitHub";
             state.IsAvailable = false;
+            state.State = ProviderUsageState.Error;
         }
         catch (Exception ex)
         {
             this._logger.LogError(ex, "Failed to fetch GitHub profile");
             state.Description = $"Error: {ex.Message}";
             state.IsAvailable = false;
+            state.State = ProviderUsageState.Error;
         }
 
         return new[] { this.BuildUsageResult(state) };
@@ -487,6 +491,7 @@ public class GitHubCopilotProvider : ProviderBase
             ProviderName = "GitHub Copilot",
             AccountName = HasMeaningfulUsername(state.Username) ? state.Username : string.Empty,
             IsAvailable = state.IsAvailable,
+            State = state.State,
             Description = BuildFinalDescription(state),
             RequestsPercentage = state.Percentage,
             RequestsAvailable = state.CostLimit,
@@ -505,6 +510,8 @@ public class GitHubCopilotProvider : ProviderBase
     private sealed class CopilotUsageState
     {
         public bool IsAvailable { get; set; }
+
+        public ProviderUsageState State { get; set; } = ProviderUsageState.Available;
 
         public string Description { get; set; } = string.Empty;
 

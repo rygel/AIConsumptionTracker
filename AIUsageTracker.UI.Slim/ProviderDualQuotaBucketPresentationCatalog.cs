@@ -65,39 +65,13 @@ internal static class ProviderDualQuotaBucketPresentationCatalog
 
     private static int GetWindowOrder(WindowKind kind, List<QuotaWindowDefinition>? windows)
     {
-        if (windows != null)
-        {
-            var idx = windows.FindIndex(w => w.Kind == kind);
-            if (idx >= 0) return idx;
-        }
-
-        // Legacy fallback: Burst=0, Rolling=1, ModelSpecific=2
-        return kind switch
-        {
-            WindowKind.Burst => 0,
-            WindowKind.Rolling => 1,
-            WindowKind.ModelSpecific => 2,
-            _ => 99,
-        };
+        var idx = windows?.FindIndex(w => w.Kind == kind) ?? -1;
+        return idx >= 0 ? idx : 99;
     }
 
     private static string GetWindowLabel(ProviderUsageDetail detail, List<QuotaWindowDefinition>? windows, string fallback)
     {
-        if (windows != null)
-        {
-            var declared = windows.FirstOrDefault(w => w.Kind == detail.QuotaBucketKind);
-            if (declared != null) return declared.DualBarLabel;
-        }
-
-        // Legacy fallback: strip " quota" / " limit" from raw name
-        if (string.IsNullOrWhiteSpace(detail.Name))
-        {
-            return fallback;
-        }
-
-        var label = detail.Name.Trim();
-        label = label.Replace(" quota", string.Empty, StringComparison.OrdinalIgnoreCase);
-        label = label.Replace(" limit", string.Empty, StringComparison.OrdinalIgnoreCase);
-        return string.IsNullOrWhiteSpace(label) ? fallback : label;
+        var declared = windows?.FirstOrDefault(w => w.Kind == detail.QuotaBucketKind);
+        return declared?.DualBarLabel ?? fallback;
     }
 }

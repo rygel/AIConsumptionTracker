@@ -106,6 +106,7 @@ public sealed class ProviderCardPresentationCatalogTests
         var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: true);
 
         Assert.Equal("Connected", presentation.StatusText);
+        Assert.False(presentation.ShouldHaveProgress);
     }
 
     [Fact]

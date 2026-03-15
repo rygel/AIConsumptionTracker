@@ -821,10 +821,6 @@ public class AntigravityProvider : ProviderBase
             {
                 detail.SetPercentageValue(remainingPct.Value, PercentageValueSemantic.Remaining);
             }
-            else
-            {
-                detail.Used = "Unknown";
-            }
 
             details.Add(detail);
 

@@ -31,6 +31,7 @@ internal static class ProviderCardPresentationCatalog
         var shouldHaveProgress = usage.IsAvailable &&
             !isUnknown &&
             !isAggregateParent &&
+            !isStatusOnlyProvider &&
             (usage.UsedPercent > 0 || usage.IsQuotaBased) &&
             !isMissing &&
             !isError;

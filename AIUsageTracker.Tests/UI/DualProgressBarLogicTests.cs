@@ -52,6 +52,8 @@ public class DualProgressBarLogicTests
         var hourlyReset = new DateTime(2026, 3, 7, 1, 0, 0);
         var usage = new ProviderUsage
         {
+            ProviderId = "codex",
+            IsQuotaBased = true,
             Details = new List<ProviderUsageDetail>
             {
                 new ProviderUsageDetail
@@ -76,7 +78,7 @@ public class DualProgressBarLogicTests
         var result = ProviderDualQuotaBucketPresentationCatalog.TryGetPresentation(usage, out var presentation);
 
         Assert.True(result);
-        Assert.Equal("5-hour", presentation.PrimaryLabel);
+        Assert.Equal("5h", presentation.PrimaryLabel);
         Assert.Equal(4.0, presentation.PrimaryUsedPercent);
         Assert.Equal(hourlyReset, presentation.PrimaryResetTime);
         Assert.Equal("Weekly", presentation.SecondaryLabel);

@@ -253,6 +253,7 @@ public class OpenAIProvider : ProviderBase
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
+                    State = ProviderUsageState.Missing,
                     Description = "Project keys (sk-proj-...) not supported yet. Use a standard user API key.",
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
@@ -280,6 +281,7 @@ public class OpenAIProvider : ProviderBase
                         PlanType = PlanType.Coding,
                         Description = "Connected (API Key)",
                         UsageUnit = "Status",
+                        IsStatusOnly = true,
                     },
                 };
             }
@@ -291,6 +293,7 @@ public class OpenAIProvider : ProviderBase
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
+                    State = ProviderUsageState.Error,
                     Description = $"Invalid Key ({response.StatusCode})",
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
@@ -307,6 +310,7 @@ public class OpenAIProvider : ProviderBase
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
+                    State = ProviderUsageState.Error,
                     Description = "Connection Failed",
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,

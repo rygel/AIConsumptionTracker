@@ -131,9 +131,6 @@ public class AntigravityProviderTests : HttpProviderTestBase<AntigravityProvider
 
         Assert.NotNull(summary.Details);
         Assert.Contains(summary.Details!, detail => string.Equals(detail.Name, "gpt-oss", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(summary.Details!, detail =>
-            string.Equals(detail.Name, "gpt-oss", StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(detail.Used, "Unknown", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -126,6 +126,7 @@ public class GeminiProvider : ProviderBase
                     IsAvailable = false,
                     IsQuotaBased = true,
                     PlanType = PlanType.Coding,
+                    State = ProviderUsageState.Missing,
                     Description = "No Gemini accounts found",
                 },
             };
@@ -217,6 +218,7 @@ public class GeminiProvider : ProviderBase
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
+                    State = ProviderUsageState.Error,
                     Description = $"Error: {ex.Message}",
                     AccountName = account.Email,
                 });
@@ -237,6 +239,7 @@ public class GeminiProvider : ProviderBase
                     ProviderId = this.ProviderId,
                     ProviderName = this.Definition.DisplayName,
                     IsAvailable = false,
+                    State = ProviderUsageState.Error,
                     Description = "Failed to fetch quota for any account",
                 },
             };
