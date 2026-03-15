@@ -517,6 +517,7 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             IsQuotaBased = usage.IsQuotaBased,
             DisplayAsFraction = usage.DisplayAsFraction,
             IsAvailable = false,
+            State = ProviderUsageState.Error,
             Description = $"Invalid detail contract: {string.Join("; ", validationErrors)}",
             AuthSource = usage.AuthSource,
             Details = null,

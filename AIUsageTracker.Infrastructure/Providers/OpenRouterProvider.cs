@@ -174,7 +174,6 @@ public class OpenRouterProvider : ProviderBase
 
                     if (keyData.Data.Limit > 0)
                     {
-                        string resetStr = string.Empty;
                         DateTime? nextResetTime = null;
 
                         if (!string.IsNullOrEmpty(keyData.Data.LimitReset))
@@ -186,7 +185,6 @@ public class OpenRouterProvider : ProviderBase
                                 var diff = dt.ToLocalTime() - DateTime.Now;
                                 if (diff.TotalSeconds > 0)
                                 {
-                                    resetStr = $" (Resets: ({dt.ToLocalTime():MMM dd HH:mm}))";
                                     nextResetTime = dt.ToLocalTime();
                                     this._logger.LogDebug("Limit reset time parsed successfully: {ResetTime}", nextResetTime);
                                 }
@@ -200,7 +198,7 @@ public class OpenRouterProvider : ProviderBase
                         details.Add(new ProviderUsageDetail
                         {
                             Name = "Spending Limit",
-                            Description = $"{keyData.Data.Limit.ToString("F2", CultureInfo.InvariantCulture)}{resetStr}",
+                            Description = keyData.Data.Limit.ToString("F2", CultureInfo.InvariantCulture),
                             Used = string.Empty,
                             NextResetTime = nextResetTime,
                             DetailType = ProviderUsageDetailType.Other,
@@ -256,14 +254,9 @@ public class OpenRouterProvider : ProviderBase
         string mainReset = string.Empty;
         DateTime? spendingLimitResetTime = null;
         var spendingLimitDetail = details.FirstOrDefault(d => d.DetailType == ProviderUsageDetailType.Other && d.NextResetTime.HasValue);
-        if (spendingLimitDetail != null && spendingLimitDetail.Description.Contains("(Resets:", StringComparison.Ordinal))
+        if (spendingLimitDetail?.NextResetTime.HasValue == true)
         {
-            var idx = spendingLimitDetail.Description.IndexOf("(Resets:", StringComparison.Ordinal);
-            if (idx >= 0)
-            {
-                mainReset = " " + spendingLimitDetail.Description.Substring(idx);
-            }
-
+            mainReset = $" (Resets: ({spendingLimitDetail.NextResetTime.Value.ToLocalTime():MMM dd HH:mm}))";
             spendingLimitResetTime = spendingLimitDetail.NextResetTime;
         }
 

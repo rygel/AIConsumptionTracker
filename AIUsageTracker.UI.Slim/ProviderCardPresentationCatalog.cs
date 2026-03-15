@@ -17,20 +17,14 @@ internal static class ProviderCardPresentationCatalog
         var providerId = usage.ProviderId ?? string.Empty;
         var isStale = usage.Details?.Any(d => d.IsStale) == true;
         var description = usage.Description ?? string.Empty;
-        // Typed state — no more description.Contains() heuristics
-        var isMissing = usage.State == ProviderUsageState.Missing
-            || description.Contains("not found", StringComparison.OrdinalIgnoreCase); // legacy fallback
-        var isConsoleCheck = usage.State == ProviderUsageState.ConsoleCheck
-            || description.Contains("Check Console", StringComparison.OrdinalIgnoreCase); // legacy fallback
-        var isError = usage.State == ProviderUsageState.Error
-            || description.Contains("[Error]", StringComparison.OrdinalIgnoreCase) // legacy fallback
-            || (!usage.IsAvailable && !isMissing && !string.IsNullOrWhiteSpace(description) && usage.State == ProviderUsageState.Available);
-        var isUnknown = usage.State == ProviderUsageState.Unknown
-            || description.Contains("unknown", StringComparison.OrdinalIgnoreCase); // legacy fallback
+        var isMissing = usage.State == ProviderUsageState.Missing;
+        var isConsoleCheck = usage.State == ProviderUsageState.ConsoleCheck;
+        var isError = usage.State == ProviderUsageState.Error;
+        var isUnknown = usage.State == ProviderUsageState.Unknown;
         var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
         var isAggregateParent = ProviderMetadataCatalog.ShouldRenderAggregateDetailsInMainWindow(providerId)
             && string.Equals(providerId, canonicalProviderId, StringComparison.OrdinalIgnoreCase);
-        var isStatusOnlyProvider = string.Equals(usage.UsageUnit, "Status", StringComparison.OrdinalIgnoreCase);
+        var isStatusOnlyProvider = usage.IsStatusOnly;
         var hasDualQuotaBucketPresentation = ProviderDualQuotaBucketPresentationCatalog.TryGetPresentation(usage, out var dualQuotaBucketPresentation);
         var remainingPercent = usage.RemainingPercent;
         var usedPercent = usage.UsedPercent;
@@ -108,15 +102,7 @@ internal static class ProviderCardPresentationCatalog
 
         if (isError)
         {
-            // Strip the [Error] prefix only when present (legacy producers embed it in description).
-            // When State == Error and description has no [Error] prefix, use description directly.
-            var errorText = description.Contains("[Error]", StringComparison.OrdinalIgnoreCase)
-                ? description.Replace("[Error]", string.Empty).Trim()
-                : description;
-            if (string.IsNullOrWhiteSpace(errorText))
-            {
-                errorText = description;
-            }
+            var errorText = description;
 
             presentation = CreatePresentation(
                 isMissing,
@@ -206,7 +192,7 @@ internal static class ProviderCardPresentationCatalog
 
         if (usage.PlanType == PlanType.Usage && usage.RequestsUsed >= 0)
         {
-            if (string.Equals(usage.UsageUnit, "USD", StringComparison.OrdinalIgnoreCase))
+            if (usage.IsCurrencyUsage)
             {
                 return $"${usage.RequestsUsed.ToString("F2", CultureInfo.InvariantCulture)}";
             }

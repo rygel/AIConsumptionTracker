@@ -205,8 +205,7 @@ public class ProviderRefreshCircuitBreakerService
             return false;
         }
 
-        return string.IsNullOrWhiteSpace(usage.Description) ||
-               !usage.Description.StartsWith("[Error]", StringComparison.OrdinalIgnoreCase);
+        return usage.State != ProviderUsageState.Error;
     }
 
     private static string GetFailureMessage(IReadOnlyCollection<ProviderUsage> providerUsages)

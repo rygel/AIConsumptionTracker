@@ -433,7 +433,8 @@ public class AntigravityProvider : ProviderBase
     private static List<ProviderUsageDetail> SortDetails(List<ProviderUsageDetail> details)
     {
         return details
-            .OrderBy(d => d.Name.StartsWith("[Credits]", StringComparison.Ordinal) ? "0" + d.Name : "1" + d.Name, StringComparer.Ordinal)
+            .OrderBy(d => d.DetailType == ProviderUsageDetailType.Credit ? 0 : 1)
+            .ThenBy(d => d.Name, StringComparer.Ordinal)
             .ToList();
     }
 

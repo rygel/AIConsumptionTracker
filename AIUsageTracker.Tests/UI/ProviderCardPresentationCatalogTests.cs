@@ -17,6 +17,7 @@ public sealed class ProviderCardPresentationCatalogTests
             ProviderId = "openai",
             Description = "API key not found",
             IsAvailable = false,
+            State = ProviderUsageState.Missing,
         };
 
         var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed: false);
@@ -98,6 +99,7 @@ public sealed class ProviderCardPresentationCatalogTests
             IsAvailable = true,
             IsQuotaBased = true,
             UsageUnit = "Status",
+            IsStatusOnly = true,
             RequestsPercentage = 70,
         };
 
@@ -169,6 +171,7 @@ public sealed class ProviderCardPresentationCatalogTests
             IsAvailable = true,
             PlanType = PlanType.Usage,
             UsageUnit = "USD",
+            IsCurrencyUsage = true,
             RequestsUsed = 12.34,
             Description = "$12.34 (4 sessions, 198 msgs, 7 days)",
         };

@@ -83,6 +83,7 @@ public class MistralProvider : ProviderBase
                     PlanType = PlanType.Usage,
                     Description = "Connected (Check Dashboard)",
                     UsageUnit = "Status",
+                    IsStatusOnly = true,
                     RawJson = content,
                     HttpStatus = (int)response.StatusCode,
                 },

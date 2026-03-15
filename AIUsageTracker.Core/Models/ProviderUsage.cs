@@ -61,6 +61,12 @@ public class ProviderUsage
     [JsonConverter(typeof(JsonStringEnumConverter<ProviderUsageState>))]
     public ProviderUsageState State { get; set; } = ProviderUsageState.Available;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsStatusOnly { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsCurrencyUsage { get; set; }
+
     public string AuthSource { get; set; } = string.Empty;
 
     public IReadOnlyList<ProviderUsageDetail>? Details { get; set; }
