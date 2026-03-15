@@ -464,4 +464,55 @@ public class GroupedUsageDisplayAdapterTests
         Assert.Equal(0, derived.UsedPercent, 1); // UsedPercentage = 0 (100% remaining)
         Assert.Equal("100% Remaining", derived.Description);
     }
+
+    [Fact]
+    public void Expand_KimiSnapshot_AttachesProviderQuotaDetailsToParent_WhenNoModelDetails()
+    {
+        // Kimi has no Model-type details; all its details are QuotaWindow (Weekly + 5h).
+        // ProviderQuotaDetails must be surfaced as the parent's Details so that
+        // ProviderDualQuotaBucketPresentationCatalog.TryGetPresentation can render two bars.
+        var weeklyDetail = new ProviderUsageDetail
+        {
+            Name = "Weekly Limit",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Rolling,
+        };
+        weeklyDetail.SetPercentageValue(25.0, PercentageValueSemantic.Used, decimalPlaces: 1);
+
+        var burstDetail = new ProviderUsageDetail
+        {
+            Name = "5h Limit",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Burst,
+        };
+        burstDetail.SetPercentageValue(0.0, PercentageValueSemantic.Used, decimalPlaces: 1);
+
+        var snapshot = new AgentGroupedUsageSnapshot
+        {
+            Providers = new[]
+            {
+                new AgentGroupedProviderUsage
+                {
+                    ProviderId = "kimi-for-coding",
+                    IsAvailable = true,
+                    IsQuotaBased = true,
+                    UsedPercent = 25,
+                    Models = Array.Empty<AgentGroupedModelUsage>(),
+                    ProviderQuotaDetails = new[] { weeklyDetail, burstDetail },
+                },
+            },
+        };
+
+        var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
+
+        var parent = Assert.Single(usages, u => string.Equals(u.ProviderId, "kimi-for-coding", StringComparison.Ordinal));
+        Assert.NotNull(parent.Details);
+        Assert.Equal(2, parent.Details!.Count);
+
+        var weekly = Assert.Single(parent.Details, d => d.QuotaBucketKind == WindowKind.Rolling);
+        Assert.Equal("Weekly Limit", weekly.Name);
+
+        var burst = Assert.Single(parent.Details, d => d.QuotaBucketKind == WindowKind.Burst);
+        Assert.Equal("5h Limit", burst.Name);
+    }
 }

@@ -675,10 +675,14 @@ public class CodexProvider : ProviderBase
 
         if (sparkWindow.HasWindowData)
         {
-            var sparkUsedPercent = sparkWindow.PrimaryUsedPercent ?? sparkWindow.SecondaryUsedPercent;
-            if (sparkUsedPercent.HasValue)
+            var sparkOwnUsed = sparkWindow.PrimaryUsedPercent ?? sparkWindow.SecondaryUsedPercent;
+            if (sparkOwnUsed.HasValue)
             {
-                var sparkRemaining = Math.Clamp(100.0 - sparkUsedPercent.Value, 0.0, 100.0);
+                // Use the more constraining of Spark's own 5h window and the shared weekly window.
+                // When the 5h Spark window has just reset (0%) but the weekly window is heavily
+                // used (e.g. 98%), the Spark card should reflect the binding constraint.
+                var sparkUsedPercent = Math.Max(sparkOwnUsed.Value, secondaryUsedPercent ?? 0.0);
+                var sparkRemaining = Math.Clamp(100.0 - sparkUsedPercent, 0.0, 100.0);
                 var sparkResetAfterSeconds = sparkWindow.PrimaryResetAfterSeconds ?? sparkWindow.SecondaryResetAfterSeconds;
                 details.Add(new ProviderUsageDetail
                 {

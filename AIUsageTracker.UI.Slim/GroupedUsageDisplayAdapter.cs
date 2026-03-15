@@ -23,6 +23,12 @@ internal static class GroupedUsageDisplayAdapter
                      .OrderBy(provider => provider.ProviderId, StringComparer.OrdinalIgnoreCase))
         {
             var details = BuildModelDetails(provider);
+            // When the provider has no model-level details (e.g. Kimi whose details are all
+            // QuotaWindow rather than Model type), fall back to the provider-level quota details
+            // so TryGetPresentation can render dual progress bars on the parent card.
+            var effectiveDetails = details.Count > 0
+                ? (IReadOnlyList<ProviderUsageDetail>)details
+                : provider.ProviderQuotaDetails;
             var parentUsage = new ProviderUsage
             {
                 ProviderId = provider.ProviderId,
@@ -37,7 +43,7 @@ internal static class GroupedUsageDisplayAdapter
                 Description = provider.Description,
                 FetchedAt = provider.FetchedAt,
                 NextResetTime = provider.NextResetTime,
-                Details = details.Count > 0 ? details : null,
+                Details = effectiveDetails.Count > 0 ? effectiveDetails.ToList() : null,
             };
 
             usages.Add(parentUsage);

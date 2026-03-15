@@ -227,4 +227,88 @@ public sealed class GroupedUsageProjectionServiceTests
         Assert.Equal(95.0, flashLiteBucket.RemainingPercentage!.Value, 1);
         Assert.Equal(70.0, flashPreviewBucket.RemainingPercentage!.Value, 1);
     }
+
+    [Fact]
+    public void Build_KimiUsage_PopulatesProviderQuotaDetails_FromQuotaWindowDetails()
+    {
+        // Kimi has no Model-type details; only QuotaWindow. The projection must populate
+        // ProviderQuotaDetails so the UI can render dual bars on the parent card.
+        var weeklyDetail = new ProviderUsageDetail
+        {
+            Name = "Weekly Limit",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Rolling,
+        };
+        weeklyDetail.SetPercentageValue(25.0, PercentageValueSemantic.Used, decimalPlaces: 1);
+
+        var burstDetail = new ProviderUsageDetail
+        {
+            Name = "5h Limit",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Burst,
+        };
+        burstDetail.SetPercentageValue(0.0, PercentageValueSemantic.Used, decimalPlaces: 1);
+
+        var usages = new[]
+        {
+            new ProviderUsage
+            {
+                ProviderId = "kimi-for-coding",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                UsedPercent = 25,
+                RequestsUsed = 25,
+                RequestsAvailable = 100,
+                FetchedAt = DateTime.UtcNow,
+                Details = new List<ProviderUsageDetail> { weeklyDetail, burstDetail },
+            },
+        };
+
+        var snapshot = GroupedUsageProjectionService.Build(usages);
+
+        var provider = Assert.Single(snapshot.Providers);
+        Assert.Equal(2, provider.ProviderQuotaDetails.Count);
+        Assert.Contains(provider.ProviderQuotaDetails, d => d.QuotaBucketKind == WindowKind.Rolling && d.Name == "Weekly Limit");
+        Assert.Contains(provider.ProviderQuotaDetails, d => d.QuotaBucketKind == WindowKind.Burst && d.Name == "5h Limit");
+    }
+
+    [Fact]
+    public void Build_KimiUsage_ExcludesNoneKindDetails_FromProviderQuotaDetails()
+    {
+        // Details with QuotaBucketKind == None (e.g. Credit-type or unknown windows) must
+        // not appear in ProviderQuotaDetails since they cannot drive dual bar rendering.
+        var creditDetail = new ProviderUsageDetail
+        {
+            Name = "Credits",
+            DetailType = ProviderUsageDetailType.Credit,
+            QuotaBucketKind = WindowKind.None,
+        };
+
+        var quotaDetail = new ProviderUsageDetail
+        {
+            Name = "Weekly Limit",
+            DetailType = ProviderUsageDetailType.QuotaWindow,
+            QuotaBucketKind = WindowKind.Rolling,
+        };
+        quotaDetail.SetPercentageValue(10.0, PercentageValueSemantic.Used);
+
+        var usages = new[]
+        {
+            new ProviderUsage
+            {
+                ProviderId = "kimi-for-coding",
+                IsAvailable = true,
+                IsQuotaBased = true,
+                UsedPercent = 10,
+                FetchedAt = DateTime.UtcNow,
+                Details = new List<ProviderUsageDetail> { creditDetail, quotaDetail },
+            },
+        };
+
+        var snapshot = GroupedUsageProjectionService.Build(usages);
+
+        var provider = Assert.Single(snapshot.Providers);
+        Assert.Single(provider.ProviderQuotaDetails);
+        Assert.All(provider.ProviderQuotaDetails, d => Assert.NotEqual(WindowKind.None, d.QuotaBucketKind));
+    }
 }

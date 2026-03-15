@@ -11,6 +11,7 @@ using AIUsageTracker.Tests.Infrastructure;
 using Moq;
 using Moq.Protected;
 using Xunit;
+#pragma warning disable CS0618
 
 namespace AIUsageTracker.Tests.Infrastructure.Providers;
 
@@ -226,6 +227,75 @@ public class CodexProviderTests : HttpProviderTestBase<CodexProvider>
                 parent.Details!,
                 detail => detail.DetailType == ProviderUsageDetailType.QuotaWindow &&
                           detail.Name.Contains("Spark", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            TestTempPaths.CleanupPath(tempDir);
+        }
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_SparkDetail_UsesSecondaryWindowUsage_WhenSparkPrimaryWindowHasReset()
+    {
+        // When Spark 5h window resets (primaryUsed=0) but the shared weekly window is heavily
+        // used (secondaryUsed=98), the Spark detail must reflect the binding constraint (98%).
+        // Without this fix the Spark card shows "0% used" while the parent shows "98% used".
+        var tempDir = TestTempPaths.CreateDirectory("codex-test-spark-secondary-constraint");
+        var authPath = Path.Combine(tempDir, "auth.json");
+        var token = CreateJwt("user@example.com", "plus");
+
+        await File.WriteAllTextAsync(authPath, JsonSerializer.Serialize(new
+        {
+            tokens = new
+            {
+                access_token = token,
+            },
+        }));
+
+        this.SetupHttpResponse("https://chatgpt.com/backend-api/wham/usage", new HttpResponseMessage
+        {
+            StatusCode = HttpStatusCode.OK,
+            Content = new StringContent(JsonSerializer.Serialize(new
+            {
+                plan_type = "plus",
+                rate_limit = new
+                {
+                    primary_window = new { used_percent = 0, reset_after_seconds = 18000 },
+                    secondary_window = new { used_percent = 98, reset_after_seconds = 604800 },
+                },
+                additional_rate_limits = new object[]
+                {
+                    new
+                    {
+                        limit_name = "GPT-5.3-Codex-Spark",
+                        rate_limit = new
+                        {
+                            // Spark 5h window just reset — own quota is 0% used
+                            primary_window = new { used_percent = 0, reset_after_seconds = 18000 },
+                        },
+                    },
+                },
+            })),
+        });
+
+        var provider = new CodexProvider(this.HttpClient, this.Logger.Object, authPath);
+
+        try
+        {
+            var usages = (await provider.GetUsageAsync(new ProviderConfig { ProviderId = "codex" })).ToList();
+            var parent = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
+            Assert.NotNull(parent.Details);
+
+            var sparkDetail = Assert.Single(
+                parent.Details!,
+                d => d.DetailType == ProviderUsageDetailType.QuotaWindow &&
+                     d.Name.Contains("Spark", StringComparison.OrdinalIgnoreCase));
+
+            // Spark detail must show 98% used (the secondary/weekly constraint),
+            // not 0% (the Spark 5h window that just reset).
+            var usedPercent = UsageMath.GetEffectiveUsedPercent(sparkDetail);
+            Assert.NotNull(usedPercent);
+            Assert.Equal(98, usedPercent!.Value, precision: 0);
         }
         finally
         {
