@@ -43,8 +43,7 @@ public class WpfScreenshotService : IScreenshotService
             App.Preferences = new AppPreferences
             {
                 AlwaysOnTop = true,
-                InvertProgressBar = true,
-                InvertCalculations = false,
+                ShowUsedPercentages = true,
                 ColorThresholdYellow = 60,
                 ColorThresholdRed = 80,
                 FontFamily = "Segoe UI",

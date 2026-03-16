@@ -100,7 +100,7 @@ public class WpfTrayIconService : ITrayIconService
         var desiredIcons = new Dictionary<string, (string ToolTip, double Percentage, bool IsQuota)>(StringComparer.OrdinalIgnoreCase);
         var yellowThreshold = prefs?.ColorThresholdYellow ?? 60;
         var redThreshold = prefs?.ColorThresholdRed ?? 80;
-        var invert = prefs?.InvertProgressBar ?? false;
+        var invert = prefs?.ShowUsedPercentages ?? false;
 
         foreach (var config in configs)
         {
@@ -136,17 +136,17 @@ public class WpfTrayIconService : ITrayIconService
                     continue;
                 }
 
-                var detailPercent = ParsePercent(detail.Used);
-                if (!detailPercent.HasValue)
+                if (!detail.PercentageValue.HasValue)
                 {
                     continue;
                 }
 
                 var key = $"{config.ProviderId}:{subName}";
                 var isQuotaSub = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
+                var pctStr = $"{detail.PercentageValue.Value:F0}%";
                 desiredIcons[key] = (
-                    $"{usage.ProviderName} - {subName}: {detail.Description} ({detail.Used})",
-                    detailPercent.Value,
+                    $"{usage.ProviderName} - {subName}: {detail.Description} ({pctStr})",
+                    detail.PercentageValue.Value,
                     isQuotaSub
                 );
             }
