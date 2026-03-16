@@ -14,8 +14,10 @@ public class OpenCodeProvider : ProviderBase
         displayName: "OpenCode",
         planType: PlanType.Usage,
         isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go",
-        includeInWellKnownProviders: true);
+        defaultConfigType: "pay-as-you-go")
+    {
+        IncludeInWellKnownProviders = true,
+    };
 
     public override ProviderDefinition Definition => StaticDefinition;
     public override string ProviderId => StaticDefinition.ProviderId;
@@ -130,9 +132,7 @@ private ProviderUsage ParseJsonResponse(string json, int httpStatus = 200)
             {
                 ProviderId = ProviderId,
                 ProviderName = "Opencode Zen",
-                RequestsPercentage = 0,
                 RequestsUsed = totalCost,
-                UsageUnit = "USD",
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
                 IsAvailable = true,

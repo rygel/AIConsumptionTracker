@@ -50,11 +50,9 @@ public class AnthropicProvider : ProviderBase
                 ProviderId = ProviderId,
                 ProviderName = "Anthropic",
                 IsAvailable = true,
-                RequestsPercentage = 0.0,
                 IsQuotaBased = false,
                 PlanType = PlanType.Usage,
                 Description = "Connected (Check Dashboard)",
-                UsageUnit = "Status",
                 AuthSource = config.AuthSource,
                 RawJson = "{\"source\":\"anthropic\",\"status\":\"connected_no_usage_endpoint\"}",
                 HttpStatus = 200

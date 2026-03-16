@@ -115,7 +115,7 @@ public class WpfTrayIconService : ITrayIconService
                 !usage.Description.Contains("unknown", StringComparison.OrdinalIgnoreCase))
             {
                 var isQuota = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
-                desiredIcons[config.ProviderId] = ($"{usage.ProviderName}: {usage.Description}", usage.RequestsPercentage, isQuota);
+                desiredIcons[config.ProviderId] = ($"{usage.ProviderName}: {usage.Description}", usage.UsedPercent, isQuota);
             }
 
             if (config.EnabledSubTrays == null || usage.Details == null)
