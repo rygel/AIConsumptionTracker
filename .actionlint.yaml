@@ -1,5 +1,0 @@
-shellcheck:
-  enable:
-    # Only report shellcheck findings at error severity; info/style are pre-existing
-    # in workflows that pre-date this linter and are tracked separately.
-    - error
