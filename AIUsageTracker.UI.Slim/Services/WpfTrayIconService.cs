@@ -134,17 +134,18 @@ public class WpfTrayIconService : ITrayIconService
                     continue;
                 }
 
-                if (!detail.PercentageValue.HasValue)
+                var effectiveUsedPct = UsageMath.GetEffectiveUsedPercent(detail);
+                if (!effectiveUsedPct.HasValue)
                 {
                     continue;
                 }
 
                 var key = $"{config.ProviderId}:{subName}";
                 var isQuotaSub = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
-                var pctStr = $"{detail.PercentageValue.Value:F0}%";
+                var pctStr = ProviderUsageDetailValuePresentationCatalog.GetDisplayText(detail, showUsed: invert, includeSemanticLabel: false);
                 desiredIcons[key] = (
                     $"{usage.ProviderName} - {subName}: {detail.Description} ({pctStr})",
-                    detail.PercentageValue.Value,
+                    effectiveUsedPct.Value,
                     isQuotaSub
                 );
             }
