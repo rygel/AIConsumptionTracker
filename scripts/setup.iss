@@ -1,7 +1,7 @@
 ; AI Usage Tracker - Inno Setup Script
 
 #ifndef MyAppVersion
-  #define MyAppVersion "2.2.28-beta.41"
+  #define MyAppVersion "2.3.0"
 #endif
 #ifndef SourcePath
   #define SourcePath "..\dist\publish-win-x64"
@@ -102,8 +102,22 @@ begin
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
 begin
   ConfigureRuntimeDependencies();
+
+  // Explicitly stop running instances before files are overwritten.
+  // CloseApplications=yes relies on Restart Manager (WM_QUERYENDSESSION) which fails
+  // for tray/background processes that have no message pump. taskkill /F is reliable.
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM AIUsageTracker.exe /T',        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM AIUsageTracker.Monitor.exe /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM AIUsageTracker.Web.exe /T',     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM AIUsageTracker.CLI.exe /T',     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  // Brief pause to let the OS release file handles after process exit.
+  Sleep(500);
+
   Result := '';
 end;
 
@@ -181,6 +195,7 @@ Compression=lzma2/normal
 SolidCompression=no
 #endif
 CloseApplications=yes
+CloseApplicationsFilter=AIUsageTracker*.exe
 DisableDirPage=auto
 DirExistsWarning=no
 SetupIconFile=..\AIUsageTracker.UI.Slim\Assets\app_icon.ico

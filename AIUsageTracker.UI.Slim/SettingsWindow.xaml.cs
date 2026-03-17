@@ -479,6 +479,8 @@ public partial class SettingsWindow : Window
             usageByProviderId.TryGetValue(item.Config.ProviderId, out var usage);
             this.AddProviderCard(item.Config, usage, item.IsDerived);
         }
+
+        this.PopulateProviderVisibilitySettings();
     }
 
     private void AddProviderCard(ProviderConfig config, ProviderUsage? usage, bool isDerived = false)
@@ -950,7 +952,6 @@ public partial class SettingsWindow : Window
         this.AggressiveTopmostCheck.IsChecked = this._preferences.AggressiveAlwaysOnTop;
         this.ForceWin32TopmostCheck.IsChecked = this._preferences.ForceWin32Topmost;
         this.ApplyDisplayModePreference();
-        this.PopulateProviderVisibilitySettings();
         this.ThemeCombo.DisplayMemberPath = nameof(ThemeOption.Label);
         this.ThemeCombo.SelectedValuePath = nameof(ThemeOption.Value);
         this.ThemeCombo.ItemsSource = this.GetThemeOptions();
@@ -998,35 +999,67 @@ public partial class SettingsWindow : Window
     {
         this.ProviderCardVisibilityPanel.Children.Clear();
         var hidden = this._preferences.HiddenProviderItemIds;
-        var providers = ProviderMetadataCatalog.Definitions
-            .Where(d => d.MainWindowVisibilityItems.Count > 0)
+
+        // Run the same pipeline as the main window (no hidden filter) to get every card
+        // that could potentially appear, then group by canonical provider.
+        var renderPrep = ProviderUsageDisplayCatalog.PrepareForMainWindow(this._usages);
+        var allCards = ProviderUsageDisplayCatalog
+            .ExpandSyntheticAggregateChildren(renderPrep.DisplayableUsages, hiddenItemIds: [])
             .ToList();
 
-        foreach (var definition in providers)
-        {
-            this.ProviderCardVisibilityPanel.Children.Add(new TextBlock
-            {
-                Text = definition.DisplayName,
-                FontWeight = FontWeights.SemiBold,
-                Margin = new Thickness(0, 0, 0, 4),
-                Foreground = (Brush)this.FindResource("SecondaryText"),
-            });
+        var groups = allCards
+            .GroupBy(
+                u => ProviderMetadataCatalog.GetCanonicalProviderId(u.ProviderId ?? string.Empty),
+                StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-            for (var i = 0; i < definition.MainWindowVisibilityItems.Count; i++)
+        foreach (var group in groups)
+        {
+            var cards = group.ToList();
+
+            if (cards.Count == 1)
             {
-                var (itemId, label) = definition.MainWindowVisibilityItems[i];
-                var isLast = i == definition.MainWindowVisibilityItems.Count - 1;
+                // Single card: flat checkbox with no heading.
+                var usage = cards[0];
                 var checkBox = new CheckBox
                 {
-                    Content = label,
-                    Tag = itemId,
-                    IsChecked = !hidden.Contains(itemId, StringComparer.OrdinalIgnoreCase),
-                    Margin = new Thickness(15, 2, 0, isLast ? 20 : 2),
+                    Content = usage.ProviderName ?? usage.ProviderId,
+                    Tag = usage.ProviderId,
+                    IsChecked = !hidden.Contains(usage.ProviderId ?? string.Empty, StringComparer.OrdinalIgnoreCase),
+                    Margin = new Thickness(0, 2, 0, 6),
                     Foreground = (Brush)this.FindResource("SecondaryText"),
                 };
                 checkBox.Checked += this.ProviderVisibility_Changed;
                 checkBox.Unchecked += this.ProviderVisibility_Changed;
                 this.ProviderCardVisibilityPanel.Children.Add(checkBox);
+            }
+            else
+            {
+                // Multiple cards for one provider: bold heading + indented checkboxes.
+                ProviderMetadataCatalog.TryGet(group.Key, out var definition);
+                this.ProviderCardVisibilityPanel.Children.Add(new TextBlock
+                {
+                    Text = definition?.DisplayName ?? group.Key,
+                    FontWeight = FontWeights.SemiBold,
+                    Margin = new Thickness(0, 4, 0, 4),
+                    Foreground = (Brush)this.FindResource("SecondaryText"),
+                });
+
+                for (var i = 0; i < cards.Count; i++)
+                {
+                    var usage = cards[i];
+                    var checkBox = new CheckBox
+                    {
+                        Content = usage.ProviderName ?? usage.ProviderId,
+                        Tag = usage.ProviderId,
+                        IsChecked = !hidden.Contains(usage.ProviderId ?? string.Empty, StringComparer.OrdinalIgnoreCase),
+                        Margin = new Thickness(15, 2, 0, i == cards.Count - 1 ? 16 : 2),
+                        Foreground = (Brush)this.FindResource("SecondaryText"),
+                    };
+                    checkBox.Checked += this.ProviderVisibility_Changed;
+                    checkBox.Unchecked += this.ProviderVisibility_Changed;
+                    this.ProviderCardVisibilityPanel.Children.Add(checkBox);
+                }
             }
         }
     }
