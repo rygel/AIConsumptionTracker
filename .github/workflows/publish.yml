@@ -6,13 +6,12 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'           # Stable releases: v2.2.25
       - 'v[0-9]+.[0-9]+.[0-9]+-beta.*'    # Beta releases: v2.3.0-beta.1
 
-permissions:
-  contents: write  # create-release job creates GitHub releases and uploads assets
-
 jobs:
   publish:
     runs-on: windows-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     strategy:
       matrix:
         runtime: [win-x64, win-x86, win-arm64, linux-x64, osx-x64, osx-arm64]
@@ -21,6 +20,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Extract Version and Channel
         id: extract
@@ -64,8 +64,12 @@ jobs:
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          persist-credentials: false
 
       - name: Extract Version and Channel
         id: extract
@@ -76,7 +80,7 @@ jobs:
           else
             CHANNEL="stable"
           fi
-          
+
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
           echo "Version: $VERSION, Channel: $CHANNEL"
@@ -96,8 +100,12 @@ jobs:
     needs: [publish, generate-appcast]
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          persist-credentials: false
 
       - name: Extract Version and Channel
         id: extract
