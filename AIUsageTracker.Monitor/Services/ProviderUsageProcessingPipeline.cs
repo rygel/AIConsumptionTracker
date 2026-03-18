@@ -453,6 +453,12 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             return false;
         }
 
+        // Entries with details (quota windows, model data, etc.) are real — not placeholders.
+        if (usage.Details?.Count > 0)
+        {
+            return false;
+        }
+
         // Keep unavailable entries that carry a description — they are actionable
         // (e.g. "Codex auth token not found", "API Key missing").  Only discard
         // truly empty entries that have nothing to show the user.
