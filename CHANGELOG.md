@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [2.3.1-beta.1] - 2026-03-18
+
+### Removed
+- **AnthropicProvider**: Removed the non-functional stub provider that returned hardcoded responses with no real API integration.
+
+### Changed
+- **ProviderBase Helpers**: Added `CreateBearerRequest()` and `DeserializeJsonOrDefault<T>()` helpers to `ProviderBase`, eliminating repeated boilerplate across all provider implementations.
+
+### CI/CD
+- Updated all GitHub Actions to latest major versions (checkout v6, setup-dotnet v5, upload-artifact v7, download-artifact v8, github-script v8, cache v5, codecov v5, create-pull-request v8, paths-filter v4) to eliminate Node.js 20 deprecation warnings.
+
 ## [2.3.0] - 2026-03-16
 
 ### Added
