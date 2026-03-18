@@ -51,6 +51,15 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
         foreach (var usage in usages)
         {
             totalProcessedEntries++;
+
+            // Placeholder check must run on the ORIGINAL usage before normalization,
+            // because NormalizeUsage fills in "Unavailable" for empty descriptions —
+            // which would prevent the filter from ever seeing a blank description.
+            if (this.ShouldRejectPlaceholderStage(usage, ref placeholderFilteredCount))
+            {
+                continue;
+            }
+
             if (!this.TryNormalizeUsageForProcessing(
                     usage,
                     isPrivacyMode,
@@ -71,11 +80,6 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             }
 
             normalized = this.ApplyDetailContractStage(normalized, ref detailContractAdjustedCount);
-
-            if (this.ShouldRejectPlaceholderStage(normalized, ref placeholderFilteredCount))
-            {
-                continue;
-            }
 
             accepted.Add(normalized);
         }
@@ -449,11 +453,15 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             return false;
         }
 
-        if (usage.State == ProviderUsageState.Missing || usage.State == ProviderUsageState.Unavailable)
+        // Entries with details (quota windows, model data, etc.) are real — not placeholders.
+        if (usage.Details?.Count > 0)
         {
-            return true;
+            return false;
         }
 
+        // Keep unavailable entries that carry a description — they are actionable
+        // (e.g. "Codex auth token not found", "API Key missing").  Only discard
+        // truly empty entries that have nothing to show the user.
         return string.IsNullOrWhiteSpace(usage.Description);
     }
 
