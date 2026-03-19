@@ -1,11 +1,11 @@
 name: Slim Screenshot Baseline
 
 # Behaviour split by event type:
-#   push  → generate fresh screenshots on windows-2025 and commit them back as new
-#            baselines (with [skip ci] to avoid loops). This keeps baselines OS-accurate.
+#   push / workflow_dispatch → generate fresh screenshots on windows-2025 and open a PR
+#            targeting the same branch.  The PR's screenshot check runs in comparison
+#            mode and passes (same OS, same build), so it can be merged immediately.
 #   pull_request → compare freshly-generated screenshots against the committed baselines
-#            and fail on regressions > 1% pixel error. This is the regression gate.
-#   workflow_dispatch → same as push (regenerate + commit).
+#            and fail on regressions > 1% pixel error.  This is the regression gate.
 
 on:
   push:
@@ -37,7 +37,8 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write  # write needed to push updated baselines on push/dispatch events
+  contents: write
+  pull-requests: write
 
 jobs:
   screenshot-baseline:
@@ -48,8 +49,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          # persist-credentials required for the baseline-commit step on push events
-          persist-credentials: ${{ github.event_name != 'pull_request' }}
+          persist-credentials: true
 
       - name: Setup .NET with Cache
         uses: ./.github/actions/setup-dotnet-cache
@@ -73,11 +73,12 @@ jobs:
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify_slim_theme_smoke.ps1 -Configuration Debug -SkipBuild
         shell: pwsh
 
-      # ── Push / dispatch path: regenerate baselines and commit them ─────────────
-      # Screenshots are written directly to docs/ (the baseline location).
-      # The [skip ci] commit tag prevents an infinite trigger loop.
+      # ── Push / dispatch path: open a PR with refreshed baselines ──────────────
+      # Screenshots are generated directly into docs/ then committed to a new branch.
+      # The resulting PR runs the comparison check (PR mode below) which passes because
+      # both baseline and candidate come from the same windows-2025 runner.
 
-      - name: Generate fresh screenshots and update baselines
+      - name: Generate fresh screenshots
         if: github.event_name != 'pull_request'
         run: >
           powershell -NoProfile -ExecutionPolicy Bypass
@@ -85,19 +86,30 @@ jobs:
           -Configuration Debug -SkipBuild
         shell: pwsh
 
-      - name: Commit and push updated baselines
+      - name: Open baseline-update PR if screenshots changed
         if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/screenshot_*_privacy.png
           if (git diff --cached --quiet) {
-            Write-Host "Baselines unchanged — nothing to commit."
+            Write-Host "Baselines unchanged — no PR needed."
             exit 0
           }
           $count = (git diff --cached --name-only | Measure-Object -Line).Lines
-          git commit -m "chore: update $count screenshot baseline(s) from CI (windows-2025) [skip ci]"
-          git push
+          $branch = "chore/update-screenshot-baselines-${{ github.run_id }}"
+          $base   = "${{ github.ref_name }}"
+          git checkout -b $branch
+          git commit -m "chore: update $count screenshot baseline(s) from CI (windows-2025)"
+          git push origin $branch
+          gh pr create `
+            --title "chore: update $count screenshot baseline(s) from CI (windows-2025)" `
+            --body "Automated baseline refresh captured on ``windows-2025`` by [run ${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).\`n\`nThe screenshot comparison check on this PR will pass — both baselines and candidates are rendered on the same runner OS." `
+            --base $base `
+            --head $branch `
+            --label "automated"
         shell: pwsh
 
       # ── Pull-request path: compare candidate screenshots against committed baselines ──
