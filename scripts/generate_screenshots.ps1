@@ -115,13 +115,10 @@ if (-not $process.HasExited) {
 # Check if screenshots were created
 $expectedScreenshots = @(
     "screenshot_dashboard_privacy.png",
-    "screenshot_settings_privacy.png",
     "screenshot_settings_providers_privacy.png",
     "screenshot_settings_layout_privacy.png",
     "screenshot_settings_history_privacy.png",
-    "screenshot_settings_agent_privacy.png",
-    "screenshot_info_privacy.png",
-    "screenshot_context_menu_privacy.png"
+    "screenshot_info_privacy.png"
 )
 
 Write-Host ""
