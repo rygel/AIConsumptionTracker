@@ -24,6 +24,10 @@ public class UsageDatabase : IUsageDatabase
     /// at least two full retry cycles have failed or the monitor was not running.
     /// </summary>
     private static readonly TimeSpan StaleDataThreshold = TimeSpan.FromHours(1);
+
+    // Compaction runs at most once per day. DateTime.MinValue means "never run" — compaction fires on first startup.
+    private DateTime _lastCompactedAt = DateTime.MinValue;
+
     private readonly string _dbPath;
     private readonly string _connectionString;
     private readonly ILogger<UsageDatabase> _logger;
@@ -266,6 +270,75 @@ public class UsageDatabase : IUsageDatabase
 
             const string sql = "DELETE FROM raw_snapshots WHERE fetched_at < datetime('now', '-7 days')";
             await connection.ExecuteAsync(sql).ConfigureAwait(false);
+        }
+        finally
+        {
+            this._semaphore.Release();
+        }
+    }
+
+    public async Task CompactHistoryAsync()
+    {
+        var now = DateTime.UtcNow;
+        if (now - this._lastCompactedAt < TimeSpan.FromHours(23))
+        {
+            return;
+        }
+
+        await this._semaphore.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            using var connection = new SqliteConnection(this._connectionString);
+            await connection.OpenAsync().ConfigureAwait(false);
+
+            // Phase 1: rows in the 7–90 day window → keep last row per (provider, hour)
+            const string downsampleHourly = @"
+                DELETE FROM provider_history
+                WHERE id NOT IN (
+                    SELECT MAX(id)
+                    FROM provider_history
+                    WHERE fetched_at >= datetime('now', '-90 days')
+                      AND fetched_at < datetime('now', '-7 days')
+                    GROUP BY provider_id, strftime('%Y-%m-%dT%H', fetched_at)
+                )
+                AND fetched_at >= datetime('now', '-90 days')
+                AND fetched_at < datetime('now', '-7 days')";
+
+            // Phase 2: rows older than 90 days → keep last row per (provider, day)
+            const string downsampleDaily = @"
+                DELETE FROM provider_history
+                WHERE id NOT IN (
+                    SELECT MAX(id)
+                    FROM provider_history
+                    WHERE fetched_at < datetime('now', '-90 days')
+                    GROUP BY provider_id, DATE(fetched_at)
+                )
+                AND fetched_at < datetime('now', '-90 days')";
+
+            var deletedHourly = await connection.ExecuteAsync(downsampleHourly).ConfigureAwait(false);
+            var deletedDaily = await connection.ExecuteAsync(downsampleDaily).ConfigureAwait(false);
+            var totalDeleted = deletedHourly + deletedDaily;
+
+            if (totalDeleted > 0)
+            {
+                this._logger.LogInformation(
+                    "History compacted: removed {Total} rows ({Hourly} from 7–90d window, {Daily} from >90d window). Running VACUUM.",
+                    totalDeleted,
+                    deletedHourly,
+                    deletedDaily);
+
+                // VACUUM must run outside a transaction and requires a separate connection.
+                await connection.CloseAsync().ConfigureAwait(false);
+                using var vacuumConnection = new SqliteConnection(this._connectionString);
+                await vacuumConnection.OpenAsync().ConfigureAwait(false);
+                await vacuumConnection.ExecuteAsync("VACUUM").ConfigureAwait(false);
+            }
+            else
+            {
+                this._logger.LogDebug("History compaction: nothing to compact.");
+            }
+
+            this._lastCompactedAt = now;
         }
         finally
         {
