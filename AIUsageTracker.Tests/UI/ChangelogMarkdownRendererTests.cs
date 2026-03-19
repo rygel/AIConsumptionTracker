@@ -204,4 +204,177 @@ public sealed class ChangelogMarkdownRendererTests
         Assert.Equal(2, blockCount); // intro paragraph + code block
         Assert.Equal("Consolas", lastFontFamilySource);
     }
+
+    // ── Inline formatting (STA thread required) ───────────────────────────────
+
+    [Fact]
+    public void BuildDocument_RendersBoldInline()
+    {
+        string? boldText = null;
+        bool? hasBold = null;
+        Exception? ex = null;
+
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var renderer = new ChangelogMarkdownRenderer((_, fallback) => fallback);
+                var doc = renderer.BuildDocument("Release includes **major fix** today.");
+                var paragraph = doc.Blocks.OfType<Paragraph>().Single();
+                var bold = paragraph.Inlines.OfType<Bold>().FirstOrDefault();
+                hasBold = bold != null;
+                boldText = bold?.Inlines.OfType<Run>().FirstOrDefault()?.Text;
+            }
+            catch (Exception e)
+            {
+                ex = e;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (ex != null) throw new Exception("STA thread threw", ex);
+
+        Assert.True(hasBold, "Expected a Bold inline");
+        Assert.Equal("major fix", boldText);
+    }
+
+    [Fact]
+    public void BuildDocument_RendersItalicInline()
+    {
+        string? italicText = null;
+        bool? hasItalic = null;
+        Exception? ex = null;
+
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var renderer = new ChangelogMarkdownRenderer((_, fallback) => fallback);
+                var doc = renderer.BuildDocument("Note: *emphasis here* for clarity.");
+                var paragraph = doc.Blocks.OfType<Paragraph>().Single();
+                var italic = paragraph.Inlines.OfType<Italic>().FirstOrDefault();
+                hasItalic = italic != null;
+                italicText = italic?.Inlines.OfType<Run>().FirstOrDefault()?.Text;
+            }
+            catch (Exception e)
+            {
+                ex = e;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (ex != null) throw new Exception("STA thread threw", ex);
+
+        Assert.True(hasItalic, "Expected an Italic inline");
+        Assert.Equal("emphasis here", italicText);
+    }
+
+    [Fact]
+    public void BuildDocument_RendersInlineCode_WithConsolasFont()
+    {
+        string? inlineCodeText = null;
+        string? inlineCodeFont = null;
+        Exception? ex = null;
+
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var renderer = new ChangelogMarkdownRenderer((_, fallback) => fallback);
+                var doc = renderer.BuildDocument("Run `dotnet test` to execute.");
+                var paragraph = doc.Blocks.OfType<Paragraph>().Single();
+                var codeRun = paragraph.Inlines.OfType<Run>()
+                    .FirstOrDefault(r => r.FontFamily?.Source == "Consolas");
+                inlineCodeText = codeRun?.Text;
+                inlineCodeFont = codeRun?.FontFamily?.Source;
+            }
+            catch (Exception e)
+            {
+                ex = e;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (ex != null) throw new Exception("STA thread threw", ex);
+
+        Assert.Equal("dotnet test", inlineCodeText);
+        Assert.Equal("Consolas", inlineCodeFont);
+    }
+
+    [Fact]
+    public void BuildDocument_RendersMixedInlines_InCorrectOrder()
+    {
+        // "Fix **bold** and `code` together." should produce:
+        // Run("Fix "), Bold("bold"), Run(" and "), Run("code" w/ Consolas), Run(" together.")
+        int? inlineCount = null;
+        bool? hasBold = null;
+        bool? hasConsolas = null;
+        Exception? ex = null;
+
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var renderer = new ChangelogMarkdownRenderer((_, fallback) => fallback);
+                var doc = renderer.BuildDocument("Fix **bold** and `code` together.");
+                var paragraph = doc.Blocks.OfType<Paragraph>().Single();
+                inlineCount = paragraph.Inlines.Count;
+                hasBold = paragraph.Inlines.OfType<Bold>().Any();
+                hasConsolas = paragraph.Inlines.OfType<Run>()
+                    .Any(r => r.FontFamily?.Source == "Consolas");
+            }
+            catch (Exception e)
+            {
+                ex = e;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (ex != null) throw new Exception("STA thread threw", ex);
+
+        Assert.True(hasBold, "Expected a Bold inline");
+        Assert.True(hasConsolas, "Expected an inline code Run with Consolas font");
+        Assert.True(inlineCount >= 3, "Expected at least 3 inlines for mixed content");
+    }
+
+    [Fact]
+    public void BuildDocument_RendersHyperlinkInDocument()
+    {
+        Uri? linkUri = null;
+        string? linkText = null;
+        Exception? ex = null;
+
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var renderer = new ChangelogMarkdownRenderer((_, fallback) => fallback);
+                var doc = renderer.BuildDocument("See [release notes](https://example.com/notes) for details.");
+                var paragraph = doc.Blocks.OfType<Paragraph>().Single();
+                var hyperlink = paragraph.Inlines.OfType<Hyperlink>().FirstOrDefault();
+                linkUri = hyperlink?.NavigateUri;
+                linkText = hyperlink?.Inlines.OfType<Run>().FirstOrDefault()?.Text;
+            }
+            catch (Exception e)
+            {
+                ex = e;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (ex != null) throw new Exception("STA thread threw", ex);
+
+        Assert.Equal(new Uri("https://example.com/notes"), linkUri);
+        Assert.Equal("release notes", linkText);
+    }
 }

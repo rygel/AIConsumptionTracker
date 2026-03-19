@@ -2612,7 +2612,6 @@ public partial class MainWindow : Window
         {
             this.SettingsBtn_Click(this, new RoutedEventArgs());
             e.Handled = true;
-            e.Handled = true;
         }
     }
 }
