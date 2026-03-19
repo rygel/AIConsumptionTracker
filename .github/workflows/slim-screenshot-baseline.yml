@@ -1,5 +1,12 @@
 name: Slim Screenshot Baseline
 
+# Behaviour split by event type:
+#   push  → generate fresh screenshots on windows-2025 and commit them back as new
+#            baselines (with [skip ci] to avoid loops). This keeps baselines OS-accurate.
+#   pull_request → compare freshly-generated screenshots against the committed baselines
+#            and fail on regressions > 1% pixel error. This is the regression gate.
+#   workflow_dispatch → same as push (regenerate + commit).
+
 on:
   push:
     branches: [ main, develop ]
@@ -30,7 +37,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write  # write needed to push updated baselines on push/dispatch events
 
 jobs:
   screenshot-baseline:
@@ -41,7 +48,8 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          persist-credentials: false
+          # persist-credentials required for the baseline-commit step on push events
+          persist-credentials: ${{ github.event_name != 'pull_request' }}
 
       - name: Setup .NET with Cache
         uses: ./.github/actions/setup-dotnet-cache
@@ -61,9 +69,41 @@ jobs:
       - name: Build tests
         run: dotnet build AIUsageTracker.Tests\AIUsageTracker.Tests.csproj --configuration Debug --no-restore
 
-      # Copy committed baseline PNGs to a stable directory before the generate step
-      # overwrites docs/ with freshly-rendered images.
+      - name: Verify Slim themes render in headless mode
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify_slim_theme_smoke.ps1 -Configuration Debug -SkipBuild
+        shell: pwsh
+
+      # ── Push / dispatch path: regenerate baselines and commit them ─────────────
+      # Screenshots are written directly to docs/ (the baseline location).
+      # The [skip ci] commit tag prevents an infinite trigger loop.
+
+      - name: Generate fresh screenshots and update baselines
+        if: github.event_name != 'pull_request'
+        run: >
+          powershell -NoProfile -ExecutionPolicy Bypass
+          -File .\scripts\capture_screenshot.ps1
+          -Configuration Debug -SkipBuild
+        shell: pwsh
+
+      - name: Commit and push updated baselines
+        if: github.event_name != 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshot_*_privacy.png
+          if (git diff --cached --quiet) {
+            Write-Host "Baselines unchanged — nothing to commit."
+            exit 0
+          }
+          $count = (git diff --cached --name-only | Measure-Object -Line).Lines
+          git commit -m "chore: update $count screenshot baseline(s) from CI (windows-2025) [skip ci]"
+          git push
+        shell: pwsh
+
+      # ── Pull-request path: compare candidate screenshots against committed baselines ──
+
       - name: Copy baseline screenshots
+        if: github.event_name == 'pull_request'
         run: |
           $baselineDir = "$env:RUNNER_TEMP\screenshot-baseline"
           New-Item -ItemType Directory -Force -Path $baselineDir | Out-Null
@@ -71,7 +111,8 @@ jobs:
           Write-Host "Baselines copied to $baselineDir"
         shell: pwsh
 
-      - name: Generate fresh screenshots (headless, to candidate dir)
+      - name: Generate fresh screenshots (to candidate dir)
+        if: github.event_name == 'pull_request'
         run: |
           $candidateDir = "$env:RUNNER_TEMP\screenshot-candidate"
           New-Item -ItemType Directory -Force -Path $candidateDir | Out-Null
@@ -79,11 +120,8 @@ jobs:
             -Configuration Debug -SkipBuild -OutputDir $candidateDir
         shell: pwsh
 
-      - name: Verify Slim themes render in headless mode
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify_slim_theme_smoke.ps1 -Configuration Debug -SkipBuild
-        shell: pwsh
-
       - name: Compare screenshots against baseline (perceptual, 1% tolerance)
+        if: github.event_name == 'pull_request'
         env:
           SCREENSHOT_BASELINE_DIR: ${{ runner.temp }}\screenshot-baseline
           SCREENSHOT_CANDIDATE_DIR: ${{ runner.temp }}\screenshot-candidate
