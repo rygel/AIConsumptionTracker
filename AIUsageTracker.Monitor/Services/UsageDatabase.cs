@@ -179,65 +179,184 @@ public class UsageDatabase : IUsageDatabase
                     is_active = excluded.is_active,
                     updated_at = CURRENT_TIMESTAMP";
 
-            const string sql = @"
-                INSERT INTO provider_history (
-                    provider_id,
-                    requests_used, requests_available, requests_percentage,
-                    is_available, status_message, next_reset_time, fetched_at,
-                    details_json, response_latency_ms, http_status,
-                    upstream_response_validity, upstream_response_note,
-                    parent_provider_id
-                ) VALUES (
-                    @ProviderId,
-                    @RequestsUsed, @RequestsAvailable, @RequestsPercentage,
-                    @IsAvailable, @StatusMessage, @NextResetTime, @FetchedAt,
-                    @DetailsJson, @ResponseLatencyMs, @HttpStatus,
-                    @UpstreamResponseValidity, @UpstreamResponseNote,
-                    @ParentProviderId
-                )";
-
-            var providerUpsertParameters = validUsages.Select(u => new
+            await connection.ExecuteAsync(providerUpsertSql, validUsages.Select(u => new
             {
                 ProviderId = u.ProviderId,
                 ProviderName = u.ProviderName,
                 AuthSource = u.AuthSource,
                 AccountName = u.AccountName,
                 IsActive = u.IsAvailable ? 1 : 0,
-            });
+            })).ConfigureAwait(false);
 
-            await connection.ExecuteAsync(providerUpsertSql, providerUpsertParameters).ConfigureAwait(false);
+            // Dedup gate: load the last stored row per provider and only INSERT when
+            // something meaningful has changed. When data is unchanged, we UPDATE the
+            // existing row's fetched_at so the stale-data detector keeps seeing a fresh
+            // timestamp even though no new row was written.
+            var providerIds = validUsages.Select(u => u.ProviderId!).ToList();
+            var lastRows = await LoadLastHistoryRowsAsync(connection, providerIds).ConfigureAwait(false);
 
-            var parameters = validUsages.Select(u => new
+            var toInsert = new List<HistoryInsertParams>();
+            var toTouch = new List<HistoryTouchParams>();
+
+            foreach (var u in validUsages)
             {
-                ProviderId = u.ProviderId,
-                RequestsUsed = u.RequestsUsed,
-                RequestsAvailable = u.RequestsAvailable,
-                RequestsPercentage = u.UsedPercent,
-                IsAvailable = u.IsAvailable ? 1 : 0,
-                StatusMessage = u.Description ?? string.Empty,
-                NextResetTime = u.NextResetTime?.ToString("O"),
-                FetchedAt = (u.FetchedAt == default ? DateTime.UtcNow : u.FetchedAt).ToString("O"),
-                DetailsJson = u.Details != null && u.Details.Any()
+                var detailsJson = u.Details != null && u.Details.Any()
                     ? JsonSerializer.Serialize(u.Details)
-                    : null,
-                ResponseLatencyMs = u.ResponseLatencyMs,
-                HttpStatus = u.HttpStatus,
-                UpstreamResponseValidity = (int)(u.UpstreamResponseValidity == UpstreamResponseValidity.Unknown
-                    ? UpstreamResponseValidityCatalog.Evaluate(u).Validity
-                    : u.UpstreamResponseValidity),
-                UpstreamResponseNote = string.IsNullOrWhiteSpace(u.UpstreamResponseNote)
-                    ? UpstreamResponseValidityCatalog.Evaluate(u).Note
-                    : u.UpstreamResponseNote,
-                ParentProviderId = u.ParentProviderId,
-            });
+                    : null;
+                var fetchedAt = (u.FetchedAt == default ? DateTime.UtcNow : u.FetchedAt).ToString("O");
+                var nextResetTime = u.NextResetTime?.ToString("O");
+                var statusMessage = u.Description ?? string.Empty;
+                var validityEval = UpstreamResponseValidityCatalog.Evaluate(u);
+                var validityInt = (int)(u.UpstreamResponseValidity == UpstreamResponseValidity.Unknown
+                    ? validityEval.Validity
+                    : u.UpstreamResponseValidity);
+                var validityNote = string.IsNullOrWhiteSpace(u.UpstreamResponseNote)
+                    ? validityEval.Note
+                    : u.UpstreamResponseNote;
 
-            await connection.ExecuteAsync(sql, parameters).ConfigureAwait(false);
+                if (lastRows.TryGetValue(u.ProviderId!, out var last)
+                    && IsHistoryUnchanged(u, last, detailsJson, nextResetTime, statusMessage))
+                {
+                    toTouch.Add(new HistoryTouchParams(last.Id, fetchedAt));
+                }
+                else
+                {
+                    toInsert.Add(new HistoryInsertParams(
+                        u.ProviderId!,
+                        u.RequestsUsed,
+                        u.RequestsAvailable,
+                        u.UsedPercent,
+                        u.IsAvailable ? 1 : 0,
+                        statusMessage,
+                        nextResetTime,
+                        fetchedAt,
+                        detailsJson,
+                        u.ResponseLatencyMs,
+                        u.HttpStatus,
+                        validityInt,
+                        validityNote,
+                        u.ParentProviderId));
+                }
+            }
+
+            if (toInsert.Count > 0)
+            {
+                const string insertSql = @"
+                    INSERT INTO provider_history (
+                        provider_id,
+                        requests_used, requests_available, requests_percentage,
+                        is_available, status_message, next_reset_time, fetched_at,
+                        details_json, response_latency_ms, http_status,
+                        upstream_response_validity, upstream_response_note,
+                        parent_provider_id
+                    ) VALUES (
+                        @ProviderId,
+                        @RequestsUsed, @RequestsAvailable, @RequestsPercentage,
+                        @IsAvailable, @StatusMessage, @NextResetTime, @FetchedAt,
+                        @DetailsJson, @ResponseLatencyMs, @HttpStatus,
+                        @UpstreamResponseValidity, @UpstreamResponseNote,
+                        @ParentProviderId
+                    )";
+
+                await connection.ExecuteAsync(insertSql, toInsert).ConfigureAwait(false);
+            }
+
+            if (toTouch.Count > 0)
+            {
+                await connection.ExecuteAsync(
+                    "UPDATE provider_history SET fetched_at = @FetchedAt WHERE id = @Id",
+                    toTouch).ConfigureAwait(false);
+            }
+
+            if (toInsert.Count > 0 || toTouch.Count > 0)
+            {
+                this._logger.LogDebug(
+                    "History write: {Inserted} inserted, {Touched} touched (data unchanged)",
+                    toInsert.Count,
+                    toTouch.Count);
+            }
         }
         finally
         {
             this._semaphore.Release();
         }
     }
+
+    private static bool IsHistoryUnchanged(
+        ProviderUsage usage,
+        LastHistoryRow last,
+        string? newDetailsJson,
+        string? newNextResetTime,
+        string newStatusMessage)
+    {
+        return usage.RequestsUsed == last.RequestsUsed
+            && usage.RequestsAvailable == last.RequestsAvailable
+            && (usage.IsAvailable ? 1 : 0) == last.IsAvailable
+            && usage.HttpStatus == last.HttpStatus
+            && string.Equals(newStatusMessage, last.StatusMessage ?? string.Empty, StringComparison.Ordinal)
+            && string.Equals(newNextResetTime, last.NextResetTime, StringComparison.Ordinal)
+            && string.Equals(newDetailsJson, last.DetailsJson, StringComparison.Ordinal);
+    }
+
+    private static async Task<Dictionary<string, LastHistoryRow>> LoadLastHistoryRowsAsync(
+        SqliteConnection connection,
+        IList<string> providerIds)
+    {
+        if (providerIds.Count == 0)
+        {
+            return new Dictionary<string, LastHistoryRow>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        const string sql = @"
+            SELECT h.id AS Id,
+                   h.provider_id AS ProviderId,
+                   h.requests_used AS RequestsUsed,
+                   h.requests_available AS RequestsAvailable,
+                   h.is_available AS IsAvailable,
+                   h.status_message AS StatusMessage,
+                   h.next_reset_time AS NextResetTime,
+                   h.details_json AS DetailsJson,
+                   h.http_status AS HttpStatus
+            FROM provider_history h
+            WHERE h.id IN (
+                SELECT MAX(id)
+                FROM provider_history
+                WHERE provider_id IN @Ids
+                GROUP BY provider_id
+            )";
+
+        var rows = await connection.QueryAsync<LastHistoryRow>(sql, new { Ids = providerIds }).ConfigureAwait(false);
+        return rows.ToDictionary(r => r.ProviderId, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed record LastHistoryRow(
+        long Id,
+        string ProviderId,
+        double RequestsUsed,
+        double RequestsAvailable,
+        int IsAvailable,
+        string? StatusMessage,
+        string? NextResetTime,
+        string? DetailsJson,
+        int HttpStatus);
+
+    private sealed record HistoryInsertParams(
+        string ProviderId,
+        double RequestsUsed,
+        double RequestsAvailable,
+        double RequestsPercentage,
+        int IsAvailable,
+        string StatusMessage,
+        string? NextResetTime,
+        string FetchedAt,
+        string? DetailsJson,
+        double ResponseLatencyMs,
+        int HttpStatus,
+        int UpstreamResponseValidity,
+        string UpstreamResponseNote,
+        string? ParentProviderId);
+
+    private sealed record HistoryTouchParams(long Id, string FetchedAt);
 
     public async Task StoreRawSnapshotAsync(string providerId, string rawJson, int httpStatus)
     {

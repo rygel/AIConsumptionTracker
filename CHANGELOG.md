@@ -3,7 +3,8 @@
 ## [Unreleased]
 
 ### Changed
-- **Automatic `provider_history` compaction**: The database now automatically downsamples old history rows once per day to keep the database file size in check. Rows from the last 7 days are kept at full resolution (every ~5 minutes). Rows between 7 and 90 days old are compacted to one row per hour per provider. Rows older than 90 days are compacted to one row per day per provider. A `VACUUM` runs after compaction to reclaim the freed space on disk.
+- **`provider_history` write deduplication**: The database no longer stores rows when nothing has changed. Before each write, the last stored row for each provider is checked against the incoming data. If the quota numbers, availability, status message, reset time, and sub-quota details are all identical, no new row is inserted — instead, only `fetched_at` is updated on the existing row so the stale-data detector stays accurate. During idle periods this eliminates virtually all writes; only genuine state changes are recorded.
+- **Automatic `provider_history` compaction**: Once per day, old history rows are downsampled: rows 7–90 days old are reduced to one per hour per provider; rows older than 90 days are reduced to one per day. A `VACUUM` runs afterwards to reclaim freed disk space. This acts as a safety valve for intensive-use periods where data changes on every poll.
 
 ## [2.3.1-beta.2] - 2026-03-18
 
