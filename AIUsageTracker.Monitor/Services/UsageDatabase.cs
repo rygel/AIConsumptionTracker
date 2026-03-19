@@ -861,6 +861,8 @@ public class UsageDatabase : IUsageDatabase
 
     public async Task<IReadOnlyList<ProviderUsage>> GetHistoryAsync(int limit = 100)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, 10_000);
         await this._semaphore.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -913,6 +915,8 @@ public class UsageDatabase : IUsageDatabase
 
     public async Task<IReadOnlyList<ProviderUsage>> GetHistoryByProviderAsync(string providerId, int limit = 100)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, 10_000);
         await this._semaphore.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -966,6 +970,8 @@ public class UsageDatabase : IUsageDatabase
 
     public async Task<IReadOnlyList<ProviderUsage>> GetRecentHistoryAsync(int countPerProvider)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(countPerProvider);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(countPerProvider, 10_000);
         await this._semaphore.WaitAsync().ConfigureAwait(false);
         try
         {

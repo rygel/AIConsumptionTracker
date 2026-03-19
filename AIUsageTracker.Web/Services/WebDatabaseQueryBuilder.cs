@@ -24,6 +24,8 @@ internal static class WebDatabaseQueryBuilder
 
     public static string BuildHistoryQuery(int limit)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, 10_000);
         return $@"
             SELECT h.*, p.provider_name as ProviderName
             FROM provider_history h
@@ -34,6 +36,8 @@ internal static class WebDatabaseQueryBuilder
 
     public static string BuildProviderHistoryQuery(int limit)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, 10_000);
         return $@"
             SELECT h.*, p.provider_name as ProviderName
             FROM provider_history h
@@ -45,6 +49,12 @@ internal static class WebDatabaseQueryBuilder
 
     public static string BuildExportHistoryQuery(int limit)
     {
+        if (limit < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limit), "Limit must be 0 (no limit) or a positive value.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, 100_000);
         var sql = @"
             SELECT h.*, p.provider_name as ProviderName
             FROM provider_history h
