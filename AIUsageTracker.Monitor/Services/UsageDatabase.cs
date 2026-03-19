@@ -18,9 +18,14 @@ public class UsageDatabase : IUsageDatabase
 
     /// <summary>
     /// Rows older than this are flagged as stale so the UI can warn the user
-    /// that the data may not reflect the current provider state. Set to 1 hour:
-    /// the circuit breaker retries every 30 min, so anything beyond that means
-    /// at least two full retry cycles have failed or the monitor was not running.
+    /// that the data may not reflect the current provider state.
+    ///
+    /// This is intentionally set to 2× the circuit-breaker maximum backoff
+    /// (see <see cref="ProviderRefreshCircuitBreakerService"/> — CircuitBreakerMaxBackoff = 30 min).
+    /// A row older than 1 hour means at least two full retry windows have elapsed
+    /// without a successful refresh, either because repeated errors have kept the
+    /// circuit open at max backoff or because the monitor process was not running.
+    /// Changing CircuitBreakerMaxBackoff should be accompanied by a matching update here.
     /// </summary>
     private static readonly TimeSpan StaleDataThreshold = TimeSpan.FromHours(1);
 
