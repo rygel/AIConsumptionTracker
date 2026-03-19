@@ -3,7 +3,8 @@
 
 param(
     [string]$Configuration = "Release",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [string]$OutputDir = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,7 +35,7 @@ else {
 Write-Host ""
 
 # Create screenshots directory if it doesn't exist
-$screenshotsDir = Join-Path $projectRoot "docs"
+$screenshotsDir = if ($OutputDir) { $OutputDir } else { Join-Path $projectRoot "docs" }
 if (-not (Test-Path $screenshotsDir)) {
     New-Item -ItemType Directory -Path $screenshotsDir -Force | Out-Null
     Write-Host "Created screenshots directory: $screenshotsDir" -ForegroundColor Gray
@@ -88,7 +89,8 @@ Write-Host "Capturing screenshots with PRIVACY MODE enabled..." -ForegroundColor
 Write-Host "This will take 15-20 seconds..." -ForegroundColor Gray
 Write-Host ""
 
-$process = Start-Process -FilePath $exePath -ArgumentList @("--test", "--screenshot") -PassThru -WindowStyle Hidden
+$appArgs = @("--test", "--screenshot", "--output-dir", $screenshotsDir)
+$process = Start-Process -FilePath $exePath -ArgumentList $appArgs -PassThru -WindowStyle Hidden
 
 # Wait for the process to complete (screenshot mode auto-exits)
 $timeout = 60
