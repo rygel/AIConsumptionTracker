@@ -24,6 +24,10 @@ public class UsageDatabase : IUsageDatabase
     /// at least two full retry cycles have failed or the monitor was not running.
     /// </summary>
     private static readonly TimeSpan StaleDataThreshold = TimeSpan.FromHours(1);
+
+    // Compaction runs at most once per day. DateTime.MinValue means "never run" — compaction fires on first startup.
+    private DateTime _lastCompactedAt = DateTime.MinValue;
+
     private readonly string _dbPath;
     private readonly string _connectionString;
     private readonly ILogger<UsageDatabase> _logger;
@@ -175,65 +179,184 @@ public class UsageDatabase : IUsageDatabase
                     is_active = excluded.is_active,
                     updated_at = CURRENT_TIMESTAMP";
 
-            const string sql = @"
-                INSERT INTO provider_history (
-                    provider_id,
-                    requests_used, requests_available, requests_percentage,
-                    is_available, status_message, next_reset_time, fetched_at,
-                    details_json, response_latency_ms, http_status,
-                    upstream_response_validity, upstream_response_note,
-                    parent_provider_id
-                ) VALUES (
-                    @ProviderId,
-                    @RequestsUsed, @RequestsAvailable, @RequestsPercentage,
-                    @IsAvailable, @StatusMessage, @NextResetTime, @FetchedAt,
-                    @DetailsJson, @ResponseLatencyMs, @HttpStatus,
-                    @UpstreamResponseValidity, @UpstreamResponseNote,
-                    @ParentProviderId
-                )";
-
-            var providerUpsertParameters = validUsages.Select(u => new
+            await connection.ExecuteAsync(providerUpsertSql, validUsages.Select(u => new
             {
                 ProviderId = u.ProviderId,
                 ProviderName = u.ProviderName,
                 AuthSource = u.AuthSource,
                 AccountName = u.AccountName,
                 IsActive = u.IsAvailable ? 1 : 0,
-            });
+            })).ConfigureAwait(false);
 
-            await connection.ExecuteAsync(providerUpsertSql, providerUpsertParameters).ConfigureAwait(false);
+            // Dedup gate: load the last stored row per provider and only INSERT when
+            // something meaningful has changed. When data is unchanged, we UPDATE the
+            // existing row's fetched_at so the stale-data detector keeps seeing a fresh
+            // timestamp even though no new row was written.
+            var providerIds = validUsages.Select(u => u.ProviderId!).ToList();
+            var lastRows = await LoadLastHistoryRowsAsync(connection, providerIds).ConfigureAwait(false);
 
-            var parameters = validUsages.Select(u => new
+            var toInsert = new List<HistoryInsertParams>();
+            var toTouch = new List<HistoryTouchParams>();
+
+            foreach (var u in validUsages)
             {
-                ProviderId = u.ProviderId,
-                RequestsUsed = u.RequestsUsed,
-                RequestsAvailable = u.RequestsAvailable,
-                RequestsPercentage = u.UsedPercent,
-                IsAvailable = u.IsAvailable ? 1 : 0,
-                StatusMessage = u.Description ?? string.Empty,
-                NextResetTime = u.NextResetTime?.ToString("O"),
-                FetchedAt = (u.FetchedAt == default ? DateTime.UtcNow : u.FetchedAt).ToString("O"),
-                DetailsJson = u.Details != null && u.Details.Any()
+                var detailsJson = u.Details != null && u.Details.Any()
                     ? JsonSerializer.Serialize(u.Details)
-                    : null,
-                ResponseLatencyMs = u.ResponseLatencyMs,
-                HttpStatus = u.HttpStatus,
-                UpstreamResponseValidity = (int)(u.UpstreamResponseValidity == UpstreamResponseValidity.Unknown
-                    ? UpstreamResponseValidityCatalog.Evaluate(u).Validity
-                    : u.UpstreamResponseValidity),
-                UpstreamResponseNote = string.IsNullOrWhiteSpace(u.UpstreamResponseNote)
-                    ? UpstreamResponseValidityCatalog.Evaluate(u).Note
-                    : u.UpstreamResponseNote,
-                ParentProviderId = u.ParentProviderId,
-            });
+                    : null;
+                var fetchedAt = (u.FetchedAt == default ? DateTime.UtcNow : u.FetchedAt).ToString("O");
+                var nextResetTime = u.NextResetTime?.ToString("O");
+                var statusMessage = u.Description ?? string.Empty;
+                var validityEval = UpstreamResponseValidityCatalog.Evaluate(u);
+                var validityInt = (int)(u.UpstreamResponseValidity == UpstreamResponseValidity.Unknown
+                    ? validityEval.Validity
+                    : u.UpstreamResponseValidity);
+                var validityNote = string.IsNullOrWhiteSpace(u.UpstreamResponseNote)
+                    ? validityEval.Note
+                    : u.UpstreamResponseNote;
 
-            await connection.ExecuteAsync(sql, parameters).ConfigureAwait(false);
+                if (lastRows.TryGetValue(u.ProviderId!, out var last)
+                    && IsHistoryUnchanged(u, last, detailsJson, nextResetTime, statusMessage))
+                {
+                    toTouch.Add(new HistoryTouchParams(last.Id, fetchedAt));
+                }
+                else
+                {
+                    toInsert.Add(new HistoryInsertParams(
+                        u.ProviderId!,
+                        u.RequestsUsed,
+                        u.RequestsAvailable,
+                        u.UsedPercent,
+                        u.IsAvailable ? 1 : 0,
+                        statusMessage,
+                        nextResetTime,
+                        fetchedAt,
+                        detailsJson,
+                        u.ResponseLatencyMs,
+                        u.HttpStatus,
+                        validityInt,
+                        validityNote,
+                        u.ParentProviderId));
+                }
+            }
+
+            if (toInsert.Count > 0)
+            {
+                const string insertSql = @"
+                    INSERT INTO provider_history (
+                        provider_id,
+                        requests_used, requests_available, requests_percentage,
+                        is_available, status_message, next_reset_time, fetched_at,
+                        details_json, response_latency_ms, http_status,
+                        upstream_response_validity, upstream_response_note,
+                        parent_provider_id
+                    ) VALUES (
+                        @ProviderId,
+                        @RequestsUsed, @RequestsAvailable, @RequestsPercentage,
+                        @IsAvailable, @StatusMessage, @NextResetTime, @FetchedAt,
+                        @DetailsJson, @ResponseLatencyMs, @HttpStatus,
+                        @UpstreamResponseValidity, @UpstreamResponseNote,
+                        @ParentProviderId
+                    )";
+
+                await connection.ExecuteAsync(insertSql, toInsert).ConfigureAwait(false);
+            }
+
+            if (toTouch.Count > 0)
+            {
+                await connection.ExecuteAsync(
+                    "UPDATE provider_history SET fetched_at = @FetchedAt WHERE id = @Id",
+                    toTouch).ConfigureAwait(false);
+            }
+
+            if (toInsert.Count > 0 || toTouch.Count > 0)
+            {
+                this._logger.LogDebug(
+                    "History write: {Inserted} inserted, {Touched} touched (data unchanged)",
+                    toInsert.Count,
+                    toTouch.Count);
+            }
         }
         finally
         {
             this._semaphore.Release();
         }
     }
+
+    private static bool IsHistoryUnchanged(
+        ProviderUsage usage,
+        LastHistoryRow last,
+        string? newDetailsJson,
+        string? newNextResetTime,
+        string newStatusMessage)
+    {
+        return usage.RequestsUsed == last.RequestsUsed
+            && usage.RequestsAvailable == last.RequestsAvailable
+            && (usage.IsAvailable ? 1 : 0) == last.IsAvailable
+            && usage.HttpStatus == last.HttpStatus
+            && string.Equals(newStatusMessage, last.StatusMessage ?? string.Empty, StringComparison.Ordinal)
+            && string.Equals(newNextResetTime, last.NextResetTime, StringComparison.Ordinal)
+            && string.Equals(newDetailsJson, last.DetailsJson, StringComparison.Ordinal);
+    }
+
+    private static async Task<Dictionary<string, LastHistoryRow>> LoadLastHistoryRowsAsync(
+        SqliteConnection connection,
+        IList<string> providerIds)
+    {
+        if (providerIds.Count == 0)
+        {
+            return new Dictionary<string, LastHistoryRow>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        const string sql = @"
+            SELECT h.id AS Id,
+                   h.provider_id AS ProviderId,
+                   h.requests_used AS RequestsUsed,
+                   h.requests_available AS RequestsAvailable,
+                   h.is_available AS IsAvailable,
+                   h.status_message AS StatusMessage,
+                   h.next_reset_time AS NextResetTime,
+                   h.details_json AS DetailsJson,
+                   h.http_status AS HttpStatus
+            FROM provider_history h
+            WHERE h.id IN (
+                SELECT MAX(id)
+                FROM provider_history
+                WHERE provider_id IN @Ids
+                GROUP BY provider_id
+            )";
+
+        var rows = await connection.QueryAsync<LastHistoryRow>(sql, new { Ids = providerIds }).ConfigureAwait(false);
+        return rows.ToDictionary(r => r.ProviderId, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed record LastHistoryRow(
+        long Id,
+        string ProviderId,
+        double RequestsUsed,
+        double RequestsAvailable,
+        int IsAvailable,
+        string? StatusMessage,
+        string? NextResetTime,
+        string? DetailsJson,
+        int HttpStatus);
+
+    private sealed record HistoryInsertParams(
+        string ProviderId,
+        double RequestsUsed,
+        double RequestsAvailable,
+        double RequestsPercentage,
+        int IsAvailable,
+        string StatusMessage,
+        string? NextResetTime,
+        string FetchedAt,
+        string? DetailsJson,
+        double ResponseLatencyMs,
+        int HttpStatus,
+        int UpstreamResponseValidity,
+        string UpstreamResponseNote,
+        string? ParentProviderId);
+
+    private sealed record HistoryTouchParams(long Id, string FetchedAt);
 
     public async Task StoreRawSnapshotAsync(string providerId, string rawJson, int httpStatus)
     {
@@ -266,6 +389,75 @@ public class UsageDatabase : IUsageDatabase
 
             const string sql = "DELETE FROM raw_snapshots WHERE fetched_at < datetime('now', '-7 days')";
             await connection.ExecuteAsync(sql).ConfigureAwait(false);
+        }
+        finally
+        {
+            this._semaphore.Release();
+        }
+    }
+
+    public async Task CompactHistoryAsync()
+    {
+        var now = DateTime.UtcNow;
+        if (now - this._lastCompactedAt < TimeSpan.FromHours(23))
+        {
+            return;
+        }
+
+        await this._semaphore.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            using var connection = new SqliteConnection(this._connectionString);
+            await connection.OpenAsync().ConfigureAwait(false);
+
+            // Phase 1: rows in the 7–90 day window → keep last row per (provider, hour)
+            const string downsampleHourly = @"
+                DELETE FROM provider_history
+                WHERE id NOT IN (
+                    SELECT MAX(id)
+                    FROM provider_history
+                    WHERE fetched_at >= datetime('now', '-90 days')
+                      AND fetched_at < datetime('now', '-7 days')
+                    GROUP BY provider_id, strftime('%Y-%m-%dT%H', fetched_at)
+                )
+                AND fetched_at >= datetime('now', '-90 days')
+                AND fetched_at < datetime('now', '-7 days')";
+
+            // Phase 2: rows older than 90 days → keep last row per (provider, day)
+            const string downsampleDaily = @"
+                DELETE FROM provider_history
+                WHERE id NOT IN (
+                    SELECT MAX(id)
+                    FROM provider_history
+                    WHERE fetched_at < datetime('now', '-90 days')
+                    GROUP BY provider_id, DATE(fetched_at)
+                )
+                AND fetched_at < datetime('now', '-90 days')";
+
+            var deletedHourly = await connection.ExecuteAsync(downsampleHourly).ConfigureAwait(false);
+            var deletedDaily = await connection.ExecuteAsync(downsampleDaily).ConfigureAwait(false);
+            var totalDeleted = deletedHourly + deletedDaily;
+
+            if (totalDeleted > 0)
+            {
+                this._logger.LogInformation(
+                    "History compacted: removed {Total} rows ({Hourly} from 7–90d window, {Daily} from >90d window). Running VACUUM.",
+                    totalDeleted,
+                    deletedHourly,
+                    deletedDaily);
+
+                // VACUUM must run outside a transaction and requires a separate connection.
+                await connection.CloseAsync().ConfigureAwait(false);
+                using var vacuumConnection = new SqliteConnection(this._connectionString);
+                await vacuumConnection.OpenAsync().ConfigureAwait(false);
+                await vacuumConnection.ExecuteAsync("VACUUM").ConfigureAwait(false);
+            }
+            else
+            {
+                this._logger.LogDebug("History compaction: nothing to compact.");
+            }
+
+            this._lastCompactedAt = now;
         }
         finally
         {

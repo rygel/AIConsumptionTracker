@@ -245,6 +245,7 @@ public class ProviderRefreshService : BackgroundService
             }
 
             await this._database.CleanupOldSnapshotsAsync().ConfigureAwait(false);
+            await this._database.CompactHistoryAsync().ConfigureAwait(false);
             await this._database.OptimizeAsync().ConfigureAwait(false);
             this._logger.LogInformation("Cleanup complete");
             refreshSucceeded = true;
