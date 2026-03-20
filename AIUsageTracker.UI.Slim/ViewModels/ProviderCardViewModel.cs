@@ -142,15 +142,10 @@ public partial class ProviderCardViewModel : BaseViewModel
     {
         get
         {
-            if (!this.EnablePaceAdjustment || !this.Usage.PeriodDuration.HasValue || !this.Usage.NextResetTime.HasValue)
-            {
-                return this.UsedPercent;
-            }
-
-            return UsageMath.CalculatePaceAdjustedColorPercent(
+            return global::AIUsageTracker.UI.Slim.ProviderPacePresentationCatalog.GetColorIndicatorPercent(
+                this.Usage,
                 this.UsedPercent,
-                this.Usage.NextResetTime.Value.ToUniversalTime(),
-                this.Usage.PeriodDuration.Value);
+                this.EnablePaceAdjustment);
         }
     }
 
@@ -162,18 +157,10 @@ public partial class ProviderCardViewModel : BaseViewModel
     {
         get
         {
-            if (!this.EnablePaceAdjustment || !this.Usage.PeriodDuration.HasValue || !this.Usage.NextResetTime.HasValue)
-            {
-                return null;
-            }
-
-            var period = this.Usage.PeriodDuration.Value;
-            var periodStart = this.Usage.NextResetTime.Value.ToUniversalTime() - period;
-            var elapsed = DateTime.UtcNow - periodStart;
-            var elapsedFraction = Math.Clamp(elapsed.TotalSeconds / period.TotalSeconds, 0.01, 1.0);
-            var expectedPercent = elapsedFraction * 100.0;
-
-            return this.UsedPercent < expectedPercent * 0.95 ? "On pace" : null;
+            return global::AIUsageTracker.UI.Slim.ProviderPacePresentationCatalog.GetPaceBadgeText(
+                this.Usage,
+                this.UsedPercent,
+                this.EnablePaceAdjustment);
         }
     }
 

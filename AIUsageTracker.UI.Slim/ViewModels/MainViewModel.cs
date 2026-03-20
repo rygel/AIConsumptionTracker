@@ -203,12 +203,8 @@ public partial class MainViewModel : BaseViewModel
         this.ShowUsedPercentages = prefs.ShowUsedPercentages;
         this.EnablePaceAdjustment = prefs.EnablePaceAdjustment;
 
-        var renderPreparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages.ToList());
-        var filteredUsages = renderPreparation.DisplayableUsages;
-        var orderedUsages = ProviderMainWindowOrderingCatalog.OrderForMainWindow(filteredUsages);
-
-        var expandedUsages = ProviderUsageDisplayCatalog.ExpandSyntheticAggregateChildren(
-            orderedUsages,
+        var expandedUsages = ProviderUsageDisplayCatalog.BuildMainWindowUsageList(
+            usages,
             prefs.HiddenProviderItemIds);
 
         // Group by quota-based vs pay-as-you-go

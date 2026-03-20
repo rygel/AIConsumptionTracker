@@ -1029,23 +1029,19 @@ public partial class MainWindow : Window
         {
             this.LogDiagnostic($"[DIAGNOSTIC] Rendering {usagesCopy.Count} providers...");
 
-            var renderPreparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usagesCopy, this._preferences.HiddenProviderItemIds);
-            var filteredUsages = renderPreparation.DisplayableUsages;
+            var expandedUsages = ProviderUsageDisplayCatalog.BuildMainWindowUsageList(
+                usagesCopy,
+                this._preferences.HiddenProviderItemIds);
 
             this.LogDiagnostic(
-                $"[DIAGNOSTIC] Provider render counts: raw={usagesCopy.Count}, filtered={filteredUsages.Count}");
+                $"[DIAGNOSTIC] Provider render counts: raw={usagesCopy.Count}, rendered={expandedUsages.Count}");
 
-            if (!filteredUsages.Any())
+            if (!expandedUsages.Any())
             {
                 this.ProvidersList.Children.Add(this.CreateInfoTextBlock("Data received, but no displayable providers were found."));
                 this.ApplyProviderListFontPreferences();
                 return;
             }
-
-            var orderedUsages = ProviderMainWindowOrderingCatalog.OrderForMainWindow(filteredUsages);
-            var expandedUsages = ProviderUsageDisplayCatalog.ExpandSyntheticAggregateChildren(
-                orderedUsages,
-                this._preferences.HiddenProviderItemIds);
 
             UIElement? currentHeader = null;
             StackPanel? currentContainer = null;
@@ -1284,7 +1280,10 @@ public partial class MainWindow : Window
         else
         {
             var indicatorWidth = showUsed ? presentation.UsedPercent : presentation.RemainingPercent;
-            var colorIndicatorPercent = this.GetColorIndicatorPercent(usage, presentation.UsedPercent);
+            var colorIndicatorPercent = ProviderPacePresentationCatalog.GetColorIndicatorPercent(
+                usage,
+                presentation.UsedPercent,
+                this._preferences.EnablePaceAdjustment);
             pGrid = this.CreateSingleProgressLayer(colorIndicatorPercent, indicatorWidth, opacity: 0.45);
         }
 
@@ -1344,7 +1343,10 @@ public partial class MainWindow : Window
                 Dock.Right);
         }
 
-        var paceBadgeText = this.GetPaceBadgeText(usage, presentation.UsedPercent);
+        var paceBadgeText = ProviderPacePresentationCatalog.GetPaceBadgeText(
+            usage,
+            presentation.UsedPercent,
+            this._preferences.EnablePaceAdjustment);
         if (!string.IsNullOrWhiteSpace(paceBadgeText))
         {
             this.AddDockedElement(
@@ -1689,35 +1691,6 @@ public partial class MainWindow : Window
         }
 
         return $"{Math.Max(1, (int)Math.Ceiling(diff.TotalMinutes))}m";
-    }
-
-    private double GetColorIndicatorPercent(ProviderUsage usage, double usedPercent)
-    {
-        if (!this._preferences.EnablePaceAdjustment || !usage.PeriodDuration.HasValue || !usage.NextResetTime.HasValue)
-        {
-            return usedPercent;
-        }
-
-        return UsageMath.CalculatePaceAdjustedColorPercent(
-            usedPercent,
-            usage.NextResetTime.Value.ToUniversalTime(),
-            usage.PeriodDuration.Value);
-    }
-
-    private string? GetPaceBadgeText(ProviderUsage usage, double usedPercent)
-    {
-        if (!this._preferences.EnablePaceAdjustment || !usage.PeriodDuration.HasValue || !usage.NextResetTime.HasValue)
-        {
-            return null;
-        }
-
-        var period = usage.PeriodDuration.Value;
-        var periodStart = usage.NextResetTime.Value.ToUniversalTime() - period;
-        var elapsed = DateTime.UtcNow - periodStart;
-        var elapsedFraction = Math.Clamp(elapsed.TotalSeconds / period.TotalSeconds, 0.01, 1.0);
-        var expectedPercent = elapsedFraction * 100.0;
-
-        return usedPercent < expectedPercent * 0.95 ? "On pace" : null;
     }
 
     private Brush GetProgressBarColor(double usedPercentage)

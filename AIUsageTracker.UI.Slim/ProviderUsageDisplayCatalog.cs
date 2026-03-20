@@ -9,6 +9,16 @@ namespace AIUsageTracker.UI.Slim;
 
 internal static class ProviderUsageDisplayCatalog
 {
+    public static IReadOnlyList<ProviderUsage> BuildMainWindowUsageList(
+        IReadOnlyCollection<ProviderUsage> usages,
+        IEnumerable<string>? hiddenItemIds = null)
+    {
+        var hiddenIds = hiddenItemIds ?? Array.Empty<string>();
+        var renderPreparation = PrepareForMainWindow(usages, hiddenIds);
+        var orderedUsages = ProviderMainWindowOrderingCatalog.OrderForMainWindow(renderPreparation.DisplayableUsages);
+        return ExpandSyntheticAggregateChildren(orderedUsages, hiddenIds).ToList();
+    }
+
     public static ProviderRenderPreparation PrepareForMainWindow(
         IReadOnlyCollection<ProviderUsage> usages,
         IEnumerable<string>? hiddenItemIds = null)
