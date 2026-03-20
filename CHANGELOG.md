@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.3.2-beta.7] - 2026-03-20
+
 ### Fixed
 - Pace-adjusted quota colours now apply correctly to model-specific detail cards (for example Claude Sonnet/Opus) by propagating declared period durations through the catalog pipeline.
 - Legacy database compatibility bootstrap now ensures `provider_history.next_reset_time` exists before timestamp conversion, preventing migration failures on older schemas.
@@ -11,6 +13,16 @@
 - Removed fallback heuristics in quota/reset presentation paths; dual-bucket and reset badge rendering now resolve from provider metadata declarations.
 - Simplified percentage parsing to explicit supported formats while preserving plain numeric values (for example `"50"`).
 - Normalized formatting/newline/encoding and analyzer baseline configuration so release pre-commit validation passes cleanly.
+
+### CI/CD
+- **NuGet caching added to `publish` workflow**: All 6 matrix jobs (win-x64/x86/arm64, linux-x64, osx-x64/arm64) now share a NuGet package cache, eliminating redundant restores on every publish run.
+- **Playwright browser caching**: Chromium (~300MB) is now cached in `web-tests-windows` keyed on the Web.Tests project file — skipped on cache hit.
+- **Cross-platform test job now uses NuGet cache**: The Ubuntu core-test job was the only job without NuGet caching.
+- **CodeQL runs on push to main/develop**: Previously weekly only; now also triggered on source code changes post-merge.
+- **OSSF Scorecard**: Added supply-chain security scoring, publishes results to securityscorecards.dev and GitHub Code Scanning.
+- **Gitleaks secret scanning**: Added secret scanning on every PR and push; scans only PR-introduced commits on pull requests, full history on push.
+- **GitHub Actions updated**: trivy-action v0.29.0→v0.35.0, scorecard-action v2.4.0→v2.4.3, codeql-action/upload-sarif v3→v4.34.0 (consistent across all workflows), actions/cache v5.0.3→v5.0.4.
+- **Resolved zizmor template-injection alerts**: `publish.yml` and `pr-size-check.yml` `${{ }}` expressions moved from inline shell/JS into `env:` vars.
 
 ## [2.3.2-beta.6] - 2026-03-20
 
