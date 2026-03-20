@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <TrackerVersion>2.3.2-beta.5</TrackerVersion>
+    <TrackerVersion>2.3.2-beta.6</TrackerVersion>
     <TrackerAssemblyVersion>2.3.2</TrackerAssemblyVersion>
     <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\artifacts\**\*</DefaultItemExcludes>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
@@ -12,7 +12,7 @@
   <ItemGroup>
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" Link="stylecop.json" />
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15" PrivateAssets="all" />
-    <PackageReference Include="Meziantou.Analyzer" Version="3.0.19" PrivateAssets="all" />
+    <PackageReference Include="Meziantou.Analyzer" Version="3.0.25" PrivateAssets="all" />
     <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.556" PrivateAssets="all" />
   </ItemGroup>
 </Project>
