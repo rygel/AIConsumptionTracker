@@ -116,7 +116,7 @@ public class DatabaseMigrationService
             throw new ArgumentException($"Table '{tableName}' is not in the migration allowlist.", nameof(tableName));
 
         using var infoCommand = connection.CreateCommand();
-        infoCommand.CommandText = $"PRAGMA table_info({tableName});"; // sql-interpolation-allow — tableName validated against AllowedMigrationTables
+        infoCommand.CommandText = $"PRAGMA table_info({tableName});"; // sql-interpolation-allow — tableName validated against AllowedMigrationTables // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli
 
         var exists = false;
         using (var reader = infoCommand.ExecuteReader())
@@ -325,7 +325,7 @@ public class DatabaseMigrationService
             throw new ArgumentException($"Table '{tableName}' is not in the migration allowlist.", nameof(tableName));
 
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = $"PRAGMA table_info({tableName})"; // sql-interpolation-allow — tableName validated against AllowedMigrationTables
+        cmd.CommandText = $"PRAGMA table_info({tableName})"; // sql-interpolation-allow — tableName validated against AllowedMigrationTables // nosemgrep: csharp.lang.security.sqli.csharp-sqli.csharp-sqli
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
