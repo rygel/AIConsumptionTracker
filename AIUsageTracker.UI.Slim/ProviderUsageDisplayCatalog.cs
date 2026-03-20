@@ -42,7 +42,8 @@ internal static class ProviderUsageDisplayCatalog
     /// <summary>
     /// Expands providers that use synthetic aggregate child rendering into their individual
     /// child cards, filtered by the user's hidden item preferences. Non-aggregate providers
-    /// and aggregate providers with no details are yielded as-is.
+    /// and aggregate providers with no details are yielded as-is, enriched with PeriodDuration
+    /// from the catalog so the ViewModel can read it directly without any fallback chain.
     /// </summary>
     public static IEnumerable<ProviderUsage> ExpandSyntheticAggregateChildren(
         IEnumerable<ProviderUsage> usages,
@@ -53,6 +54,7 @@ internal static class ProviderUsageDisplayCatalog
             if (!ProviderMetadataCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty) ||
                 usage.Details?.Any() != true)
             {
+                EnrichWithPeriodDuration(usage);
                 yield return usage;
                 continue;
             }
@@ -65,6 +67,26 @@ internal static class ProviderUsageDisplayCatalog
                     yield return child;
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Sets PeriodDuration on a ProviderUsage from the provider catalog's primary rolling window,
+    /// so the ViewModel can compute pace-adjusted colours by reading Usage.PeriodDuration directly.
+    /// No-ops if the usage already has PeriodDuration set (e.g. synthetic aggregate children).
+    /// </summary>
+    private static void EnrichWithPeriodDuration(ProviderUsage usage)
+    {
+        if (usage.PeriodDuration.HasValue) return;
+
+        var canonicalId = ProviderMetadataCatalog.GetCanonicalProviderId(usage.ProviderId ?? string.Empty);
+        ProviderMetadataCatalog.TryGet(canonicalId, out var definition);
+        var rollingWindow = definition?.QuotaWindows
+            .FirstOrDefault(w => w.Kind == WindowKind.Rolling && w.PeriodDuration.HasValue);
+
+        if (rollingWindow != null)
+        {
+            usage.PeriodDuration = rollingWindow.PeriodDuration;
         }
     }
 
@@ -201,7 +223,7 @@ internal static class ProviderUsageDisplayCatalog
             Description = !parentUsage.IsAvailable && !string.IsNullOrWhiteSpace(parentUsage.Description)
                 ? parentUsage.Description
                 : hasRemainingPercent ? $"{effectiveRemaining:F0}% Remaining" : "Usage unknown",
-            NextResetTime = detail.NextResetTime,
+            NextResetTime = detail.NextResetTime ?? parentUsage.NextResetTime,
             IsAvailable = parentUsage.IsAvailable,
             AuthSource = parentUsage.AuthSource,
             AccountName = parentUsage.AccountName,

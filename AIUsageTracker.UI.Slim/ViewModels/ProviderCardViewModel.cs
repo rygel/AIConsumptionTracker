@@ -134,95 +134,47 @@ public partial class ProviderCardViewModel : BaseViewModel
     public bool HasDetails => this.Details.Count > 0;
 
     /// <summary>
-    /// Pace-adjusted used percentage used solely for progress-bar colour decisions.
-    /// For rolling-window providers with a known period duration this is reduced when the
-    /// user is under pace, so the bar stays green/yellow rather than turning red due to the
-    /// raw percentage crossing a threshold while consumption is still within budget.
-    /// Equals <see cref="UsedPercent"/> for providers without rolling-window data.
+    /// Pace-adjusted used percentage for progress-bar colour decisions.
+    /// PeriodDuration and NextResetTime are set on every usage by ProviderUsageDisplayCatalog
+    /// before the ViewModel is constructed, so no catalog lookup or fallback is needed here.
     /// </summary>
     public double ColorIndicatorPercent
     {
         get
         {
-            if (!this.EnablePaceAdjustment)
-            {
-                return this.UsedPercent;
-            }
-
-            var (nextReset, period) = ResolveRollingWindowInfo();
-            if (nextReset == null || period == null)
+            if (!this.EnablePaceAdjustment || !this.Usage.PeriodDuration.HasValue || !this.Usage.NextResetTime.HasValue)
             {
                 return this.UsedPercent;
             }
 
             return UsageMath.CalculatePaceAdjustedColorPercent(
                 this.UsedPercent,
-                nextReset.Value.ToUniversalTime(),
-                period.Value);
+                this.Usage.NextResetTime.Value.ToUniversalTime(),
+                this.Usage.PeriodDuration.Value);
         }
     }
 
     /// <summary>
-    /// Short text badge indicating rolling-window pace, or null when pace info is unavailable.
-    /// Returns "On pace" when the user is consuming at or below the expected rate for the
-    /// elapsed fraction of the quota window — a positive signal that suppresses alarm.
-    /// Returns null when at/over pace (raw percentage already conveys urgency) or when
-    /// no period duration is known.
+    /// "On pace" badge when usage is meaningfully under the expected rate for the elapsed
+    /// fraction of the quota window. Null when pace info is unavailable or user is at/over pace.
     /// </summary>
     public string? PaceBadgeText
     {
         get
         {
-            if (!this.EnablePaceAdjustment)
+            if (!this.EnablePaceAdjustment || !this.Usage.PeriodDuration.HasValue || !this.Usage.NextResetTime.HasValue)
             {
                 return null;
             }
 
-            var (nextReset, period) = ResolveRollingWindowInfo();
-            if (nextReset == null || period == null || period.Value.TotalSeconds <= 0)
-            {
-                return null;
-            }
-
-            var periodStart = nextReset.Value.ToUniversalTime() - period.Value;
+            var period = this.Usage.PeriodDuration.Value;
+            var periodStart = this.Usage.NextResetTime.Value.ToUniversalTime() - period;
             var elapsed = DateTime.UtcNow - periodStart;
-            var elapsedFraction = Math.Clamp(elapsed.TotalSeconds / period.Value.TotalSeconds, 0.01, 1.0);
+            var elapsedFraction = Math.Clamp(elapsed.TotalSeconds / period.TotalSeconds, 0.01, 1.0);
             var expectedPercent = elapsedFraction * 100.0;
 
-            // Only show the badge when the user is meaningfully under pace.
-            // A 5% margin avoids flickering the badge when nearly at pace.
-            if (this.UsedPercent < expectedPercent * 0.95)
-            {
-                return "On pace";
-            }
-
-            return null;
+            return this.UsedPercent < expectedPercent * 0.95 ? "On pace" : null;
         }
-    }
-
-    private (DateTime? NextReset, TimeSpan? PeriodDuration) ResolveRollingWindowInfo()
-    {
-        // Synthetic-child rows carry PeriodDuration directly on the ProviderUsage
-        // (set from the QuotaWindowDefinition by ProviderUsageDisplayCatalog).
-        if (this.Usage.PeriodDuration.HasValue && this.Usage.NextResetTime.HasValue)
-        {
-            return (this.Usage.NextResetTime, this.Usage.PeriodDuration);
-        }
-
-        // For regular (non-synthetic) provider cards, look up the window duration from the
-        // provider's QuotaWindowDefinition — the single source of truth.
-        ProviderMetadataCatalog.TryGet(this.ProviderId, out var definition);
-        var rollingWindow = definition?.QuotaWindows
-            .FirstOrDefault(w => w.Kind == WindowKind.Rolling && w.PeriodDuration.HasValue);
-        if (rollingWindow == null)
-        {
-            return (null, null);
-        }
-
-        var rollingDetail = this.Usage.Details?
-            .FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Rolling && d.NextResetTime.HasValue);
-
-        return (rollingDetail?.NextResetTime, rollingWindow.PeriodDuration);
     }
 
     partial void OnUsageChanged(ProviderUsage value)
