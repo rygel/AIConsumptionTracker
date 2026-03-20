@@ -4,6 +4,16 @@
 
 ## [2.3.2-beta.7] - 2026-03-20
 
+### Fixed
+- Pace-adjusted quota colours now apply correctly to model-specific detail cards (for example Claude Sonnet/Opus) by propagating declared period durations through the catalog pipeline.
+- Legacy database compatibility bootstrap now ensures `provider_history.next_reset_time` exists before timestamp conversion, preventing migration failures on older schemas.
+- Web usage/history mapping now handles both epoch and text timestamps consistently, restoring correct reliability and latest-row projections.
+
+### Changed
+- Removed fallback heuristics in quota/reset presentation paths; dual-bucket and reset badge rendering now resolve from provider metadata declarations.
+- Simplified percentage parsing to explicit supported formats while preserving plain numeric values (for example `"50"`).
+- Normalized formatting/newline/encoding and analyzer baseline configuration so release pre-commit validation passes cleanly.
+
 ### CI/CD
 - **NuGet caching added to `publish` workflow**: All 6 matrix jobs (win-x64/x86/arm64, linux-x64, osx-x64/arm64) now share a NuGet package cache, eliminating redundant restores on every publish run.
 - **Playwright browser caching**: Chromium (~300MB) is now cached in `web-tests-windows` keyed on the Web.Tests project file — skipped on cache hit.
@@ -13,6 +23,15 @@
 - **Gitleaks secret scanning**: Added secret scanning on every PR and push; scans only PR-introduced commits on pull requests, full history on push.
 - **GitHub Actions updated**: trivy-action v0.29.0→v0.35.0, scorecard-action v2.4.0→v2.4.3, codeql-action/upload-sarif v3→v4.34.0 (consistent across all workflows), actions/cache v5.0.3→v5.0.4.
 - **Resolved zizmor template-injection alerts**: `publish.yml` and `pr-size-check.yml` `${{ }}` expressions moved from inline shell/JS into `env:` vars.
+
+## [2.3.2-beta.6] - 2026-03-20
+
+### Fixed
+- **Pace-adjusted colour not applied to Sonnet card**: `ResolveRollingWindowInfo()` path 2 searched only for `WindowKind.Rolling` details — which excluded the Sonnet card (`WindowKind.ModelSpecific`) — so `ColorIndicatorPercent` fell back to the raw used percentage and rendered yellow despite the user being well under pace.
+
+### Refactored
+- **Removed `ResolveRollingWindowInfo()` fallback chain**: `ProviderUsageDisplayCatalog.ExpandSyntheticAggregateChildren` now calls `EnrichWithPeriodDuration` on every non-aggregate usage before yielding it, setting `PeriodDuration` directly from the catalog's primary rolling window definition. `ProviderCardViewModel.ColorIndicatorPercent` and `PaceBadgeText` now read `Usage.PeriodDuration` and `Usage.NextResetTime` directly — one condition, no catalog lookup, no detail iteration.
+- **`CreateAggregateDetailUsage` uses `detail.NextResetTime ?? parentUsage.NextResetTime`**: ensures the child card always has a reset time for pace calculation even when the provider detail's own reset time is absent.
 
 ## [2.3.2-beta.5] - 2026-03-20
 
@@ -113,4 +132,3 @@
 
 ### CI/CD
 - Updated all GitHub Actions to latest major versions (checkout v6, setup-dotnet v5, upload-artifact v7, download-artifact v8, github-script v8, cache v5, codecov v5, create-pull-request v8, paths-filter v4) to eliminate Node.js 20 deprecation warnings.
-
