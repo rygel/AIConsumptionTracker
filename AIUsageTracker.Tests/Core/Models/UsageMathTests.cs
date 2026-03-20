@@ -341,15 +341,29 @@ public class UsageMathTests
     public void CalculatePaceAdjustedColorPercent_UnderPace_ReturnsReducedPercent()
     {
         // 70% used after 86% of a 7-day window has elapsed.
-        // User is under pace → colour should be reduced (squaring formula).
+        // User is under pace → colour should be reduced (cubic formula).
         var period = TimeSpan.FromDays(7);
         var nextReset = DateTime.UtcNow.AddDays(1);   // 1 day left → ~86% elapsed
         var result = UsageMath.CalculatePaceAdjustedColorPercent(70.0, nextReset, period);
 
-        // 86% elapsed → expectedPercent ≈ 86 → 70² / 86 ≈ 56.98
+        // 86% elapsed → expectedPercent ≈ 86 → 70³ / 86² ≈ 46.4
         Assert.True(result < 70.0, "Under-pace result should be less than raw used percent.");
         Assert.True(result < 60.0, "Under-pace result should be below the default yellow threshold (60).");
         Assert.True(result >= 0.0);
+    }
+
+    [Fact]
+    public void CalculatePaceAdjustedColorPercent_BorderlineUnderPace_StaysGreen()
+    {
+        // Regression test: 73% used with ~88.5% of 7-day window elapsed (Sonnet real-world case).
+        // With the old quadratic formula: 73² / 88.5 ≈ 60.2 → yellow (wrong).
+        // With the cubic formula:        73³ / 88.5² ≈ 49.7 → green (correct).
+        var period = TimeSpan.FromDays(7);
+        var now = new DateTime(2026, 3, 20, 13, 41, 0, DateTimeKind.Utc);
+        var nextReset = new DateTime(2026, 3, 21, 9, 0, 1, DateTimeKind.Utc);
+        var result = UsageMath.CalculatePaceAdjustedColorPercent(73.0, nextReset, period, nowUtc: now);
+
+        Assert.True(result < 60.0, $"73% used at 88.5% elapsed should be below yellow threshold (60), was {result:F2}");
     }
 
     [Fact]
