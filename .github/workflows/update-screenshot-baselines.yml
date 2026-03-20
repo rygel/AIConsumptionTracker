@@ -39,20 +39,26 @@ jobs:
         run: dotnet restore AIUsageTracker.UI.Slim\AIUsageTracker.UI.Slim.csproj
 
       - name: Build Slim UI
+        env:
+          BUILD_CONFIGURATION: ${{ inputs.configuration || 'Debug' }}
         run: >
           dotnet build AIUsageTracker.UI.Slim\AIUsageTracker.UI.Slim.csproj
-          --configuration ${{ inputs.configuration || 'Debug' }}
+          --configuration $env:BUILD_CONFIGURATION
           --no-restore
 
       - name: Generate fresh screenshots
+        env:
+          BUILD_CONFIGURATION: ${{ inputs.configuration || 'Debug' }}
         run: >
           powershell -NoProfile -ExecutionPolicy Bypass
           -File .\scripts\capture_screenshot.ps1
-          -Configuration ${{ inputs.configuration || 'Debug' }}
+          -Configuration $env:BUILD_CONFIGURATION
           -SkipBuild
         shell: pwsh
 
       - name: Commit and push updated baselines
+        env:
+          BUILD_CONFIGURATION: ${{ inputs.configuration || 'Debug' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -62,6 +68,6 @@ jobs:
             exit 0
           }
           $count = (git diff --cached --name-only | Measure-Object -Line).Lines
-          git commit -m "chore: update screenshot baselines from CI (windows-2025, ${{ inputs.configuration || 'Debug' }}) [skip ci]`n`nRegenerated $count baseline PNG(s) on the same runner OS used by the`nscreenshot-baseline comparison job to eliminate rendering-environment drift."
+          git commit -m "chore: update screenshot baselines from CI (windows-2025, $env:BUILD_CONFIGURATION) [skip ci]`n`nRegenerated $count baseline PNG(s) on the same runner OS used by the`nscreenshot-baseline comparison job to eliminate rendering-environment drift."
           git push
         shell: pwsh
