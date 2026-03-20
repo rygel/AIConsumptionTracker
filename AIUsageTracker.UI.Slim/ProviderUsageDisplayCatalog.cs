@@ -13,17 +13,17 @@ internal static class ProviderUsageDisplayCatalog
         IReadOnlyCollection<ProviderUsage> usages,
         IEnumerable<string>? hiddenItemIds = null)
     {
-        var filteredUsages = usages
-            .Where(usage => ProviderMetadataCatalog.ShouldShowInMainWindow(usage.ProviderId ?? string.Empty))
-            .ToList();
+        var hiddenSet = hiddenItemIds != null
+            ? new HashSet<string>(hiddenItemIds, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        if (hiddenItemIds != null)
-        {
-            var hiddenSet = new HashSet<string>(hiddenItemIds, StringComparer.OrdinalIgnoreCase);
-            filteredUsages = filteredUsages
-                .Where(u => !hiddenSet.Contains(u.ProviderId ?? string.Empty))
-                .ToList();
-        }
+        var filteredUsages = usages
+            .Where(usage =>
+            {
+                var id = usage.ProviderId ?? string.Empty;
+                return ProviderMetadataCatalog.ShouldShowInMainWindow(id) && !hiddenSet.Contains(id);
+            })
+            .ToList();
 
         var collapsedParentProviderIds = ResolveCollapsedParentProviderIds(filteredUsages);
 
