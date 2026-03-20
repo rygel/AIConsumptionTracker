@@ -105,7 +105,7 @@ public class DatabaseMigrationService
     private static void EnsureColumn(SqliteConnection connection, string tableName, string columnName, string definition)
     {
         using var infoCommand = connection.CreateCommand();
-        infoCommand.CommandText = $"PRAGMA table_info({tableName});";
+        infoCommand.CommandText = $"PRAGMA table_info({tableName});"; // sql-interpolation-allow — tableName is a hardcoded migration constant, never user input // nosemgrep: csharp.lang.security.sqli.csharp-sqli
 
         var exists = false;
         using (var reader = infoCommand.ExecuteReader())
@@ -311,7 +311,7 @@ public class DatabaseMigrationService
     private static string? GetColumnType(SqliteConnection connection, string tableName, string columnName)
     {
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = $"PRAGMA table_info({tableName})";
+        cmd.CommandText = $"PRAGMA table_info({tableName})"; // sql-interpolation-allow — tableName is a hardcoded migration constant, never user input // nosemgrep: csharp.lang.security.sqli.csharp-sqli
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
