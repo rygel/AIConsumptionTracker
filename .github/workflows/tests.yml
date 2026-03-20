@@ -80,16 +80,17 @@ jobs:
         uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d  # v4
         with:
           filters: |
-            core:
-              - 'Directory.Build.props'
-              - '.editorconfig'
-              - 'AIUsageTracker.Core/**'
-              - 'AIUsageTracker.Infrastructure/**'
-              - 'AIUsageTracker.CLI/**'
-              - 'AIUsageTracker.Tests/**'
-              - 'scripts/run-vstest-with-retry.ps1'
-              - '.github/test-quarantine.txt'
-              - '.github/workflows/tests.yml'
+      core:
+        - 'Directory.Build.props'
+        - '.editorconfig'
+        - 'AIUsageTracker.Core/**'
+        - 'AIUsageTracker.Infrastructure/**'
+        - 'AIUsageTracker.UI.Slim/**'
+        - 'AIUsageTracker.CLI/**'
+        - 'AIUsageTracker.Tests/**'
+        - 'scripts/run-vstest-with-retry.ps1'
+        - '.github/test-quarantine.txt'
+        - '.github/workflows/tests.yml'
             monitor:
               - 'Directory.Build.props'
               - '.editorconfig'
