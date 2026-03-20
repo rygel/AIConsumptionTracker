@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [2.3.2-beta.5] - 2026-03-20
+
+### Fixed
+- **Pace-adjusted bar still yellow when clearly under pace**: The quadratic forgiveness formula (`usedPercent² / expectedPercent`) produced a pace-adjusted value of ~60.2% for Sonnet at 73% used with 88.5% of the 7-day window elapsed — barely above the 60% yellow threshold despite being well under pace. Changed to a cubic formula (`usedPercent³ / expectedPercent²`) which gives 49.7% in the same scenario, correctly rendering the bar green. The new formula is more forgiving for providers that are meaningfully under pace while still warning when genuinely approaching the limit.
+
 ## [2.3.2-beta.4] - 2026-03-20
 
 ### Fixed

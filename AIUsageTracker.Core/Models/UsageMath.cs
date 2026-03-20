@@ -260,11 +260,15 @@ public static class UsageMath
         var expectedPercent = elapsedFraction * 100.0;
 
         // Under pace: user has consumed less than expected → reward with a reduced colour score.
-        // Formula: usedPercent² / expectedPercent  (squaring amplifies the forgiveness).
+        // Formula: usedPercent³ / expectedPercent²
+        //   If you are at 82% of expected pace (e.g. 73% used vs 88.5% expected), the raw formula
+        //   would give ~60% — right on the yellow boundary. The cubic numerator amplifies the
+        //   forgiveness so that "clearly under pace" situations stay green.
         // Over pace: return raw usedPercent so genuine high-usage is still highlighted.
         if (usedPercent < expectedPercent)
         {
-            return ClampPercent(usedPercent * usedPercent / Math.Max(expectedPercent, 1.0));
+            var expectedSq = Math.Max(expectedPercent * expectedPercent, 1.0);
+            return ClampPercent(usedPercent * usedPercent * usedPercent / expectedSq);
         }
 
         return ClampPercent(usedPercent);
