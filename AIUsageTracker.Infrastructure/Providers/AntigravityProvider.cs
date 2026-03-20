@@ -56,6 +56,7 @@ public class AntigravityProvider : ProviderBase
         FallbackBadgeColorHex = "#1E90FF",
         FallbackBadgeInitial = "G",
         DerivedModelDisplaySuffix = "[Antigravity]",
+        DisplayAsFraction = true,
     };
 
     /// <inheritdoc/>
@@ -461,7 +462,6 @@ public class AntigravityProvider : ProviderBase
 
         summary.RequestsAvailable = totalLimit;
         summary.RequestsUsed = totalUsed;
-        summary.DisplayAsFraction = true;
     }
 
     private static List<string> GetModelLabels(ModelGroup group)

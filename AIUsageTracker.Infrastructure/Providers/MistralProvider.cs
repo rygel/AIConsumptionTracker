@@ -33,6 +33,7 @@ public class MistralProvider : ProviderBase
         defaultConfigType: "pay-as-you-go")
     {
         RooConfigPropertyNames = new[] { "mistralApiKey" },
+        IsStatusOnly = true,
         IconAssetName = "mistral",
         FallbackBadgeColorHex = "#FF4500",
         FallbackBadgeInitial = "Mi",
@@ -81,7 +82,6 @@ public class MistralProvider : ProviderBase
                     IsQuotaBased = false,
                     PlanType = PlanType.Usage,
                     Description = "Connected (Check Dashboard)",
-                    IsStatusOnly = true,
                     RawJson = content,
                     HttpStatus = (int)response.StatusCode,
                 },
