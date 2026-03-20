@@ -147,6 +147,7 @@ public class OpenAIProvider : ProviderBase
                 QuotaBucketKind = WindowKind.Burst,
                 PercentageValue = primaryRemaining,
                 PercentageSemantic = PercentageValueSemantic.Remaining,
+                PeriodDuration = TimeSpan.FromHours(5),
             });
         }
 
@@ -165,6 +166,7 @@ public class OpenAIProvider : ProviderBase
                 QuotaBucketKind = WindowKind.Rolling,
                 PercentageValue = secondaryRemaining,
                 PercentageSemantic = PercentageValueSemantic.Remaining,
+                PeriodDuration = TimeSpan.FromDays(7),
             });
         }
 

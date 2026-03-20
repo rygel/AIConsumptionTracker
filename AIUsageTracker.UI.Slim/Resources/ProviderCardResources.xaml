@@ -64,7 +64,7 @@
                         <Border Grid.Column="0" Opacity="0.45">
                             <Border.Background>
                                 <MultiBinding Converter="{StaticResource PercentageToColorConverter}">
-                                    <Binding Path="UsedPercent"/>
+                                    <Binding Path="ColorIndicatorPercent"/>
                                     <Binding Path="YellowThreshold"/>
                                     <Binding Path="RedThreshold"/>
                                     <Binding Path="IsQuotaBased"/>
@@ -122,6 +122,12 @@
                     <TextBlock DockPanel.Dock="Right" Text="{Binding UsageRateBadgeText}"
                                Visibility="{Binding UsageRateBadgeText, Converter={StaticResource NullToVisibilityConverter}}"
                                FontSize="9" Foreground="{DynamicResource TertiaryText}"
+                               Margin="6,0,0,0" VerticalAlignment="Center"/>
+
+                    <!-- Pace Badge (Right) — visible only for rolling-window providers when usage is under pace -->
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding PaceBadgeText}"
+                               Visibility="{Binding PaceBadgeText, Converter={StaticResource NullToVisibilityConverter}}"
+                               FontSize="9" Foreground="{DynamicResource StatusTextSuccess}"
                                Margin="6,0,0,0" VerticalAlignment="Center"/>
 
                     <!-- Reset Badge (Right) -->

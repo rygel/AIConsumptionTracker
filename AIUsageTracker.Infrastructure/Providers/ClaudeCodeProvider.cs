@@ -270,6 +270,7 @@ public class ClaudeCodeProvider : ProviderBase
                 DetailType = ProviderUsageDetailType.Model,
                 QuotaBucketKind = WindowKind.Burst,
                 NextResetTime = response.FiveHour.ResetsAt,
+                PeriodDuration = TimeSpan.FromHours(5),
             };
             fiveHourDetail.SetPercentageValue(
                 response.FiveHour.Utilization,
@@ -320,6 +321,7 @@ public class ClaudeCodeProvider : ProviderBase
                 DetailType = ProviderUsageDetailType.Model,
                 QuotaBucketKind = WindowKind.Rolling,
                 NextResetTime = response.SevenDay.ResetsAt,
+                PeriodDuration = TimeSpan.FromDays(7),
             };
             sevenDayDetail.SetPercentageValue(
                 response.SevenDay.Utilization,
