@@ -85,6 +85,7 @@ jobs:
               - '.editorconfig'
               - 'AIUsageTracker.Core/**'
               - 'AIUsageTracker.Infrastructure/**'
+              - 'AIUsageTracker.UI.Slim/**'
               - 'AIUsageTracker.CLI/**'
               - 'AIUsageTracker.Tests/**'
               - 'scripts/run-vstest-with-retry.ps1'
