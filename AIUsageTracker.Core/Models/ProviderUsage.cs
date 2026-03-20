@@ -101,4 +101,14 @@ public class ProviderUsage
     /// </summary>
     [JsonIgnore]
     public double? UsagePerHour { get; set; }
+
+    /// <summary>
+    /// Duration of the primary rolling quota window (e.g. 7 days for a weekly quota).
+    /// Set by the display layer when synthesising child provider rows from aggregate details,
+    /// or directly by the provider when the usage row represents a single rolling window.
+    /// Null when no rolling-window period duration is known.
+    /// Not stored in the database — derived on read and never serialised.
+    /// </summary>
+    [JsonIgnore]
+    public TimeSpan? PeriodDuration { get; set; }
 }

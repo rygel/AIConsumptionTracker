@@ -229,6 +229,76 @@ public static class UsageMath
         return bestFuture ?? lastKnown;
     }
 
+    /// <summary>
+    /// Returns a pace-adjusted color percentage for a rolling quota window.
+    /// When the user is <em>under pace</em> (using less than the time-proportional expected
+    /// amount), the returned value is reduced so the progress bar stays green/yellow rather
+    /// than triggering a red alarm solely because the raw percentage crossed a threshold.
+    /// When the user is <em>at or over pace</em>, the raw <paramref name="usedPercent"/> is
+    /// returned unchanged so genuine high-usage situations still show as expected.
+    /// </summary>
+    /// <param name="usedPercent">Current used percentage (0–100).</param>
+    /// <param name="nextResetUtc">Next reset time in UTC.</param>
+    /// <param name="periodDuration">Total duration of the quota window.</param>
+    /// <param name="nowUtc">Optional override for "now" (defaults to <see cref="DateTime.UtcNow"/>).</param>
+    /// <returns>Pace-adjusted used percentage clamped to [0, 100].</returns>
+    public static double CalculatePaceAdjustedColorPercent(
+        double usedPercent,
+        DateTime nextResetUtc,
+        TimeSpan periodDuration,
+        DateTime? nowUtc = null)
+    {
+        var now = nowUtc ?? DateTime.UtcNow;
+        if (periodDuration.TotalSeconds <= 0)
+        {
+            return ClampPercent(usedPercent);
+        }
+
+        var periodStart = nextResetUtc - periodDuration;
+        var elapsed = now - periodStart;
+        var elapsedFraction = Math.Clamp(elapsed.TotalSeconds / periodDuration.TotalSeconds, 0.01, 1.0);
+        var expectedPercent = elapsedFraction * 100.0;
+
+        // Under pace: user has consumed less than expected → reward with a reduced colour score.
+        // Formula: usedPercent² / expectedPercent  (squaring amplifies the forgiveness).
+        // Over pace: return raw usedPercent so genuine high-usage is still highlighted.
+        if (usedPercent < expectedPercent)
+        {
+            return ClampPercent(usedPercent * usedPercent / Math.Max(expectedPercent, 1.0));
+        }
+
+        return ClampPercent(usedPercent);
+    }
+
+    /// <summary>
+    /// Returns the projected final percentage at end of a rolling quota window, given current
+    /// usage and elapsed time. Used by the alert service to suppress false-positive notifications
+    /// when the user is under pace and the raw percentage would otherwise cross a threshold.
+    /// </summary>
+    /// <param name="usedPercent">Current used percentage (0–100).</param>
+    /// <param name="nextResetUtc">Next reset time in UTC.</param>
+    /// <param name="periodDuration">Total duration of the quota window.</param>
+    /// <param name="nowUtc">Optional override for "now" (defaults to <see cref="DateTime.UtcNow"/>).</param>
+    /// <returns>Projected end-of-period percentage, clamped to [0, 100].</returns>
+    public static double CalculateProjectedFinalPercent(
+        double usedPercent,
+        DateTime nextResetUtc,
+        TimeSpan periodDuration,
+        DateTime? nowUtc = null)
+    {
+        var now = nowUtc ?? DateTime.UtcNow;
+        if (periodDuration.TotalSeconds <= 0)
+        {
+            return ClampPercent(usedPercent);
+        }
+
+        var periodStart = nextResetUtc - periodDuration;
+        var elapsed = now - periodStart;
+        var elapsedFraction = Math.Clamp(elapsed.TotalSeconds / periodDuration.TotalSeconds, 0.01, 1.0);
+
+        return ClampPercent(usedPercent / elapsedFraction);
+    }
+
     public static BurnRateForecast CalculateBurnRateForecast(IEnumerable<ProviderUsage> history)
     {
         ArgumentNullException.ThrowIfNull(history);

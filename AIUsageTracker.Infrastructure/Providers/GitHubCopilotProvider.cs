@@ -437,6 +437,7 @@ public class GitHubCopilotProvider : ProviderBase
                         NextResetTime = state.ResetTime,
                         PercentageValue = usedPercent,
                         PercentageSemantic = PercentageValueSemantic.Used,
+                        PeriodDuration = TimeSpan.FromDays(7),
                     });
                 }
 
@@ -462,6 +463,7 @@ public class GitHubCopilotProvider : ProviderBase
                         QuotaBucketKind = WindowKind.Burst,
                         PercentageValue = uUsedPercent,
                         PercentageSemantic = PercentageValueSemantic.Used,
+                        PeriodDuration = TimeSpan.FromHours(5),
                     });
                 }
 

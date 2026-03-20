@@ -205,6 +205,7 @@ internal static class ProviderUsageDisplayCatalog
             IsAvailable = parentUsage.IsAvailable,
             AuthSource = parentUsage.AuthSource,
             AccountName = parentUsage.AccountName,
+            PeriodDuration = detail.PeriodDuration,
         };
     }
 
