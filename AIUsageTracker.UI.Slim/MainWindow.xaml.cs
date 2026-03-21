@@ -1523,17 +1523,16 @@ public partial class MainWindow : Window
             hasUsages = this._usages.Any();
         }
 
-        var presentation = ErrorStatePresentationCatalog.Create(hasUsages);
-        if (!presentation.ReplaceProviderCards)
+        if (hasUsages)
         {
             // Preserve visible data and only surface status when we have a stale snapshot.
-            this.ShowStatus(message, presentation.StatusType);
+            this.ShowStatus(message, StatusType.Warning);
             return;
         }
 
         this.ProvidersList.Children.Clear();
         this.ProvidersList.Children.Add(this.CreateInfoTextBlock(message));
-        this.ShowStatus(message, presentation.StatusType);
+        this.ShowStatus(message, StatusType.Error);
     }
 
     private TextBlock CreateInfoTextBlock(string text)
