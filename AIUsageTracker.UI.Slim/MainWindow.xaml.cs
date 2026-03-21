@@ -1995,25 +1995,37 @@ public partial class MainWindow : Window
 
     private void OnKeyDown(object sender, KeyEventArgs e)
     {
-        var action = KeyboardShortcutCatalog.Resolve(e.KeyboardDevice.Modifiers, e.Key);
-        switch (action)
+        if (e.KeyboardDevice.Modifiers == ModifierKeys.Control)
         {
-            case KeyboardShortcutAction.Refresh:
-                this.RefreshBtn_Click(this, new RoutedEventArgs());
-                break;
-            case KeyboardShortcutAction.TogglePrivacy:
-                this.PrivacyBtn_Click(this, new RoutedEventArgs());
-                break;
-            case KeyboardShortcutAction.Close:
+            switch (e.Key)
+            {
+                case Key.R:
+                    this.RefreshBtn_Click(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
+                case Key.P:
+                    this.PrivacyBtn_Click(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
+                case Key.Q:
+                    this.CloseBtn_Click(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    return;
+            }
+        }
+
+        switch (e.Key)
+        {
+            case Key.Escape:
                 this.CloseBtn_Click(this, new RoutedEventArgs());
-                break;
-            case KeyboardShortcutAction.OpenSettings:
+                e.Handled = true;
+                return;
+            case Key.F2:
                 this.SettingsBtn_Click(this, new RoutedEventArgs());
-                break;
+                e.Handled = true;
+                return;
             default:
                 return;
         }
-
-        e.Handled = true;
     }
 }
