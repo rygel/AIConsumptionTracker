@@ -12,19 +12,19 @@ namespace AIUsageTracker.UI.Slim.Services;
 /// </summary>
 public class DialogService : IDialogService
 {
-    private readonly ISettingsWindowFactory _settingsWindowFactory;
-    private readonly IInfoDialogFactory _infoDialogFactory;
+    private readonly Func<SettingsWindow> _createSettingsWindow;
+    private readonly Func<InfoDialog> _createInfoDialog;
 
-    public DialogService(ISettingsWindowFactory settingsWindowFactory, IInfoDialogFactory infoDialogFactory)
+    public DialogService(Func<SettingsWindow> createSettingsWindow, Func<InfoDialog> createInfoDialog)
     {
-        this._settingsWindowFactory = settingsWindowFactory;
-        this._infoDialogFactory = infoDialogFactory;
+        this._createSettingsWindow = createSettingsWindow;
+        this._createInfoDialog = createInfoDialog;
     }
 
     /// <inheritdoc />
     public Task<bool?> ShowSettingsAsync(Window? owner = null)
     {
-        var settingsWindow = this._settingsWindowFactory.Create();
+        var settingsWindow = this._createSettingsWindow();
 
         if (owner != null)
         {
@@ -39,7 +39,7 @@ public class DialogService : IDialogService
     /// <inheritdoc />
     public Task ShowInfoAsync(Window? owner = null)
     {
-        var infoDialog = this._infoDialogFactory.Create();
+        var infoDialog = this._createInfoDialog();
 
         if (owner != null)
         {

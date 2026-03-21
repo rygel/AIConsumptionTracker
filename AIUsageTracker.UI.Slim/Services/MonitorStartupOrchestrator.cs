@@ -2,22 +2,22 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Core.Interfaces;
+using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim.Services;
 
-internal sealed class MonitorStartupOrchestrator : IMonitorStartupOrchestrator
+public sealed class MonitorStartupOrchestrator
 {
     private readonly IMonitorService _monitorService;
-    private readonly IMonitorLifecycleService _monitorLifecycleService;
+    private readonly MonitorLifecycleService _monitorLifecycleService;
     private readonly ILogger<MonitorStartupOrchestrator> _logger;
 
     public MonitorStartupOrchestrator(
         IMonitorService monitorService,
-        IMonitorLifecycleService monitorLifecycleService,
+        MonitorLifecycleService monitorLifecycleService,
         ILogger<MonitorStartupOrchestrator> logger)
     {
         this._monitorService = monitorService;

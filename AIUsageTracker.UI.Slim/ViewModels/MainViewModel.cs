@@ -18,7 +18,6 @@ namespace AIUsageTracker.UI.Slim.ViewModels;
 public partial class MainViewModel : BaseViewModel
 {
     private readonly IMonitorService _monitorService;
-    private readonly IUsageAnalyticsService _analyticsService;
     private readonly ILogger<MainViewModel> _logger;
     private readonly IBrowserService _browserService;
     private readonly IDialogService _dialogService;
@@ -53,26 +52,18 @@ public partial class MainViewModel : BaseViewModel
     /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
     /// </summary>
-    /// <param name="monitorService">The monitor service.</param>
-    /// <param name="analyticsService">The analytics service.</param>
-    /// <param name="logger">The logger.</param>
-    /// <param name="browserService">Browser service for URL operations.</param>
-    /// <param name="dialogService">Dialog service for showing dialogs.</param>
     public MainViewModel(
         IMonitorService monitorService,
-        IUsageAnalyticsService analyticsService,
         ILogger<MainViewModel> logger,
         IBrowserService browserService,
         IDialogService dialogService)
     {
         ArgumentNullException.ThrowIfNull(monitorService);
-        ArgumentNullException.ThrowIfNull(analyticsService);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(browserService);
         ArgumentNullException.ThrowIfNull(dialogService);
 
         this._monitorService = monitorService;
-        this._analyticsService = analyticsService;
         this._logger = logger;
         this._browserService = browserService;
         this._dialogService = dialogService;
@@ -191,7 +182,7 @@ public partial class MainViewModel : BaseViewModel
         this.ShowUsedPercentages = prefs.ShowUsedPercentages;
         this.EnablePaceAdjustment = prefs.EnablePaceAdjustment;
 
-        var expandedUsages = ProviderUsageDisplayCatalog.BuildMainWindowUsageList(
+        var expandedUsages = MainWindowRuntimeLogic.BuildMainWindowUsageList(
             usages,
             prefs.HiddenProviderItemIds);
 
@@ -272,3 +263,4 @@ public partial class MainViewModel : BaseViewModel
         }
     }
 }
+

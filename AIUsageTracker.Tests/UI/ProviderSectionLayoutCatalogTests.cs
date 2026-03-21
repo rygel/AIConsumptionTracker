@@ -12,7 +12,7 @@ public sealed class ProviderSectionLayoutCatalogTests
     [Fact]
     public void BuildLayouts_EmptyInput_ReturnsEmpty()
     {
-        var layouts = ProviderSectionLayoutCatalog.BuildLayouts(Array.Empty<ProviderUsage>());
+        var layouts = MainWindowRuntimeLogic.BuildProviderSectionLayouts(Array.Empty<ProviderUsage>());
 
         Assert.Empty(layouts);
     }
@@ -29,7 +29,7 @@ public sealed class ProviderSectionLayoutCatalogTests
             new ProviderUsage { ProviderId = "p5", IsQuotaBased = true },
         };
 
-        var layouts = ProviderSectionLayoutCatalog.BuildLayouts(usages);
+        var layouts = MainWindowRuntimeLogic.BuildProviderSectionLayouts(usages);
 
         Assert.Equal(3, layouts.Count);
 

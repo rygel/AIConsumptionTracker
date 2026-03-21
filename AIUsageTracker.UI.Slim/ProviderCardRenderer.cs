@@ -47,7 +47,7 @@ internal sealed class ProviderCardRenderer
     {
         var providerId = usage.ProviderId ?? string.Empty;
         var friendlyName = ProviderMetadataCatalog.ResolveDisplayLabel(usage);
-        var presentation = ProviderCardPresentationCatalog.Create(usage, showUsed);
+        var presentation = MainWindowRuntimeLogic.Create(usage, showUsed);
 
         var grid = new Grid
         {
@@ -167,7 +167,7 @@ internal sealed class ProviderCardRenderer
                 margin: new Thickness(10, 0, 0, 0)),
             Dock.Right);
 
-        var accountName = ProviderAccountDisplayCatalog.ResolveDisplayAccountName(
+        var accountName = MainWindowRuntimeLogic.ResolveDisplayAccountName(
             providerId,
             usage.AccountName,
             this._isPrivacyMode);
@@ -206,7 +206,7 @@ internal sealed class ProviderCardRenderer
             Background = Brushes.Transparent,
         };
 
-        var presentation = ProviderSubDetailSectionCatalog.BuildDetailPresentation(
+        var presentation = MainWindowRuntimeLogic.BuildDetailPresentation(
             detail,
             showUsed,
             this._getRelativeTimeString);
@@ -427,7 +427,7 @@ internal sealed class ProviderCardRenderer
 
     private static string GetDetailDisplayValue(ProviderUsageDetail detail)
     {
-        return ProviderSubDetailSectionCatalog.GetStoredDisplayText(detail);
+        return MainWindowRuntimeLogic.GetStoredDisplayText(detail);
     }
 
     private static int GetDetailSortOrder(ProviderUsageDetail detail)
@@ -518,3 +518,5 @@ internal sealed class ProviderCardRenderer
         DockPanel.SetDock(element, dock);
     }
 }
+
+

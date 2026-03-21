@@ -61,7 +61,7 @@ public partial class ProviderCardViewModel : BaseViewModel
 
     public string AccountDisplay => this.IsPrivacyMode
         ? "****"
-        : ProviderAccountDisplayCatalog.ResolveDisplayAccountName(this.ProviderId, this.Usage.AccountName, false);
+        : MainWindowRuntimeLogic.ResolveDisplayAccountName(this.ProviderId, this.Usage.AccountName, false);
 
     public bool HasAccountName => !string.IsNullOrWhiteSpace(this.Usage.AccountName);
 
@@ -220,14 +220,14 @@ public partial class ProviderCardViewModel : BaseViewModel
 
     private void UpdatePresentation()
     {
-        this._presentation = ProviderCardPresentationCatalog.Create(this.Usage, this.ShowUsedPercentages);
+        this._presentation = MainWindowRuntimeLogic.Create(this.Usage, this.ShowUsedPercentages);
     }
 
     private void PopulateDetails()
     {
         this.Details.Clear();
 
-        var displayableDetails = ProviderSubDetailSectionCatalog.GetDisplayableDetails(this.Usage);
+        var displayableDetails = MainWindowRuntimeLogic.GetDisplayableDetails(this.Usage);
         foreach (var detail in displayableDetails)
         {
             this.Details.Add(new SubProviderCardViewModel(detail, this.Usage.IsQuotaBased, this.IsPrivacyMode, this.ShowUsedPercentages));
@@ -347,7 +347,7 @@ public partial class ProviderCardViewModel : BaseViewModel
 
     private static string GetDetailDisplayValue(ProviderUsageDetail detail)
     {
-        return ProviderSubDetailSectionCatalog.GetStoredDisplayText(detail);
+        return MainWindowRuntimeLogic.GetStoredDisplayText(detail);
     }
 
     private static int GetDetailSortOrder(ProviderUsageDetail detail)
@@ -386,3 +386,5 @@ public partial class ProviderCardViewModel : BaseViewModel
         return $"{diff.Minutes}m";
     }
 }
+
+

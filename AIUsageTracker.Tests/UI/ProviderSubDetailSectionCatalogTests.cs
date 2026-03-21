@@ -23,7 +23,7 @@ public sealed class ProviderSubDetailSectionCatalogTests
         };
         var preferences = new AppPreferences { IsAntigravityCollapsed = true };
 
-        var section = ProviderSubDetailSectionCatalog.Build(usage, preferences);
+        var section = MainWindowRuntimeLogic.Build(usage, preferences);
 
         Assert.Null(section);
     }
@@ -42,8 +42,9 @@ public sealed class ProviderSubDetailSectionCatalogTests
         };
         var preferences = new AppPreferences { IsAntigravityCollapsed = true };
 
-        var section = Assert.IsType<ProviderSubDetailSection>(
-            ProviderSubDetailSectionCatalog.Build(usage, preferences));
+        var sectionOpt = MainWindowRuntimeLogic.Build(usage, preferences);
+        Assert.NotNull(sectionOpt);
+        var section = sectionOpt!.Value;
 
         Assert.Equal("github-copilot", section.ProviderId);
         Assert.Equal($"{ProviderMetadataCatalog.ResolveDisplayLabel(usage)} Details", section.Title);
@@ -56,7 +57,7 @@ public sealed class ProviderSubDetailSectionCatalogTests
     {
         var preferences = new AppPreferences { IsAntigravityCollapsed = true };
 
-        ProviderSubDetailSectionCatalog.SetIsCollapsed(preferences, "openai", isCollapsed: false);
+        MainWindowRuntimeLogic.SetIsCollapsed(preferences, "openai", isCollapsed: false);
 
         Assert.True(preferences.IsAntigravityCollapsed);
     }
@@ -66,7 +67,7 @@ public sealed class ProviderSubDetailSectionCatalogTests
     {
         var preferences = new AppPreferences { IsAntigravityCollapsed = true };
 
-        var collapsed = ProviderSubDetailSectionCatalog.GetIsCollapsed(preferences, "openai");
+        var collapsed = MainWindowRuntimeLogic.GetIsCollapsed(preferences, "openai");
 
         Assert.False(collapsed);
     }
@@ -85,7 +86,7 @@ public sealed class ProviderSubDetailSectionCatalogTests
             },
         };
 
-        var details = ProviderSubDetailSectionCatalog.GetDisplayableDetails(usage);
+        var details = MainWindowRuntimeLogic.GetDisplayableDetails(usage);
 
         Assert.Equal(new[] { "Alpha", "Beta" }, details.Select(detail => detail.Name).ToArray());
     }
@@ -102,7 +103,7 @@ public sealed class ProviderSubDetailSectionCatalogTests
             },
         };
 
-        var details = ProviderSubDetailSectionCatalog.GetDisplayableDetails(usage);
+        var details = MainWindowRuntimeLogic.GetDisplayableDetails(usage);
 
         Assert.Empty(details);
     }
@@ -116,7 +117,7 @@ public sealed class ProviderSubDetailSectionCatalogTests
         };
         detail.SetPercentageValue(35.0, PercentageValueSemantic.Used);
 
-        var presentation = ProviderSubDetailSectionCatalog.BuildDetailPresentation(
+        var presentation = MainWindowRuntimeLogic.BuildDetailPresentation(
             detail,
             showUsed: true,
             _ => "2h 0m");
@@ -136,7 +137,7 @@ public sealed class ProviderSubDetailSectionCatalogTests
             Description = "Unlimited",
         };
 
-        var presentation = ProviderSubDetailSectionCatalog.BuildDetailPresentation(
+        var presentation = MainWindowRuntimeLogic.BuildDetailPresentation(
             detail,
             showUsed: false,
             _ => "ignored");
@@ -161,7 +162,7 @@ public sealed class ProviderSubDetailSectionCatalogTests
             },
         };
 
-        var details = ProviderSubDetailSectionCatalog.GetDisplayableDetails(usage);
+        var details = MainWindowRuntimeLogic.GetDisplayableDetails(usage);
 
         Assert.Empty(details);
     }
@@ -180,8 +181,10 @@ public sealed class ProviderSubDetailSectionCatalogTests
             },
         };
 
-        var details = ProviderSubDetailSectionCatalog.GetDisplayableDetails(usage);
+        var details = MainWindowRuntimeLogic.GetDisplayableDetails(usage);
 
         Assert.Empty(details);
     }
 }
+
+

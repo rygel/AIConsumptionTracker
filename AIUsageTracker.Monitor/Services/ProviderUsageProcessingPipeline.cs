@@ -317,7 +317,7 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             UpstreamResponseValidity = upstreamResponseValidity,
             UpstreamResponseNote = upstreamResponseNote ?? string.Empty,
         };
-        var upstreamEvaluation = UpstreamResponseValidityCatalog.Evaluate(normalizedUsageCandidate);
+        var upstreamEvaluation = normalizedUsageCandidate.EvaluateUpstreamResponseValidity();
         upstreamResponseValidity = upstreamEvaluation.Validity;
         upstreamResponseNote = upstreamEvaluation.Note;
 
@@ -338,34 +338,9 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
             normalizedCount++;
         }
 
-        return new ProviderUsage
-        {
-            ProviderId = providerId,
-            ProviderName = providerName,
-            ParentProviderId = usage.ParentProviderId,
-            RequestsUsed = requestsUsed,
-            RequestsAvailable = requestsAvailable,
-            UsedPercent = requestsPercentage,
-            PlanType = definition?.PlanType ?? usage.PlanType,
-            IsQuotaBased = definition?.IsQuotaBased ?? usage.IsQuotaBased,
-            DisplayAsFraction = usage.DisplayAsFraction || (definition?.DisplayAsFraction ?? false),
-            IsAvailable = usage.IsAvailable,
-            State = usage.State,
-            IsStatusOnly = usage.IsStatusOnly || (definition?.IsStatusOnly ?? false),
-            IsCurrencyUsage = usage.IsCurrencyUsage || (definition?.IsCurrencyUsage ?? false),
-            Description = description,
-            AuthSource = usage.AuthSource,
-            Details = details,
-            AccountName = accountName ?? string.Empty,
-            ConfigKey = configKey ?? string.Empty,
-            NextResetTime = normalizedNextResetTimeUtc,
-            FetchedAt = fetchedAt,
-            ResponseLatencyMs = responseLatencyMs,
-            RawJson = rawJson,
-            HttpStatus = httpStatus,
-            UpstreamResponseValidity = upstreamResponseValidity,
-            UpstreamResponseNote = upstreamResponseNote ?? string.Empty,
-        };
+        normalizedUsageCandidate.UpstreamResponseValidity = upstreamResponseValidity;
+        normalizedUsageCandidate.UpstreamResponseNote = upstreamResponseNote ?? string.Empty;
+        return normalizedUsageCandidate;
     }
 
     private bool StringEquals(string? left, string? right)
@@ -443,12 +418,8 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
 
     private bool IsUsageForAnyActiveProvider(HashSet<string> activeProviderIds, string usageProviderId)
     {
-        return activeProviderIds.Any(providerId => this.IsUsageForProvider(providerId, usageProviderId));
-    }
-
-    private bool IsUsageForProvider(string providerId, string usageProviderId)
-    {
-        return ProviderMetadataCatalog.BelongsToProviderFamily(providerId, usageProviderId);
+        return activeProviderIds.Any(providerId =>
+            (ProviderMetadataCatalog.Find(providerId)?.HandlesProviderId(usageProviderId) ?? false));
     }
 
     private bool IsPlaceholderUnavailableUsage(ProviderUsage usage)

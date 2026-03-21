@@ -2,26 +2,30 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using AIUsageTracker.Core.Runtime;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim.Services;
 
-public sealed class SingleInstanceLockService : ISingleInstanceLockService
+public sealed class SingleInstanceLockService
 {
     private const int SingleInstanceLockWaitMilliseconds = 250;
 
     private readonly object _sync = new();
-    private readonly ISingleInstanceMutexNameProvider _nameProvider;
+    private readonly string _mutexName;
     private readonly ILogger<SingleInstanceLockService> _logger;
 
     private Mutex? _mutex;
     private bool _ownsMutex;
 
-    public SingleInstanceLockService(
-        ISingleInstanceMutexNameProvider nameProvider,
-        ILogger<SingleInstanceLockService> logger)
+    public SingleInstanceLockService(ILogger<SingleInstanceLockService> logger)
+        : this(MutexNameBuilder.BuildLocalName("AIUsageTracker_SlimUI_"), logger)
     {
-        this._nameProvider = nameProvider;
+    }
+
+    internal SingleInstanceLockService(string mutexName, ILogger<SingleInstanceLockService> logger)
+    {
+        this._mutexName = mutexName;
         this._logger = logger;
     }
 
@@ -34,7 +38,7 @@ public sealed class SingleInstanceLockService : ISingleInstanceLockService
                 return true;
             }
 
-            this._mutex ??= new Mutex(initiallyOwned: false, name: this._nameProvider.GetMutexName());
+            this._mutex ??= new Mutex(initiallyOwned: false, name: this._mutexName);
 
             try
             {

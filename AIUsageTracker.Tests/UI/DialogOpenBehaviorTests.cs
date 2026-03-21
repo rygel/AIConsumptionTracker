@@ -9,6 +9,8 @@ using System.Windows;
 using System.Windows.Controls;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Core.MonitorClient;
+using AIUsageTracker.Infrastructure.Services;
 using AIUsageTracker.UI.Slim;
 using AIUsageTracker.UI.Slim.Services;
 using AIUsageTracker.UI.Slim.ViewModels;
@@ -235,15 +237,13 @@ public class DialogOpenBehaviorTests
             skipUiInitialization: true,
             services.GetRequiredService<MainViewModel>(),
             services.GetRequiredService<IMonitorService>(),
-            services.GetRequiredService<IMonitorLifecycleService>(),
-            services.GetRequiredService<IMonitorStartupOrchestrator>(),
+            services.GetRequiredService<MonitorLifecycleService>(),
+            services.GetRequiredService<MonitorStartupOrchestrator>(),
             services.GetRequiredService<ILogger<MainWindow>>(),
-            services.GetRequiredService<IUpdateCheckerFactory>(),
-            services.GetRequiredService<IUpdateCheckerService>(),
+            services.GetRequiredService<Func<UpdateChannel, GitHubUpdateChecker>>(),
+            services.GetRequiredService<GitHubUpdateChecker>(),
             dialogService ?? services.GetRequiredService<IDialogService>(),
             browserService ?? services.GetRequiredService<IBrowserService>(),
-            services.GetRequiredService<IWpfProviderIconServiceFactory>(),
-            services.GetRequiredService<IChangelogMarkdownRendererFactory>(),
             services.GetRequiredService<UiPreferencesStore>(),
             services.GetRequiredService<DisplayPreferencesService>());
     }

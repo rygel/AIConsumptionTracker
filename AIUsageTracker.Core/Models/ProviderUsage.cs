@@ -111,4 +111,62 @@ public class ProviderUsage
     /// </summary>
     [JsonIgnore]
     public TimeSpan? PeriodDuration { get; set; }
+
+    public (UpstreamResponseValidity Validity, string Note) EvaluateUpstreamResponseValidity()
+    {
+        if (this.UpstreamResponseValidity != UpstreamResponseValidity.Unknown)
+        {
+            return (
+                this.UpstreamResponseValidity,
+                string.IsNullOrWhiteSpace(this.UpstreamResponseNote)
+                    ? GetDefaultUpstreamResponseNote(this.UpstreamResponseValidity, this.HttpStatus)
+                    : this.UpstreamResponseNote);
+        }
+
+        // Typed state short-circuits before any description heuristics.
+        if (this.State == ProviderUsageState.Missing || this.State == ProviderUsageState.Unavailable)
+        {
+            return (UpstreamResponseValidity.NotAttempted, "Upstream call was not attempted");
+        }
+
+        if (this.State == ProviderUsageState.Error)
+        {
+            return (UpstreamResponseValidity.Invalid, "Provider reported an error");
+        }
+
+        var hasHttpStatus = this.HttpStatus is >= 100 and <= 599;
+        if (hasHttpStatus)
+        {
+            if (this.HttpStatus is >= 200 and <= 299)
+            {
+                return (UpstreamResponseValidity.Valid, $"HTTP {this.HttpStatus}");
+            }
+
+            return (UpstreamResponseValidity.Invalid, $"HTTP {this.HttpStatus}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(this.RawJson))
+        {
+            return this.IsAvailable
+                ? (UpstreamResponseValidity.Valid, "Payload captured (no HTTP status)")
+                : (UpstreamResponseValidity.Invalid, "Payload captured but usage is unavailable");
+        }
+
+        return this.IsAvailable
+            ? (UpstreamResponseValidity.Unknown, "No upstream validation metadata")
+            : (UpstreamResponseValidity.NotAttempted, "Unavailable without upstream response metadata");
+    }
+
+    private static string GetDefaultUpstreamResponseNote(UpstreamResponseValidity validity, int httpStatus)
+    {
+        return validity switch
+        {
+            UpstreamResponseValidity.Valid when httpStatus is >= 100 and <= 599 => $"HTTP {httpStatus}",
+            UpstreamResponseValidity.Invalid when httpStatus is >= 100 and <= 599 => $"HTTP {httpStatus}",
+            UpstreamResponseValidity.NotAttempted => "Upstream call was not attempted",
+            UpstreamResponseValidity.Valid => "Upstream response valid",
+            UpstreamResponseValidity.Invalid => "Upstream response invalid",
+            _ => "Unknown upstream response validity",
+        };
+    }
 }

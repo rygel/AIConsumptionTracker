@@ -14,10 +14,10 @@ public class SingleInstanceLockServiceTests
     {
         var mutexName = @"Local\AIUsageTracker_Test_" + Guid.NewGuid().ToString("N");
         var first = new SingleInstanceLockService(
-            new FixedMutexNameProvider(mutexName),
+            mutexName,
             NullLogger<SingleInstanceLockService>.Instance);
         var second = new SingleInstanceLockService(
-            new FixedMutexNameProvider(mutexName),
+            mutexName,
             NullLogger<SingleInstanceLockService>.Instance);
 
         try
@@ -38,10 +38,10 @@ public class SingleInstanceLockServiceTests
     {
         var mutexName = @"Local\AIUsageTracker_Test_" + Guid.NewGuid().ToString("N");
         var first = new SingleInstanceLockService(
-            new FixedMutexNameProvider(mutexName),
+            mutexName,
             NullLogger<SingleInstanceLockService>.Instance);
         var second = new SingleInstanceLockService(
-            new FixedMutexNameProvider(mutexName),
+            mutexName,
             NullLogger<SingleInstanceLockService>.Instance);
 
         try
@@ -59,21 +59,6 @@ public class SingleInstanceLockServiceTests
         {
             second.Release();
             first.Release();
-        }
-    }
-
-    private sealed class FixedMutexNameProvider : ISingleInstanceMutexNameProvider
-    {
-        private readonly string _mutexName;
-
-        public FixedMutexNameProvider(string mutexName)
-        {
-            this._mutexName = mutexName;
-        }
-
-        public string GetMutexName()
-        {
-            return this._mutexName;
         }
     }
 

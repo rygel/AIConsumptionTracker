@@ -1,4 +1,4 @@
-// <copyright file="ProviderUsageDisplayCatalog.cs" company="AIUsageTracker">
+// <copyright file="MainWindowRuntimeLogic.cs" company="AIUsageTracker">
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
@@ -7,19 +7,106 @@ using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
 
-internal static class ProviderUsageDisplayCatalog
+internal static partial class MainWindowRuntimeLogic
 {
+    public static (bool ShouldTriggerRefresh, double SecondsSinceLastRefresh) CreatePollingRefreshDecision(
+        DateTime lastRefreshTrigger,
+        DateTime now,
+        double refreshCooldownSeconds)
+    {
+        var secondsSinceLastRefresh = (now - lastRefreshTrigger).TotalSeconds;
+        var shouldTriggerRefresh = secondsSinceLastRefresh >= refreshCooldownSeconds;
+        return (shouldTriggerRefresh, secondsSinceLastRefresh);
+    }
+
+    public static bool ShouldRefreshTrayConfigs(
+        bool hasCachedConfigs,
+        DateTime lastRefreshUtc,
+        DateTime nowUtc,
+        TimeSpan refreshInterval)
+    {
+        return !hasCachedConfigs || (nowUtc - lastRefreshUtc) >= refreshInterval;
+    }
+
+    public static string FormatMonitorOfflineStatus(DateTime lastMonitorUpdate, DateTime now)
+    {
+        if (lastMonitorUpdate == DateTime.MinValue)
+        {
+            return "Monitor offline — no data received yet";
+        }
+
+        var elapsed = now - lastMonitorUpdate;
+        var ago = elapsed.TotalSeconds < 60
+            ? $"{(int)elapsed.TotalSeconds}s ago"
+            : elapsed.TotalHours < 1
+                ? $"{(int)elapsed.TotalMinutes}m ago"
+                : $"{(int)elapsed.TotalHours}h ago";
+
+        return $"Monitor offline — last sync {ago}";
+    }
+
+    public static bool GetSectionIsCollapsed(AppPreferences preferences, bool isQuotaBased)
+    {
+        ArgumentNullException.ThrowIfNull(preferences);
+        return isQuotaBased ? preferences.IsPlansAndQuotasCollapsed : preferences.IsPayAsYouGoCollapsed;
+    }
+
+    public static void SetSectionIsCollapsed(AppPreferences preferences, bool isQuotaBased, bool isCollapsed)
+    {
+        ArgumentNullException.ThrowIfNull(preferences);
+        if (isQuotaBased)
+        {
+            preferences.IsPlansAndQuotasCollapsed = isCollapsed;
+            return;
+        }
+
+        preferences.IsPayAsYouGoCollapsed = isCollapsed;
+    }
+
+    public static ProviderRenderPlan BuildProviderRenderPlan(
+        IReadOnlyCollection<ProviderUsage> usages,
+        IEnumerable<string>? hiddenProviderItemIds)
+    {
+        ArgumentNullException.ThrowIfNull(usages);
+
+        if (usages.Count == 0)
+        {
+            return new ProviderRenderPlan(
+                RawCount: 0,
+                RenderedCount: 0,
+                Message: "No provider data available.",
+                Sections: Array.Empty<ProviderSectionLayout>());
+        }
+
+        var expandedUsages = BuildMainWindowUsageList(usages, hiddenProviderItemIds);
+        if (expandedUsages.Count == 0)
+        {
+            return new ProviderRenderPlan(
+                RawCount: usages.Count,
+                RenderedCount: 0,
+                Message: "Data received, but no displayable providers were found.",
+                Sections: Array.Empty<ProviderSectionLayout>());
+        }
+
+        var sections = BuildProviderSectionLayouts(expandedUsages);
+        return new ProviderRenderPlan(
+            RawCount: usages.Count,
+            RenderedCount: expandedUsages.Count,
+            Message: null,
+            Sections: sections);
+    }
+
     public static IReadOnlyList<ProviderUsage> BuildMainWindowUsageList(
         IReadOnlyCollection<ProviderUsage> usages,
         IEnumerable<string>? hiddenItemIds = null)
     {
         var hiddenIds = hiddenItemIds ?? Array.Empty<string>();
         var renderPreparation = PrepareForMainWindow(usages, hiddenIds);
-        var orderedUsages = ProviderMainWindowOrderingCatalog.OrderForMainWindow(renderPreparation.DisplayableUsages);
+        var orderedUsages = OrderForMainWindow(renderPreparation);
         return ExpandSyntheticAggregateChildren(orderedUsages, hiddenIds).ToList();
     }
 
-    public static ProviderRenderPreparation PrepareForMainWindow(
+    public static IReadOnlyList<ProviderUsage> PrepareForMainWindow(
         IReadOnlyCollection<ProviderUsage> usages,
         IEnumerable<string>? hiddenItemIds = null)
     {
@@ -31,7 +118,7 @@ internal static class ProviderUsageDisplayCatalog
             .Where(usage =>
             {
                 var id = usage.ProviderId ?? string.Empty;
-                return ProviderMetadataCatalog.ShouldShowInMainWindow(id) && !hiddenSet.Contains(id);
+                return (ProviderMetadataCatalog.Find(id)?.ShowInMainWindow ?? false) && !hiddenSet.Contains(id);
             })
             .ToList();
 
@@ -46,7 +133,7 @@ internal static class ProviderUsageDisplayCatalog
             .Select(SelectPreferredUsage)
             .ToList();
 
-        return new ProviderRenderPreparation(filteredUsages);
+        return filteredUsages;
     }
 
     /// <summary>
@@ -61,7 +148,9 @@ internal static class ProviderUsageDisplayCatalog
     {
         foreach (var usage in usages)
         {
-            if (!ProviderMetadataCatalog.ShouldRenderAggregateDetailsInMainWindow(usage.ProviderId ?? string.Empty) ||
+            var expandCanonicalId = ProviderMetadataCatalog.GetCanonicalProviderId(usage.ProviderId ?? string.Empty);
+            var expandDef = ProviderMetadataCatalog.Find(expandCanonicalId);
+            if (!(expandDef != null && string.Equals(expandCanonicalId, expandDef.ProviderId, StringComparison.OrdinalIgnoreCase) && expandDef.RenderDetailsAsSyntheticChildrenInMainWindow) ||
                 usage.Details?.Any() != true)
             {
                 EnrichWithPeriodDuration(usage);
@@ -81,6 +170,46 @@ internal static class ProviderUsageDisplayCatalog
         }
     }
 
+    public static IReadOnlyList<ProviderSectionLayout> BuildProviderSectionLayouts(IReadOnlyList<ProviderUsage> usages)
+    {
+        ArgumentNullException.ThrowIfNull(usages);
+        if (usages.Count == 0)
+        {
+            return Array.Empty<ProviderSectionLayout>();
+        }
+
+        var sections = new List<ProviderSectionLayout>();
+        bool? currentIsQuota = null;
+        List<ProviderUsage>? currentItems = null;
+
+        foreach (var usage in usages)
+        {
+            if (currentIsQuota != usage.IsQuotaBased || currentItems == null)
+            {
+                currentIsQuota = usage.IsQuotaBased;
+                currentItems = new List<ProviderUsage>();
+                sections.Add(new ProviderSectionLayout(currentIsQuota.Value, currentItems));
+            }
+
+            currentItems.Add(usage);
+        }
+
+        return sections;
+    }
+
+    internal static IEnumerable<ProviderUsage> OrderForMainWindow(IEnumerable<ProviderUsage> usages)
+    {
+        return usages
+            .OrderByDescending(usage => usage.IsQuotaBased)
+            .ThenBy(
+                usage => GetFamilyDisplayName(usage),
+                StringComparer.OrdinalIgnoreCase)
+            .ThenBy(
+                usage => ProviderMetadataCatalog.ResolveDisplayLabel(usage),
+                StringComparer.OrdinalIgnoreCase)
+            .ThenBy(usage => usage.ProviderId ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+    }
+
     /// <summary>
     /// Sets PeriodDuration on a ProviderUsage from rolling/model-specific quota windows
     /// so downstream colour logic can compute pace directly from Usage.PeriodDuration.
@@ -88,7 +217,10 @@ internal static class ProviderUsageDisplayCatalog
     /// </summary>
     private static void EnrichWithPeriodDuration(ProviderUsage usage)
     {
-        if (usage.PeriodDuration.HasValue) return;
+        if (usage.PeriodDuration.HasValue)
+        {
+            return;
+        }
 
         var canonicalId = ProviderMetadataCatalog.GetCanonicalProviderId(usage.ProviderId ?? string.Empty);
         ProviderMetadataCatalog.TryGet(canonicalId, out var definition);
@@ -106,7 +238,8 @@ internal static class ProviderUsageDisplayCatalog
     private static IReadOnlyList<ProviderUsage> CreateAggregateDetailUsages(ProviderUsage parentUsage)
     {
         var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(parentUsage.ProviderId ?? string.Empty);
-        if (!ProviderMetadataCatalog.ShouldRenderAggregateDetailsInMainWindow(canonicalProviderId) ||
+        var aggDef = ProviderMetadataCatalog.Find(canonicalProviderId);
+        if (!(aggDef != null && string.Equals(canonicalProviderId, aggDef.ProviderId, StringComparison.OrdinalIgnoreCase) && aggDef.RenderDetailsAsSyntheticChildrenInMainWindow) ||
             parentUsage.Details?.Any() != true)
         {
             return Array.Empty<ProviderUsage>();
@@ -159,7 +292,7 @@ internal static class ProviderUsageDisplayCatalog
                 var providerId = usage.ProviderId ?? string.Empty;
                 var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
                 return string.Equals(providerId, canonicalProviderId, StringComparison.OrdinalIgnoreCase) &&
-                       ProviderMetadataCatalog.ShouldCollapseDerivedChildrenInMainWindow(providerId);
+                       (ProviderMetadataCatalog.Find(providerId)?.CollapseDerivedChildrenInMainWindow ?? false);
             })
             .Select(usage => usage.ProviderId ?? string.Empty)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -182,6 +315,13 @@ internal static class ProviderUsageDisplayCatalog
             .OrderByDescending(GetSelectionScore)
             .ThenByDescending(usage => usage.FetchedAt)
             .First();
+    }
+
+    private static string GetFamilyDisplayName(ProviderUsage usage)
+    {
+        var providerId = usage.ProviderId ?? string.Empty;
+        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+        return ProviderMetadataCatalog.GetConfiguredDisplayName(canonicalProviderId);
     }
 
     private static int GetSelectionScore(ProviderUsage usage)
@@ -262,7 +402,10 @@ internal static class ProviderUsageDisplayCatalog
 
     private static QuotaWindowDefinition? FindMatchingWindow(ProviderUsageDetail detail, IReadOnlyList<QuotaWindowDefinition> windows)
     {
-        if (windows.Count == 0) return null;
+        if (windows.Count == 0)
+        {
+            return null;
+        }
 
         return windows.FirstOrDefault(w =>
             w.Kind == detail.QuotaBucketKind &&

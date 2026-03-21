@@ -10,7 +10,7 @@ namespace AIUsageTracker.Tests.UI;
 public sealed class ProviderSectionCollapseCatalogTests
 {
     [Fact]
-    public void GetIsCollapsed_QuotaSection_ReadsPlansAndQuotasFlag()
+    public void GetSectionIsCollapsed_QuotaSection_ReadsPlansAndQuotasFlag()
     {
         var preferences = new AppPreferences
         {
@@ -18,13 +18,13 @@ public sealed class ProviderSectionCollapseCatalogTests
             IsPayAsYouGoCollapsed = false,
         };
 
-        var collapsed = ProviderSectionCollapseCatalog.GetIsCollapsed(preferences, isQuotaBased: true);
+        var collapsed = MainWindowRuntimeLogic.GetSectionIsCollapsed(preferences, isQuotaBased: true);
 
         Assert.True(collapsed);
     }
 
     [Fact]
-    public void SetIsCollapsed_PayAsYouGoSection_OnlyUpdatesPayAsYouGoFlag()
+    public void SetSectionIsCollapsed_PayAsYouGoSection_OnlyUpdatesPayAsYouGoFlag()
     {
         var preferences = new AppPreferences
         {
@@ -32,7 +32,7 @@ public sealed class ProviderSectionCollapseCatalogTests
             IsPayAsYouGoCollapsed = false,
         };
 
-        ProviderSectionCollapseCatalog.SetIsCollapsed(preferences, isQuotaBased: false, isCollapsed: true);
+        MainWindowRuntimeLogic.SetSectionIsCollapsed(preferences, isQuotaBased: false, isCollapsed: true);
 
         Assert.True(preferences.IsPlansAndQuotasCollapsed);
         Assert.True(preferences.IsPayAsYouGoCollapsed);

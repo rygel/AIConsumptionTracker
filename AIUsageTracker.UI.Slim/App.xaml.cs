@@ -24,7 +24,7 @@ public partial class App : Application
     private readonly Dictionary<string, TaskbarIcon> _providerTrayIcons = new(StringComparer.Ordinal);
     private TaskbarIcon? _trayIcon;
     private MainWindow? _mainWindow;
-    private ISingleInstanceLockService? _singleInstanceLockService;
+    private SingleInstanceLockService? _singleInstanceLockService;
 
     public App()
     {
@@ -48,7 +48,7 @@ public partial class App : Application
 
     public Func<bool> IsMainWindowVisible { get; set; } = () => Current.MainWindow?.IsVisible ?? false;
 
-    public Func<Window> InfoDialogFactory { get; set; } = () => Host.Services.GetRequiredService<IInfoDialogFactory>().Create();
+    public Func<Window> InfoDialogFactory { get; set; } = () => Host.Services.GetRequiredService<InfoDialog>();
 
     public Action<Window> ShowInfoDialogAction { get; set; } = dialog => dialog.ShowDialog();
 
@@ -69,7 +69,7 @@ public partial class App : Application
 #pragma warning disable VSTHRD100 // WPF Application lifecycle overrides require async void signatures
     protected override async void OnStartup(StartupEventArgs e)
     {
-        this._singleInstanceLockService = Host.Services.GetRequiredService<ISingleInstanceLockService>();
+        this._singleInstanceLockService = Host.Services.GetRequiredService<SingleInstanceLockService>();
         if (!this._singleInstanceLockService.TryAcquire())
         {
             base.OnStartup(e);
@@ -88,8 +88,9 @@ public partial class App : Application
             return;
         }
 
-        var startupPreferencesService = Host.Services.GetRequiredService<IStartupPreferencesService>();
-        Preferences = await startupPreferencesService.LoadAndApplyAsync();
+        var startupPreferencesService = Host.Services.GetRequiredService<StartupPreferencesService>();
+        Preferences = await startupPreferencesService.LoadAsync();
+        ApplyTheme(Preferences.Theme);
         IsPrivacyMode = Preferences.IsPrivacyMode;
 
         this.InitializeTrayIcon();
@@ -124,39 +125,30 @@ public partial class App : Application
         services.AddSingleton<IAppPathProvider, AIUsageTracker.Infrastructure.Helpers.DefaultAppPathProvider>();
         services.AddSingleton<UiPreferencesStore>();
         services.AddSingleton<IUiPreferencesStore>(sp => sp.GetRequiredService<UiPreferencesStore>());
-        services.AddSingleton<IAppThemeService, AppThemeService>();
-        services.AddSingleton<IStartupPreferencesService, StartupPreferencesService>();
+        services.AddSingleton<StartupPreferencesService>();
         services.AddSingleton<DisplayPreferencesService>();
         services.AddSingleton<IMonitorService, MonitorService>();
-        services.AddSingleton<IMonitorLifecycleService, MonitorLifecycleService>();
-        services.AddSingleton<IUsageAnalyticsService, NoOpUsageAnalyticsService>();
-        services.AddSingleton<IDataExportService, NoOpDataExportService>();
-        services.AddSingleton<IUpdateCheckerService, GitHubUpdateChecker>();
-        services.AddSingleton<IUpdateCheckerFactory, UpdateCheckerFactory>();
+        services.AddSingleton<MonitorLifecycleService>();
+        services.AddSingleton<GitHubUpdateChecker>();
+        services.AddSingleton<Func<UpdateChannel, GitHubUpdateChecker>>(sp => channel =>
+            new GitHubUpdateChecker(
+                sp.GetRequiredService<ILogger<GitHubUpdateChecker>>(),
+                sp.GetRequiredService<HttpClient>(),
+                channel));
         services.AddSingleton<HttpClient>();
         services.AddHttpClient("LocalhostProbe")
             .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(1));
 
         // UI Services
-        services.AddSingleton<ISingleInstanceMutexNameProvider, SingleInstanceMutexNameProvider>();
-        services.AddSingleton<ISingleInstanceLockService, SingleInstanceLockService>();
-        services.AddSingleton<IWindowBehaviorService, WindowBehaviorService>();
-        services.AddSingleton<IErrorDisplayService, ErrorDisplayService>();
+        services.AddSingleton<SingleInstanceLockService>();
+        services.AddSingleton<Func<SettingsWindow>>(sp => () => sp.GetRequiredService<SettingsWindow>());
+        services.AddSingleton<Func<InfoDialog>>(sp => () => sp.GetRequiredService<InfoDialog>());
         services.AddSingleton<IDialogService, DialogService>();
-        services.AddSingleton<ISettingsWindowFactory, SettingsWindowFactory>();
-        services.AddSingleton<IInfoDialogFactory, global::AIUsageTracker.UI.Slim.Services.InfoDialogFactory>();
-        services.AddSingleton<IWpfProviderIconServiceFactory, WpfProviderIconServiceFactory>();
-        services.AddSingleton<IChangelogMarkdownRendererFactory, ChangelogMarkdownRendererFactory>();
-        services.AddSingleton<IPollingIntervalPolicy, PollingIntervalPolicy>();
-        services.AddSingleton<IPollingService, PollingService>();
-        services.AddSingleton<IReactivePollingService, ReactivePollingService>();
-        services.AddSingleton<IMonitorStartupOrchestrator, MonitorStartupOrchestrator>();
+        services.AddSingleton<MonitorStartupOrchestrator>();
         services.AddSingleton<IBrowserService, BrowserService>();
 
         // ViewModels
         services.AddSingleton<MainViewModel>();
-        services.AddTransient<SettingsViewModel>();
-
         // Windows
         services.AddSingleton<MainWindow>();
         services.AddTransient<SettingsWindow>();

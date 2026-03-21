@@ -12,7 +12,7 @@ public sealed class ProviderRenderPlanCatalogTests
     [Fact]
     public void Build_EmptyInput_ReturnsNoDataMessage()
     {
-        var plan = ProviderRenderPlanCatalog.Build(
+        var plan = MainWindowRuntimeLogic.BuildProviderRenderPlan(
             Array.Empty<ProviderUsage>(),
             hiddenProviderItemIds: Array.Empty<string>());
 
@@ -30,7 +30,7 @@ public sealed class ProviderRenderPlanCatalogTests
             new ProviderUsage { ProviderId = "unknown-provider", ProviderName = "Unknown" },
         };
 
-        var plan = ProviderRenderPlanCatalog.Build(usages, hiddenProviderItemIds: Array.Empty<string>());
+        var plan = MainWindowRuntimeLogic.BuildProviderRenderPlan(usages, hiddenProviderItemIds: Array.Empty<string>());
 
         Assert.Equal(1, plan.RawCount);
         Assert.Equal(0, plan.RenderedCount);
@@ -47,7 +47,7 @@ public sealed class ProviderRenderPlanCatalogTests
             new ProviderUsage { ProviderId = "github-copilot", ProviderName = "GitHub Copilot", IsQuotaBased = false },
         };
 
-        var plan = ProviderRenderPlanCatalog.Build(usages, hiddenProviderItemIds: Array.Empty<string>());
+        var plan = MainWindowRuntimeLogic.BuildProviderRenderPlan(usages, hiddenProviderItemIds: Array.Empty<string>());
 
         Assert.Equal(2, plan.RawCount);
         Assert.Null(plan.Message);

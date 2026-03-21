@@ -1,4 +1,4 @@
-// <copyright file="ProviderCardPresentationCatalog.cs" company="AIUsageTracker">
+// <copyright file="MainWindowRuntimeLogic.cs" company="AIUsageTracker">
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
@@ -8,8 +8,30 @@ using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.UI.Slim;
 
-internal static class ProviderCardPresentationCatalog
+internal static partial class MainWindowRuntimeLogic
 {
+    public static string ResolveDisplayAccountName(
+        string providerId,
+        string? usageAccountName,
+        bool isPrivacyMode)
+    {
+        if (!(ProviderMetadataCatalog.Find(providerId)?.SupportsAccountIdentity ?? false))
+        {
+            return string.Empty;
+        }
+
+        var accountName = NormalizeIdentity(usageAccountName);
+
+        if (string.IsNullOrWhiteSpace(accountName))
+        {
+            return string.Empty;
+        }
+
+        return isPrivacyMode
+            ? MaskAccountIdentifier(accountName)
+            : accountName;
+    }
+
     public static ProviderCardPresentation Create(
         ProviderUsage usage,
         bool showUsed)
@@ -22,7 +44,10 @@ internal static class ProviderCardPresentationCatalog
         var isError = usage.State == ProviderUsageState.Error;
         var isUnknown = usage.State == ProviderUsageState.Unknown;
         var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
-        var isAggregateParent = ProviderMetadataCatalog.ShouldRenderAggregateDetailsInMainWindow(providerId)
+        var presDef = ProviderMetadataCatalog.Find(canonicalProviderId);
+        var isAggregateParent = presDef != null
+            && string.Equals(canonicalProviderId, presDef.ProviderId, StringComparison.OrdinalIgnoreCase)
+            && presDef.RenderDetailsAsSyntheticChildrenInMainWindow
             && string.Equals(providerId, canonicalProviderId, StringComparison.OrdinalIgnoreCase);
         var isStatusOnlyProvider = usage.IsStatusOnly;
         var hasDualQuotaBucketPresentation = TryGetDualQuotaBucketPresentation(usage, out var dualQuotaBucketPresentation);
@@ -173,7 +198,7 @@ internal static class ProviderCardPresentationCatalog
             return (string.IsNullOrWhiteSpace(description) ? "Quota details unavailable" : description, false);
         }
 
-        if (ProviderMetadataCatalog.IsTooltipOnlyProvider(usage.ProviderId ?? string.Empty))
+        if ((ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty)?.IsTooltipOnly ?? false))
         {
             return (GetTooltipOnlyCompactStatus(usage, description), false);
         }
@@ -289,6 +314,157 @@ internal static class ProviderCardPresentationCatalog
             : $"{UsageMath.ClampPercent(usage.RemainingPercent):F0}% remaining";
     }
 
+    public static (string ProviderId, string Title, IReadOnlyList<ProviderUsageDetail> Details, bool IsCollapsed)? Build(
+        ProviderUsage usage,
+        AppPreferences preferences)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+        ArgumentNullException.ThrowIfNull(preferences);
+
+        var details = GetDisplayableDetails(usage);
+        if (details.Count == 0)
+        {
+            return null;
+        }
+
+        var providerId = usage.ProviderId ?? string.Empty;
+        var title = $"{ProviderMetadataCatalog.ResolveDisplayLabel(usage)} Details";
+        var isCollapsed = GetIsCollapsed(preferences, providerId);
+
+        return (providerId, title, details, isCollapsed);
+    }
+
+    public static IReadOnlyList<ProviderUsageDetail> GetDisplayableDetails(ProviderUsage usage)
+    {
+        if (usage.Details?.Any() != true)
+        {
+            return Array.Empty<ProviderUsageDetail>();
+        }
+
+        if (ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty)?.HasDisplayableDerivedProviders ?? false)
+        {
+            return Array.Empty<ProviderUsageDetail>();
+        }
+
+        if ((ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty)?.IsTooltipOnly ?? false))
+        {
+            return Array.Empty<ProviderUsageDetail>();
+        }
+
+        return usage.Details
+            .Where(IsDisplayableDetail)
+            .OrderBy(GetDetailSortOrder)
+            .ThenBy(detail => detail.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public static (bool HasProgress, double UsedPercent, double IndicatorWidth, string DisplayText, string? ResetText)
+        BuildDetailPresentation(
+            ProviderUsageDetail detail,
+            bool showUsed,
+            Func<DateTime, string> relativeTimeFormatter)
+    {
+        var parsedUsed = UsageMath.GetEffectiveUsedPercent(detail);
+        var hasPercent = parsedUsed.HasValue;
+        var usedPercent = parsedUsed ?? 0;
+        var remainingPercent = 100.0 - usedPercent;
+        var displayPercent = showUsed ? usedPercent : remainingPercent;
+        var displayText = hasPercent
+            ? GetDisplayText(detail, showUsed, includeSemanticLabel: false)
+            : GetStoredDisplayText(detail);
+        var indicatorWidth = Math.Clamp(displayPercent, 0, 100);
+        var resetText = detail.NextResetTime.HasValue
+            ? $"({relativeTimeFormatter(detail.NextResetTime.Value)})"
+            : null;
+
+        return (
+            HasProgress: hasPercent,
+            UsedPercent: usedPercent,
+            IndicatorWidth: indicatorWidth,
+            DisplayText: displayText,
+            ResetText: resetText);
+    }
+
+    public static bool IsEligibleDetail(ProviderUsageDetail detail, bool includeRateLimit = true)
+    {
+        if (string.IsNullOrWhiteSpace(detail.Name))
+        {
+            return false;
+        }
+
+        return detail.DetailType == ProviderUsageDetailType.Model ||
+               detail.DetailType == ProviderUsageDetailType.Other ||
+               (includeRateLimit && detail.DetailType == ProviderUsageDetailType.RateLimit);
+    }
+
+    public static bool IsEligibleTrayDetail(ProviderUsageDetail detail)
+    {
+        if (!IsEligibleDetail(detail, includeRateLimit: true))
+        {
+            return false;
+        }
+
+        return !detail.Name.Contains("window", StringComparison.OrdinalIgnoreCase) &&
+               !detail.Name.Contains("credit", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string GetStoredDisplayText(ProviderUsageDetail detail, bool includeComplement = false)
+    {
+        if (detail.TryGetPercentageValue(out var percentage, out var semantic, out var decimalPlaces))
+        {
+            return FormatPercentage(percentage, semantic, decimalPlaces, includeComplement);
+        }
+
+        return string.IsNullOrWhiteSpace(detail.Description) ? "No data" : detail.Description;
+    }
+
+    public static string GetDisplayText(
+        ProviderUsageDetail detail,
+        bool showUsed,
+        bool includeSemanticLabel,
+        bool includeComplement = false)
+    {
+        var usedPercent = UsageMath.GetEffectiveUsedPercent(detail);
+        if (!usedPercent.HasValue)
+        {
+            return GetStoredDisplayText(detail, includeComplement: false);
+        }
+
+        var decimalPlaces = detail.TryGetPercentageValue(out _, out _, out var precision)
+            ? precision
+            : 0;
+        var displayPercent = showUsed
+            ? UsageMath.ClampPercent(usedPercent.Value)
+            : UsageMath.ClampPercent(100.0 - usedPercent.Value);
+
+        if (!includeSemanticLabel)
+        {
+            return $"{displayPercent.ToString($"F{decimalPlaces}", CultureInfo.InvariantCulture)}%";
+        }
+
+        var semantic = showUsed ? PercentageValueSemantic.Used : PercentageValueSemantic.Remaining;
+        return FormatPercentage(displayPercent, semantic, decimalPlaces, includeComplement);
+    }
+
+    public static bool GetIsCollapsed(AppPreferences preferences, string providerId)
+    {
+        ArgumentNullException.ThrowIfNull(preferences);
+
+        return ShouldUseSharedCollapsePreference(providerId) && preferences.IsAntigravityCollapsed;
+    }
+
+    public static void SetIsCollapsed(AppPreferences preferences, string providerId, bool isCollapsed)
+    {
+        ArgumentNullException.ThrowIfNull(preferences);
+
+        if (!ShouldUseSharedCollapsePreference(providerId))
+        {
+            return;
+        }
+
+        preferences.IsAntigravityCollapsed = isCollapsed;
+    }
+
     internal static bool TryGetDualQuotaBucketPresentation(
         ProviderUsage usage,
         out (string PrimaryLabel, double PrimaryUsedPercent, DateTime? PrimaryResetTime, string SecondaryLabel, double SecondaryUsedPercent, DateTime? SecondaryResetTime) presentation)
@@ -321,7 +497,7 @@ internal static class ProviderCardPresentationCatalog
             .Select(detail => new
             {
                 Detail = detail,
-                DeclaredWindow = FindMatchingWindow(detail, declaredWindows),
+                DeclaredWindow = FindMatchingPresentationWindow(detail, declaredWindows),
             })
             .Where(x => x.DeclaredWindow != null)
             .OrderBy(x => GetDeclaredWindowOrder(x.DeclaredWindow!, declaredWindows))
@@ -371,6 +547,55 @@ internal static class ProviderCardPresentationCatalog
         return int.MaxValue;
     }
 
+    private static bool ShouldUseSharedCollapsePreference(string providerId)
+    {
+        return ProviderMetadataCatalog.Find(
+            ProviderMetadataCatalog.GetCanonicalProviderId(providerId ?? string.Empty))?.CollapseDerivedChildrenInMainWindow ?? false;
+    }
+
+    private static bool IsDisplayableDetail(ProviderUsageDetail detail) => IsEligibleDetail(detail, includeRateLimit: true);
+
+    private static int GetDetailSortOrder(ProviderUsageDetail detail)
+    {
+        return detail.DetailType switch
+        {
+            ProviderUsageDetailType.Model => 0,
+            ProviderUsageDetailType.RateLimit => 1,
+            ProviderUsageDetailType.Other => 2,
+            _ => 3,
+        };
+    }
+
+    private static string FormatPercentage(
+        double percentage,
+        PercentageValueSemantic semantic,
+        int decimalPlaces,
+        bool includeComplement)
+    {
+        var format = $"F{Math.Max(0, decimalPlaces)}";
+        var value = UsageMath.ClampPercent(percentage).ToString(format, CultureInfo.InvariantCulture);
+        var semanticLabel = semantic switch
+        {
+            PercentageValueSemantic.Used => "used",
+            PercentageValueSemantic.Remaining => "remaining",
+            _ => string.Empty,
+        };
+
+        if (string.IsNullOrWhiteSpace(semanticLabel))
+        {
+            return $"{value}%";
+        }
+
+        if (!includeComplement)
+        {
+            return $"{value}% {semanticLabel}";
+        }
+
+        var complementValue = UsageMath.ClampPercent(100.0 - percentage).ToString(format, CultureInfo.InvariantCulture);
+        var complementLabel = semantic == PercentageValueSemantic.Used ? "remaining" : "used";
+        return $"{value}% {semanticLabel} ({complementValue}% {complementLabel})";
+    }
+
     private static string GetWindowLabel(ProviderUsageDetail detail, QuotaWindowDefinition declaredWindow)
     {
         var nameLabel = ExtractDurationLabelFromDetailName(detail.Name);
@@ -382,7 +607,7 @@ internal static class ProviderCardPresentationCatalog
         return declaredWindow.DualBarLabel;
     }
 
-    private static QuotaWindowDefinition? FindMatchingWindow(
+    private static QuotaWindowDefinition? FindMatchingPresentationWindow(
         ProviderUsageDetail detail,
         IReadOnlyList<QuotaWindowDefinition> declaredWindows)
     {
@@ -409,6 +634,67 @@ internal static class ProviderCardPresentationCatalog
 
         return name[..^suffix.Length].Trim();
     }
+
+    private static string NormalizeIdentity(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = value.Trim();
+        return normalized is "Unknown" or "User"
+            ? string.Empty
+            : normalized;
+    }
+
+    private static string MaskAccountIdentifier(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return input;
+        }
+
+        var atIndex = input.IndexOf('@');
+        if (atIndex > 0 && atIndex < input.Length - 1)
+        {
+            var localPart = input[..atIndex];
+            var domainPart = input[(atIndex + 1)..];
+            var maskedDomainChars = domainPart.ToCharArray();
+            for (var i = 0; i < maskedDomainChars.Length; i++)
+            {
+                if (maskedDomainChars[i] != '.')
+                {
+                    maskedDomainChars[i] = '*';
+                }
+            }
+
+            var maskedDomain = new string(maskedDomainChars);
+            if (localPart.Length <= 2)
+            {
+                return $"{new string('*', localPart.Length)}@{maskedDomain}";
+            }
+
+            return $"{localPart[0]}{new string('*', localPart.Length - 2)}{localPart[^1]}@{maskedDomain}";
+        }
+
+        return MaskString(input);
+    }
+
+    private static string MaskString(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        if (input.Length <= 2)
+        {
+            return new string('*', input.Length);
+        }
+
+        return input[0] + new string('*', input.Length - 2) + input[^1];
+    }
 }
 
 internal sealed record ProviderCardPresentation(
@@ -427,3 +713,4 @@ internal sealed record ProviderCardPresentation(
 {
     public bool HasDualBuckets => this.DualBucketPrimaryUsed.HasValue;
 }
+

@@ -51,7 +51,7 @@ public partial class App
                 !usage.Description.Contains("unknown", StringComparison.OrdinalIgnoreCase))
             {
                 var isQuota = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
-                var statusText = ProviderCardPresentationCatalog.Create(usage, showUsed).StatusText;
+                var statusText = MainWindowRuntimeLogic.Create(usage, showUsed).StatusText;
                 var providerLabel = ProviderMetadataCatalog.ResolveDisplayLabel(usage);
                 desiredIcons[config.ProviderId] = ($"{providerLabel}: {statusText}", usage.RemainingPercent, isQuota);
             }
@@ -64,13 +64,13 @@ public partial class App
             foreach (var subName in config.EnabledSubTrays)
             {
                 var detail = usage.Details.FirstOrDefault(d => d.Name.Equals(subName, StringComparison.OrdinalIgnoreCase));
-                if (detail == null || !this.IsSubTrayEligibleDetail(detail))
+                if (detail == null || !MainWindowRuntimeLogic.IsEligibleTrayDetail(detail))
                 {
                     continue;
                 }
 
                 var isQuotaSub = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
-                var detailPresentation = ProviderSubDetailSectionCatalog.BuildDetailPresentation(
+                var detailPresentation = MainWindowRuntimeLogic.BuildDetailPresentation(
                     detail,
                     showUsed,
                     _ => string.Empty);
@@ -153,11 +153,6 @@ public partial class App
         }
 
         return candidates[0];
-    }
-
-    private bool IsSubTrayEligibleDetail(ProviderUsageDetail detail)
-    {
-        return detail.IsDisplayableSubProviderDetail();
     }
 
     private ImageSource GenerateUsageIcon(
@@ -256,3 +251,5 @@ public partial class App
         this._mainWindow.Activate();
     }
 }
+
+

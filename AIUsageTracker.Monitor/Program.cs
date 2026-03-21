@@ -229,9 +229,9 @@ public class Program
             builder.Services.AddSingleton<ProviderRefreshService>();
             builder.Services.AddHostedService(sp => sp.GetRequiredService<ProviderRefreshService>());
 
-            // Configure HTTP clients with resilience policies
+            // Configure HTTP clients
             builder.Services.AddHttpClient();
-            builder.Services.AddResilientHttpClient();
+            builder.Services.AddConfiguredHttpClients();
 
             // Register plain HttpClient for providers that need it (e.g., ClaudeCodeProvider, KimiProvider).
             // Uses "PlainClient" — no Polly retry-on-429 policy, so providers control their own retry behavior.

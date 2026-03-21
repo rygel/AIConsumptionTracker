@@ -106,7 +106,7 @@ public sealed class MonitorStartupPathTests : IDisposable
     public void GetReadCandidatePaths_ReturnsCanonicalPathOnly()
     {
         var appDataRoot = Path.Combine(this._tempDirectory, "appdata");
-        var candidates = MonitorInfoPathCatalog.GetReadCandidatePaths(appDataRoot, this._tempDirectory);
+        var candidates = MonitorLauncher.GetMonitorInfoReadCandidatePaths(appDataRoot, this._tempDirectory);
 
         Assert.Collection(candidates, path => Assert.Equal(Path.Combine(appDataRoot, "AIUsageTracker", "monitor.json"), path));
     }
@@ -650,3 +650,4 @@ public sealed class MonitorStartupPathTests : IDisposable
         }
     }
 }
+

@@ -1,17 +1,17 @@
-// <copyright file="ConfigPathCatalogTests.cs" company="AIUsageTracker">
+// <copyright file="JsonConfigLoaderPathEntryTests.cs" company="AIUsageTracker">
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
 using AIUsageTracker.Core.Interfaces;
-using AIUsageTracker.Core.Paths;
+using AIUsageTracker.Infrastructure.Configuration;
 using Moq;
 
-namespace AIUsageTracker.Tests.Core;
+namespace AIUsageTracker.Tests.Infrastructure;
 
-public class ConfigPathCatalogTests
+public class JsonConfigLoaderPathEntryTests
 {
     [Fact]
-    public void GetConfigEntries_ReturnsLegacyProviderAppAndCanonicalEntriesInPriorityOrder()
+    public void BuildConfigEntries_ReturnsLegacyProviderAppAndCanonicalEntriesInPriorityOrder()
     {
         var pathProvider = CreatePathProvider(
             "C:\\test\\canonical\\auth.json",
@@ -19,29 +19,29 @@ public class ConfigPathCatalogTests
             "C:\\test\\appdata",
             "C:\\Users\\test");
 
-        var entries = ConfigPathCatalog.GetConfigEntries(pathProvider.Object);
+        var entries = JsonConfigLoader.BuildConfigEntries(pathProvider.Object);
 
         Assert.Equal(8, entries.Count);
         Assert.Equal("C:\\Users\\test\\.opencode\\auth.json", entries[0].Path);
-        Assert.Equal(ConfigPathKind.Auth, entries[0].Kind);
+        Assert.True(entries[0].IsAuthFile);
         Assert.Equal("C:\\Users\\test\\.config\\opencode\\auth.json", entries[1].Path);
-        Assert.Equal(ConfigPathKind.Auth, entries[1].Kind);
+        Assert.True(entries[1].IsAuthFile);
         Assert.Equal("C:\\Users\\test\\AppData\\Roaming\\opencode\\auth.json", entries[2].Path);
-        Assert.Equal(ConfigPathKind.Auth, entries[2].Kind);
+        Assert.True(entries[2].IsAuthFile);
         Assert.Equal("C:\\Users\\test\\AppData\\Local\\opencode\\auth.json", entries[3].Path);
-        Assert.Equal(ConfigPathKind.Auth, entries[3].Kind);
+        Assert.True(entries[3].IsAuthFile);
         Assert.Equal("C:\\Users\\test\\.local\\share\\opencode\\auth.json", entries[4].Path);
-        Assert.Equal(ConfigPathKind.Auth, entries[4].Kind);
+        Assert.True(entries[4].IsAuthFile);
         Assert.Equal("C:\\test\\providers.json", entries[5].Path);
-        Assert.Equal(ConfigPathKind.Provider, entries[5].Kind);
+        Assert.False(entries[5].IsAuthFile);
         Assert.Equal("C:\\test\\appdata\\auth.json", entries[6].Path);
-        Assert.Equal(ConfigPathKind.Auth, entries[6].Kind);
+        Assert.True(entries[6].IsAuthFile);
         Assert.Equal("C:\\test\\canonical\\auth.json", entries[7].Path);
-        Assert.Equal(ConfigPathKind.Auth, entries[7].Kind);
+        Assert.True(entries[7].IsAuthFile);
     }
 
     [Fact]
-    public void GetConfigEntries_DeduplicatesWhenAuthPathsMatch()
+    public void BuildConfigEntries_DeduplicatesWhenAuthPathsMatch()
     {
         var pathProvider = CreatePathProvider(
             "C:\\test\\appdata\\auth.json",
@@ -49,7 +49,7 @@ public class ConfigPathCatalogTests
             "C:\\test\\appdata",
             "C:\\Users\\test");
 
-        var entries = ConfigPathCatalog.GetConfigEntries(pathProvider.Object);
+        var entries = JsonConfigLoader.BuildConfigEntries(pathProvider.Object);
 
         Assert.Equal(7, entries.Count);
         Assert.Equal("C:\\Users\\test\\.opencode\\auth.json", entries[0].Path);
@@ -62,7 +62,7 @@ public class ConfigPathCatalogTests
     }
 
     [Fact]
-    public void GetConfigEntries_IncludesCanonicalAuthPathWhenAppDataRootMissing()
+    public void BuildConfigEntries_IncludesCanonicalAuthPathWhenAppDataRootMissing()
     {
         var pathProvider = CreatePathProvider(
             "C:\\test\\config\\auth.json",
@@ -70,11 +70,11 @@ public class ConfigPathCatalogTests
             null,
             "C:\\Users\\test");
 
-        var entries = ConfigPathCatalog.GetConfigEntries(pathProvider.Object);
+        var entries = JsonConfigLoader.BuildConfigEntries(pathProvider.Object);
 
         Assert.Equal(7, entries.Count);
         Assert.Equal("C:\\test\\config\\auth.json", entries[^1].Path);
-        Assert.Equal(ConfigPathKind.Auth, entries[^1].Kind);
+        Assert.True(entries[^1].IsAuthFile);
     }
 
     private static Mock<IAppPathProvider> CreatePathProvider(

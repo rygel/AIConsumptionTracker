@@ -5,7 +5,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
-using AIUsageTracker.Core.Updates;
+using AIUsageTracker.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim.Services;
@@ -96,7 +96,7 @@ public class BrowserService : IBrowserService
     /// <inheritdoc/>
     public void OpenReleasesPage()
     {
-        this.OpenUrl(ReleaseUrlCatalog.GetReleasesPageUrl());
+        this.OpenUrl(GitHubUpdateChecker.GetReleasesPageUrl());
     }
 
     private void StartWebService()

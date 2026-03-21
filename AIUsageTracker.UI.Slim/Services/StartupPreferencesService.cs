@@ -7,44 +7,29 @@ using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim.Services;
 
-public sealed class StartupPreferencesService : IStartupPreferencesService
+public sealed class StartupPreferencesService
 {
     private readonly IUiPreferencesStore _preferencesStore;
-    private readonly IAppThemeService _themeService;
     private readonly ILogger<StartupPreferencesService> _logger;
 
     public StartupPreferencesService(
         IUiPreferencesStore preferencesStore,
-        IAppThemeService themeService,
         ILogger<StartupPreferencesService> logger)
     {
         this._preferencesStore = preferencesStore;
-        this._themeService = themeService;
         this._logger = logger;
     }
 
-    public async Task<AppPreferences> LoadAndApplyAsync()
+    public async Task<AppPreferences> LoadAsync()
     {
         try
         {
-            var preferences = await this._preferencesStore.LoadAsync().ConfigureAwait(false);
-            this._themeService.ApplyTheme(preferences.Theme);
-            return preferences;
+            return await this._preferencesStore.LoadAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            this._logger.LogWarning(ex, "Failed to load/apply Slim preferences on startup.");
+            this._logger.LogWarning(ex, "Failed to load Slim preferences on startup.");
             UiDiagnosticFileLog.Write($"[DIAGNOSTIC] Failed to load preferences on startup: {ex.Message}");
-
-            try
-            {
-                this._themeService.ApplyTheme(AppTheme.Dark);
-            }
-            catch (Exception themeEx)
-            {
-                this._logger.LogWarning(themeEx, "Failed to apply fallback startup theme.");
-            }
-
             return new AppPreferences();
         }
     }

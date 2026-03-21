@@ -18,7 +18,6 @@ using System.Windows.Threading;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
-using AIUsageTracker.Core.Updates;
 using AIUsageTracker.Infrastructure.Providers;
 using AIUsageTracker.Infrastructure.Services;
 using AIUsageTracker.UI.Slim.Services;
@@ -45,10 +44,10 @@ public partial class MainWindow : Window
 
     private readonly MainViewModel _viewModel;
     private readonly IMonitorService _monitorService;
-    private readonly IMonitorLifecycleService _monitorLifecycleService;
-    private readonly IMonitorStartupOrchestrator _monitorStartupOrchestrator;
+    private readonly MonitorLifecycleService _monitorLifecycleService;
+    private readonly MonitorStartupOrchestrator _monitorStartupOrchestrator;
     private readonly ILogger<MainWindow> _logger;
-    private readonly IUpdateCheckerFactory _updateCheckerFactory;
+    private readonly Func<UpdateChannel, GitHubUpdateChecker> _createUpdateChecker;
     private readonly IDialogService _dialogService;
     private readonly IBrowserService _browserService;
     private readonly Func<string, FrameworkElement> _createProviderIcon;
@@ -58,7 +57,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _updateCheckTimer;
     private readonly DispatcherTimer _alwaysOnTopTimer;
 
-    private IUpdateCheckerService _updateChecker;
+    private GitHubUpdateChecker _updateChecker;
     private AppPreferences _preferences = new();
     private readonly object _dataLock = new();
     private List<ProviderUsage> _usages = new();
@@ -107,15 +106,13 @@ public partial class MainWindow : Window
     public MainWindow(
         MainViewModel viewModel,
         IMonitorService monitorService,
-        IMonitorLifecycleService monitorLifecycleService,
-        IMonitorStartupOrchestrator monitorStartupOrchestrator,
+        MonitorLifecycleService monitorLifecycleService,
+        MonitorStartupOrchestrator monitorStartupOrchestrator,
         ILogger<MainWindow> logger,
-        IUpdateCheckerFactory updateCheckerFactory,
-        IUpdateCheckerService updateChecker,
+        Func<UpdateChannel, GitHubUpdateChecker> createUpdateChecker,
+        GitHubUpdateChecker updateChecker,
         IDialogService dialogService,
         IBrowserService browserService,
-        IWpfProviderIconServiceFactory iconServiceFactory,
-        IChangelogMarkdownRendererFactory markdownRendererFactory,
         UiPreferencesStore preferencesStore,
         DisplayPreferencesService displayPreferences)
         : this(
@@ -125,12 +122,10 @@ public partial class MainWindow : Window
             monitorLifecycleService,
             monitorStartupOrchestrator,
             logger,
-            updateCheckerFactory,
+            createUpdateChecker,
             updateChecker,
             dialogService,
             browserService,
-            iconServiceFactory,
-            markdownRendererFactory,
             preferencesStore,
             displayPreferences)
     {
@@ -140,15 +135,13 @@ public partial class MainWindow : Window
         bool skipUiInitialization,
         MainViewModel viewModel,
         IMonitorService monitorService,
-        IMonitorLifecycleService monitorLifecycleService,
-        IMonitorStartupOrchestrator monitorStartupOrchestrator,
+        MonitorLifecycleService monitorLifecycleService,
+        MonitorStartupOrchestrator monitorStartupOrchestrator,
         ILogger<MainWindow> logger,
-        IUpdateCheckerFactory updateCheckerFactory,
-        IUpdateCheckerService updateChecker,
+        Func<UpdateChannel, GitHubUpdateChecker> createUpdateChecker,
+        GitHubUpdateChecker updateChecker,
         IDialogService dialogService,
         IBrowserService browserService,
-        IWpfProviderIconServiceFactory iconServiceFactory,
-        IChangelogMarkdownRendererFactory markdownRendererFactory,
         UiPreferencesStore preferencesStore,
         DisplayPreferencesService displayPreferences)
     {
@@ -157,12 +150,10 @@ public partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(monitorLifecycleService);
         ArgumentNullException.ThrowIfNull(monitorStartupOrchestrator);
         ArgumentNullException.ThrowIfNull(logger);
-        ArgumentNullException.ThrowIfNull(updateCheckerFactory);
+        ArgumentNullException.ThrowIfNull(createUpdateChecker);
         ArgumentNullException.ThrowIfNull(updateChecker);
         ArgumentNullException.ThrowIfNull(dialogService);
         ArgumentNullException.ThrowIfNull(browserService);
-        ArgumentNullException.ThrowIfNull(iconServiceFactory);
-        ArgumentNullException.ThrowIfNull(markdownRendererFactory);
         ArgumentNullException.ThrowIfNull(preferencesStore);
         ArgumentNullException.ThrowIfNull(displayPreferences);
 
@@ -176,12 +167,14 @@ public partial class MainWindow : Window
         this._monitorService = monitorService;
         this._monitorLifecycleService = monitorLifecycleService;
         this._monitorStartupOrchestrator = monitorStartupOrchestrator;
-        this._updateCheckerFactory = updateCheckerFactory;
+        this._createUpdateChecker = createUpdateChecker;
         this._updateChecker = updateChecker;
         this._dialogService = dialogService;
         this._browserService = browserService;
-        this._createProviderIcon = iconServiceFactory.Create(this.GetResourceBrush);
-        this._buildChangelogDocument = markdownRendererFactory.Create(this.GetResourceBrush);
+        var providerIconService = new WpfProviderIconService(this._logger, this.GetResourceBrush);
+        this._createProviderIcon = providerIconService.CreateIcon;
+        var markdownRenderer = new ChangelogMarkdownRenderer(this.GetResourceBrush);
+        this._buildChangelogDocument = markdownRenderer.BuildDocument;
         this._preferencesStore = preferencesStore;
         this._displayPreferences = displayPreferences;
         this._viewModel = viewModel;
@@ -622,7 +615,7 @@ public partial class MainWindow : Window
         }
 
         var channel = this._preferences.UpdateChannel;
-        this._updateChecker = this._updateCheckerFactory.Create(channel);
+            this._updateChecker = this._createUpdateChecker(channel);
     }
 
     private async Task SaveUiPreferencesAsync()
@@ -666,41 +659,6 @@ public partial class MainWindow : Window
         else
         {
             await this.InitializeAsync();
-        }
-    }
-
-    private void FitWindowHeightForHeadlessScreenshot()
-    {
-        if (this.Content is not FrameworkElement root)
-        {
-            return;
-        }
-
-        var width = this.Width;
-        if (double.IsNaN(width) || width <= 0)
-        {
-            width = this.ActualWidth > 0 ? this.ActualWidth : 460;
-        }
-
-        root.Measure(new Size(width, double.PositiveInfinity));
-        var desiredHeight = Math.Ceiling(root.DesiredSize.Height);
-        if (desiredHeight > 0)
-        {
-            this.Height = Math.Max(this.MinHeight, desiredHeight);
-        }
-
-        this.UpdateLayout();
-
-        if (this.ProvidersScrollViewer is null)
-        {
-            return;
-        }
-
-        var overflow = this.ProvidersScrollViewer.ExtentHeight - this.ProvidersScrollViewer.ViewportHeight;
-        if (overflow > 0.5)
-        {
-            this.Height += Math.Ceiling(overflow) + 2;
-            this.UpdateLayout();
         }
     }
 
@@ -867,7 +825,7 @@ public partial class MainWindow : Window
         }
 
         this.LogDiagnostic($"[DIAGNOSTIC] ProvidersList cleared, _usages count: {usagesCopy.Count}");
-        var renderPlan = ProviderRenderPlanCatalog.Build(usagesCopy, this._preferences.HiddenProviderItemIds);
+        var renderPlan = MainWindowRuntimeLogic.BuildProviderRenderPlan(usagesCopy, this._preferences.HiddenProviderItemIds);
         this.LogDiagnostic(
             $"[DIAGNOSTIC] Provider render counts: raw={renderPlan.RawCount}, rendered={renderPlan.RenderedCount}");
 
@@ -901,13 +859,13 @@ public partial class MainWindow : Window
                     section.IsQuotaBased ? Brushes.DeepSkyBlue : Brushes.MediumSeaGreen,
                     isGroupHeader: true,
                     groupKey: section.SectionKey,
-                    () => ProviderSectionCollapseCatalog.GetIsCollapsed(this._preferences, section.IsQuotaBased),
-                    v => ProviderSectionCollapseCatalog.SetIsCollapsed(this._preferences, section.IsQuotaBased, v));
+                        () => MainWindowRuntimeLogic.GetSectionIsCollapsed(this._preferences, section.IsQuotaBased),
+                        v => MainWindowRuntimeLogic.SetSectionIsCollapsed(this._preferences, section.IsQuotaBased, v));
 
                 this.ProvidersList.Children.Add(header);
                 this.ProvidersList.Children.Add(container);
 
-                var isCollapsed = ProviderSectionCollapseCatalog.GetIsCollapsed(this._preferences, section.IsQuotaBased);
+            var isCollapsed = MainWindowRuntimeLogic.GetSectionIsCollapsed(this._preferences, section.IsQuotaBased);
                 if (isCollapsed)
                 {
                     continue;
@@ -1131,19 +1089,20 @@ public partial class MainWindow : Window
 
     private void AddCollapsibleSubProviders(ProviderUsage usage, StackPanel container, ProviderCardRenderer cardRenderer)
     {
-        var section = ProviderSubDetailSectionCatalog.Build(usage, this._preferences);
-        if (section is null)
+        var sectionOpt = MainWindowRuntimeLogic.Build(usage, this._preferences);
+        if (sectionOpt is null)
         {
             return;
         }
+        var section = sectionOpt.Value;
 
         var (subHeader, subContainer) = this.CreateCollapsibleHeader(
             section.Title,
             Brushes.DeepSkyBlue,
             isGroupHeader: false,
             groupKey: null,
-            () => ProviderSubDetailSectionCatalog.GetIsCollapsed(this._preferences, section.ProviderId),
-            v => ProviderSubDetailSectionCatalog.SetIsCollapsed(this._preferences, section.ProviderId, v));
+            () => MainWindowRuntimeLogic.GetIsCollapsed(this._preferences, section.ProviderId),
+            v => MainWindowRuntimeLogic.SetIsCollapsed(this._preferences, section.ProviderId, v));
 
         container.Children.Add(subHeader);
         container.Children.Add(subContainer);
@@ -1199,7 +1158,7 @@ public partial class MainWindow : Window
                 {
                     // Empty data - try to trigger a refresh if cooldown has passed
                     // This handles cases where Monitor restarted or hasn't completed its background refresh
-                    var refreshDecision = PollingRefreshDecisionCatalog.Create(
+                    var refreshDecision = MainWindowRuntimeLogic.CreatePollingRefreshDecision(
                         this._lastRefreshTrigger,
                         DateTime.Now,
                         RefreshCooldownSeconds);
@@ -1248,7 +1207,7 @@ public partial class MainWindow : Window
                     }
                     else if ((now - this._lastMonitorUpdate).TotalMinutes > 5)
                     {
-                        noDataMessage = MonitorOfflineStatusCatalog.Format(this._lastMonitorUpdate, now);
+                        noDataMessage = MainWindowRuntimeLogic.FormatMonitorOfflineStatus(this._lastMonitorUpdate, now);
                         noDataStatusType = StatusType.Warning;
                     }
 
@@ -1280,7 +1239,7 @@ public partial class MainWindow : Window
                 var switchToStartupInterval = false;
                 if (hasOldData)
                 {
-                    exceptionMessage = MonitorOfflineStatusCatalog.Format(this._lastMonitorUpdate, now);
+                    exceptionMessage = MainWindowRuntimeLogic.FormatMonitorOfflineStatus(this._lastMonitorUpdate, now);
                     exceptionStatusType = StatusType.Warning;
                 }
                 else
@@ -1325,7 +1284,7 @@ public partial class MainWindow : Window
                 hasCachedConfigs = this._configs.Any();
             }
 
-            var shouldRefreshConfigs = TrayConfigRefreshDecisionCatalog.ShouldRefresh(
+            var shouldRefreshConfigs = MainWindowRuntimeLogic.ShouldRefreshTrayConfigs(
                 hasCachedConfigs: hasCachedConfigs,
                 lastRefreshUtc: this._lastTrayConfigRefresh,
                 nowUtc: DateTime.UtcNow,
@@ -1448,7 +1407,7 @@ public partial class MainWindow : Window
 
     private string FormatMonitorOfflineStatus()
     {
-        return MonitorOfflineStatusCatalog.Format(this._lastMonitorUpdate, DateTime.Now);
+        return MainWindowRuntimeLogic.FormatMonitorOfflineStatus(this._lastMonitorUpdate, DateTime.Now);
     }
 
     private void LogDiagnostic(string message)
@@ -1722,12 +1681,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task Compact_CheckedAsync(object sender, RoutedEventArgs e)
-    {
-        // No-op (Field removed from UI)
-        await Task.CompletedTask;
-    }
-
     private async void ShowUsedToggle_Checked(object sender, RoutedEventArgs e)
     {
         try
@@ -1749,16 +1702,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RefreshData_NoArgs(object sender, RoutedEventArgs e)
-    {
-        _ = this.RefreshDataAsync();
-    }
-
     private void ViewChangelogBtn_Click(object sender, RoutedEventArgs e)
     {
         if (this._latestUpdate == null)
         {
-            OpenExternalUrl(ReleaseUrlCatalog.GetReleasesPageUrl());
+            OpenExternalUrl(AIUsageTracker.Infrastructure.Services.GitHubUpdateChecker.GetReleasesPageUrl());
             return;
         }
 
@@ -1841,7 +1789,7 @@ public partial class MainWindow : Window
     {
         if (this._latestUpdate == null)
         {
-            OpenExternalUrl(ReleaseUrlCatalog.GetLatestReleasePageUrl());
+            OpenExternalUrl(AIUsageTracker.Infrastructure.Services.GitHubUpdateChecker.GetLatestReleasePageUrl());
             return;
         }
 
@@ -1914,30 +1862,6 @@ public partial class MainWindow : Window
                 "Update Error",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
-        }
-    }
-
-    private async Task RestartMonitorAsync()
-    {
-        try
-        {
-            this.ShowStatus("Restarting monitor...", StatusType.Warning);
-
-            // Try to start agent
-            var monitorReady = await this._monitorLifecycleService.EnsureAgentRunningAsync();
-            if (monitorReady)
-            {
-                this.ShowStatus("Monitor restarted", StatusType.Success);
-                await this.RefreshDataAsync();
-            }
-            else
-            {
-                this.ShowStatus("Monitor restart failed", StatusType.Error);
-            }
-        }
-        catch (Exception ex)
-        {
-            this.ShowStatus($"Restart error: {ex.Message}", StatusType.Error);
         }
     }
 
@@ -2114,3 +2038,5 @@ public partial class MainWindow : Window
         }
     }
 }
+
+

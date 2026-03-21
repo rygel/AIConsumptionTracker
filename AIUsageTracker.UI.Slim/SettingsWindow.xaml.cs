@@ -31,7 +31,7 @@ public partial class SettingsWindow : Window
     };
 
     private readonly IMonitorService _monitorService;
-    private readonly IMonitorLifecycleService _monitorLifecycleService;
+    private readonly MonitorLifecycleService _monitorLifecycleService;
     private readonly ILogger<SettingsWindow> _logger;
     private readonly IAppPathProvider _pathProvider;
     private readonly UiPreferencesStore _preferencesStore;
@@ -49,7 +49,7 @@ public partial class SettingsWindow : Window
 
     public SettingsWindow(
         IMonitorService monitorService,
-        IMonitorLifecycleService monitorLifecycleService,
+        MonitorLifecycleService monitorLifecycleService,
         ILogger<SettingsWindow> logger,
         UiPreferencesStore preferencesStore,
         IAppPathProvider pathProvider,
@@ -460,7 +460,7 @@ public partial class SettingsWindow : Window
     {
         this.ProvidersStack.Children.Clear();
 
-        var displayItems = ProviderSettingsDisplayCatalog.CreateDisplayItems(this._configs, this._usages);
+        var displayItems = CreateProviderDisplayItems(this._configs, this._usages);
         var usageByProviderId = this._usages.ToDictionary(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in displayItems)
@@ -490,7 +490,7 @@ public partial class SettingsWindow : Window
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Inputs
 
-        var settingsBehavior = ProviderSettingsCatalog.Resolve(config, usage, isDerived);
+        var settingsBehavior = ResolveProviderSettingsBehavior(config, usage, isDerived);
         var headerPanel = this.BuildProviderHeader(config, settingsBehavior, isSubItem);
 
         grid.Children.Add(headerPanel);
@@ -506,7 +506,7 @@ public partial class SettingsWindow : Window
         Grid.SetRow(keyPanel, 1);
         grid.Children.Add(keyPanel);
 
-        var subTrayDetails = ProviderSubTrayCatalog.GetEligibleDetails(usage);
+        var subTrayDetails = GetEligibleSubTrayDetails(usage);
 
         if (!isSubItem && subTrayDetails is { Count: > 0 })
         {
@@ -526,7 +526,149 @@ public partial class SettingsWindow : Window
             return false;
         }
 
-        return ProviderMetadataCatalog.ShouldRenderAsSettingsSubItem(providerId);
+        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+        var isCanonicalChild = !string.Equals(canonicalProviderId, providerId, StringComparison.OrdinalIgnoreCase);
+        return isCanonicalChild &&
+               (ProviderMetadataCatalog.Find(canonicalProviderId)?.CollapseDerivedChildrenInMainWindow ?? false);
+    }
+
+    internal static IReadOnlyList<ProviderUsageDetail> GetEligibleSubTrayDetails(ProviderUsage? usage)
+    {
+        if (usage?.Details == null)
+        {
+            return Array.Empty<ProviderUsageDetail>();
+        }
+
+        if (ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty)?.HasDisplayableDerivedProviders ?? false)
+        {
+            return Array.Empty<ProviderUsageDetail>();
+        }
+
+        return usage.Details
+            .Where(detail => MainWindowRuntimeLogic.IsEligibleDetail(detail, includeRateLimit: false))
+            .GroupBy(detail => detail.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(detail => detail.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    internal static IReadOnlyList<ProviderSettingsDisplayItem> CreateProviderDisplayItems(
+        IReadOnlyCollection<ProviderConfig> configs,
+        IReadOnlyCollection<ProviderUsage> usages)
+    {
+        var displayItems = configs
+            .Where(config => ProviderMetadataCatalog.Find(config.ProviderId)?.ShowInSettings ?? false)
+            .Select(config => new ProviderSettingsDisplayItem(config, IsDerived: false))
+            .ToList();
+        var configuredProviderIds = displayItems
+            .Select(item => item.Config.ProviderId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var defaultProviderIds = ProviderMetadataCatalog.GetDefaultSettingsProviderIds()
+            .Where(providerId => !configuredProviderIds.Contains(providerId))
+            .ToList();
+
+        var defaultItems = defaultProviderIds
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(CreateDefaultDisplayConfig)
+            .Select(config => new ProviderSettingsDisplayItem(config, IsDerived: false));
+        var explicitDisplayProviderIds = configuredProviderIds
+            .Concat(defaultProviderIds)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var derivedItems = usages
+            .Select(usage => new { Usage = usage, ProviderId = usage.ProviderId ?? string.Empty })
+            .Where(x =>
+                !string.IsNullOrWhiteSpace(x.ProviderId) &&
+                ProviderMetadataCatalog.IsVisibleDerivedProviderId(x.ProviderId) &&
+                !explicitDisplayProviderIds.Contains(x.ProviderId))
+            .Select(x => x.Usage)
+            .Select(usage => new ProviderSettingsDisplayItem(CreateDerivedConfig(usage), IsDerived: true));
+
+        displayItems.AddRange(defaultItems);
+        displayItems.AddRange(derivedItems);
+
+        return displayItems
+            .OrderBy(item => ProviderMetadataCatalog.ResolveDisplayLabel(item.Config.ProviderId), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Config.ProviderId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    internal static ProviderSettingsBehavior ResolveProviderSettingsBehavior(
+        ProviderConfig config,
+        ProviderUsage? usage,
+        bool isDerived)
+    {
+        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(config.ProviderId);
+        var hasSessionToken = IsSessionToken(config.ApiKey);
+        var inputMode = isDerived
+            ? ProviderInputMode.DerivedReadOnly
+            : ResolveProviderInputMode(canonicalProviderId, usage, hasSessionToken);
+        var isInactive = isDerived
+            ? false
+            : inputMode switch
+            {
+                ProviderInputMode.AutoDetectedStatus => usage == null || !usage.IsAvailable,
+                ProviderInputMode.SessionAuthStatus => string.IsNullOrWhiteSpace(config.ApiKey) && !(usage?.IsAvailable == true),
+                _ => string.IsNullOrWhiteSpace(config.ApiKey),
+            };
+        var sessionProviderLabel = inputMode == ProviderInputMode.SessionAuthStatus
+            ? ProviderMetadataCatalog.Find(canonicalProviderId)?.SessionStatusLabel
+            : null;
+
+        return new ProviderSettingsBehavior(
+            InputMode: inputMode,
+            IsInactive: isInactive,
+            IsDerivedVisible: ProviderMetadataCatalog.IsVisibleDerivedProviderId(config.ProviderId ?? string.Empty),
+            SessionProviderLabel: sessionProviderLabel);
+    }
+
+    internal static bool IsSessionToken(string? apiKey)
+    {
+        return !string.IsNullOrWhiteSpace(apiKey) &&
+               !apiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ProviderConfig CreateDefaultDisplayConfig(string providerId)
+    {
+        if (ProviderMetadataCatalog.TryCreateDefaultConfig(providerId, out var config))
+        {
+            return config;
+        }
+
+        return new ProviderConfig
+        {
+            ProviderId = providerId,
+        };
+    }
+
+    private static ProviderConfig CreateDerivedConfig(ProviderUsage usage)
+    {
+        return new ProviderConfig
+        {
+            ProviderId = usage.ProviderId,
+            Type = usage.IsQuotaBased ? "quota-based" : "pay-as-you-go",
+            PlanType = usage.PlanType,
+        };
+    }
+
+    private static ProviderInputMode ResolveProviderInputMode(string canonicalProviderId, ProviderUsage? usage, bool hasSessionToken)
+    {
+        var settingsDef = ProviderMetadataCatalog.Find(canonicalProviderId);
+        var settingsMode = settingsDef?.SettingsMode ?? ProviderSettingsMode.StandardApiKey;
+        if (settingsMode == ProviderSettingsMode.SessionAuthStatus &&
+            (settingsDef?.UseSessionAuthStatusWhenQuotaBasedOrSessionToken ?? false) &&
+            usage?.IsQuotaBased != true &&
+            !hasSessionToken)
+        {
+            settingsMode = ProviderSettingsMode.StandardApiKey;
+        }
+
+        return settingsMode switch
+        {
+            ProviderSettingsMode.AutoDetectedStatus => ProviderInputMode.AutoDetectedStatus,
+            ProviderSettingsMode.ExternalAuthStatus => ProviderInputMode.ExternalAuthStatus,
+            ProviderSettingsMode.SessionAuthStatus => ProviderInputMode.SessionAuthStatus,
+            _ => ProviderInputMode.StandardApiKey,
+        };
     }
 
     private FrameworkElement BuildProviderInputContent(ProviderConfig config, ProviderUsage? usage, ProviderSettingsBehavior settingsBehavior)
@@ -709,7 +851,7 @@ public partial class SettingsWindow : Window
         var providerSessionLabel = settingsBehavior.SessionProviderLabel ??
                                    ProviderMetadataCatalog.GetConfiguredDisplayName(
                                        ProviderMetadataCatalog.GetCanonicalProviderId(config.ProviderId ?? string.Empty));
-        var hasSessionToken = ProviderSettingsCatalog.IsSessionToken(config.ApiKey);
+        var hasSessionToken = IsSessionToken(config.ApiKey);
         var isAuthenticated = hasSessionToken || usage?.IsAvailable == true;
         var accountName = usage?.AccountName;
 
@@ -1188,7 +1330,7 @@ public partial class SettingsWindow : Window
     private ImageSource CreateFallbackIcon(string providerId)
     {
         // Create a simple colored circle as fallback
-        var (color, _) = ProviderVisualCatalog.GetBadge(providerId, Brushes.Gray);
+        var (color, _) = global::AIUsageTracker.UI.Slim.Services.WpfProviderIconService.GetBadge(providerId, Brushes.Gray);
 
         // Return a drawing image with just a colored rectangle (simplified)
         var drawing = new GeometryDrawing(
@@ -1266,9 +1408,9 @@ public partial class SettingsWindow : Window
 
         // Run the same pipeline as the main window (no hidden filter) to get every card
         // that could potentially appear, then group by canonical provider.
-        var renderPrep = ProviderUsageDisplayCatalog.PrepareForMainWindow(this._usages);
-        var allCards = ProviderUsageDisplayCatalog
-            .ExpandSyntheticAggregateChildren(renderPrep.DisplayableUsages, hiddenItemIds: [])
+        var renderPrep = MainWindowRuntimeLogic.PrepareForMainWindow(this._usages);
+        var allCards = MainWindowRuntimeLogic
+            .ExpandSyntheticAggregateChildren(renderPrep, hiddenItemIds: [])
             .ToList();
 
         var groups = allCards
@@ -2346,4 +2488,15 @@ public partial class SettingsWindow : Window
     }
 #pragma warning restore VSTHRD100
 
+    private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Escape)
+        {
+            this.Close();
+        }
+    }
 }
+
+
+
+

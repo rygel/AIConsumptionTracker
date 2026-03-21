@@ -77,7 +77,7 @@ public partial class SubProviderCardViewModel : BaseViewModel
 
     private void UpdatePresentation()
     {
-        var presentation = ProviderSubDetailSectionCatalog.BuildDetailPresentation(
+        var presentation = MainWindowRuntimeLogic.BuildDetailPresentation(
             this.Detail,
             this.ShowUsedPercentages,
             GetRelativeTimeString);
@@ -121,3 +121,5 @@ public partial class SubProviderCardViewModel : BaseViewModel
         return $"{diff.Minutes}m";
     }
 }
+
+
