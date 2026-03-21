@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [2.3.2-beta.8] - 2026-03-21
+## [2.3.2-beta.11] - 2026-03-21
 
 ### Fixed
 - **Pace calculation now uses simple projection math**: replaced cubic suppression formula that hid real usage problems (e.g. 73% used at 88.5% elapsed showed green instead of warning). Now uses `projected = used / elapsed_fraction` — works correctly for all window sizes (5h, 24h, 7-day).
