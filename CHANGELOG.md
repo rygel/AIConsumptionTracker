@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [2.3.2-beta.8] - 2026-03-21
+
+### Fixed
+- **Pace calculation now uses simple projection math**: replaced cubic suppression formula that hid real usage problems (e.g. 73% used at 88.5% elapsed showed green instead of warning). Now uses `projected = used / elapsed_fraction` — works correctly for all window sizes (5h, 24h, 7-day).
+- Badge shows "Over pace" when projected usage exceeds 100%, "On pace" when projected < 90%.
+
+### Changed
+- Remove unnecessary code and improve performance: stripped ~7,000 lines of dead code, unused abstractions, duplicate interfaces, and over-engineered patterns.
+- Removed Polly resilience stack (retry/circuit-breaker); providers use plain HttpClient.
+
+### CI/CD
+- Security scan now weekly-only (was running on every push/PR, duplicating Trivy).
+- Removed fake build-performance-monitor workflow.
+- Added NuGet caching to dependency-updates and security-scan workflows.
+- Spread Monday-only scheduled scans across Mon–Fri to avoid CI contention.
+
 ## [2.3.2-beta.7] - 2026-03-20
 
 ### Fixed
