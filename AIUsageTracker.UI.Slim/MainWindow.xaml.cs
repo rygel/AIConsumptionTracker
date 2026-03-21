@@ -1982,9 +1982,8 @@ public partial class MainWindow : Window
     {
         if (this.MonitorToggleBtn != null && this.MonitorToggleIcon != null)
         {
-            var presentation = MonitorToggleButtonPresentationCatalog.Create(isRunning);
-            this.MonitorToggleIcon.Text = presentation.IconGlyph;
-            this.MonitorToggleBtn.ToolTip = presentation.ToolTip;
+            this.MonitorToggleIcon.Text = isRunning ? "\uE71A" : "\uE768";
+            this.MonitorToggleBtn.ToolTip = isRunning ? "Stop Monitor" : "Start Monitor";
         }
     }
 
