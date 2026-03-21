@@ -1832,13 +1832,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        var confirmPresentation = UpdateInstallPresentationCatalog.CreateConfirm(this._latestUpdate.Version);
         var result = MessageBox.Show(
-            $"Download and install version {this._latestUpdate.Version}?\n\nThe application will restart after installation.",
-            "Confirm Update",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
+            confirmPresentation.Message,
+            confirmPresentation.Title,
+            confirmPresentation.Buttons,
+            confirmPresentation.Icon);
 
-        if (result != MessageBoxResult.Yes)
+        if (!UpdateInstallPresentationCatalog.ShouldProceed(result))
         {
             return;
         }
@@ -1854,9 +1855,10 @@ public partial class MainWindow : Window
                 Maximum = 100,
             };
 
+            var progressPresentation = UpdateInstallPresentationCatalog.CreateProgress(this._latestUpdate.Version);
             progressWindow = new Window
             {
-                Title = "Downloading Update",
+                Title = progressPresentation.WindowTitle,
                 Width = 400,
                 Height = 150,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1867,7 +1869,7 @@ public partial class MainWindow : Window
                     Margin = new Thickness(20),
                     Children =
                     {
-                        new TextBlock { Text = $"Downloading version {this._latestUpdate.Version}...", Margin = new Thickness(0, 0, 0, 10) },
+                        new TextBlock { Text = progressPresentation.ProgressText, Margin = new Thickness(0, 0, 0, 10) },
                         progressBar,
                     },
                 },
@@ -1886,21 +1888,23 @@ public partial class MainWindow : Window
             }
             else
             {
+                var failedPresentation = UpdateInstallPresentationCatalog.CreateFailed();
                 MessageBox.Show(
-                    "Failed to download or install the update. Please try again or download manually from the releases page.",
-                    "Update Failed",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                    failedPresentation.Message,
+                    failedPresentation.Title,
+                    failedPresentation.Buttons,
+                    failedPresentation.Icon);
             }
         }
         catch (Exception ex)
         {
             progressWindow?.Close();
+            var errorPresentation = UpdateInstallPresentationCatalog.CreateError(ex.Message);
             MessageBox.Show(
-                $"Update error: {ex.Message}",
-                "Update Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                errorPresentation.Message,
+                errorPresentation.Title,
+                errorPresentation.Buttons,
+                errorPresentation.Icon);
         }
     }
 
