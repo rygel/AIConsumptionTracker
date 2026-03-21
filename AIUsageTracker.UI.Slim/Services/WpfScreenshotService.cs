@@ -6,7 +6,6 @@ using System.Windows.Threading;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.UI.Slim.Interfaces;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim.Services;
@@ -15,13 +14,22 @@ public class WpfScreenshotService : IScreenshotService, IWpfScreenshotService
 {
     private const double ScreenshotScaleFactor = 2.0;
     private const double ScreenshotDpi = 96.0 * ScreenshotScaleFactor;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly MainWindow _mainWindow;
+    private readonly ISettingsWindowFactory _settingsWindowFactory;
+    private readonly IInfoDialogFactory _infoDialogFactory;
     private readonly ILogger<WpfScreenshotService> _logger;
     private readonly IThemeService _themeService;
 
-    public WpfScreenshotService(IServiceProvider serviceProvider, ILogger<WpfScreenshotService> logger, IThemeService themeService)
+    public WpfScreenshotService(
+        MainWindow mainWindow,
+        ISettingsWindowFactory settingsWindowFactory,
+        IInfoDialogFactory infoDialogFactory,
+        ILogger<WpfScreenshotService> logger,
+        IThemeService themeService)
     {
-        _serviceProvider = serviceProvider;
+        _mainWindow = mainWindow;
+        _settingsWindowFactory = settingsWindowFactory;
+        _infoDialogFactory = infoDialogFactory;
         _logger = logger;
         _themeService = themeService;
     }
@@ -179,7 +187,7 @@ public class WpfScreenshotService : IScreenshotService, IWpfScreenshotService
 
     private async Task CaptureMainWindowScreenshotAsync(string outputPath)
     {
-        var window = _serviceProvider.GetRequiredService<MainWindow>();
+        var window = _mainWindow;
         try
         {
             await window.PrepareForHeadlessScreenshotAsync(deterministic: true);
@@ -194,7 +202,7 @@ public class WpfScreenshotService : IScreenshotService, IWpfScreenshotService
 
     private async Task CaptureSettingsScreenshotsAsync(string outputDirectory)
     {
-        var window = _serviceProvider.GetRequiredService<SettingsWindow>();
+        var window = _settingsWindowFactory.Create();
         try
         {
             await window.CaptureHeadlessTabScreenshotsAsync(outputDirectory);
@@ -207,8 +215,7 @@ public class WpfScreenshotService : IScreenshotService, IWpfScreenshotService
 
     private void CaptureInfoScreenshot(string outputPath)
     {
-        var app = (App)Application.Current;
-        var window = app.InfoDialogFactory();
+        var window = _infoDialogFactory.Create();
         try
         {
             if (window is InfoDialog infoDialog)

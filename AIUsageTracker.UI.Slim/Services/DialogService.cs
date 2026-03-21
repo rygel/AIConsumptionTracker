@@ -3,7 +3,6 @@
 // </copyright>
 
 using System.Windows;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 
 namespace AIUsageTracker.UI.Slim.Services;
@@ -13,21 +12,24 @@ namespace AIUsageTracker.UI.Slim.Services;
 /// </summary>
 public class DialogService : IDialogService
 {
-    private readonly IServiceProvider _serviceProvider;
+    private readonly ISettingsWindowFactory _settingsWindowFactory;
+    private readonly IInfoDialogFactory _infoDialogFactory;
 
-    public DialogService(IServiceProvider serviceProvider)
+    public DialogService(ISettingsWindowFactory settingsWindowFactory, IInfoDialogFactory infoDialogFactory)
     {
-        this._serviceProvider = serviceProvider;
+        this._settingsWindowFactory = settingsWindowFactory;
+        this._infoDialogFactory = infoDialogFactory;
     }
 
     /// <inheritdoc />
     public Task<bool?> ShowSettingsAsync(Window? owner = null)
     {
-        var settingsWindow = this._serviceProvider.GetRequiredService<SettingsWindow>();
+        var settingsWindow = this._settingsWindowFactory.Create();
 
         if (owner != null)
         {
             settingsWindow.Owner = owner;
+            settingsWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner;
         }
 
         var result = settingsWindow.ShowDialog();
@@ -37,11 +39,12 @@ public class DialogService : IDialogService
     /// <inheritdoc />
     public Task ShowInfoAsync(Window? owner = null)
     {
-        var infoDialog = new InfoDialog();
+        var infoDialog = this._infoDialogFactory.Create();
 
         if (owner != null)
         {
             infoDialog.Owner = owner;
+            infoDialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
         }
 
         infoDialog.ShowDialog();

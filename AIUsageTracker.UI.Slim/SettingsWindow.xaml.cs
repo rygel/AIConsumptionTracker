@@ -16,7 +16,6 @@ using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Infrastructure.Providers;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 
@@ -72,17 +71,6 @@ public partial class SettingsWindow : Window
         this.Closed += this.SettingsWindow_Closed;
         this.Loaded += this.SettingsWindow_Loaded;
         this.UpdatePrivacyButtonState();
-    }
-
-    public SettingsWindow()
-        : this(
-        App.Host.Services.GetRequiredService<IMonitorService>(),
-        App.Host.Services.GetRequiredService<IMonitorLifecycleService>(),
-        App.Host.Services.GetRequiredService<ILogger<SettingsWindow>>(),
-        App.Host.Services.GetRequiredService<UiPreferencesStore>(),
-        App.Host.Services.GetRequiredService<IAppPathProvider>(),
-        App.Host.Services.GetRequiredService<DisplayPreferencesService>())
-    {
     }
 
     internal bool SettingsChanged { get; private set; }

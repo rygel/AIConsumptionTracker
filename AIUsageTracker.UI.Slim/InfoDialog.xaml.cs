@@ -14,7 +14,6 @@ using System.Windows.Media;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.UI.Slim.Services;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim;
@@ -28,11 +27,14 @@ public partial class InfoDialog : Window, IWeakEventListener
     private string? _realConfigDir;
     private string? _realDataDir;
 
-    public InfoDialog()
+    public InfoDialog(ILogger<InfoDialog> logger, IAppPathProvider pathProvider)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(pathProvider);
+
         this.InitializeComponent();
-        this._logger = App.CreateLogger<InfoDialog>();
-        this._pathProvider = App.Host.Services.GetRequiredService<IAppPathProvider>();
+        this._logger = logger;
+        this._pathProvider = pathProvider;
 
         // In Slim UI, we rely on App.Preferences or direct theme resources
         // No need for complex theme loading or IConfigLoader here

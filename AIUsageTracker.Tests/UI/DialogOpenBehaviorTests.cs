@@ -239,6 +239,8 @@ public class DialogOpenBehaviorTests
             services.GetRequiredService<IUpdateCheckerService>(),
             dialogService ?? services.GetRequiredService<IDialogService>(),
             browserService ?? services.GetRequiredService<IBrowserService>(),
+            services.GetRequiredService<IWpfProviderIconServiceFactory>(),
+            services.GetRequiredService<IChangelogMarkdownRendererFactory>(),
             services.GetRequiredService<UiPreferencesStore>(),
             services.GetRequiredService<DisplayPreferencesService>());
     }

@@ -24,7 +24,6 @@ using AIUsageTracker.UI.Slim.Services;
 using AIUsageTracker.UI.Slim.ViewModels;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Win32;
 
 namespace AIUsageTracker.UI.Slim;
@@ -51,14 +50,12 @@ public partial class MainWindow : Window
     private readonly IUpdateCheckerFactory _updateCheckerFactory;
     private readonly IDialogService _dialogService;
     private readonly IBrowserService _browserService;
+    private readonly Func<string, FrameworkElement> _createProviderIcon;
+    private readonly Func<string, FlowDocument> _buildChangelogDocument;
     private readonly UiPreferencesStore _preferencesStore;
     private readonly DisplayPreferencesService _displayPreferences;
     private readonly DispatcherTimer _updateCheckTimer;
     private readonly DispatcherTimer _alwaysOnTopTimer;
-
-    // Extracted UI services — initialized lazily after resource dictionary is loaded
-    private WpfProviderIconService? _iconService;
-    private ChangelogMarkdownRenderer? _markdownRenderer;
 
     private IUpdateCheckerService _updateChecker;
     private AppPreferences _preferences = new();
@@ -116,9 +113,25 @@ public partial class MainWindow : Window
         IUpdateCheckerService updateChecker,
         IDialogService dialogService,
         IBrowserService browserService,
+        IWpfProviderIconServiceFactory iconServiceFactory,
+        IChangelogMarkdownRendererFactory markdownRendererFactory,
         UiPreferencesStore preferencesStore,
         DisplayPreferencesService displayPreferences)
-        : this(skipUiInitialization: false, viewModel, monitorService, monitorLifecycleService, monitorStartupOrchestrator, logger, updateCheckerFactory, updateChecker, dialogService, browserService, preferencesStore, displayPreferences)
+        : this(
+            skipUiInitialization: false,
+            viewModel,
+            monitorService,
+            monitorLifecycleService,
+            monitorStartupOrchestrator,
+            logger,
+            updateCheckerFactory,
+            updateChecker,
+            dialogService,
+            browserService,
+            iconServiceFactory,
+            markdownRendererFactory,
+            preferencesStore,
+            displayPreferences)
     {
     }
 
@@ -133,6 +146,8 @@ public partial class MainWindow : Window
         IUpdateCheckerService updateChecker,
         IDialogService dialogService,
         IBrowserService browserService,
+        IWpfProviderIconServiceFactory iconServiceFactory,
+        IChangelogMarkdownRendererFactory markdownRendererFactory,
         UiPreferencesStore preferencesStore,
         DisplayPreferencesService displayPreferences)
     {
@@ -145,6 +160,8 @@ public partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(updateChecker);
         ArgumentNullException.ThrowIfNull(dialogService);
         ArgumentNullException.ThrowIfNull(browserService);
+        ArgumentNullException.ThrowIfNull(iconServiceFactory);
+        ArgumentNullException.ThrowIfNull(markdownRendererFactory);
         ArgumentNullException.ThrowIfNull(preferencesStore);
         ArgumentNullException.ThrowIfNull(displayPreferences);
 
@@ -162,6 +179,8 @@ public partial class MainWindow : Window
         this._updateChecker = updateChecker;
         this._dialogService = dialogService;
         this._browserService = browserService;
+        this._createProviderIcon = iconServiceFactory.Create(this.GetResourceBrush);
+        this._buildChangelogDocument = markdownRendererFactory.Create(this.GetResourceBrush);
         this._preferencesStore = preferencesStore;
         this._displayPreferences = displayPreferences;
         this._viewModel = viewModel;
@@ -891,16 +910,6 @@ public partial class MainWindow : Window
         return this.FindResource(key) as SolidColorBrush ?? fallback;
     }
 
-    private WpfProviderIconService EnsureIconService()
-    {
-        return this._iconService ??= new WpfProviderIconService(this._logger, this.GetResourceBrush);
-    }
-
-    private ChangelogMarkdownRenderer EnsureMarkdownRenderer()
-    {
-        return this._markdownRenderer ??= new ChangelogMarkdownRenderer(this.GetResourceBrush);
-    }
-
     private void RenderProviders()
     {
         this.LogDiagnostic("[DIAGNOSTIC] RenderProviders called");
@@ -1160,7 +1169,7 @@ public partial class MainWindow : Window
             this._preferences,
             this._isPrivacyMode,
             this.GetResourceBrush,
-            providerId => this.EnsureIconService().CreateIcon(providerId),
+            this._createProviderIcon,
             this.CreateTopmostAwareToolTip,
             this.ConfigureCardToolTip,
             this.GetRelativeTimeString);
@@ -1859,7 +1868,7 @@ public partial class MainWindow : Window
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             IsToolBarVisible = false,
-            Document = this.EnsureMarkdownRenderer().BuildDocument(updateInfo.ReleaseNotes),
+            Document = this._buildChangelogDocument(updateInfo.ReleaseNotes),
         };
 
         changelogWindow.Content = viewer;

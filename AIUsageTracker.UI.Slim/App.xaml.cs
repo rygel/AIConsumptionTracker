@@ -52,7 +52,7 @@ public partial class App : Application
 
     public Func<bool> IsMainWindowVisible { get; set; } = () => Current.MainWindow?.IsVisible ?? false;
 
-    public Func<Window> InfoDialogFactory { get; set; } = () => new InfoDialog();
+    public Func<Window> InfoDialogFactory { get; set; } = () => Host.Services.GetRequiredService<IInfoDialogFactory>().Create();
 
     public Action<Window> ShowInfoDialogAction { get; set; } = dialog => dialog.ShowDialog();
 
@@ -150,6 +150,10 @@ public partial class App : Application
         services.AddSingleton<IWindowBehaviorService, WindowBehaviorService>();
         services.AddSingleton<IErrorDisplayService, ErrorDisplayService>();
         services.AddSingleton<IDialogService, DialogService>();
+        services.AddSingleton<ISettingsWindowFactory, SettingsWindowFactory>();
+        services.AddSingleton<IInfoDialogFactory, global::AIUsageTracker.UI.Slim.Services.InfoDialogFactory>();
+        services.AddSingleton<IWpfProviderIconServiceFactory, WpfProviderIconServiceFactory>();
+        services.AddSingleton<IChangelogMarkdownRendererFactory, ChangelogMarkdownRendererFactory>();
         services.AddSingleton<IPollingService, PollingService>();
         services.AddSingleton<IReactivePollingService, ReactivePollingService>();
         services.AddSingleton<IMonitorStartupOrchestrator, MonitorStartupOrchestrator>();
@@ -162,6 +166,7 @@ public partial class App : Application
         // Windows
         services.AddSingleton<MainWindow>();
         services.AddTransient<SettingsWindow>();
+        services.AddTransient<InfoDialog>();
 
         services.AddLogging(builder =>
         {

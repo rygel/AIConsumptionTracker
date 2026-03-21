@@ -11,7 +11,6 @@ using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.UI.Slim.Interfaces;
 using Hardcodet.Wpf.TaskbarNotification;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim.Services;
@@ -21,12 +20,12 @@ public class WpfTrayIconService : ITrayIconService, IWpfTrayIconService
     private TaskbarIcon? _trayIcon;
     private readonly Dictionary<string, TaskbarIcon> _providerTrayIcons = new();
     private readonly ILogger<WpfTrayIconService> _logger;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly MainWindow _mainWindow;
 
-    public WpfTrayIconService(ILogger<WpfTrayIconService> logger, IServiceProvider serviceProvider)
+    public WpfTrayIconService(ILogger<WpfTrayIconService> logger, MainWindow mainWindow)
     {
         this._logger = logger;
-        this._serviceProvider = serviceProvider;
+        this._mainWindow = mainWindow;
     }
 
     public void Initialize()
@@ -100,8 +99,7 @@ public class WpfTrayIconService : ITrayIconService, IWpfTrayIconService
 
     private void ShowMainWindow()
     {
-        var window = this._serviceProvider.GetService<MainWindow>();
-        window?.ShowAndActivate();
+        this._mainWindow.ShowAndActivate();
     }
 
     private void OpenInfoDialog()
