@@ -1745,11 +1745,7 @@ public partial class MainWindow : Window
     {
         if (this._latestUpdate == null)
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = ReleaseUrlCatalog.GetReleasesPageUrl(),
-                UseShellExecute = true,
-            });
+            OpenExternalUrl(ReleaseUrlCatalog.GetReleasesPageUrl());
             return;
         }
 
@@ -1780,6 +1776,15 @@ public partial class MainWindow : Window
 
         changelogWindow.Content = viewer;
         changelogWindow.ShowDialog();
+    }
+
+    private static void OpenExternalUrl(string url)
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = url,
+            UseShellExecute = true,
+        });
     }
 
     private async Task CheckForUpdatesAsync()
@@ -1826,11 +1831,7 @@ public partial class MainWindow : Window
     {
         if (this._latestUpdate == null)
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = ReleaseUrlCatalog.GetLatestReleasePageUrl(),
-                UseShellExecute = true,
-            });
+            OpenExternalUrl(ReleaseUrlCatalog.GetLatestReleasePageUrl());
             return;
         }
 
