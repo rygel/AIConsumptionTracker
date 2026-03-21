@@ -1652,12 +1652,11 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             this._logger.LogError(ex, "Failed to open Web UI");
-            var dialogPresentation = WebUiErrorDialogPresentationCatalog.Create(ex.Message);
             MessageBox.Show(
-                dialogPresentation.Message,
-                dialogPresentation.Title,
-                dialogPresentation.Buttons,
-                dialogPresentation.Icon);
+                $"Failed to open Web UI: {ex.Message}",
+                "Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
