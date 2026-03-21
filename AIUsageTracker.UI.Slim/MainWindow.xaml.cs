@@ -571,28 +571,28 @@ public partial class MainWindow : Window
 
     private void ApplyPreferences()
     {
-        // Apply window settings
-        this.Topmost = this._preferences.AlwaysOnTop;
-        this.Width = this._preferences.WindowWidth;
-        this.Height = this._preferences.WindowHeight;
+        var presentation = WindowPreferencePresentationCatalog.Create(this._preferences);
+        this.Topmost = presentation.Topmost;
+        this.Width = presentation.Width;
+        this.Height = presentation.Height;
 
         // Note: PositionWindowNearTray() is only called on initial load, not here
         // to prevent window from jumping when closing settings dialog
-        if (!string.IsNullOrWhiteSpace(this._preferences.FontFamily))
+        if (!string.IsNullOrWhiteSpace(presentation.FontFamilyName))
         {
-            this.FontFamily = new FontFamily(this._preferences.FontFamily);
+            this.FontFamily = new FontFamily(presentation.FontFamilyName);
         }
 
-        if (this._preferences.FontSize > 0)
+        if (presentation.FontSize.HasValue)
         {
-            this.FontSize = this._preferences.FontSize;
+            this.FontSize = presentation.FontSize.Value;
         }
 
-        this.FontWeight = this._preferences.FontBold ? FontWeights.Bold : FontWeights.Normal;
-        this.FontStyle = this._preferences.FontItalic ? FontStyles.Italic : FontStyles.Normal;
+        this.FontWeight = presentation.FontWeight;
+        this.FontStyle = presentation.FontStyle;
 
         // Apply UI controls
-        this.AlwaysOnTopCheck.IsChecked = this._preferences.AlwaysOnTop;
+        this.AlwaysOnTopCheck.IsChecked = presentation.AlwaysOnTopChecked;
         this.ApplyDisplayModePreference();
         this.UpdatePrivacyButtonState();
         this.EnsureAlwaysOnTop();
