@@ -222,16 +222,30 @@ internal static partial class MainWindowRuntimeLogic
             return;
         }
 
-        var canonicalId = ProviderMetadataCatalog.GetCanonicalProviderId(usage.ProviderId ?? string.Empty);
-        ProviderMetadataCatalog.TryGet(canonicalId, out var definition);
-        var periodWindow = definition?.QuotaWindows
-            .FirstOrDefault(w => w.Kind == WindowKind.Rolling && w.PeriodDuration.HasValue)
-            ?? definition?.QuotaWindows
-                .FirstOrDefault(w => w.Kind == WindowKind.ModelSpecific && w.PeriodDuration.HasValue);
-
-        if (periodWindow != null)
+        var providerId = usage.ProviderId ?? string.Empty;
+        if (!ProviderMetadataCatalog.TryGet(providerId, out var definition))
         {
-            usage.PeriodDuration = periodWindow.PeriodDuration;
+            return;
+        }
+
+        QuotaWindowDefinition? matchedWindow;
+        if (string.Equals(providerId, definition.ProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            matchedWindow = definition.QuotaWindows
+                .FirstOrDefault(w => w.Kind == WindowKind.Rolling && w.PeriodDuration.HasValue);
+        }
+        else
+        {
+            matchedWindow = definition.QuotaWindows
+                .FirstOrDefault(w =>
+                    w.PeriodDuration.HasValue &&
+                    !string.IsNullOrWhiteSpace(w.ChildProviderId) &&
+                    string.Equals(w.ChildProviderId, providerId, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (matchedWindow?.PeriodDuration is { } duration)
+        {
+            usage.PeriodDuration = duration;
         }
     }
 
@@ -407,10 +421,16 @@ internal static partial class MainWindowRuntimeLogic
             return null;
         }
 
+        var detailName = detail.Name?.Trim();
+        if (string.IsNullOrWhiteSpace(detailName))
+        {
+            return null;
+        }
+
         return windows.FirstOrDefault(w =>
-            w.Kind == detail.QuotaBucketKind &&
-            w.DetailName != null &&
-            string.Equals(w.DetailName, detail.Name, StringComparison.OrdinalIgnoreCase));
+            !string.IsNullOrWhiteSpace(w.DetailName) &&
+            string.Equals(w.DetailName, detailName, StringComparison.OrdinalIgnoreCase) &&
+            (detail.QuotaBucketKind == WindowKind.None || w.Kind == detail.QuotaBucketKind));
     }
 
     private static int GetQuotaWindowIndex(

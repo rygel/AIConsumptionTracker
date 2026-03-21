@@ -3,158 +3,57 @@
 // </copyright>
 
 using System.Globalization;
-
 using AIUsageTracker.Core.Models;
 
 namespace AIUsageTracker.Web.Services;
 
 internal static class WebProviderUsageMapper
 {
-    public static ProviderUsage Map(object row)
+    public static ProviderUsage Map(dynamic row)
     {
-        var dictionary = row as IDictionary<string, object>;
-        var providerId = GetString(dictionary, row, "provider_id", "ProviderId") ?? string.Empty;
-
         var usage = new ProviderUsage
         {
-            ProviderId = providerId,
-            ProviderName = GetString(dictionary, row, "provider_name", "ProviderName") ?? providerId,
-            IsAvailable = GetBoolean(dictionary, row, "is_available", "IsAvailable"),
-            Description = GetString(dictionary, row, "status_message", "StatusMessage") ?? string.Empty,
-            RequestsUsed = GetDouble(dictionary, row, "requests_used", "RequestsUsed"),
-            RequestsAvailable = GetDouble(dictionary, row, "requests_available", "RequestsAvailable"),
-            UsedPercent = GetDouble(dictionary, row, "requests_percentage", "UsedPercent"),
-            ResponseLatencyMs = GetDouble(dictionary, row, "response_latency_ms", "ResponseLatencyMs"),
-            FetchedAt = GetDateTime(dictionary, row, "fetched_at", "FetchedAt"),
+            ProviderId = row.provider_id ?? row.ProviderId,
+            ProviderName = row.ProviderName,
+            IsAvailable = row.is_available == 1 || (row.IsAvailable != null && row.IsAvailable == 1),
+            Description = row.status_message ?? string.Empty,
+            RequestsUsed = (double)(row.requests_used ?? row.RequestsUsed ?? 0.0),
+            RequestsAvailable = (double)(row.requests_available ?? row.RequestsAvailable ?? 0.0),
+            UsedPercent = (double)(row.requests_percentage ?? row.UsedPercent ?? 0.0),
+            ResponseLatencyMs = (double)(row.response_latency_ms ?? row.ResponseLatencyMs ?? 0.0),
+            FetchedAt = ParseDateTimeUtc(row.fetched_at ?? row.FetchedAt),
         };
 
-        var nextResetTime = GetNullableDateTime(dictionary, row, "next_reset_time", "NextResetTime");
-        if (nextResetTime.HasValue)
-        {
-            usage.NextResetTime = nextResetTime.Value;
-        }
+        usage.NextResetTime = ParseNullableDateTimeUtc(row.next_reset_time ?? row.NextResetTime);
 
         return usage;
     }
 
-    private static object? GetValue(IDictionary<string, object>? dictionary, object row, params string[] names)
+    private static DateTime? ParseNullableDateTimeUtc(object? value)
     {
-        if (dictionary is not null)
-        {
-            foreach (var name in names)
-            {
-                if (dictionary.TryGetValue(name, out var value))
-                {
-                    return value;
-                }
-            }
-        }
-
-        var rowType = row.GetType();
-        foreach (var name in names)
-        {
-            var property = rowType.GetProperty(name);
-            if (property is not null)
-            {
-                return property.GetValue(row);
-            }
-        }
-
-        return null;
-    }
-
-    private static string? GetString(IDictionary<string, object>? dictionary, object row, params string[] names)
-    {
-        var value = GetValue(dictionary, row, names);
-        if (value is null || value is DBNull)
+        if (value == null || value is DBNull)
         {
             return null;
         }
 
-        return Convert.ToString(value, CultureInfo.InvariantCulture);
-    }
-
-    private static bool GetBoolean(IDictionary<string, object>? dictionary, object row, params string[] names)
-    {
-        var value = GetValue(dictionary, row, names);
-        if (value is null || value is DBNull)
-        {
-            return false;
-        }
-
-        if (value is bool boolValue)
-        {
-            return boolValue;
-        }
-
-        if (value is byte byteValue)
-        {
-            return byteValue != 0;
-        }
-
-        if (value is short shortValue)
-        {
-            return shortValue != 0;
-        }
-
-        if (value is int intValue)
-        {
-            return intValue != 0;
-        }
-
-        if (value is long longValue)
-        {
-            return longValue != 0;
-        }
-
-        if (value is string text)
-        {
-            if (bool.TryParse(text, out var parsedBool))
-            {
-                return parsedBool;
-            }
-
-            if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedNumber))
-            {
-                return parsedNumber != 0;
-            }
-        }
-
-        return false;
-    }
-
-    private static double GetDouble(IDictionary<string, object>? dictionary, object row, params string[] names)
-    {
-        var value = GetValue(dictionary, row, names);
-        if (value is null || value is DBNull)
-        {
-            return 0;
-        }
-
-        if (value is double doubleValue)
-        {
-            return doubleValue;
-        }
-
-        return Convert.ToDouble(value, CultureInfo.InvariantCulture);
-    }
-
-    private static DateTime GetDateTime(IDictionary<string, object>? dictionary, object row, params string[] names)
-    {
-        return GetNullableDateTime(dictionary, row, names) ?? DateTime.UnixEpoch;
-    }
-
-    private static DateTime? GetNullableDateTime(IDictionary<string, object>? dictionary, object row, params string[] names)
-    {
-        var value = GetValue(dictionary, row, names);
-        if (value is null || value is DBNull)
+        if (value is string text && string.IsNullOrWhiteSpace(text))
         {
             return null;
+        }
+
+        return ParseDateTimeUtc(value);
+    }
+
+    private static DateTime ParseDateTimeUtc(object? value)
+    {
+        if (value == null || value is DBNull)
+        {
+            return DateTime.UtcNow;
         }
 
         if (value is DateTime dateTime)
         {
-            return dateTime;
+            return dateTime.Kind == DateTimeKind.Utc ? dateTime : dateTime.ToUniversalTime();
         }
 
         if (value is DateTimeOffset dateTimeOffset)
@@ -162,33 +61,51 @@ internal static class WebProviderUsageMapper
             return dateTimeOffset.UtcDateTime;
         }
 
-        if (value is int intEpoch)
+        if (TryParseEpochSeconds(value, out var epochSeconds))
         {
-            return DateTimeOffset.FromUnixTimeSeconds(intEpoch).UtcDateTime;
+            return DateTimeOffset.FromUnixTimeSeconds(epochSeconds).UtcDateTime;
         }
 
-        if (value is long longEpoch)
+        if (DateTime.TryParse(
+                Convert.ToString(value, CultureInfo.InvariantCulture),
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var parsed))
         {
-            return DateTimeOffset.FromUnixTimeSeconds(longEpoch).UtcDateTime;
+            return parsed;
         }
 
-        if (value is string text)
+        return DateTime.Parse(
+            Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
+    }
+
+    private static bool TryParseEpochSeconds(object value, out long epochSeconds)
+    {
+        switch (value)
         {
-            if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedEpoch))
-            {
-                return DateTimeOffset.FromUnixTimeSeconds(parsedEpoch).UtcDateTime;
-            }
-
-            if (DateTime.TryParse(
-                    text,
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                    out var parsedDateTime))
-            {
-                return parsedDateTime;
-            }
+            case long longValue:
+                epochSeconds = longValue;
+                return true;
+            case int intValue:
+                epochSeconds = intValue;
+                return true;
+            case short shortValue:
+                epochSeconds = shortValue;
+                return true;
+            case double doubleValue when double.IsFinite(doubleValue):
+                epochSeconds = Convert.ToInt64(doubleValue, CultureInfo.InvariantCulture);
+                return true;
+            case decimal decimalValue:
+                epochSeconds = Convert.ToInt64(decimalValue, CultureInfo.InvariantCulture);
+                return true;
+            case string stringValue when long.TryParse(stringValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed):
+                epochSeconds = parsed;
+                return true;
+            default:
+                epochSeconds = 0;
+                return false;
         }
-
-        return null;
     }
 }

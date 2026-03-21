@@ -46,21 +46,34 @@ public class WebDatabaseService : IWebDatabaseRepository
             )";
 
     private const string HistorySamplesSql = @"
-            WITH ranked AS (
+            WITH normalized AS (
                 SELECT h.provider_id AS ProviderId,
                        h.requests_used AS RequestsUsed,
                        h.requests_available AS RequestsAvailable,
                        h.is_available AS IsAvailable,
                        h.response_latency_ms AS ResponseLatencyMs,
-                       h.fetched_at AS FetchedAt,
-                       ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY h.fetched_at DESC) AS RowNum
+                       CASE
+                           WHEN typeof(h.fetched_at) IN ('integer', 'real')
+                               THEN datetime(CAST(h.fetched_at AS INTEGER), 'unixepoch')
+                           ELSE datetime(h.fetched_at)
+                       END AS FetchedAtUtc
                 FROM provider_history h
                 WHERE h.provider_id IN @ProviderIds
-                  AND h.fetched_at >= @CutoffEpoch
+            ),
+            ranked AS (
+                SELECT ProviderId,
+                       RequestsUsed,
+                       RequestsAvailable,
+                       IsAvailable,
+                       ResponseLatencyMs,
+                       FetchedAtUtc AS FetchedAt,
+                       ROW_NUMBER() OVER (PARTITION BY ProviderId ORDER BY datetime(FetchedAtUtc) DESC) AS RowNum
+                FROM normalized
+                WHERE datetime(FetchedAtUtc) >= datetime(@CutoffUtc)
             )
             SELECT * FROM ranked
             WHERE RowNum <= @MaxSamples
-            ORDER BY ProviderId, FetchedAt ASC";
+            ORDER BY ProviderId, datetime(FetchedAt) ASC";
 
     private const string ChartDataSql = @"
             SELECT
@@ -204,15 +217,15 @@ public class WebDatabaseService : IWebDatabaseRepository
 
     public async Task<IReadOnlyList<ProviderUsage>> GetHistorySamplesAsync(IEnumerable<string> providerIds, int lookbackHours, int maxSamples)
     {
-        var cutoffEpoch = DateTimeOffset.UtcNow
+        var cutoffUtc = DateTime.UtcNow
             .AddHours(-lookbackHours)
-            .ToUnixTimeSeconds();
+            .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
 
         return await this.QueryUsageListIfDatabaseAvailableAsync(
             async connection => await connection.QueryAsync<dynamic>(HistorySamplesSql, new
             {
                 ProviderIds = providerIds,
-                CutoffEpoch = cutoffEpoch,
+                CutoffUtc = cutoffUtc,
                 MaxSamples = maxSamples,
             }).ConfigureAwait(false)).ConfigureAwait(false);
     }
