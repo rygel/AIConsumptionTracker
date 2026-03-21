@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [2.3.2-beta.14] - 2026-03-21
+
+### Fixed
+- **UI crash on stale provider data**: Pace calculation crashed with DateTime overflow when provider NextResetTime was too old, causing blank UI (56 render failures per session). Added underflow guard.
+- Added 15 integration tests: DI resolution, pace calculation end-to-end, provider response deserialization.
+
 ## [2.3.2-beta.13] - 2026-03-21
 
 ### Fixed
