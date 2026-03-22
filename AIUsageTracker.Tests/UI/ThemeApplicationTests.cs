@@ -118,7 +118,9 @@ public class ThemeApplicationTests
                         (!context.Contains("DynamicResource") &&
                          !context.Contains("FindResource") &&
                          !context.Contains("Resources[") &&
-                         !context.Contains("res[")))
+                         !context.Contains("res[") &&
+                         !context.Contains("GetResourceBrush") &&
+                         !context.Contains("UIHelper.")))
                     {
                         violations.Add($"{fileName}:{i + 1}: creates Window without theme Background");
                     }
