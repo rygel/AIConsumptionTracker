@@ -4,6 +4,7 @@
 
 using System.Globalization;
 using System.Windows.Data;
+using AIUsageTracker.Core.Models;
 
 namespace AIUsageTracker.UI.Slim.Converters;
 
@@ -31,7 +32,7 @@ public class RelativeTimeConverter : IValueConverter
             return null;
         }
 
-        var relativeTime = GetRelativeTimeString(dateTime.Value);
+        var relativeTime = UsageMath.FormatRelativeTime(dateTime.Value);
 
         if (string.IsNullOrEmpty(relativeTime))
         {
@@ -44,27 +45,5 @@ public class RelativeTimeConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
         throw new NotSupportedException();
-    }
-
-    private static string GetRelativeTimeString(DateTime targetTime)
-    {
-        var diff = targetTime - DateTime.Now;
-
-        if (diff.TotalSeconds <= 0)
-        {
-            return "0m";
-        }
-
-        if (diff.TotalDays >= 1)
-        {
-            return $"{diff.Days}d {diff.Hours}h";
-        }
-
-        if (diff.TotalHours >= 1)
-        {
-            return $"{diff.Hours}h {diff.Minutes}m";
-        }
-
-        return $"{diff.Minutes}m";
     }
 }
