@@ -356,17 +356,24 @@ public partial class MainWindow : Window
 
             // Fast path: try fetching data immediately. If monitor is already running,
             // data appears in <1 second and we skip the entire orchestration/handshake.
+            this.LogDiagnostic("[DIAGNOSTIC] Fast path: attempting early data fetch...");
             this.ShowStatus("Loading...", StatusType.Info);
             var dataAvailable = false;
             try
             {
-                await this._monitorService.RefreshPortAsync().ConfigureAwait(false);
+                await this._monitorService.RefreshPortAsync();
+                this.LogDiagnostic($"[DIAGNOSTIC] Port resolved: {this._monitorService.AgentUrl}");
                 await this.FetchDataAsync();
-                dataAvailable = this._usages?.Count > 0;
+                lock (this._dataLock)
+                {
+                    dataAvailable = this._usages?.Count > 0;
+                }
+
+                this.LogDiagnostic($"[DIAGNOSTIC] Early fetch result: {(dataAvailable ? "data available" : "no data")}");
             }
-            catch
+            catch (Exception ex)
             {
-                // Monitor not ready — fall through to orchestrator
+                this.LogDiagnostic($"[DIAGNOSTIC] Early fetch failed: {ex.Message}");
             }
 
             if (!dataAvailable)
