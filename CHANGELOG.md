@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [2.3.2-beta.18] - 2026-03-22
+
+### Performance
+- **Startup: data in <1 second** (was ~12 seconds). Eliminated 5 redundant health checks, deleted RapidPoll, contract check runs in background.
+
+### Fixed
+- Update download progress window now themed (was white on dark theme — caught by new theme test).
+
+### Changed
+- Consolidated 10 duplicated helper methods into MainWindowRuntimeLogic.
+- Extracted GetResourceBrush to shared UIHelper.
+
 ## [2.3.2-beta.17] - 2026-03-22
 
 ### Changed
