@@ -388,9 +388,9 @@ public partial class CardDesignerWindow : Window
             CardSlotContent.UsageRate => usage.UsagePerHour.HasValue ? $"{usage.UsagePerHour.Value:F1}/hr" : string.Empty,
             CardSlotContent.UsedPercent => $"{usage.UsedPercent:F0}% used",
             CardSlotContent.RemainingPercent => $"{Math.Max(0, 100 - usage.UsedPercent):F0}% remaining",
-            CardSlotContent.ResetAbsolute => GetAbsoluteResetText(usage),
-            CardSlotContent.ResetAbsoluteDate => GetAbsoluteDateResetText(usage),
-            CardSlotContent.ResetRelative => GetRelativeResetText(usage),
+            CardSlotContent.ResetAbsolute => usage.NextResetTime.HasValue ? UsageMath.FormatAbsoluteTime(usage.NextResetTime.Value) : string.Empty,
+            CardSlotContent.ResetAbsoluteDate => usage.NextResetTime.HasValue ? UsageMath.FormatAbsoluteDate(usage.NextResetTime.Value) : string.Empty,
+            CardSlotContent.ResetRelative => usage.NextResetTime.HasValue ? UsageMath.FormatRelativeTime(usage.NextResetTime.Value) : string.Empty,
             CardSlotContent.AccountName => usage.AccountName ?? string.Empty,
             CardSlotContent.StatusText => usage.Description ?? string.Empty,
             CardSlotContent.AuthSource => usage.AuthSource ?? string.Empty,
@@ -400,27 +400,11 @@ public partial class CardDesignerWindow : Window
 
     private static string GetPaceBadgeText(ProviderUsage usage)
     {
-        if (!usage.PeriodDuration.HasValue || !usage.NextResetTime.HasValue)
-        {
-            return string.Empty;
-        }
-
-        if (usage.NextResetTime.Value.Ticks < usage.PeriodDuration.Value.Ticks)
-        {
-            return string.Empty;
-        }
-
-        var projected = UsageMath.CalculateProjectedFinalPercent(
+        return UsageMath.GetPaceBadgeText(
             usage.UsedPercent,
-            usage.NextResetTime.Value.ToUniversalTime(),
-            usage.PeriodDuration.Value);
-
-        if (projected >= 100.0)
-        {
-            return "Over pace";
-        }
-
-        return projected < 90.0 ? "On pace" : string.Empty;
+            true,
+            usage.NextResetTime,
+            usage.PeriodDuration) ?? string.Empty;
     }
 
     private static string GetProjectedText(ProviderUsage usage)
@@ -452,76 +436,6 @@ public partial class CardDesignerWindow : Window
 
         var dailyBudget = 100.0 / usage.PeriodDuration.Value.TotalDays;
         return $"{dailyBudget:F0}%/day budget";
-    }
-
-    private static string GetAbsoluteResetText(ProviderUsage usage)
-    {
-        if (!usage.NextResetTime.HasValue)
-        {
-            return string.Empty;
-        }
-
-        var local = usage.NextResetTime.Value.Kind == DateTimeKind.Utc
-            ? usage.NextResetTime.Value.ToLocalTime()
-            : usage.NextResetTime.Value;
-        var diff = local - DateTime.Now;
-
-        if (diff.TotalSeconds <= 0)
-        {
-            return "now";
-        }
-
-        if (local.Date == DateTime.Today)
-        {
-            return local.ToString("HH:mm");
-        }
-
-        if (local.Date == DateTime.Today.AddDays(1))
-        {
-            return $"Tomorrow {local:HH:mm}";
-        }
-
-        if (diff.TotalDays < 7)
-        {
-            return $"{local:dddd HH:mm}";
-        }
-
-        return $"{local:MMM d HH:mm}";
-    }
-
-    private static string GetAbsoluteDateResetText(ProviderUsage usage)
-    {
-        if (!usage.NextResetTime.HasValue)
-        {
-            return string.Empty;
-        }
-
-        var local = usage.NextResetTime.Value.Kind == DateTimeKind.Utc
-            ? usage.NextResetTime.Value.ToLocalTime()
-            : usage.NextResetTime.Value;
-
-        return $"{local:MMM d, HH:mm}";
-    }
-
-    private static string GetRelativeResetText(ProviderUsage usage)
-    {
-        if (!usage.NextResetTime.HasValue)
-        {
-            return string.Empty;
-        }
-
-        var diff = usage.NextResetTime.Value - DateTime.Now;
-        if (diff.TotalSeconds <= 0)
-        {
-            return "0m";
-        }
-
-        if (diff.TotalDays >= 1)
-        {
-            return $"{diff.Days}d {diff.Hours}h";
-        }
-
-        return diff.TotalHours >= 1 ? $"{diff.Hours}h {diff.Minutes}m" : $"{diff.Minutes}m";
     }
 
     private Brush GetBadgeColor(string text)

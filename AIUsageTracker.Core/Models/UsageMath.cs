@@ -312,6 +312,124 @@ public static class UsageMath
         return ClampPercent(usedPercent / elapsedFraction);
     }
 
+    /// <summary>
+    /// Returns the pace badge text for a provider. Single source of truth — all UI code calls this.
+    /// </summary>
+    public static string? GetPaceBadgeText(
+        double usedPercent,
+        bool enablePaceAdjustment,
+        DateTime? nextResetTime,
+        TimeSpan? periodDuration,
+        DateTime? nowUtc = null)
+    {
+        if (!enablePaceAdjustment || !periodDuration.HasValue || !nextResetTime.HasValue)
+        {
+            return null;
+        }
+
+        var nextReset = nextResetTime.Value.ToUniversalTime();
+        if (nextReset.Ticks < periodDuration.Value.Ticks)
+        {
+            return null;
+        }
+
+        var projected = CalculateProjectedFinalPercent(usedPercent, nextReset, periodDuration.Value, nowUtc);
+
+        if (projected >= 100.0)
+        {
+            return "Over pace";
+        }
+
+        return projected < 90.0 ? "On pace" : null;
+    }
+
+    /// <summary>
+    /// Returns the pace-adjusted color percent for a provider. Single source of truth.
+    /// </summary>
+    public static double GetColorIndicatorPercent(
+        double usedPercent,
+        bool enablePaceAdjustment,
+        DateTime? nextResetTime,
+        TimeSpan? periodDuration,
+        DateTime? nowUtc = null)
+    {
+        if (!enablePaceAdjustment || !periodDuration.HasValue || !nextResetTime.HasValue)
+        {
+            return usedPercent;
+        }
+
+        return CalculatePaceAdjustedColorPercent(
+            usedPercent,
+            nextResetTime.Value.ToUniversalTime(),
+            periodDuration.Value,
+            nowUtc);
+    }
+
+    /// <summary>
+    /// Calculates how many days have elapsed in the current period. Returns 0 if data is invalid.
+    /// </summary>
+    public static double GetElapsedDays(DateTime? nextResetTime, TimeSpan? periodDuration, DateTime? nowUtc = null)
+    {
+        if (!nextResetTime.HasValue || !periodDuration.HasValue || periodDuration.Value.TotalDays < 1)
+        {
+            return 0;
+        }
+
+        var nextReset = nextResetTime.Value.ToUniversalTime();
+        if (nextReset.Ticks < periodDuration.Value.Ticks)
+        {
+            return 0;
+        }
+
+        var now = nowUtc ?? DateTime.UtcNow;
+        var periodStart = nextReset - periodDuration.Value;
+        return Math.Max(0, (now - periodStart).TotalDays);
+    }
+
+    public static string FormatAbsoluteTime(DateTime nextReset)
+    {
+        var local = nextReset.Kind == DateTimeKind.Utc ? nextReset.ToLocalTime() : nextReset;
+        var diff = local - DateTime.Now;
+        if (diff.TotalSeconds <= 0)
+        {
+            return "now";
+        }
+
+        if (local.Date == DateTime.Today)
+        {
+            return local.ToString("HH:mm");
+        }
+
+        if (local.Date == DateTime.Today.AddDays(1))
+        {
+            return $"Tomorrow {local:HH:mm}";
+        }
+
+        return diff.TotalDays < 7 ? $"{local:dddd HH:mm}" : $"{local:MMM d HH:mm}";
+    }
+
+    public static string FormatAbsoluteDate(DateTime nextReset)
+    {
+        var local = nextReset.Kind == DateTimeKind.Utc ? nextReset.ToLocalTime() : nextReset;
+        return $"{local:MMM d, HH:mm}";
+    }
+
+    public static string FormatRelativeTime(DateTime nextReset)
+    {
+        var diff = nextReset - DateTime.Now;
+        if (diff.TotalSeconds <= 0)
+        {
+            return "0m";
+        }
+
+        if (diff.TotalDays >= 1)
+        {
+            return $"{diff.Days}d {diff.Hours}h";
+        }
+
+        return diff.TotalHours >= 1 ? $"{diff.Hours}h {diff.Minutes}m" : $"{diff.Minutes}m";
+    }
+
     public static BurnRateForecast CalculateBurnRateForecast(IEnumerable<ProviderUsage> history)
     {
         ArgumentNullException.ThrowIfNull(history);

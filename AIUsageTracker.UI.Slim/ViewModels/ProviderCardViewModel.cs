@@ -116,7 +116,7 @@ public partial class ProviderCardViewModel : BaseViewModel
                 return null;
             }
 
-            var resetParts = resetTimes.Select(t => this.UseRelativeResetTime ? GetRelativeTimeString(t) : GetAbsoluteTimeString(t)).ToList();
+            var resetParts = resetTimes.Select(t => this.UseRelativeResetTime ? UsageMath.FormatRelativeTime(t) : UsageMath.FormatAbsoluteTime(t)).ToList();
             return $"({string.Join(" | ", resetParts)})";
         }
     }
@@ -252,15 +252,11 @@ public partial class ProviderCardViewModel : BaseViewModel
         bool enablePaceAdjustment,
         DateTime? nowUtc = null)
     {
-        if (!enablePaceAdjustment || !usage.PeriodDuration.HasValue || !usage.NextResetTime.HasValue)
-        {
-            return usedPercent;
-        }
-
-        return UsageMath.CalculatePaceAdjustedColorPercent(
+        return UsageMath.GetColorIndicatorPercent(
             usedPercent,
-            usage.NextResetTime.Value.ToUniversalTime(),
-            usage.PeriodDuration.Value,
+            enablePaceAdjustment,
+            usage.NextResetTime,
+            usage.PeriodDuration,
             nowUtc);
     }
 
@@ -270,23 +266,12 @@ public partial class ProviderCardViewModel : BaseViewModel
         bool enablePaceAdjustment,
         DateTime? nowUtc = null)
     {
-        if (!enablePaceAdjustment || !usage.PeriodDuration.HasValue || !usage.NextResetTime.HasValue)
-        {
-            return null;
-        }
-
-        var projected = UsageMath.CalculateProjectedFinalPercent(
+        return UsageMath.GetPaceBadgeText(
             usedPercent,
-            usage.NextResetTime.Value.ToUniversalTime(),
-            usage.PeriodDuration.Value,
+            enablePaceAdjustment,
+            usage.NextResetTime,
+            usage.PeriodDuration,
             nowUtc);
-
-        if (projected >= 100.0)
-        {
-            return "Over pace";
-        }
-
-        return projected < 90.0 ? "On pace" : null;
     }
 
     private static IReadOnlyList<DateTime> ResolveResetTimes(ProviderUsage usage, bool suppressSingleResetFallback)
@@ -330,16 +315,9 @@ public partial class ProviderCardViewModel : BaseViewModel
 
         if (usage.IsAvailable && usage.PeriodDuration.HasValue && usage.PeriodDuration.Value.TotalDays >= 1)
         {
-            var days = usage.PeriodDuration.Value.TotalDays;
-            var dailyBudget = 100.0 / days;
-            var elapsedDays = 0.0;
-            if (usage.NextResetTime.HasValue && usage.NextResetTime.Value.Ticks > usage.PeriodDuration.Value.Ticks)
-            {
-                var periodStart = usage.NextResetTime.Value.ToUniversalTime() - usage.PeriodDuration.Value;
-                elapsedDays = (DateTime.UtcNow - periodStart).TotalDays;
-            }
-
-            var expectedAtThisPoint = dailyBudget * Math.Max(0, elapsedDays);
+            var dailyBudget = 100.0 / usage.PeriodDuration.Value.TotalDays;
+            var elapsedDays = UsageMath.GetElapsedDays(usage.NextResetTime, usage.PeriodDuration);
+            var expectedAtThisPoint = dailyBudget * elapsedDays;
             tooltipBuilder.AppendLine();
             tooltipBuilder.AppendLine($"Daily budget: {dailyBudget:F0}%/day");
             tooltipBuilder.AppendLine($"Expected by now: {expectedAtThisPoint:F0}% | Actual: {usage.UsedPercent:F0}%");
@@ -400,60 +378,6 @@ public partial class ProviderCardViewModel : BaseViewModel
     partial void OnUseRelativeResetTimeChanged(bool value)
     {
         OnPropertyChanged(nameof(ResetBadgeText));
-    }
-
-    private static string GetAbsoluteTimeString(DateTime nextReset)
-    {
-        var local = nextReset.Kind == DateTimeKind.Utc ? nextReset.ToLocalTime() : nextReset;
-        var diff = local - DateTime.Now;
-
-        if (diff.TotalSeconds <= 0)
-        {
-            return "now";
-        }
-
-        // Same day: just show time "22:15"
-        if (local.Date == DateTime.Today)
-        {
-            return local.ToString("HH:mm");
-        }
-
-        // Tomorrow
-        if (local.Date == DateTime.Today.AddDays(1))
-        {
-            return $"Tomorrow {local:HH:mm}";
-        }
-
-        // Within this week: "Saturday 17:44"
-        if (diff.TotalDays < 7)
-        {
-            return $"{local:dddd HH:mm}";
-        }
-
-        // Further out: "Mar 28 17:44"
-        return $"{local:MMM d HH:mm}";
-    }
-
-    private static string GetRelativeTimeString(DateTime nextReset)
-    {
-        var diff = nextReset - DateTime.Now;
-
-        if (diff.TotalSeconds <= 0)
-        {
-            return "0m";
-        }
-
-        if (diff.TotalDays >= 1)
-        {
-            return $"{diff.Days}d {diff.Hours}h";
-        }
-
-        if (diff.TotalHours >= 1)
-        {
-            return $"{diff.Hours}h {diff.Minutes}m";
-        }
-
-        return $"{diff.Minutes}m";
     }
 }
 

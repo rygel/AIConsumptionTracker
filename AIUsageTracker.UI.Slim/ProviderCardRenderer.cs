@@ -349,15 +349,11 @@ internal sealed class ProviderCardRenderer
         bool enablePaceAdjustment,
         DateTime? nowUtc = null)
     {
-        if (!enablePaceAdjustment || !usage.PeriodDuration.HasValue || !usage.NextResetTime.HasValue)
-        {
-            return usedPercent;
-        }
-
-        return UsageMath.CalculatePaceAdjustedColorPercent(
+        return UsageMath.GetColorIndicatorPercent(
             usedPercent,
-            usage.NextResetTime.Value.ToUniversalTime(),
-            usage.PeriodDuration.Value,
+            enablePaceAdjustment,
+            usage.NextResetTime,
+            usage.PeriodDuration,
             nowUtc);
     }
 
@@ -367,19 +363,12 @@ internal sealed class ProviderCardRenderer
         bool enablePaceAdjustment,
         DateTime? nowUtc = null)
     {
-        if (!enablePaceAdjustment || !usage.PeriodDuration.HasValue || !usage.NextResetTime.HasValue)
-        {
-            return null;
-        }
-
-        var now = nowUtc ?? DateTime.UtcNow;
-        var period = usage.PeriodDuration.Value;
-        var periodStart = usage.NextResetTime.Value.ToUniversalTime() - period;
-        var elapsed = now - periodStart;
-        var elapsedFraction = Math.Clamp(elapsed.TotalSeconds / period.TotalSeconds, 0.01, 1.0);
-        var expectedPercent = elapsedFraction * 100.0;
-
-        return usedPercent < expectedPercent * 0.95 ? "On pace" : null;
+        return UsageMath.GetPaceBadgeText(
+            usedPercent,
+            enablePaceAdjustment,
+            usage.NextResetTime,
+            usage.PeriodDuration,
+            nowUtc);
     }
 
     private static string? BuildTooltipContent(ProviderUsage usage, string friendlyName)
