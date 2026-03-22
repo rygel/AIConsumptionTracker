@@ -8,6 +8,13 @@
         Foreground="{DynamicResource PrimaryText}"
         WindowStartupLocation="CenterScreen">
 
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36"
+                      ResizeBorderThickness="5"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"/>
+    </WindowChrome.WindowChrome>
+
     <Window.Resources>
         <Style x:Key="ComboBoxToggleButton" TargetType="ToggleButton">
             <Setter Property="OverridesDefaultStyle" Value="true"/>
@@ -145,7 +152,8 @@
             <DockPanel>
                 <Button DockPanel.Dock="Right" Content="X" Click="CloseBtn_Click"
                         Background="Transparent" Foreground="{DynamicResource SecondaryText}"
-                        BorderThickness="0" Padding="8,2" FontWeight="Bold" Cursor="Hand"/>
+                        BorderThickness="0" Padding="8,2" FontWeight="Bold" Cursor="Hand"
+                        WindowChrome.IsHitTestVisibleInChrome="True"/>
                 <TextBlock Text="Card Designer" FontWeight="Bold" FontSize="13"
                            Foreground="{DynamicResource PrimaryText}" VerticalAlignment="Center"/>
             </DockPanel>

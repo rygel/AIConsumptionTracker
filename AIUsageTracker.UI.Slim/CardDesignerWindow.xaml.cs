@@ -175,18 +175,45 @@ public partial class CardDesignerWindow : Window
     {
         var card = new Border
         {
-            Background = (Brush)this.FindResource("CardBackground"),
             BorderBrush = (Brush)this.FindResource("CardBorder"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(3),
-            Padding = new Thickness(6, 3, 6, 3),
             Margin = new Thickness(0, 0, 0, 1),
+            ClipToBounds = true,
         };
 
-        // Everything on one line: [bar] Name | status | badges | reset
-        var row = new DockPanel();
+        // Card background: percentage fill as subtle background color
+        var bgGrid = new Grid();
 
-        // Right side: reset, badges, status (docked right, in reverse order)
+        if (usage.IsAvailable && usage.IsQuotaBased && barWidth > 0)
+        {
+            // Two-column grid: filled portion + empty portion
+            bgGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(barWidth, GridUnitType.Star) });
+            bgGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0, 100 - barWidth), GridUnitType.Star) });
+
+            var fill = new Border
+            {
+                Background = this.GetBarColor(usedPercent),
+                Opacity = 0.15,
+            };
+            Grid.SetColumn(fill, 0);
+            bgGrid.Children.Add(fill);
+
+            var empty = new Border
+            {
+                Background = (Brush)this.FindResource("CardBackground"),
+            };
+            Grid.SetColumn(empty, 1);
+            bgGrid.Children.Add(empty);
+        }
+        else
+        {
+            bgGrid.Children.Add(new Border { Background = (Brush)this.FindResource("CardBackground") });
+        }
+
+        // Content row on top of the background
+        var row = new DockPanel { Margin = new Thickness(6, 3, 6, 3) };
+
         void AddRight(string text, Brush fg, double fontSize = 8.5)
         {
             if (string.IsNullOrWhiteSpace(text))
@@ -211,21 +238,6 @@ public partial class CardDesignerWindow : Window
         AddRight(secondaryText, (Brush)this.FindResource("TertiaryText"), 8);
         AddRight(statusText, (Brush)this.FindResource("SecondaryText"), 8);
 
-        // Left side: thin color bar + name
-        if (usage.IsAvailable && usage.IsQuotaBased)
-        {
-            var colorBar = new Border
-            {
-                Width = 3,
-                Background = this.GetBarColor(usedPercent),
-                Opacity = 0.7,
-                CornerRadius = new CornerRadius(1),
-                Margin = new Thickness(0, 0, 6, 0),
-            };
-            DockPanel.SetDock(colorBar, Dock.Left);
-            row.Children.Add(colorBar);
-        }
-
         var nameBlock = new TextBlock
         {
             Text = displayName,
@@ -236,7 +248,9 @@ public partial class CardDesignerWindow : Window
         };
         row.Children.Add(nameBlock);
 
-        card.Child = row;
+        // Layer: background grid + content row
+        bgGrid.Children.Add(row);
+        card.Child = bgGrid;
         return card;
     }
 
