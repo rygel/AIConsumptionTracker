@@ -3,7 +3,6 @@
 // </copyright>
 
 using System.Collections.ObjectModel;
-using System.Text;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -110,7 +109,7 @@ public partial class ProviderCardViewModel : BaseViewModel
         get
         {
             var suppressSingle = this._presentation?.SuppressSingleResetTime ?? false;
-            var resetTimes = ResolveResetTimes(this.Usage, suppressSingle);
+            var resetTimes = MainWindowRuntimeLogic.ResolveResetTimes(this.Usage, suppressSingle);
             if (resetTimes.Count == 0)
             {
                 return null;
@@ -123,7 +122,7 @@ public partial class ProviderCardViewModel : BaseViewModel
 
     public DateTime? NextResetTime => this.Usage.NextResetTime;
 
-    public string? TooltipContent => BuildTooltipContent(this.Usage, this.DisplayName);
+    public string? TooltipContent => MainWindowRuntimeLogic.BuildTooltipContent(this.Usage, this.DisplayName);
 
     /// <summary>
     /// Gets a formatted req/hr badge string when ShowUsagePerHour is enabled and data is available,
@@ -272,107 +271,6 @@ public partial class ProviderCardViewModel : BaseViewModel
             usage.NextResetTime,
             usage.PeriodDuration,
             nowUtc);
-    }
-
-    private static IReadOnlyList<DateTime> ResolveResetTimes(ProviderUsage usage, bool suppressSingleResetFallback)
-    {
-        ArgumentNullException.ThrowIfNull(usage);
-
-        var detailResetTimes = usage.Details?
-            .Where(detail => detail.DetailType == ProviderUsageDetailType.QuotaWindow)
-            .Where(detail => detail.QuotaBucketKind != WindowKind.None)
-            .Where(detail => detail.NextResetTime.HasValue)
-            .Where(detail => UsageMath.GetEffectiveUsedPercent(detail).HasValue)
-            .Select(detail => detail.NextResetTime!.Value)
-            .Distinct()
-            .ToList()
-            ?? new List<DateTime>();
-
-        if (detailResetTimes.Count >= 2)
-        {
-            return detailResetTimes;
-        }
-
-        if (suppressSingleResetFallback)
-        {
-            return Array.Empty<DateTime>();
-        }
-
-        return usage.NextResetTime.HasValue
-            ? new[] { usage.NextResetTime.Value }
-            : Array.Empty<DateTime>();
-    }
-
-    private static string? BuildTooltipContent(ProviderUsage usage, string friendlyName)
-    {
-        var tooltipBuilder = new StringBuilder();
-        tooltipBuilder.AppendLine(friendlyName);
-        tooltipBuilder.AppendLine($"Status: {(usage.IsAvailable ? "Active" : "Inactive")}");
-        if (!string.IsNullOrEmpty(usage.Description))
-        {
-            tooltipBuilder.AppendLine($"Description: {usage.Description}");
-        }
-
-        if (usage.IsAvailable && usage.PeriodDuration.HasValue && usage.PeriodDuration.Value.TotalDays >= 1)
-        {
-            var dailyBudget = 100.0 / usage.PeriodDuration.Value.TotalDays;
-            var elapsedDays = UsageMath.GetElapsedDays(usage.NextResetTime, usage.PeriodDuration);
-            var expectedAtThisPoint = dailyBudget * elapsedDays;
-            tooltipBuilder.AppendLine();
-            tooltipBuilder.AppendLine($"Daily budget: {dailyBudget:F0}%/day");
-            tooltipBuilder.AppendLine($"Expected by now: {expectedAtThisPoint:F0}% | Actual: {usage.UsedPercent:F0}%");
-        }
-
-        if (usage.Details?.Any() == true)
-        {
-            tooltipBuilder.AppendLine();
-            tooltipBuilder.AppendLine("Rate Limits:");
-            foreach (var detail in usage.Details
-                         .OrderBy(GetDetailSortOrder)
-                         .ThenBy(GetDetailDisplayName, StringComparer.OrdinalIgnoreCase))
-            {
-                var detailValue = GetDetailDisplayValue(detail);
-                if (string.IsNullOrWhiteSpace(detailValue))
-                {
-                    continue;
-                }
-
-                tooltipBuilder.AppendLine($"  {GetDetailDisplayName(detail)}: {detailValue}");
-            }
-        }
-
-        if (!string.IsNullOrEmpty(usage.AuthSource))
-        {
-            tooltipBuilder.AppendLine();
-            tooltipBuilder.AppendLine($"Source: {usage.AuthSource}");
-        }
-
-        var result = tooltipBuilder.ToString().Trim();
-        return string.IsNullOrWhiteSpace(result) ? null : result;
-    }
-
-    private static string GetDetailDisplayName(ProviderUsageDetail detail)
-    {
-        return detail.Name;
-    }
-
-    private static string GetDetailDisplayValue(ProviderUsageDetail detail)
-    {
-        return MainWindowRuntimeLogic.GetStoredDisplayText(detail);
-    }
-
-    private static int GetDetailSortOrder(ProviderUsageDetail detail)
-    {
-        return (detail.DetailType, detail.QuotaBucketKind) switch
-        {
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Burst) => 0,
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.Rolling) => 1,
-            (ProviderUsageDetailType.QuotaWindow, WindowKind.ModelSpecific) => 2,
-            (ProviderUsageDetailType.QuotaWindow, _) => 3,
-            (ProviderUsageDetailType.Model, _) => 3,
-            (ProviderUsageDetailType.Credit, _) => 4,
-            _ => 5,
-        };
     }
 
     partial void OnUseRelativeResetTimeChanged(bool value)

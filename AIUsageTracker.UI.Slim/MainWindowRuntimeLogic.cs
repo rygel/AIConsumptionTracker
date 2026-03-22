@@ -460,4 +460,123 @@ internal static partial class MainWindowRuntimeLogic
 
         return int.MaxValue;
     }
+
+    /// <summary>
+    /// Resolves reset times from detail-level quota windows, falling back to the parent's
+    /// NextResetTime when fewer than two distinct detail reset times are available.
+    /// </summary>
+    internal static IReadOnlyList<DateTime> ResolveResetTimes(ProviderUsage usage, bool suppressSingleResetFallback)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+
+        var detailResetTimes = usage.Details?
+            .Where(detail => detail.DetailType == ProviderUsageDetailType.QuotaWindow)
+            .Where(detail => detail.QuotaBucketKind != WindowKind.None)
+            .Where(detail => detail.NextResetTime.HasValue)
+            .Where(detail => UsageMath.GetEffectiveUsedPercent(detail).HasValue)
+            .Select(detail => detail.NextResetTime!.Value)
+            .Distinct()
+            .ToList()
+            ?? new List<DateTime>();
+
+        if (detailResetTimes.Count >= 2)
+        {
+            return detailResetTimes;
+        }
+
+        if (suppressSingleResetFallback)
+        {
+            return Array.Empty<DateTime>();
+        }
+
+        return usage.NextResetTime.HasValue
+            ? new[] { usage.NextResetTime.Value }
+            : Array.Empty<DateTime>();
+    }
+
+    /// <summary>
+    /// Builds a multi-line tooltip string for a provider card, including daily budget
+    /// information for multi-day quota periods and per-detail rate limit breakdowns.
+    /// </summary>
+    internal static string? BuildTooltipContent(ProviderUsage usage, string friendlyName)
+    {
+        var tooltipBuilder = new System.Text.StringBuilder();
+        tooltipBuilder.AppendLine(friendlyName);
+        tooltipBuilder.AppendLine($"Status: {(usage.IsAvailable ? "Active" : "Inactive")}");
+        if (!string.IsNullOrEmpty(usage.Description))
+        {
+            tooltipBuilder.AppendLine($"Description: {usage.Description}");
+        }
+
+        if (usage.IsAvailable && usage.PeriodDuration.HasValue && usage.PeriodDuration.Value.TotalDays >= 1)
+        {
+            var dailyBudget = 100.0 / usage.PeriodDuration.Value.TotalDays;
+            var elapsedDays = UsageMath.GetElapsedDays(usage.NextResetTime, usage.PeriodDuration);
+            var expectedAtThisPoint = dailyBudget * elapsedDays;
+            tooltipBuilder.AppendLine();
+            tooltipBuilder.AppendLine($"Daily budget: {dailyBudget:F0}%/day");
+            tooltipBuilder.AppendLine($"Expected by now: {expectedAtThisPoint:F0}% | Actual: {usage.UsedPercent:F0}%");
+        }
+
+        if (usage.Details?.Any() == true)
+        {
+            tooltipBuilder.AppendLine();
+            tooltipBuilder.AppendLine("Rate Limits:");
+            foreach (var detail in usage.Details
+                         .OrderBy(GetTooltipDetailSortOrder)
+                         .ThenBy(GetDetailDisplayName, StringComparer.OrdinalIgnoreCase))
+            {
+                var detailValue = GetDetailDisplayValue(detail);
+                if (string.IsNullOrWhiteSpace(detailValue))
+                {
+                    continue;
+                }
+
+                tooltipBuilder.AppendLine($"  {GetDetailDisplayName(detail)}: {detailValue}");
+            }
+        }
+
+        if (!string.IsNullOrEmpty(usage.AuthSource))
+        {
+            tooltipBuilder.AppendLine();
+            tooltipBuilder.AppendLine($"Source: {usage.AuthSource}");
+        }
+
+        var result = tooltipBuilder.ToString().Trim();
+        return string.IsNullOrWhiteSpace(result) ? null : result;
+    }
+
+    /// <summary>
+    /// Gets the display name for a detail row (used in tooltip rendering).
+    /// </summary>
+    internal static string GetDetailDisplayName(ProviderUsageDetail detail)
+    {
+        return detail.Name;
+    }
+
+    /// <summary>
+    /// Gets the formatted display value for a detail row (used in tooltip rendering).
+    /// </summary>
+    internal static string GetDetailDisplayValue(ProviderUsageDetail detail)
+    {
+        return GetStoredDisplayText(detail);
+    }
+
+    /// <summary>
+    /// Sort order for tooltip detail rows, grouping quota windows by bucket kind
+    /// before model and credit details.
+    /// </summary>
+    private static int GetTooltipDetailSortOrder(ProviderUsageDetail detail)
+    {
+        return (detail.DetailType, detail.QuotaBucketKind) switch
+        {
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Burst) => 0,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.Rolling) => 1,
+            (ProviderUsageDetailType.QuotaWindow, WindowKind.ModelSpecific) => 2,
+            (ProviderUsageDetailType.QuotaWindow, _) => 3,
+            (ProviderUsageDetailType.Model, _) => 3,
+            (ProviderUsageDetailType.Credit, _) => 4,
+            _ => 5,
+        };
+    }
 }

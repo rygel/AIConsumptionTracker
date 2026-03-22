@@ -577,7 +577,7 @@ internal static partial class MainWindowRuntimeLogic
 
     private static bool IsDisplayableDetail(ProviderUsageDetail detail) => IsEligibleDetail(detail, includeRateLimit: true);
 
-    private static int GetDetailSortOrder(ProviderUsageDetail detail)
+    internal static int GetDetailSortOrder(ProviderUsageDetail detail)
     {
         return detail.DetailType switch
         {
