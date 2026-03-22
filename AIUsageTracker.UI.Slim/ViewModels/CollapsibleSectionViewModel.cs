@@ -120,11 +120,6 @@ public partial class CollapsibleSectionViewModel : BaseViewModel
 
     private static SolidColorBrush GetResourceBrush(string key)
     {
-        if (Application.Current?.Resources[key] is SolidColorBrush brush)
-        {
-            return brush;
-        }
-
-        return new SolidColorBrush(Colors.Gray);
+        return UIHelper.GetResourceBrush(key);
     }
 }
