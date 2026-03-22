@@ -117,14 +117,37 @@ internal sealed class WpfProviderIconService
         return grid;
     }
 
-    private static Image MakeImage(ImageSource source) =>
-        new()
+    private Image MakeImage(ImageSource source)
+    {
+        var image = new Image
         {
             Source = source,
             Width = 16,
             Height = 16,
             VerticalAlignment = VerticalAlignment.Center,
         };
+
+        // On dark themes, dark SVG icons are invisible. Add a subtle white glow
+        // so black/dark icons remain visible against dark card backgrounds.
+        var bg = this._resolveResourceBrush("Background", Brushes.White);
+        if (bg is SolidColorBrush solid && IsDarkColor(solid.Color))
+        {
+            image.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.White,
+                ShadowDepth = 0,
+                BlurRadius = 3,
+                Opacity = 0.6,
+            };
+        }
+
+        return image;
+    }
+
+    private static bool IsDarkColor(Color c)
+    {
+        return (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) < 128;
+    }
 
     internal static (Brush Color, string Initial) GetBadge(string providerId, Brush defaultBrush)
     {

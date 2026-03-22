@@ -471,6 +471,24 @@ public partial class App
     }
 #pragma warning restore MA0051
 
+    /// <summary>
+    /// Returns true if the theme has a palette defined. Used by tests.
+    /// </summary>
+    internal static bool HasThemePalette(AppTheme theme) => ThemePalettes.ContainsKey(theme);
+
+    /// <summary>
+    /// Returns any required keys missing from the theme's palette. Used by tests.
+    /// </summary>
+    internal static IReadOnlyList<string> GetMissingThemeKeys(AppTheme theme, string[] requiredKeys)
+    {
+        if (!ThemePalettes.TryGetValue(theme, out var palette))
+        {
+            return requiredKeys;
+        }
+
+        return requiredKeys.Where(key => !palette.ContainsKey(key)).ToList();
+    }
+
     private static void SetBrushColor(ResourceDictionary resources, string key, Color color)
     {
         if (resources.Contains(key) && resources[key] is SolidColorBrush brush && !brush.IsFrozen)
