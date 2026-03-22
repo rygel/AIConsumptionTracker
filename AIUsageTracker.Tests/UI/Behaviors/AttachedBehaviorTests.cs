@@ -16,7 +16,7 @@ public class AttachedBehaviorTests
     private static readonly TimeSpan StaTestTimeout = TimeSpan.FromSeconds(5);
 
     [Fact]
-    public Task WindowDragBehavior_GetEnableDrag_ReturnsFalseByDefaultAsync()
+    public Task WindowDragBehavior_GetEnableDrag_ReturnsFalseByDefault()
     {
         return RunInStaAsync(() =>
         {
@@ -33,7 +33,7 @@ public class AttachedBehaviorTests
     }
 
     [Fact]
-    public Task WindowDragBehavior_SetEnableDrag_SetsValueAsync()
+    public Task WindowDragBehavior_SetEnableDrag_SetsValue()
     {
         return RunInStaAsync(() =>
         {
@@ -51,7 +51,7 @@ public class AttachedBehaviorTests
     }
 
     [Fact]
-    public Task CloseWindowBehavior_GetCloseOnClick_ReturnsFalseByDefaultAsync()
+    public Task CloseWindowBehavior_GetCloseOnClick_ReturnsFalseByDefault()
     {
         return RunInStaAsync(() =>
         {
@@ -68,7 +68,7 @@ public class AttachedBehaviorTests
     }
 
     [Fact]
-    public Task CloseWindowBehavior_SetCloseOnClick_SetsValueAsync()
+    public Task CloseWindowBehavior_SetCloseOnClick_SetsValue()
     {
         return RunInStaAsync(() =>
         {
@@ -86,7 +86,7 @@ public class AttachedBehaviorTests
     }
 
     [Fact]
-    public Task CloseWindowBehavior_GetHideOnClick_ReturnsFalseByDefaultAsync()
+    public Task CloseWindowBehavior_GetHideOnClick_ReturnsFalseByDefault()
     {
         return RunInStaAsync(() =>
         {
@@ -103,7 +103,7 @@ public class AttachedBehaviorTests
     }
 
     [Fact]
-    public Task CloseWindowBehavior_SetHideOnClick_SetsValueAsync()
+    public Task CloseWindowBehavior_SetHideOnClick_SetsValue()
     {
         return RunInStaAsync(() =>
         {
@@ -116,42 +116,6 @@ public class AttachedBehaviorTests
 
             // Assert
             Assert.True(result);
-            return Task.CompletedTask;
-        });
-    }
-
-    [Fact]
-    public Task OpenFolderBehavior_GetFolderPath_ReturnsNullByDefaultAsync()
-    {
-        return RunInStaAsync(() =>
-        {
-            // Arrange
-            var element = new Border();
-
-            // Act
-            var result = OpenFolderBehavior.GetFolderPath(element);
-
-            // Assert
-            Assert.Null(result);
-            return Task.CompletedTask;
-        });
-    }
-
-    [Fact]
-    public Task OpenFolderBehavior_SetFolderPath_SetsValueAsync()
-    {
-        return RunInStaAsync(() =>
-        {
-            // Arrange
-            var element = new Border();
-            var path = @"C:\TestPath";
-
-            // Act
-            OpenFolderBehavior.SetFolderPath(element, path);
-            var result = OpenFolderBehavior.GetFolderPath(element);
-
-            // Assert
-            Assert.Equal(path, result);
             return Task.CompletedTask;
         });
     }

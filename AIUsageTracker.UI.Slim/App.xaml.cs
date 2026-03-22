@@ -24,6 +24,13 @@ public partial class App : Application
     private readonly Dictionary<string, TaskbarIcon> _providerTrayIcons = new(StringComparer.Ordinal);
     private TaskbarIcon? _trayIcon;
     private MainWindow? _mainWindow;
+    private SingleInstanceLockService? _singleInstanceLockService;
+
+    /// <summary>
+    /// Gets the background task that ensures the monitor is running.
+    /// Fired immediately on startup so it runs in parallel with WPF initialization.
+    /// </summary>
+    public static Task<bool> MonitorWarmupTask { get; private set; } = Task.FromResult(false);
 
     public App()
     {
@@ -47,7 +54,7 @@ public partial class App : Application
 
     public Func<bool> IsMainWindowVisible { get; set; } = () => Current.MainWindow?.IsVisible ?? false;
 
-    public Func<Window> InfoDialogFactory { get; set; } = () => new InfoDialog();
+    public Func<Window> InfoDialogFactory { get; set; } = () => Host.Services.GetRequiredService<InfoDialog>();
 
     public Action<Window> ShowInfoDialogAction { get; set; } = dialog => dialog.ShowDialog();
 
@@ -68,6 +75,14 @@ public partial class App : Application
 #pragma warning disable VSTHRD100 // WPF Application lifecycle overrides require async void signatures
     protected override async void OnStartup(StartupEventArgs e)
     {
+        this._singleInstanceLockService = Host.Services.GetRequiredService<SingleInstanceLockService>();
+        if (!this._singleInstanceLockService.TryAcquire())
+        {
+            base.OnStartup(e);
+            this.Shutdown(0);
+            return;
+        }
+
         await Host.StartAsync();
         base.OnStartup(e);
 
@@ -79,17 +94,37 @@ public partial class App : Application
             return;
         }
 
+        // Fire monitor warmup IMMEDIATELY — runs in parallel with preferences load,
+        // theme apply, tray icon init, and the expensive MainWindow InitializeComponent.
+        // By the time the window is shown, the monitor should already be running.
+        MonitorWarmupTask = Task.Run(async () =>
+        {
+            try
+            {
+                var lifecycle = Host.Services.GetRequiredService<MonitorLifecycleService>();
+                return await lifecycle.EnsureAgentRunningAsync().ConfigureAwait(false); // ui-thread-guardrail-allow: Task.Run thread pool
+            }
+            catch (Exception ex)
+            {
+                Host.Services.GetRequiredService<ILogger<App>>()
+                    .LogWarning(ex, "Background monitor warmup failed");
+                return false;
+            }
+        });
+
+        var preferencesStore = Host.Services.GetRequiredService<UiPreferencesStore>();
         try
         {
-            var preferencesStore = Host.Services.GetRequiredService<UiPreferencesStore>();
             Preferences = await preferencesStore.LoadAsync();
-            App.ApplyTheme(Preferences.Theme);
-            IsPrivacyMode = Preferences.IsPrivacyMode;
         }
-        catch
+        catch (Exception ex)
         {
-            App.ApplyTheme(AppTheme.Dark);
+            Host.Services.GetRequiredService<ILogger<App>>().LogWarning(ex, "Failed to load preferences on startup.");
+            Preferences = new AppPreferences();
         }
+
+        ApplyTheme(Preferences.Theme);
+        IsPrivacyMode = Preferences.IsPrivacyMode;
 
         this.InitializeTrayIcon();
 
@@ -112,6 +147,7 @@ public partial class App : Application
             await Host.StopAsync();
         }
 
+        this._singleInstanceLockService?.Release();
         base.OnExit(e);
     }
 #pragma warning restore VSTHRD100
@@ -121,31 +157,35 @@ public partial class App : Application
         // Infrastructure
         services.AddSingleton<IAppPathProvider, AIUsageTracker.Infrastructure.Helpers.DefaultAppPathProvider>();
         services.AddSingleton<UiPreferencesStore>();
-        services.AddSingleton<DisplayPreferencesService>();
+        services.AddSingleton<IUiPreferencesStore>(sp => sp.GetRequiredService<UiPreferencesStore>());
+        services.AddSingleton<IMonitorLauncher, MonitorLauncher>();
+        services.AddSingleton<MonitorLauncher>();
         services.AddSingleton<IMonitorService, MonitorService>();
-        services.AddSingleton<IMonitorLifecycleService, MonitorLifecycleService>();
-        services.AddSingleton<IUsageAnalyticsService, NoOpUsageAnalyticsService>();
-        services.AddSingleton<IDataExportService, NoOpDataExportService>();
-        services.AddSingleton<IUpdateCheckerService, GitHubUpdateChecker>();
+        services.AddSingleton<MonitorLifecycleService>();
+        services.AddSingleton<GitHubUpdateChecker>();
+        services.AddSingleton<Func<UpdateChannel, GitHubUpdateChecker>>(sp => channel =>
+            new GitHubUpdateChecker(
+                sp.GetRequiredService<ILogger<GitHubUpdateChecker>>(),
+                sp.GetRequiredService<HttpClient>(),
+                channel));
         services.AddSingleton<HttpClient>();
         services.AddHttpClient("LocalhostProbe")
             .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(1));
 
         // UI Services
-        services.AddSingleton<IWindowBehaviorService, WindowBehaviorService>();
-        services.AddSingleton<IErrorDisplayService, ErrorDisplayService>();
+        services.AddSingleton<SingleInstanceLockService>();
+        services.AddSingleton<Func<SettingsWindow>>(sp => () => sp.GetRequiredService<SettingsWindow>());
+        services.AddSingleton<Func<InfoDialog>>(sp => () => sp.GetRequiredService<InfoDialog>());
         services.AddSingleton<IDialogService, DialogService>();
-        services.AddSingleton<IPollingService, PollingService>();
-        services.AddSingleton<IReactivePollingService, ReactivePollingService>();
+        services.AddSingleton<MonitorStartupOrchestrator>();
         services.AddSingleton<IBrowserService, BrowserService>();
 
         // ViewModels
         services.AddSingleton<MainViewModel>();
-        services.AddTransient<SettingsViewModel>();
-
         // Windows
         services.AddSingleton<MainWindow>();
         services.AddTransient<SettingsWindow>();
+        services.AddTransient<InfoDialog>();
 
         services.AddLogging(builder =>
         {

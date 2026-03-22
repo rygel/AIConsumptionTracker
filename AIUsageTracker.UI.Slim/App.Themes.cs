@@ -2,6 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Media;
 using AIUsageTracker.Core.Models;
@@ -11,6 +12,444 @@ namespace AIUsageTracker.UI.Slim;
 public partial class App
 {
 #pragma warning disable MA0051 // Theme application is intentionally a single palette table.
+    private static readonly Dictionary<AppTheme, Dictionary<string, Color>> ThemePalettes = new()
+    {
+        [AppTheme.Light] = new()
+        {
+            ["Background"] = Color.FromRgb(245, 245, 245),
+            ["HeaderBackground"] = Color.FromRgb(229, 229, 229),
+            ["FooterBackground"] = Color.FromRgb(229, 229, 229),
+            ["BorderColor"] = Color.FromRgb(221, 221, 221),
+            ["PrimaryText"] = Color.FromRgb(26, 26, 26),
+            ["SecondaryText"] = Color.FromRgb(82, 82, 82),
+            ["TertiaryText"] = Color.FromRgb(136, 136, 136),
+            ["AccentColor"] = Color.FromRgb(37, 99, 235),
+            ["AccentForeground"] = Color.FromRgb(255, 255, 255),
+            ["ButtonBackground"] = Color.FromRgb(229, 229, 229),
+            ["ButtonHover"] = Color.FromRgb(238, 238, 238),
+            ["ButtonPressed"] = Color.FromRgb(37, 99, 235),
+            ["ControlBackground"] = Color.FromRgb(255, 255, 255),
+            ["ControlBorder"] = Color.FromRgb(221, 221, 221),
+            ["InputBackground"] = Color.FromRgb(255, 255, 255),
+            ["TabUnselected"] = Color.FromRgb(229, 229, 229),
+            ["ComboBoxBackground"] = Color.FromRgb(255, 255, 255),
+            ["ComboBoxItemHover"] = Color.FromRgb(238, 238, 238),
+            ["ProgressBarBackground"] = Color.FromRgb(229, 229, 229),
+            ["StatusTextWarning"] = Color.FromRgb(202, 138, 4),
+            ["GroupHeaderBackground"] = Color.FromRgb(229, 229, 229),
+            ["GroupHeaderBorder"] = Color.FromRgb(221, 221, 221),
+            ["CardBackground"] = Color.FromRgb(255, 255, 255),
+            ["CardBorder"] = Color.FromRgb(221, 221, 221),
+            ["ScrollBarBackground"] = Color.FromRgb(229, 229, 229),
+            ["ScrollBarForeground"] = Color.FromRgb(170, 170, 170),
+            ["ScrollBarHover"] = Color.FromRgb(140, 140, 140),
+            ["LinkForeground"] = Color.FromRgb(37, 99, 235),
+        },
+        [AppTheme.Corporate] = new()
+        {
+            ["Background"] = Color.FromRgb(15, 23, 42),
+            ["HeaderBackground"] = Color.FromRgb(30, 41, 59),
+            ["FooterBackground"] = Color.FromRgb(30, 41, 59),
+            ["BorderColor"] = Color.FromRgb(51, 65, 85),
+            ["PrimaryText"] = Color.FromRgb(241, 245, 249),
+            ["SecondaryText"] = Color.FromRgb(148, 163, 184),
+            ["TertiaryText"] = Color.FromRgb(100, 116, 139),
+            ["AccentColor"] = Color.FromRgb(59, 130, 246),
+            ["AccentForeground"] = Color.FromRgb(255, 255, 255),
+            ["ButtonBackground"] = Color.FromRgb(51, 65, 85),
+            ["ButtonHover"] = Color.FromRgb(61, 79, 102),
+            ["ButtonPressed"] = Color.FromRgb(59, 130, 246),
+            ["ControlBackground"] = Color.FromRgb(30, 41, 59),
+            ["ControlBorder"] = Color.FromRgb(51, 65, 85),
+            ["InputBackground"] = Color.FromRgb(30, 41, 59),
+            ["TabUnselected"] = Color.FromRgb(51, 65, 85),
+            ["ComboBoxBackground"] = Color.FromRgb(30, 41, 59),
+            ["ComboBoxItemHover"] = Color.FromRgb(61, 79, 102),
+            ["ProgressBarBackground"] = Color.FromRgb(51, 65, 85),
+            ["StatusTextWarning"] = Color.FromRgb(245, 158, 11),
+            ["GroupHeaderBackground"] = Color.FromRgb(30, 41, 59),
+            ["GroupHeaderBorder"] = Color.FromRgb(51, 65, 85),
+            ["CardBackground"] = Color.FromRgb(30, 41, 59),
+            ["CardBorder"] = Color.FromRgb(51, 65, 85),
+            ["ScrollBarBackground"] = Color.FromRgb(30, 41, 59),
+            ["ScrollBarForeground"] = Color.FromRgb(100, 116, 139),
+            ["ScrollBarHover"] = Color.FromRgb(148, 163, 184),
+            ["LinkForeground"] = Color.FromRgb(96, 165, 250),
+        },
+        [AppTheme.Midnight] = new()
+        {
+            ["Background"] = Color.FromRgb(10, 10, 10),
+            ["HeaderBackground"] = Color.FromRgb(20, 20, 20),
+            ["FooterBackground"] = Color.FromRgb(20, 20, 20),
+            ["BorderColor"] = Color.FromRgb(38, 38, 38),
+            ["PrimaryText"] = Color.FromRgb(250, 250, 250),
+            ["SecondaryText"] = Color.FromRgb(136, 136, 136),
+            ["TertiaryText"] = Color.FromRgb(85, 85, 85),
+            ["AccentColor"] = Color.FromRgb(129, 140, 248),
+            ["AccentForeground"] = Color.FromRgb(255, 255, 255),
+            ["ButtonBackground"] = Color.FromRgb(31, 31, 31),
+            ["ButtonHover"] = Color.FromRgb(42, 42, 42),
+            ["ButtonPressed"] = Color.FromRgb(129, 140, 248),
+            ["ControlBackground"] = Color.FromRgb(20, 20, 20),
+            ["ControlBorder"] = Color.FromRgb(38, 38, 38),
+            ["InputBackground"] = Color.FromRgb(20, 20, 20),
+            ["TabUnselected"] = Color.FromRgb(31, 31, 31),
+            ["ComboBoxBackground"] = Color.FromRgb(20, 20, 20),
+            ["ComboBoxItemHover"] = Color.FromRgb(42, 42, 42),
+            ["ProgressBarBackground"] = Color.FromRgb(31, 31, 31),
+            ["StatusTextWarning"] = Color.FromRgb(251, 191, 36),
+            ["GroupHeaderBackground"] = Color.FromRgb(20, 20, 20),
+            ["GroupHeaderBorder"] = Color.FromRgb(38, 38, 38),
+            ["CardBackground"] = Color.FromRgb(20, 20, 20),
+            ["CardBorder"] = Color.FromRgb(38, 38, 38),
+            ["ScrollBarBackground"] = Color.FromRgb(20, 20, 20),
+            ["ScrollBarForeground"] = Color.FromRgb(82, 82, 82),
+            ["ScrollBarHover"] = Color.FromRgb(115, 115, 115),
+            ["LinkForeground"] = Color.FromRgb(165, 180, 252),
+        },
+        [AppTheme.Dracula] = new()
+        {
+            ["Background"] = Color.FromRgb(40, 42, 54),
+            ["HeaderBackground"] = Color.FromRgb(33, 34, 44),
+            ["FooterBackground"] = Color.FromRgb(33, 34, 44),
+            ["BorderColor"] = Color.FromRgb(68, 71, 90),
+            ["PrimaryText"] = Color.FromRgb(248, 248, 242),
+            ["SecondaryText"] = Color.FromRgb(139, 233, 253),
+            ["TertiaryText"] = Color.FromRgb(98, 114, 164),
+            ["AccentColor"] = Color.FromRgb(255, 121, 198),
+            ["AccentForeground"] = Color.FromRgb(40, 42, 54),
+            ["ButtonBackground"] = Color.FromRgb(68, 71, 90),
+            ["ButtonHover"] = Color.FromRgb(98, 114, 164),
+            ["ButtonPressed"] = Color.FromRgb(189, 147, 249),
+            ["ControlBackground"] = Color.FromRgb(33, 34, 44),
+            ["ControlBorder"] = Color.FromRgb(68, 71, 90),
+            ["InputBackground"] = Color.FromRgb(33, 34, 44),
+            ["TabUnselected"] = Color.FromRgb(68, 71, 90),
+            ["ComboBoxBackground"] = Color.FromRgb(33, 34, 44),
+            ["ComboBoxItemHover"] = Color.FromRgb(68, 71, 90),
+            ["ProgressBarBackground"] = Color.FromRgb(68, 71, 90),
+            ["StatusTextWarning"] = Color.FromRgb(241, 250, 140),
+            ["GroupHeaderBackground"] = Color.FromRgb(33, 34, 44),
+            ["GroupHeaderBorder"] = Color.FromRgb(68, 71, 90),
+            ["CardBackground"] = Color.FromRgb(33, 34, 44),
+            ["CardBorder"] = Color.FromRgb(68, 71, 90),
+            ["ScrollBarBackground"] = Color.FromRgb(33, 34, 44),
+            ["ScrollBarForeground"] = Color.FromRgb(98, 114, 164),
+            ["ScrollBarHover"] = Color.FromRgb(139, 233, 253),
+            ["LinkForeground"] = Color.FromRgb(139, 233, 253),
+        },
+        [AppTheme.Nord] = new()
+        {
+            ["Background"] = Color.FromRgb(46, 52, 64),
+            ["HeaderBackground"] = Color.FromRgb(59, 66, 82),
+            ["FooterBackground"] = Color.FromRgb(59, 66, 82),
+            ["BorderColor"] = Color.FromRgb(76, 86, 106),
+            ["PrimaryText"] = Color.FromRgb(236, 239, 244),
+            ["SecondaryText"] = Color.FromRgb(216, 222, 233),
+            ["TertiaryText"] = Color.FromRgb(129, 161, 193),
+            ["AccentColor"] = Color.FromRgb(136, 192, 208),
+            ["AccentForeground"] = Color.FromRgb(46, 52, 64),
+            ["ButtonBackground"] = Color.FromRgb(67, 76, 94),
+            ["ButtonHover"] = Color.FromRgb(76, 86, 106),
+            ["ButtonPressed"] = Color.FromRgb(136, 192, 208),
+            ["ControlBackground"] = Color.FromRgb(59, 66, 82),
+            ["ControlBorder"] = Color.FromRgb(76, 86, 106),
+            ["InputBackground"] = Color.FromRgb(59, 66, 82),
+            ["TabUnselected"] = Color.FromRgb(67, 76, 94),
+            ["ComboBoxBackground"] = Color.FromRgb(59, 66, 82),
+            ["ComboBoxItemHover"] = Color.FromRgb(67, 76, 94),
+            ["ProgressBarBackground"] = Color.FromRgb(67, 76, 94),
+            ["StatusTextWarning"] = Color.FromRgb(235, 203, 139),
+            ["GroupHeaderBackground"] = Color.FromRgb(59, 66, 82),
+            ["GroupHeaderBorder"] = Color.FromRgb(76, 86, 106),
+            ["CardBackground"] = Color.FromRgb(59, 66, 82),
+            ["CardBorder"] = Color.FromRgb(76, 86, 106),
+            ["ScrollBarBackground"] = Color.FromRgb(59, 66, 82),
+            ["ScrollBarForeground"] = Color.FromRgb(76, 86, 106),
+            ["ScrollBarHover"] = Color.FromRgb(129, 161, 193),
+            ["LinkForeground"] = Color.FromRgb(136, 192, 208),
+        },
+        [AppTheme.Monokai] = new()
+        {
+            ["Background"] = Color.FromRgb(39, 40, 34),
+            ["HeaderBackground"] = Color.FromRgb(30, 31, 28),
+            ["FooterBackground"] = Color.FromRgb(30, 31, 28),
+            ["BorderColor"] = Color.FromRgb(73, 72, 62),
+            ["PrimaryText"] = Color.FromRgb(248, 248, 242),
+            ["SecondaryText"] = Color.FromRgb(166, 226, 46),
+            ["TertiaryText"] = Color.FromRgb(117, 113, 94),
+            ["AccentColor"] = Color.FromRgb(249, 38, 114),
+            ["AccentForeground"] = Color.FromRgb(248, 248, 242),
+            ["ButtonBackground"] = Color.FromRgb(73, 72, 62),
+            ["ButtonHover"] = Color.FromRgb(117, 113, 94),
+            ["ButtonPressed"] = Color.FromRgb(249, 38, 114),
+            ["ControlBackground"] = Color.FromRgb(30, 31, 28),
+            ["ControlBorder"] = Color.FromRgb(73, 72, 62),
+            ["InputBackground"] = Color.FromRgb(30, 31, 28),
+            ["TabUnselected"] = Color.FromRgb(73, 72, 62),
+            ["ComboBoxBackground"] = Color.FromRgb(30, 31, 28),
+            ["ComboBoxItemHover"] = Color.FromRgb(73, 72, 62),
+            ["ProgressBarBackground"] = Color.FromRgb(73, 72, 62),
+            ["StatusTextWarning"] = Color.FromRgb(230, 219, 116),
+            ["GroupHeaderBackground"] = Color.FromRgb(30, 31, 28),
+            ["GroupHeaderBorder"] = Color.FromRgb(73, 72, 62),
+            ["CardBackground"] = Color.FromRgb(30, 31, 28),
+            ["CardBorder"] = Color.FromRgb(73, 72, 62),
+            ["ScrollBarBackground"] = Color.FromRgb(30, 31, 28),
+            ["ScrollBarForeground"] = Color.FromRgb(117, 113, 94),
+            ["ScrollBarHover"] = Color.FromRgb(166, 226, 46),
+            ["LinkForeground"] = Color.FromRgb(102, 217, 239),
+        },
+        [AppTheme.OneDark] = new()
+        {
+            ["Background"] = Color.FromRgb(40, 44, 52),
+            ["HeaderBackground"] = Color.FromRgb(33, 37, 43),
+            ["FooterBackground"] = Color.FromRgb(33, 37, 43),
+            ["BorderColor"] = Color.FromRgb(24, 26, 31),
+            ["PrimaryText"] = Color.FromRgb(171, 178, 191),
+            ["SecondaryText"] = Color.FromRgb(152, 195, 121),
+            ["TertiaryText"] = Color.FromRgb(92, 99, 112),
+            ["AccentColor"] = Color.FromRgb(97, 175, 239),
+            ["AccentForeground"] = Color.FromRgb(255, 255, 255),
+            ["ButtonBackground"] = Color.FromRgb(53, 59, 69),
+            ["ButtonHover"] = Color.FromRgb(62, 68, 81),
+            ["ButtonPressed"] = Color.FromRgb(97, 175, 239),
+            ["ControlBackground"] = Color.FromRgb(33, 37, 43),
+            ["ControlBorder"] = Color.FromRgb(24, 26, 31),
+            ["InputBackground"] = Color.FromRgb(33, 37, 43),
+            ["TabUnselected"] = Color.FromRgb(53, 59, 69),
+            ["ComboBoxBackground"] = Color.FromRgb(33, 37, 43),
+            ["ComboBoxItemHover"] = Color.FromRgb(53, 59, 69),
+            ["ProgressBarBackground"] = Color.FromRgb(53, 59, 69),
+            ["StatusTextWarning"] = Color.FromRgb(229, 192, 123),
+            ["GroupHeaderBackground"] = Color.FromRgb(33, 37, 43),
+            ["GroupHeaderBorder"] = Color.FromRgb(24, 26, 31),
+            ["CardBackground"] = Color.FromRgb(33, 37, 43),
+            ["CardBorder"] = Color.FromRgb(24, 26, 31),
+            ["ScrollBarBackground"] = Color.FromRgb(33, 37, 43),
+            ["ScrollBarForeground"] = Color.FromRgb(75, 82, 99),
+            ["ScrollBarHover"] = Color.FromRgb(92, 99, 112),
+            ["LinkForeground"] = Color.FromRgb(97, 175, 239),
+        },
+        [AppTheme.SolarizedDark] = new()
+        {
+            ["Background"] = Color.FromRgb(0, 43, 54),
+            ["HeaderBackground"] = Color.FromRgb(7, 54, 66),
+            ["FooterBackground"] = Color.FromRgb(7, 54, 66),
+            ["BorderColor"] = Color.FromRgb(88, 110, 117),
+            ["PrimaryText"] = Color.FromRgb(147, 161, 161),
+            ["SecondaryText"] = Color.FromRgb(131, 148, 150),
+            ["TertiaryText"] = Color.FromRgb(101, 123, 131),
+            ["AccentColor"] = Color.FromRgb(38, 139, 210),
+            ["AccentForeground"] = Color.FromRgb(253, 246, 227),
+            ["ButtonBackground"] = Color.FromRgb(7, 54, 66),
+            ["ButtonHover"] = Color.FromRgb(88, 110, 117),
+            ["ButtonPressed"] = Color.FromRgb(38, 139, 210),
+            ["ControlBackground"] = Color.FromRgb(0, 43, 54),
+            ["ControlBorder"] = Color.FromRgb(88, 110, 117),
+            ["InputBackground"] = Color.FromRgb(7, 54, 66),
+            ["TabUnselected"] = Color.FromRgb(7, 54, 66),
+            ["ComboBoxBackground"] = Color.FromRgb(7, 54, 66),
+            ["ComboBoxItemHover"] = Color.FromRgb(88, 110, 117),
+            ["ProgressBarBackground"] = Color.FromRgb(7, 54, 66),
+            ["StatusTextWarning"] = Color.FromRgb(181, 137, 0),
+            ["GroupHeaderBackground"] = Color.FromRgb(7, 54, 66),
+            ["GroupHeaderBorder"] = Color.FromRgb(88, 110, 117),
+            ["CardBackground"] = Color.FromRgb(7, 54, 66),
+            ["CardBorder"] = Color.FromRgb(88, 110, 117),
+            ["ScrollBarBackground"] = Color.FromRgb(7, 54, 66),
+            ["ScrollBarForeground"] = Color.FromRgb(88, 110, 117),
+            ["ScrollBarHover"] = Color.FromRgb(101, 123, 131),
+            ["LinkForeground"] = Color.FromRgb(42, 161, 152),
+        },
+        [AppTheme.SolarizedLight] = new()
+        {
+            ["Background"] = Color.FromRgb(253, 246, 227),
+            ["HeaderBackground"] = Color.FromRgb(238, 232, 213),
+            ["FooterBackground"] = Color.FromRgb(238, 232, 213),
+            ["BorderColor"] = Color.FromRgb(147, 161, 161),
+            ["PrimaryText"] = Color.FromRgb(101, 123, 131),
+            ["SecondaryText"] = Color.FromRgb(88, 110, 117),
+            ["TertiaryText"] = Color.FromRgb(147, 161, 161),
+            ["AccentColor"] = Color.FromRgb(38, 139, 210),
+            ["AccentForeground"] = Color.FromRgb(253, 246, 227),
+            ["ButtonBackground"] = Color.FromRgb(238, 232, 213),
+            ["ButtonHover"] = Color.FromRgb(147, 161, 161),
+            ["ButtonPressed"] = Color.FromRgb(38, 139, 210),
+            ["ControlBackground"] = Color.FromRgb(253, 246, 227),
+            ["ControlBorder"] = Color.FromRgb(147, 161, 161),
+            ["InputBackground"] = Color.FromRgb(238, 232, 213),
+            ["TabUnselected"] = Color.FromRgb(238, 232, 213),
+            ["ComboBoxBackground"] = Color.FromRgb(238, 232, 213),
+            ["ComboBoxItemHover"] = Color.FromRgb(147, 161, 161),
+            ["ProgressBarBackground"] = Color.FromRgb(238, 232, 213),
+            ["StatusTextWarning"] = Color.FromRgb(181, 137, 0),
+            ["GroupHeaderBackground"] = Color.FromRgb(238, 232, 213),
+            ["GroupHeaderBorder"] = Color.FromRgb(147, 161, 161),
+            ["CardBackground"] = Color.FromRgb(238, 232, 213),
+            ["CardBorder"] = Color.FromRgb(147, 161, 161),
+            ["ScrollBarBackground"] = Color.FromRgb(238, 232, 213),
+            ["ScrollBarForeground"] = Color.FromRgb(147, 161, 161),
+            ["ScrollBarHover"] = Color.FromRgb(101, 123, 131),
+            ["LinkForeground"] = Color.FromRgb(42, 161, 152),
+        },
+        [AppTheme.CatppuccinMocha] = new()
+        {
+            ["Background"] = Color.FromRgb(30, 30, 46),
+            ["HeaderBackground"] = Color.FromRgb(24, 24, 37),
+            ["FooterBackground"] = Color.FromRgb(24, 24, 37),
+            ["BorderColor"] = Color.FromRgb(69, 71, 90),
+            ["PrimaryText"] = Color.FromRgb(205, 214, 244),
+            ["SecondaryText"] = Color.FromRgb(166, 173, 200),
+            ["TertiaryText"] = Color.FromRgb(127, 132, 156),
+            ["AccentColor"] = Color.FromRgb(203, 166, 247),
+            ["AccentForeground"] = Color.FromRgb(30, 30, 46),
+            ["ButtonBackground"] = Color.FromRgb(49, 50, 68),
+            ["ButtonHover"] = Color.FromRgb(69, 71, 90),
+            ["ButtonPressed"] = Color.FromRgb(137, 180, 250),
+            ["ControlBackground"] = Color.FromRgb(49, 50, 68),
+            ["ControlBorder"] = Color.FromRgb(69, 71, 90),
+            ["InputBackground"] = Color.FromRgb(49, 50, 68),
+            ["TabUnselected"] = Color.FromRgb(49, 50, 68),
+            ["ComboBoxBackground"] = Color.FromRgb(49, 50, 68),
+            ["ComboBoxItemHover"] = Color.FromRgb(69, 71, 90),
+            ["ProgressBarBackground"] = Color.FromRgb(49, 50, 68),
+            ["StatusTextWarning"] = Color.FromRgb(249, 226, 175),
+            ["GroupHeaderBackground"] = Color.FromRgb(24, 24, 37),
+            ["GroupHeaderBorder"] = Color.FromRgb(69, 71, 90),
+            ["CardBackground"] = Color.FromRgb(24, 24, 37),
+            ["CardBorder"] = Color.FromRgb(69, 71, 90),
+            ["ScrollBarBackground"] = Color.FromRgb(24, 24, 37),
+            ["ScrollBarForeground"] = Color.FromRgb(108, 112, 134),
+            ["ScrollBarHover"] = Color.FromRgb(127, 132, 156),
+            ["LinkForeground"] = Color.FromRgb(137, 180, 250),
+        },
+        [AppTheme.CatppuccinFrappe] = new()
+        {
+            ["Background"] = Color.FromRgb(48, 52, 70),
+            ["HeaderBackground"] = Color.FromRgb(41, 44, 60),
+            ["FooterBackground"] = Color.FromRgb(41, 44, 60),
+            ["BorderColor"] = Color.FromRgb(81, 87, 109),
+            ["PrimaryText"] = Color.FromRgb(198, 208, 245),
+            ["SecondaryText"] = Color.FromRgb(165, 173, 206),
+            ["TertiaryText"] = Color.FromRgb(131, 139, 167),
+            ["AccentColor"] = Color.FromRgb(202, 158, 230),
+            ["AccentForeground"] = Color.FromRgb(35, 38, 52),
+            ["ButtonBackground"] = Color.FromRgb(65, 69, 89),
+            ["ButtonHover"] = Color.FromRgb(81, 87, 109),
+            ["ButtonPressed"] = Color.FromRgb(140, 170, 238),
+            ["ControlBackground"] = Color.FromRgb(41, 44, 60),
+            ["ControlBorder"] = Color.FromRgb(81, 87, 109),
+            ["InputBackground"] = Color.FromRgb(41, 44, 60),
+            ["TabUnselected"] = Color.FromRgb(41, 44, 60),
+            ["ComboBoxBackground"] = Color.FromRgb(41, 44, 60),
+            ["ComboBoxItemHover"] = Color.FromRgb(65, 69, 89),
+            ["ProgressBarBackground"] = Color.FromRgb(65, 69, 89),
+            ["StatusTextWarning"] = Color.FromRgb(229, 200, 144),
+            ["GroupHeaderBackground"] = Color.FromRgb(41, 44, 60),
+            ["GroupHeaderBorder"] = Color.FromRgb(81, 87, 109),
+            ["CardBackground"] = Color.FromRgb(41, 44, 60),
+            ["CardBorder"] = Color.FromRgb(81, 87, 109),
+            ["ScrollBarBackground"] = Color.FromRgb(41, 44, 60),
+            ["ScrollBarForeground"] = Color.FromRgb(115, 121, 148),
+            ["ScrollBarHover"] = Color.FromRgb(148, 156, 187),
+            ["LinkForeground"] = Color.FromRgb(140, 170, 238),
+        },
+        [AppTheme.CatppuccinMacchiato] = new()
+        {
+            ["Background"] = Color.FromRgb(36, 39, 58),
+            ["HeaderBackground"] = Color.FromRgb(30, 32, 48),
+            ["FooterBackground"] = Color.FromRgb(30, 32, 48),
+            ["BorderColor"] = Color.FromRgb(73, 77, 100),
+            ["PrimaryText"] = Color.FromRgb(202, 211, 245),
+            ["SecondaryText"] = Color.FromRgb(165, 173, 203),
+            ["TertiaryText"] = Color.FromRgb(128, 135, 162),
+            ["AccentColor"] = Color.FromRgb(198, 160, 246),
+            ["AccentForeground"] = Color.FromRgb(24, 25, 38),
+            ["ButtonBackground"] = Color.FromRgb(54, 58, 79),
+            ["ButtonHover"] = Color.FromRgb(73, 77, 100),
+            ["ButtonPressed"] = Color.FromRgb(138, 173, 244),
+            ["ControlBackground"] = Color.FromRgb(30, 32, 48),
+            ["ControlBorder"] = Color.FromRgb(73, 77, 100),
+            ["InputBackground"] = Color.FromRgb(30, 32, 48),
+            ["TabUnselected"] = Color.FromRgb(30, 32, 48),
+            ["ComboBoxBackground"] = Color.FromRgb(30, 32, 48),
+            ["ComboBoxItemHover"] = Color.FromRgb(54, 58, 79),
+            ["ProgressBarBackground"] = Color.FromRgb(54, 58, 79),
+            ["StatusTextWarning"] = Color.FromRgb(238, 212, 159),
+            ["GroupHeaderBackground"] = Color.FromRgb(30, 32, 48),
+            ["GroupHeaderBorder"] = Color.FromRgb(73, 77, 100),
+            ["CardBackground"] = Color.FromRgb(30, 32, 48),
+            ["CardBorder"] = Color.FromRgb(73, 77, 100),
+            ["ScrollBarBackground"] = Color.FromRgb(30, 32, 48),
+            ["ScrollBarForeground"] = Color.FromRgb(110, 115, 141),
+            ["ScrollBarHover"] = Color.FromRgb(147, 154, 183),
+            ["LinkForeground"] = Color.FromRgb(138, 173, 244),
+        },
+        [AppTheme.CatppuccinLatte] = new()
+        {
+            ["Background"] = Color.FromRgb(239, 241, 245),
+            ["HeaderBackground"] = Color.FromRgb(230, 233, 239),
+            ["FooterBackground"] = Color.FromRgb(230, 233, 239),
+            ["BorderColor"] = Color.FromRgb(188, 192, 204),
+            ["PrimaryText"] = Color.FromRgb(76, 79, 105),
+            ["SecondaryText"] = Color.FromRgb(108, 111, 133),
+            ["TertiaryText"] = Color.FromRgb(140, 143, 161),
+            ["AccentColor"] = Color.FromRgb(136, 57, 239),
+            ["AccentForeground"] = Color.FromRgb(255, 255, 255),
+            ["ButtonBackground"] = Color.FromRgb(204, 208, 218),
+            ["ButtonHover"] = Color.FromRgb(188, 192, 204),
+            ["ButtonPressed"] = Color.FromRgb(30, 102, 245),
+            ["ControlBackground"] = Color.FromRgb(230, 233, 239),
+            ["ControlBorder"] = Color.FromRgb(188, 192, 204),
+            ["InputBackground"] = Color.FromRgb(255, 255, 255),
+            ["TabUnselected"] = Color.FromRgb(220, 224, 232),
+            ["ComboBoxBackground"] = Color.FromRgb(255, 255, 255),
+            ["ComboBoxItemHover"] = Color.FromRgb(220, 224, 232),
+            ["ProgressBarBackground"] = Color.FromRgb(220, 224, 232),
+            ["StatusTextWarning"] = Color.FromRgb(223, 142, 29),
+            ["GroupHeaderBackground"] = Color.FromRgb(230, 233, 239),
+            ["GroupHeaderBorder"] = Color.FromRgb(188, 192, 204),
+            ["CardBackground"] = Color.FromRgb(255, 255, 255),
+            ["CardBorder"] = Color.FromRgb(188, 192, 204),
+            ["ScrollBarBackground"] = Color.FromRgb(230, 233, 239),
+            ["ScrollBarForeground"] = Color.FromRgb(156, 160, 176),
+            ["ScrollBarHover"] = Color.FromRgb(108, 111, 133),
+            ["LinkForeground"] = Color.FromRgb(30, 102, 245),
+        },
+        [AppTheme.Dark] = new()
+        {
+            ["Background"] = Color.FromRgb(26, 26, 26),
+            ["HeaderBackground"] = Color.FromRgb(36, 36, 36),
+            ["FooterBackground"] = Color.FromRgb(36, 36, 36),
+            ["BorderColor"] = Color.FromRgb(51, 51, 51),
+            ["PrimaryText"] = Color.FromRgb(232, 232, 232),
+            ["SecondaryText"] = Color.FromRgb(160, 160, 160),
+            ["TertiaryText"] = Color.FromRgb(102, 102, 102),
+            ["AccentColor"] = Color.FromRgb(59, 130, 246),
+            ["AccentForeground"] = Color.FromRgb(255, 255, 255),
+            ["ButtonBackground"] = Color.FromRgb(46, 46, 46),
+            ["ButtonHover"] = Color.FromRgb(51, 51, 51),
+            ["ButtonPressed"] = Color.FromRgb(59, 130, 246),
+            ["ControlBackground"] = Color.FromRgb(36, 36, 36),
+            ["ControlBorder"] = Color.FromRgb(51, 51, 51),
+            ["InputBackground"] = Color.FromRgb(36, 36, 36),
+            ["TabUnselected"] = Color.FromRgb(36, 36, 36),
+            ["ComboBoxBackground"] = Color.FromRgb(36, 36, 36),
+            ["ComboBoxItemHover"] = Color.FromRgb(51, 51, 51),
+            ["ProgressBarBackground"] = Color.FromRgb(46, 46, 46),
+            ["StatusTextWarning"] = Color.FromRgb(234, 179, 8),
+            ["GroupHeaderBackground"] = Color.FromRgb(36, 36, 36),
+            ["GroupHeaderBorder"] = Color.FromRgb(51, 51, 51),
+            ["CardBackground"] = Color.FromRgb(46, 46, 46),
+            ["CardBorder"] = Color.FromRgb(51, 51, 51),
+            ["ScrollBarBackground"] = Color.FromRgb(36, 36, 36),
+            ["ScrollBarForeground"] = Color.FromRgb(102, 102, 102),
+            ["ScrollBarHover"] = Color.FromRgb(160, 160, 160),
+            ["LinkForeground"] = Color.FromRgb(96, 165, 250),
+        },
+    };
+
     public static void ApplyTheme(AppTheme theme)
     {
         Preferences.Theme = theme;
@@ -20,485 +459,34 @@ public partial class App
             return;
         }
 
-        switch (theme)
+        if (!ThemePalettes.TryGetValue(theme, out var palette))
         {
-            case AppTheme.Light:
-                SetBrushColor(resources, "Background", Color.FromRgb(245, 245, 245));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(229, 229, 229));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(229, 229, 229));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(221, 221, 221));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(26, 26, 26));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(82, 82, 82));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(136, 136, 136));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(37, 99, 235));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(255, 255, 255));
+            palette = ThemePalettes[AppTheme.Dark];
+        }
 
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(229, 229, 229));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(238, 238, 238));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(37, 99, 235));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(255, 255, 255));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(221, 221, 221));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(255, 255, 255));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(229, 229, 229));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(255, 255, 255));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(238, 238, 238));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(229, 229, 229));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(202, 138, 4));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(229, 229, 229));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(221, 221, 221));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(255, 255, 255));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(221, 221, 221));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(229, 229, 229));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(170, 170, 170));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(140, 140, 140));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(37, 99, 235));
-                break;
-
-            case AppTheme.Corporate:
-                SetBrushColor(resources, "Background", Color.FromRgb(15, 23, 42));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(30, 41, 59));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(30, 41, 59));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(51, 65, 85));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(241, 245, 249));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(148, 163, 184));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(100, 116, 139));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(59, 130, 246));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(255, 255, 255));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(51, 65, 85));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(61, 79, 102));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(59, 130, 246));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(30, 41, 59));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(51, 65, 85));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(30, 41, 59));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(51, 65, 85));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(30, 41, 59));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(61, 79, 102));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(51, 65, 85));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(245, 158, 11));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(30, 41, 59));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(51, 65, 85));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(30, 41, 59));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(51, 65, 85));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(30, 41, 59));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(100, 116, 139));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(148, 163, 184));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(96, 165, 250));
-                break;
-
-            case AppTheme.Midnight:
-                SetBrushColor(resources, "Background", Color.FromRgb(10, 10, 10));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(20, 20, 20));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(20, 20, 20));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(38, 38, 38));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(250, 250, 250));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(136, 136, 136));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(85, 85, 85));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(129, 140, 248));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(255, 255, 255));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(31, 31, 31));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(42, 42, 42));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(129, 140, 248));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(20, 20, 20));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(38, 38, 38));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(20, 20, 20));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(31, 31, 31));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(20, 20, 20));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(42, 42, 42));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(31, 31, 31));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(251, 191, 36));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(20, 20, 20));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(38, 38, 38));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(20, 20, 20));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(38, 38, 38));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(20, 20, 20));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(82, 82, 82));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(115, 115, 115));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(165, 180, 252));
-                break;
-
-            case AppTheme.Dracula:
-                SetBrushColor(resources, "Background", Color.FromRgb(40, 42, 54));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(33, 34, 44));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(33, 34, 44));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(68, 71, 90));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(248, 248, 242));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(139, 233, 253));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(98, 114, 164));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(255, 121, 198));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(40, 42, 54));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(68, 71, 90));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(98, 114, 164));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(189, 147, 249));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(33, 34, 44));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(68, 71, 90));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(33, 34, 44));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(68, 71, 90));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(33, 34, 44));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(68, 71, 90));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(68, 71, 90));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(241, 250, 140));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(33, 34, 44));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(68, 71, 90));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(33, 34, 44));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(68, 71, 90));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(33, 34, 44));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(98, 114, 164));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(139, 233, 253));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(139, 233, 253));
-                break;
-
-            case AppTheme.Nord:
-                SetBrushColor(resources, "Background", Color.FromRgb(46, 52, 64));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(59, 66, 82));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(59, 66, 82));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(76, 86, 106));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(236, 239, 244));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(216, 222, 233));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(129, 161, 193));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(136, 192, 208));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(46, 52, 64));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(67, 76, 94));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(76, 86, 106));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(136, 192, 208));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(59, 66, 82));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(76, 86, 106));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(59, 66, 82));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(67, 76, 94));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(59, 66, 82));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(67, 76, 94));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(67, 76, 94));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(235, 203, 139));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(59, 66, 82));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(76, 86, 106));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(59, 66, 82));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(76, 86, 106));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(59, 66, 82));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(76, 86, 106));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(129, 161, 193));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(136, 192, 208));
-                break;
-
-            case AppTheme.Monokai:
-                SetBrushColor(resources, "Background", Color.FromRgb(39, 40, 34));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(30, 31, 28));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(30, 31, 28));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(73, 72, 62));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(248, 248, 242));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(166, 226, 46));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(117, 113, 94));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(249, 38, 114));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(248, 248, 242));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(73, 72, 62));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(117, 113, 94));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(249, 38, 114));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(30, 31, 28));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(73, 72, 62));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(30, 31, 28));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(73, 72, 62));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(30, 31, 28));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(73, 72, 62));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(73, 72, 62));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(230, 219, 116));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(30, 31, 28));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(73, 72, 62));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(30, 31, 28));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(73, 72, 62));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(30, 31, 28));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(117, 113, 94));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(166, 226, 46));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(102, 217, 239));
-                break;
-
-            case AppTheme.OneDark:
-                SetBrushColor(resources, "Background", Color.FromRgb(40, 44, 52));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(33, 37, 43));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(33, 37, 43));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(24, 26, 31));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(171, 178, 191));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(152, 195, 121));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(92, 99, 112));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(97, 175, 239));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(255, 255, 255));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(53, 59, 69));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(62, 68, 81));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(97, 175, 239));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(33, 37, 43));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(24, 26, 31));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(33, 37, 43));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(53, 59, 69));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(33, 37, 43));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(53, 59, 69));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(53, 59, 69));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(229, 192, 123));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(33, 37, 43));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(24, 26, 31));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(33, 37, 43));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(24, 26, 31));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(33, 37, 43));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(75, 82, 99));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(92, 99, 112));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(97, 175, 239));
-                break;
-
-            case AppTheme.SolarizedDark:
-                SetBrushColor(resources, "Background", Color.FromRgb(0, 43, 54));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(7, 54, 66));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(7, 54, 66));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(88, 110, 117));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(147, 161, 161));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(131, 148, 150));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(101, 123, 131));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(38, 139, 210));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(253, 246, 227));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(7, 54, 66));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(88, 110, 117));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(38, 139, 210));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(0, 43, 54));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(88, 110, 117));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(7, 54, 66));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(7, 54, 66));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(7, 54, 66));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(88, 110, 117));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(7, 54, 66));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(181, 137, 0));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(7, 54, 66));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(88, 110, 117));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(7, 54, 66));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(88, 110, 117));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(7, 54, 66));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(88, 110, 117));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(101, 123, 131));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(42, 161, 152));
-                break;
-
-            case AppTheme.SolarizedLight:
-                SetBrushColor(resources, "Background", Color.FromRgb(253, 246, 227));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(238, 232, 213));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(238, 232, 213));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(147, 161, 161));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(101, 123, 131));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(88, 110, 117));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(147, 161, 161));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(38, 139, 210));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(253, 246, 227));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(238, 232, 213));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(147, 161, 161));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(38, 139, 210));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(253, 246, 227));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(147, 161, 161));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(238, 232, 213));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(238, 232, 213));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(238, 232, 213));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(147, 161, 161));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(238, 232, 213));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(181, 137, 0));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(238, 232, 213));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(147, 161, 161));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(238, 232, 213));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(147, 161, 161));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(238, 232, 213));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(147, 161, 161));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(101, 123, 131));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(42, 161, 152));
-                break;
-
-            case AppTheme.CatppuccinMocha:
-                SetBrushColor(resources, "Background", Color.FromRgb(30, 30, 46));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(24, 24, 37));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(24, 24, 37));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(69, 71, 90));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(205, 214, 244));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(166, 173, 200));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(127, 132, 156));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(203, 166, 247));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(30, 30, 46));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(49, 50, 68));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(69, 71, 90));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(137, 180, 250));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(49, 50, 68));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(69, 71, 90));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(49, 50, 68));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(49, 50, 68));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(49, 50, 68));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(69, 71, 90));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(49, 50, 68));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(249, 226, 175));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(24, 24, 37));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(69, 71, 90));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(24, 24, 37));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(69, 71, 90));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(24, 24, 37));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(108, 112, 134));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(127, 132, 156));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(137, 180, 250));
-                break;
-
-            case AppTheme.CatppuccinFrappe:
-                SetBrushColor(resources, "Background", Color.FromRgb(48, 52, 70));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(41, 44, 60));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(41, 44, 60));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(81, 87, 109));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(198, 208, 245));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(165, 173, 206));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(131, 139, 167));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(202, 158, 230));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(35, 38, 52));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(65, 69, 89));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(81, 87, 109));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(140, 170, 238));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(41, 44, 60));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(81, 87, 109));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(41, 44, 60));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(41, 44, 60));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(41, 44, 60));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(65, 69, 89));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(65, 69, 89));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(229, 200, 144));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(41, 44, 60));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(81, 87, 109));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(41, 44, 60));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(81, 87, 109));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(41, 44, 60));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(115, 121, 148));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(148, 156, 187));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(140, 170, 238));
-                break;
-
-            case AppTheme.CatppuccinMacchiato:
-                SetBrushColor(resources, "Background", Color.FromRgb(36, 39, 58));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(30, 32, 48));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(30, 32, 48));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(73, 77, 100));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(202, 211, 245));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(165, 173, 203));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(128, 135, 162));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(198, 160, 246));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(24, 25, 38));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(54, 58, 79));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(73, 77, 100));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(138, 173, 244));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(30, 32, 48));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(73, 77, 100));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(30, 32, 48));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(30, 32, 48));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(30, 32, 48));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(54, 58, 79));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(54, 58, 79));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(238, 212, 159));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(30, 32, 48));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(73, 77, 100));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(30, 32, 48));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(73, 77, 100));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(30, 32, 48));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(110, 115, 141));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(147, 154, 183));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(138, 173, 244));
-                break;
-
-            case AppTheme.CatppuccinLatte:
-                SetBrushColor(resources, "Background", Color.FromRgb(239, 241, 245));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(230, 233, 239));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(230, 233, 239));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(188, 192, 204));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(76, 79, 105));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(108, 111, 133));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(140, 143, 161));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(136, 57, 239));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(255, 255, 255));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(204, 208, 218));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(188, 192, 204));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(30, 102, 245));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(230, 233, 239));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(188, 192, 204));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(255, 255, 255));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(220, 224, 232));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(255, 255, 255));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(220, 224, 232));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(220, 224, 232));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(223, 142, 29));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(230, 233, 239));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(188, 192, 204));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(255, 255, 255));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(188, 192, 204));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(230, 233, 239));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(156, 160, 176));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(108, 111, 133));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(30, 102, 245));
-                break;
-
-            case AppTheme.Dark:
-            default:
-                SetBrushColor(resources, "Background", Color.FromRgb(26, 26, 26));
-                SetBrushColor(resources, "HeaderBackground", Color.FromRgb(36, 36, 36));
-                SetBrushColor(resources, "FooterBackground", Color.FromRgb(36, 36, 36));
-                SetBrushColor(resources, "BorderColor", Color.FromRgb(51, 51, 51));
-                SetBrushColor(resources, "PrimaryText", Color.FromRgb(232, 232, 232));
-                SetBrushColor(resources, "SecondaryText", Color.FromRgb(160, 160, 160));
-                SetBrushColor(resources, "TertiaryText", Color.FromRgb(102, 102, 102));
-                SetBrushColor(resources, "AccentColor", Color.FromRgb(59, 130, 246));
-                SetBrushColor(resources, "AccentForeground", Color.FromRgb(255, 255, 255));
-
-                SetBrushColor(resources, "ButtonBackground", Color.FromRgb(46, 46, 46));
-                SetBrushColor(resources, "ButtonHover", Color.FromRgb(51, 51, 51));
-                SetBrushColor(resources, "ButtonPressed", Color.FromRgb(59, 130, 246));
-                SetBrushColor(resources, "ControlBackground", Color.FromRgb(36, 36, 36));
-                SetBrushColor(resources, "ControlBorder", Color.FromRgb(51, 51, 51));
-                SetBrushColor(resources, "InputBackground", Color.FromRgb(36, 36, 36));
-                SetBrushColor(resources, "TabUnselected", Color.FromRgb(36, 36, 36));
-                SetBrushColor(resources, "ComboBoxBackground", Color.FromRgb(36, 36, 36));
-                SetBrushColor(resources, "ComboBoxItemHover", Color.FromRgb(51, 51, 51));
-
-                SetBrushColor(resources, "ProgressBarBackground", Color.FromRgb(46, 46, 46));
-                SetBrushColor(resources, "StatusTextWarning", Color.FromRgb(234, 179, 8));
-                SetBrushColor(resources, "GroupHeaderBackground", Color.FromRgb(36, 36, 36));
-                SetBrushColor(resources, "GroupHeaderBorder", Color.FromRgb(51, 51, 51));
-                SetBrushColor(resources, "CardBackground", Color.FromRgb(46, 46, 46));
-                SetBrushColor(resources, "CardBorder", Color.FromRgb(51, 51, 51));
-                SetBrushColor(resources, "ScrollBarBackground", Color.FromRgb(36, 36, 36));
-                SetBrushColor(resources, "ScrollBarForeground", Color.FromRgb(102, 102, 102));
-                SetBrushColor(resources, "ScrollBarHover", Color.FromRgb(160, 160, 160));
-                SetBrushColor(resources, "LinkForeground", Color.FromRgb(96, 165, 250));
-                break;
+        foreach (var (key, color) in palette)
+        {
+            SetBrushColor(resources, key, color);
         }
     }
 #pragma warning restore MA0051
 
-    public static void ApplyTheme(Window window)
-    {
-        ApplyTheme(Preferences.Theme);
-    }
+    /// <summary>
+    /// Returns true if the theme has a palette defined. Used by tests.
+    /// </summary>
+    internal static bool HasThemePalette(AppTheme theme) => ThemePalettes.ContainsKey(theme);
 
-    public static void ApplyTheme(Window window, string themeName)
+    /// <summary>
+    /// Returns any required keys missing from the theme's palette. Used by tests.
+    /// </summary>
+    internal static IReadOnlyList<string> GetMissingThemeKeys(AppTheme theme, string[] requiredKeys)
     {
-        if (Enum.TryParse<AppTheme>(themeName, true, out var theme))
+        if (!ThemePalettes.TryGetValue(theme, out var palette))
         {
-            ApplyTheme(theme);
+            return requiredKeys;
         }
+
+        return requiredKeys.Where(key => !palette.ContainsKey(key)).ToList();
     }
 
     private static void SetBrushColor(ResourceDictionary resources, string key, Color color)

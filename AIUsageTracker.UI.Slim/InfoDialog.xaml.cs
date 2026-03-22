@@ -13,13 +13,13 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Helpers;
 using AIUsageTracker.UI.Slim.Services;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim;
 
-public partial class InfoDialog : Window, IWeakEventListener
+public partial class InfoDialog : Window
 {
     private readonly ILogger<InfoDialog> _logger;
     private readonly IAppPathProvider _pathProvider;
@@ -28,11 +28,14 @@ public partial class InfoDialog : Window, IWeakEventListener
     private string? _realConfigDir;
     private string? _realDataDir;
 
-    public InfoDialog()
+    public InfoDialog(ILogger<InfoDialog> logger, IAppPathProvider pathProvider)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(pathProvider);
+
         this.InitializeComponent();
-        this._logger = App.CreateLogger<InfoDialog>();
-        this._pathProvider = App.Host.Services.GetRequiredService<IAppPathProvider>();
+        this._logger = logger;
+        this._pathProvider = pathProvider;
 
         // In Slim UI, we rely on App.Preferences or direct theme resources
         // No need for complex theme loading or IConfigLoader here
@@ -53,19 +56,6 @@ public partial class InfoDialog : Window, IWeakEventListener
         this.DataDirText.Text = @"C:\Users\***\...\AIUsageTracker";
         this.DatabaseSizeText.Text = "12.3 MB";
         this.PrivacyBtn.Foreground = Brushes.Gold;
-    }
-
-    /// <inheritdoc />
-    public bool ReceiveWeakEvent(Type managerType, object sender, EventArgs e)
-    {
-        if (managerType == typeof(PrivacyChangedWeakEventManager) && e is PrivacyChangedEventArgs args)
-        {
-            this._isPrivacyMode = args.IsPrivacyMode;
-            this.UpdatePrivacyUI();
-            return true;
-        }
-
-        return false;
     }
 
     private void LoadInfo()
@@ -133,9 +123,9 @@ public partial class InfoDialog : Window, IWeakEventListener
     {
         if (this._isPrivacyMode)
         {
-            this.UserNameText.Text = this.MaskString(this._realUserName ?? "User");
-            this.ConfigDirText.Text = this.MaskPath(this._realConfigDir ?? "Path");
-            this.DataDirText.Text = this.MaskPath(this._realDataDir ?? "Path");
+            this.UserNameText.Text = PrivacyHelper.MaskString(this._realUserName ?? "User");
+            this.ConfigDirText.Text = PrivacyHelper.MaskPath(this._realConfigDir ?? "Path");
+            this.DataDirText.Text = PrivacyHelper.MaskPath(this._realDataDir ?? "Path");
             this.PrivacyBtn.Foreground = Brushes.Gold;
         }
         else
@@ -145,34 +135,6 @@ public partial class InfoDialog : Window, IWeakEventListener
             this.DataDirText.Text = this._realDataDir;
             this.PrivacyBtn.Foreground = Brushes.Gray;
         }
-    }
-
-    // Helper methods for masking (since we don't reference Infrastructure directly in some Slim logic ideally)
-    // Or we could duplicate the PrivacyHelper logic here to keep Slim independent
-    private string MaskString(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-        {
-            return input;
-        }
-
-        if (input.Length <= 2)
-        {
-            return "**";
-        }
-
-        return input.Substring(0, 1) + new string('*', Math.Min(input.Length - 2, 5)) + input.Substring(input.Length - 1);
-    }
-
-    private string MaskPath(string path)
-    {
-        if (string.IsNullOrEmpty(path))
-        {
-            return path;
-        }
-
-        var filename = Path.GetFileName(path);
-        return Path.Combine("C:\\Users\\***\\...", filename);
     }
 
     private void OnPrivacyChanged(object? sender, PrivacyChangedEventArgs e)

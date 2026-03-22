@@ -17,8 +17,9 @@ namespace AIUsageTracker.UI.Slim.Services;
 /// Falls back to a coloured initial badge when no SVG asset exists or loading fails.
 /// Caches successfully loaded <see cref="ImageSource"/> objects by canonical provider ID.
 /// </summary>
-internal sealed class WpfProviderIconService : IWpfProviderIconService
+internal sealed class WpfProviderIconService
 {
+    private static readonly Dictionary<string, Brush> BadgeBrushCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ImageSource> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ILogger _logger;
     private readonly Func<string, SolidColorBrush, SolidColorBrush> _resolveResourceBrush;
@@ -86,7 +87,7 @@ internal sealed class WpfProviderIconService : IWpfProviderIconService
 
     private FrameworkElement CreateFallbackBadge(string canonicalId)
     {
-        var (color, initial) = ProviderVisualCatalog.GetBadge(
+        var (color, initial) = GetBadge(
             canonicalId,
             this._resolveResourceBrush("SecondaryText", Brushes.Gray));
 
@@ -116,12 +117,71 @@ internal sealed class WpfProviderIconService : IWpfProviderIconService
         return grid;
     }
 
-    private static Image MakeImage(ImageSource source) =>
-        new()
+    private Image MakeImage(ImageSource source)
+    {
+        var image = new Image
         {
             Source = source,
             Width = 16,
             Height = 16,
             VerticalAlignment = VerticalAlignment.Center,
         };
+
+        // On dark themes, dark SVG icons are invisible. Add a subtle white glow
+        // so black/dark icons remain visible against dark card backgrounds.
+        var bg = this._resolveResourceBrush("Background", Brushes.White);
+        if (bg is SolidColorBrush solid && IsDarkColor(solid.Color))
+        {
+            image.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.White,
+                ShadowDepth = 0,
+                BlurRadius = 3,
+                Opacity = 0.6,
+            };
+        }
+
+        return image;
+    }
+
+    private static bool IsDarkColor(Color c)
+    {
+        return (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) < 128;
+    }
+
+    internal static (Brush Color, string Initial) GetBadge(string providerId, Brush defaultBrush)
+    {
+        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+        return TryGetBadgeDefinition(canonicalProviderId, out var badgeColor, out var badgeInitial)
+            ? (badgeColor, badgeInitial)
+            : (defaultBrush, canonicalProviderId[..Math.Min(2, canonicalProviderId.Length)].ToUpperInvariant());
+    }
+
+    private static bool TryGetBadgeDefinition(string providerId, out Brush color, out string initial)
+    {
+        color = null!;
+        initial = string.Empty;
+
+        if (!ProviderMetadataCatalog.TryGetBadgeDefinition(providerId, out var colorHex, out var badgeInitial))
+        {
+            return false;
+        }
+
+        color = GetOrCreateBrush(colorHex);
+        initial = badgeInitial;
+        return true;
+    }
+
+    private static Brush GetOrCreateBrush(string colorHex)
+    {
+        if (BadgeBrushCache.TryGetValue(colorHex, out var brush))
+        {
+            return brush;
+        }
+
+        brush = (SolidColorBrush)new BrushConverter().ConvertFrom(colorHex)!;
+        brush.Freeze();
+        BadgeBrushCache[colorHex] = brush;
+        return brush;
+    }
 }

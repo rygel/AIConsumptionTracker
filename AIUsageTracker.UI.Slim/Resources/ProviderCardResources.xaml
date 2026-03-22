@@ -3,7 +3,7 @@
                     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                     xmlns:vm="clr-namespace:AIUsageTracker.UI.Slim.ViewModels"
-                    xmlns:designVm="clr-namespace:AIUsageTracker.UI.Slim.ViewModels.DesignTime"
+
                     xmlns:converters="clr-namespace:AIUsageTracker.UI.Slim.Converters"
                     mc:Ignorable="d">
 
@@ -87,7 +87,7 @@
                             <Border Grid.Column="0" Opacity="0.55">
                                 <Border.Background>
                                     <MultiBinding Converter="{StaticResource PercentageToColorConverter}">
-                                        <Binding Path="PrimaryUsedPercent"/>
+                                        <Binding Path="PrimaryColorPercent"/>
                                         <Binding Path="YellowThreshold"/>
                                         <Binding Path="RedThreshold"/>
                                     </MultiBinding>
@@ -103,7 +103,7 @@
                             <Border Grid.Column="0" Opacity="0.35">
                                 <Border.Background>
                                     <MultiBinding Converter="{StaticResource PercentageToColorConverter}">
-                                        <Binding Path="SecondaryUsedPercent"/>
+                                        <Binding Path="SecondaryColorPercent"/>
                                         <Binding Path="YellowThreshold"/>
                                         <Binding Path="RedThreshold"/>
                                     </MultiBinding>
@@ -131,7 +131,16 @@
                     <TextBlock DockPanel.Dock="Right" Text="{Binding ResetBadgeText}"
                                Visibility="{Binding ResetBadgeText, Converter={StaticResource NullToVisibilityConverter}}"
                                FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource StatusTextWarning}"
-                               Margin="10,0,0,0" VerticalAlignment="Center"/>
+                               Margin="10,0,0,0" VerticalAlignment="Center"
+                               Cursor="Hand">
+                        <TextBlock.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Show relative time (e.g. 2h 15m)"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding UseRelativeResetTime}"/>
+                            </ContextMenu>
+                        </TextBlock.ContextMenu>
+                    </TextBlock>
 
                     <!-- Status Text (Right) -->
                     <TextBlock DockPanel.Dock="Right" Text="{Binding StatusText}"

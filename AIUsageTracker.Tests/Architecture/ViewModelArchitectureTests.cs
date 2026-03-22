@@ -57,11 +57,7 @@ public class ViewModelArchitectureTests
             .Where(t => t.Name.EndsWith("ViewModel", StringComparison.Ordinal) &&
                         !t.IsAbstract &&
                         !t.IsInterface &&
-                        t != typeof(BaseViewModel) &&
-                        t != typeof(AsyncViewModel) &&
-
-                        // Exclude design-time ViewModels which are for XAML designer only
-                        !t.Namespace?.Contains("DesignTime", StringComparison.Ordinal) == true)
+                        t != typeof(BaseViewModel))
             .ToList();
 
         var violations = new List<string>();
@@ -80,32 +76,4 @@ public class ViewModelArchitectureTests
             string.Join(Environment.NewLine, violations));
     }
 
-    [Fact]
-    public void Services_ShouldHave_Interfaces()
-    {
-        var serviceTypes = typeof(MainViewModel).Assembly.GetTypes()
-            .Where(t => t.Name.EndsWith("Service", StringComparison.Ordinal) &&
-                        !t.IsInterface &&
-                        !t.IsAbstract &&
-                        t.Namespace?.Contains("Services", StringComparison.Ordinal) == true)
-            .ToList();
-
-        var violations = new List<string>();
-
-        foreach (var type in serviceTypes)
-        {
-            var interfaceName = $"I{type.Name}";
-            var hasInterface = type.GetInterfaces().Any(i => string.Equals(i.Name, interfaceName, StringComparison.Ordinal));
-
-            if (!hasInterface)
-            {
-                violations.Add($"{type.Name} should implement {interfaceName}");
-            }
-        }
-
-        Assert.True(
-            violations.Count == 0,
-            $"All services should have a corresponding interface for testability.{Environment.NewLine}" +
-            string.Join(Environment.NewLine, violations));
-    }
 }

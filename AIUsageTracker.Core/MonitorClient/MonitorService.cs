@@ -23,30 +23,31 @@ public class MonitorService : IMonitorService
 
     private static readonly List<string> _diagnosticsLog = new();
     private static readonly ActivitySource ActivitySource = new("AIUsageTracker.Core.MonitorService");
-    private static readonly HttpClient _sharedHttpClientInstance = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-    private static HttpClient? _sharedHttpClient;
-    private static long _usageRequestCount;
-    private static long _usageErrorCount;
-    private static long _usageTotalLatencyMs;
-    private static long _usageLastLatencyMs;
-    private static long _refreshRequestCount;
-    private static long _refreshErrorCount;
-    private static long _refreshTotalLatencyMs;
-    private static long _refreshLastLatencyMs;
+
+    private long _usageRequestCount;
+    private long _usageErrorCount;
+    private long _usageTotalLatencyMs;
+    private long _usageLastLatencyMs;
+    private long _refreshRequestCount;
+    private long _refreshErrorCount;
+    private long _refreshTotalLatencyMs;
+    private long _refreshLastLatencyMs;
 
     private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly ILogger<MonitorService>? _logger;
+    private readonly IMonitorLauncher _monitorLauncher;
 
     public MonitorService()
-        : this(GetOrCreateHttpClient(), null)
+        : this(CreateDefaultHttpClient(), null)
     {
     }
 
-    public MonitorService(HttpClient httpClient, ILogger<MonitorService>? logger)
+    public MonitorService(HttpClient httpClient, ILogger<MonitorService>? logger, IMonitorLauncher? monitorLauncher = null)
     {
         this._httpClient = httpClient;
         this._logger = logger;
+        this._monitorLauncher = monitorLauncher ?? new MonitorLauncher(logger: null);
         this._jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
@@ -81,16 +82,16 @@ public class MonitorService : IMonitorService
         System.Diagnostics.Debug.WriteLine($"[{timestamp}] [DIAG] {message}");
     }
 
-    public static AgentTelemetrySnapshot GetTelemetrySnapshot()
+    public AgentTelemetrySnapshot GetTelemetrySnapshot()
     {
-        var usageRequestCount = Interlocked.Read(ref _usageRequestCount);
-        var usageErrorCount = Interlocked.Read(ref _usageErrorCount);
-        var usageTotalLatencyMs = Interlocked.Read(ref _usageTotalLatencyMs);
-        var usageLastLatencyMs = Interlocked.Read(ref _usageLastLatencyMs);
-        var refreshRequestCount = Interlocked.Read(ref _refreshRequestCount);
-        var refreshErrorCount = Interlocked.Read(ref _refreshErrorCount);
-        var refreshTotalLatencyMs = Interlocked.Read(ref _refreshTotalLatencyMs);
-        var refreshLastLatencyMs = Interlocked.Read(ref _refreshLastLatencyMs);
+        var usageRequestCount = Interlocked.Read(ref this._usageRequestCount);
+        var usageErrorCount = Interlocked.Read(ref this._usageErrorCount);
+        var usageTotalLatencyMs = Interlocked.Read(ref this._usageTotalLatencyMs);
+        var usageLastLatencyMs = Interlocked.Read(ref this._usageLastLatencyMs);
+        var refreshRequestCount = Interlocked.Read(ref this._refreshRequestCount);
+        var refreshErrorCount = Interlocked.Read(ref this._refreshErrorCount);
+        var refreshTotalLatencyMs = Interlocked.Read(ref this._refreshTotalLatencyMs);
+        var refreshLastLatencyMs = Interlocked.Read(ref this._refreshLastLatencyMs);
 
         return new AgentTelemetrySnapshot
         {
@@ -125,7 +126,7 @@ public class MonitorService : IMonitorService
         LogDiagnostic("Refreshing Monitor Info from file...");
         try
         {
-            var metadata = await MonitorLauncher.GetMonitorMetadataSnapshotAsync().ConfigureAwait(false);
+            var metadata = await this._monitorLauncher.GetMonitorMetadataSnapshotAsync().ConfigureAwait(false);
             if (metadata.IsUsable && metadata.Info != null)
             {
                 var info = metadata.Info;
@@ -157,7 +158,7 @@ public class MonitorService : IMonitorService
     {
         using var activity = ActivitySource.StartActivity("monitor.refresh_port", ActivityKind.Internal);
         activity?.SetTag("monitor.agent_url.before", this.AgentUrl);
-        var status = await MonitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
+        var status = await this._monitorLauncher.GetAgentStatusInfoAsync().ConfigureAwait(false);
         activity?.SetTag("monitor.is_running", status.IsRunning);
         activity?.SetTag("monitor.port", status.Port);
         if (!status.IsRunning)
@@ -406,11 +407,23 @@ public class MonitorService : IMonitorService
     /// <inheritdoc/>
     public async Task<bool> CheckHealthAsync()
     {
+        return await this.CheckHealthCoreAsync(cancellationToken: default).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> CheckHealthAsync(TimeSpan timeout)
+    {
+        using var cts = new CancellationTokenSource(timeout);
+        return await this.CheckHealthCoreAsync(cts.Token).ConfigureAwait(false);
+    }
+
+    private async Task<bool> CheckHealthCoreAsync(CancellationToken cancellationToken)
+    {
         using var activity = ActivitySource.StartActivity("monitor.check_health", ActivityKind.Client);
         activity?.SetTag("monitor.agent_url", this.AgentUrl);
         await this.RefreshPortAsync().ConfigureAwait(false);
         var response = await this.SendMonitorRequestAsync(
-            httpClient => httpClient.GetAsync(this.BuildMonitorUrl(MonitorApiRoutes.Health)),
+            httpClient => httpClient.GetAsync(this.BuildMonitorUrl(MonitorApiRoutes.Health), cancellationToken),
             nameof(this.CheckHealthAsync)).ConfigureAwait(false);
         var success = response?.IsSuccessStatusCode == true;
         if (response != null)
@@ -609,32 +622,32 @@ public class MonitorService : IMonitorService
         }
     }
 
-    private static HttpClient GetOrCreateHttpClient()
+    private static HttpClient CreateDefaultHttpClient()
     {
-        return _sharedHttpClient ?? _sharedHttpClientInstance;
+        return new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
     }
 
-    private static void RecordUsageTelemetry(TimeSpan duration, bool success)
+    private void RecordUsageTelemetry(TimeSpan duration, bool success)
     {
         var latencyMs = (long)Math.Max(0, duration.TotalMilliseconds);
-        Interlocked.Increment(ref _usageRequestCount);
-        Interlocked.Add(ref _usageTotalLatencyMs, latencyMs);
-        Interlocked.Exchange(ref _usageLastLatencyMs, latencyMs);
+        Interlocked.Increment(ref this._usageRequestCount);
+        Interlocked.Add(ref this._usageTotalLatencyMs, latencyMs);
+        Interlocked.Exchange(ref this._usageLastLatencyMs, latencyMs);
         if (!success)
         {
-            Interlocked.Increment(ref _usageErrorCount);
+            Interlocked.Increment(ref this._usageErrorCount);
         }
     }
 
-    private static void RecordRefreshTelemetry(TimeSpan duration, bool success)
+    private void RecordRefreshTelemetry(TimeSpan duration, bool success)
     {
         var latencyMs = (long)Math.Max(0, duration.TotalMilliseconds);
-        Interlocked.Increment(ref _refreshRequestCount);
-        Interlocked.Add(ref _refreshTotalLatencyMs, latencyMs);
-        Interlocked.Exchange(ref _refreshLastLatencyMs, latencyMs);
+        Interlocked.Increment(ref this._refreshRequestCount);
+        Interlocked.Add(ref this._refreshTotalLatencyMs, latencyMs);
+        Interlocked.Exchange(ref this._refreshLastLatencyMs, latencyMs);
         if (!success)
         {
-            Interlocked.Increment(ref _refreshErrorCount);
+            Interlocked.Increment(ref this._refreshErrorCount);
         }
     }
 

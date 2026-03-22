@@ -2,23 +2,20 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Infrastructure.Providers;
-using Microsoft.Extensions.DependencyInjection;
+using AIUsageTracker.UI.Slim.Services;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 
 namespace AIUsageTracker.UI.Slim;
 
@@ -31,11 +28,10 @@ public partial class SettingsWindow : Window
     };
 
     private readonly IMonitorService _monitorService;
-    private readonly IMonitorLifecycleService _monitorLifecycleService;
+    private readonly MonitorLifecycleService _monitorLifecycleService;
     private readonly ILogger<SettingsWindow> _logger;
     private readonly IAppPathProvider _pathProvider;
     private readonly UiPreferencesStore _preferencesStore;
-    private readonly DisplayPreferencesService _displayPreferences;
     private readonly SemaphoreSlim _autoSaveSemaphore = new(1, 1);
     private readonly DispatcherTimer _autoSaveTimer;
 
@@ -49,11 +45,10 @@ public partial class SettingsWindow : Window
 
     public SettingsWindow(
         IMonitorService monitorService,
-        IMonitorLifecycleService monitorLifecycleService,
+        MonitorLifecycleService monitorLifecycleService,
         ILogger<SettingsWindow> logger,
         UiPreferencesStore preferencesStore,
-        IAppPathProvider pathProvider,
-        DisplayPreferencesService displayPreferences)
+        IAppPathProvider pathProvider)
     {
         this._autoSaveTimer = new DispatcherTimer
         {
@@ -67,22 +62,10 @@ public partial class SettingsWindow : Window
         this._logger = logger;
         this._pathProvider = pathProvider;
         this._preferencesStore = preferencesStore;
-        this._displayPreferences = displayPreferences;
-        App.PrivacyChanged += this.OnPrivacyChanged;
+        PrivacyChangedWeakEventManager.AddHandler(this.OnPrivacyChanged);
         this.Closed += this.SettingsWindow_Closed;
         this.Loaded += this.SettingsWindow_Loaded;
         this.UpdatePrivacyButtonState();
-    }
-
-    public SettingsWindow()
-        : this(
-        App.Host.Services.GetRequiredService<IMonitorService>(),
-        App.Host.Services.GetRequiredService<IMonitorLifecycleService>(),
-        App.Host.Services.GetRequiredService<ILogger<SettingsWindow>>(),
-        App.Host.Services.GetRequiredService<UiPreferencesStore>(),
-        App.Host.Services.GetRequiredService<IAppPathProvider>(),
-        App.Host.Services.GetRequiredService<DisplayPreferencesService>())
-    {
     }
 
     internal bool SettingsChanged { get; private set; }
@@ -138,6 +121,7 @@ public partial class SettingsWindow : Window
             this.PopulateProviders();
             this.RefreshTrayIcons();
             this.PopulateLayoutSettings();
+            this.InitializeCardDesigner();
             await this.LoadHistoryAsync().ConfigureAwait(true);
             await this.UpdateMonitorStatusAsync().ConfigureAwait(true);
             this.RefreshDiagnosticsLog();
@@ -279,6 +263,7 @@ public partial class SettingsWindow : Window
 
         this.PopulateProviders();
         this.PopulateLayoutSettings();
+        this.InitializeCardDesigner();
 
         this.HistoryDataGrid.ItemsSource = fixture.HistoryRows;
 
@@ -327,7 +312,7 @@ public partial class SettingsWindow : Window
     private void SettingsWindow_Closed(object? sender, EventArgs e)
     {
         this._autoSaveTimer.Stop();
-        App.PrivacyChanged -= this.OnPrivacyChanged;
+        PrivacyChangedWeakEventManager.RemoveHandler(this.OnPrivacyChanged);
     }
 
     private async void AutoSaveTimer_Tick(object? sender, EventArgs e)
@@ -382,423 +367,6 @@ public partial class SettingsWindow : Window
             : (this.TryFindResource("SecondaryText") as Brush ?? Brushes.Gray);
     }
 
-    private async Task UpdateMonitorStatusAsync()
-    {
-        try
-        {
-            // Check if agent is running
-            var isRunning = await this._monitorLifecycleService.IsAgentRunningAsync().ConfigureAwait(true);
-
-            // Get the actual port from the agent
-            int port = await this._monitorLifecycleService.GetAgentPortAsync().ConfigureAwait(true);
-
-            if (this.MonitorStatusText != null)
-            {
-                this.MonitorStatusText.Text = isRunning ? "Running" : "Not Running";
-            }
-
-            // Update port display
-            if (this.FindName("MonitorPortText") is TextBlock portText)
-            {
-                portText.Text = port.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
-        }
-        catch (Exception ex)
-        {
-            this._logger.LogWarning(ex, "Failed to update monitor status");
-            if (this.MonitorStatusText != null)
-            {
-                this.MonitorStatusText.Text = "Error";
-            }
-        }
-        finally
-        {
-            this.RefreshDiagnosticsLog();
-        }
-    }
-
-    private void RefreshDiagnosticsLog()
-    {
-        if (this.MonitorLogsText == null)
-        {
-            return;
-        }
-
-        if (this._isDeterministicScreenshotMode)
-        {
-            this.MonitorLogsText.Text = "Monitor health check: OK" + Environment.NewLine +
-                                 "Diagnostics available in Settings > Monitor.";
-            this.MonitorLogsText.ScrollToEnd();
-            return;
-        }
-
-        var logs = MonitorService.DiagnosticsLog;
-        var lines = new List<string>();
-        if (logs.Count == 0)
-        {
-            lines.Add("No diagnostics captured yet.");
-        }
-        else
-        {
-            lines.AddRange(logs);
-        }
-
-        var telemetry = MonitorService.GetTelemetrySnapshot();
-        lines.Add("---- Slim Telemetry ----");
-        lines.Add(
-            $"Usage: count={telemetry.UsageRequestCount}, avg={telemetry.UsageAverageLatencyMs:F1}ms, last={telemetry.UsageLastLatencyMs}ms, errors={telemetry.UsageErrorCount} ({telemetry.UsageErrorRatePercent:F1}%)");
-        lines.Add(
-            $"Refresh: count={telemetry.RefreshRequestCount}, avg={telemetry.RefreshAverageLatencyMs:F1}ms, last={telemetry.RefreshLastLatencyMs}ms, errors={telemetry.RefreshErrorCount} ({telemetry.RefreshErrorRatePercent:F1}%)");
-
-        this.MonitorLogsText.Text = string.Join(Environment.NewLine, lines);
-        this.MonitorLogsText.ScrollToEnd();
-    }
-
-    private async Task LoadHistoryAsync()
-    {
-        try
-        {
-            var history = await this._monitorService.GetHistoryAsync(100);
-            this.HistoryDataGrid.ItemsSource = history;
-        }
-        catch (Exception ex)
-        {
-            this._logger.LogWarning(ex, "Failed to load history");
-        }
-    }
-
-    private void PopulateProviders()
-    {
-        this.ProvidersStack.Children.Clear();
-
-        var displayItems = ProviderSettingsDisplayCatalog.CreateDisplayItems(this._configs, this._usages);
-        var usageByProviderId = this._usages.ToDictionary(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var item in displayItems)
-        {
-            usageByProviderId.TryGetValue(item.Config.ProviderId, out var usage);
-            this.AddProviderCard(item.Config, usage, item.IsDerived);
-        }
-
-        this.PopulateProviderVisibilitySettings();
-    }
-
-    private void AddProviderCard(ProviderConfig config, ProviderUsage? usage, bool isDerived = false)
-    {
-        var isSubItem = ShouldRenderAsSettingsSubItem(config.ProviderId, isDerived);
-
-        var card = new Border
-        {
-            CornerRadius = new CornerRadius(4),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(isSubItem ? 18 : 0, 0, 0, 8),
-            Padding = new Thickness(10, 8, 10, 8),
-        };
-        card.SetResourceReference(Border.BackgroundProperty, "CardBackground");
-        card.SetResourceReference(Border.BorderBrushProperty, "CardBorder");
-
-        var grid = new Grid();
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Inputs
-
-        var settingsBehavior = ProviderSettingsCatalog.Resolve(config, usage, isDerived);
-        var headerPanel = this.BuildProviderHeader(config, settingsBehavior, isSubItem);
-
-        grid.Children.Add(headerPanel);
-
-        // Input row
-        var keyPanel = new Grid { Margin = new Thickness(0, 0, 0, 0) };
-        keyPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var keyContent = this.BuildProviderInputContent(config, usage, settingsBehavior);
-        Grid.SetColumn(keyContent, 0);
-        keyPanel.Children.Add(keyContent);
-
-        Grid.SetRow(keyPanel, 1);
-        grid.Children.Add(keyPanel);
-
-        var subTrayDetails = ProviderSubTrayCatalog.GetEligibleDetails(usage);
-
-        if (!isSubItem && subTrayDetails is { Count: > 0 })
-        {
-            this.AddSubTraySection(grid, config, subTrayDetails);
-        }
-
-        card.Child = grid;
-        this.ProvidersStack.Children.Add(card);
-    }
-
-    internal static bool ShouldRenderAsSettingsSubItem(
-        string providerId,
-        bool isDerived)
-    {
-        if (!isDerived)
-        {
-            return false;
-        }
-
-        return ProviderMetadataCatalog.ShouldRenderAsSettingsSubItem(providerId);
-    }
-
-    private FrameworkElement BuildProviderInputContent(ProviderConfig config, ProviderUsage? usage, ProviderSettingsBehavior settingsBehavior)
-    {
-        return settingsBehavior.InputMode switch
-        {
-            ProviderInputMode.DerivedReadOnly
-                or ProviderInputMode.AutoDetectedStatus
-                or ProviderInputMode.ExternalAuthStatus
-                or ProviderInputMode.SessionAuthStatus
-                => this.BuildStatusPanel(config, usage, settingsBehavior),
-            _ => this.BuildApiKeyEditor(config),
-        };
-    }
-
-    private StackPanel BuildStatusPanel(ProviderConfig config, ProviderUsage? usage, ProviderSettingsBehavior settingsBehavior)
-    {
-        var presentation = ProviderStatusPresentationCatalog.Create(
-            config,
-            usage,
-            settingsBehavior.InputMode,
-            this._isPrivacyMode);
-
-        var panel = new StackPanel
-        {
-            Orientation = presentation.UseHorizontalLayout ? Orientation.Horizontal : Orientation.Vertical,
-        };
-
-        var statusText = new TextBlock
-        {
-            Text = presentation.PrimaryText,
-            VerticalAlignment = VerticalAlignment.Center,
-            FontSize = 11,
-            FontStyle = presentation.PrimaryItalic ? FontStyles.Italic : FontStyles.Normal,
-        };
-        statusText.SetResourceReference(TextBlock.ForegroundProperty, presentation.PrimaryResourceKey);
-        panel.Children.Add(statusText);
-
-        foreach (var line in presentation.SecondaryLines)
-        {
-            var secondaryText = this.CreateSecondaryStatusText(line.Text);
-            secondaryText.TextWrapping = line.Wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
-            if (line.ExtraTopMargin)
-            {
-                secondaryText.Margin = new Thickness(0, 4, 0, 0);
-            }
-
-            panel.Children.Add(secondaryText);
-        }
-
-        return panel;
-    }
-
-    private StackPanel BuildProviderHeader(ProviderConfig config, ProviderSettingsBehavior settingsBehavior, bool isDerived)
-    {
-        var headerPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-
-        var icon = this.CreateProviderIcon(config.ProviderId);
-        icon.Width = 16;
-        icon.Height = 16;
-        icon.Margin = new Thickness(0, 0, 8, 0);
-        icon.VerticalAlignment = VerticalAlignment.Center;
-        headerPanel.Children.Add(icon);
-
-        var title = new TextBlock
-        {
-            Text = isDerived
-                ? $"-> {ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId)}"
-                : ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId),
-            FontWeight = FontWeights.SemiBold,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-            MinWidth = 120,
-        };
-        title.SetResourceReference(TextBlock.ForegroundProperty, "PrimaryText");
-        headerPanel.Children.Add(title);
-
-        headerPanel.Children.Add(this.CreateProviderHeaderCheckBox(
-            content: "Tray",
-            isChecked: config.ShowInTray,
-            margin: new Thickness(12, 0, 0, 0),
-            isEnabled: !isDerived,
-            onCheckedChanged: isChecked =>
-            {
-                var trackedConfig = this.GetOrCreateTrackedConfig(config);
-                trackedConfig.ShowInTray = isChecked;
-                this.MarkSettingsChanged(refreshTrayIcons: true);
-            }));
-
-        headerPanel.Children.Add(this.CreateProviderHeaderCheckBox(
-            content: "Notify",
-            isChecked: config.EnableNotifications,
-            margin: new Thickness(8, 0, 0, 0),
-            isEnabled: !isDerived,
-            onCheckedChanged: isChecked =>
-            {
-                var trackedConfig = this.GetOrCreateTrackedConfig(config);
-                trackedConfig.EnableNotifications = isChecked;
-                this.MarkSettingsChanged();
-            }));
-
-        if (settingsBehavior.IsInactive)
-        {
-            headerPanel.Children.Add(this.CreateInactiveBadge());
-        }
-
-        return headerPanel;
-    }
-
-    private CheckBox CreateProviderHeaderCheckBox(
-        string content,
-        bool isChecked,
-        Thickness margin,
-        bool isEnabled,
-        Action<bool> onCheckedChanged)
-    {
-        var checkBox = new CheckBox
-        {
-            Content = content,
-            IsChecked = isChecked,
-            FontSize = 10,
-            VerticalAlignment = VerticalAlignment.Center,
-            Cursor = Cursors.Hand,
-            Margin = margin,
-            IsEnabled = isEnabled,
-        };
-        checkBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
-        checkBox.Checked += (_, _) => onCheckedChanged(true);
-        checkBox.Unchecked += (_, _) => onCheckedChanged(false);
-        return checkBox;
-    }
-
-    private Border CreateInactiveBadge()
-    {
-        var status = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(205, 92, 92)),
-            CornerRadius = new CornerRadius(3),
-            Margin = new Thickness(10, 0, 0, 0),
-            Padding = new Thickness(8, 3, 8, 3),
-        };
-
-        status.Child = new TextBlock
-        {
-            Text = "Inactive",
-            FontSize = 10,
-            Foreground = new SolidColorBrush(Color.FromRgb(240, 240, 240)),
-            FontWeight = FontWeights.SemiBold,
-        };
-        return status;
-    }
-
-    private void AddSubTraySection(Grid grid, ProviderConfig config, IReadOnlyList<ProviderUsageDetail> subTrayDetails)
-    {
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var separator = new Border
-        {
-            Height = 1,
-            Margin = new Thickness(0, 8, 0, 8),
-        };
-        separator.SetResourceReference(Border.BackgroundProperty, "Separator");
-        Grid.SetRow(separator, 2);
-        grid.Children.Add(separator);
-
-        var subTrayPanel = new StackPanel { Margin = new Thickness(8, 0, 0, 0) };
-
-        var subTrayTitle = new TextBlock
-        {
-            Text = "Sub-tray icons",
-            FontSize = 10,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 4),
-        };
-        subTrayTitle.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
-        subTrayPanel.Children.Add(subTrayTitle);
-
-        foreach (var detail in subTrayDetails)
-        {
-            subTrayPanel.Children.Add(this.CreateSubTrayCheckBox(config, detail.Name));
-        }
-
-        Grid.SetRow(subTrayPanel, 3);
-        grid.Children.Add(subTrayPanel);
-    }
-
-    private CheckBox CreateSubTrayCheckBox(ProviderConfig config, string detailName)
-    {
-        var enabledSubTrays = config.EnabledSubTrays ?? new List<string>();
-        var checkBox = new CheckBox
-        {
-            Content = detailName,
-            IsChecked = enabledSubTrays.Contains(detailName, StringComparer.OrdinalIgnoreCase),
-            FontSize = 10,
-            Margin = new Thickness(0, 1, 0, 1),
-            Cursor = Cursors.Hand,
-        };
-        checkBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
-        checkBox.Checked += (_, _) =>
-        {
-            var trackedConfig = this.GetOrCreateTrackedConfig(config);
-            trackedConfig.EnabledSubTrays ??= new List<string>();
-            if (!trackedConfig.EnabledSubTrays.Contains(detailName, StringComparer.OrdinalIgnoreCase))
-            {
-                var enabledSubTrays = trackedConfig.EnabledSubTrays.ToList();
-                enabledSubTrays.Add(detailName);
-                trackedConfig.EnabledSubTrays = enabledSubTrays;
-            }
-
-            this.MarkSettingsChanged(refreshTrayIcons: true);
-        };
-        checkBox.Unchecked += (_, _) =>
-        {
-            var trackedConfig = this.GetOrCreateTrackedConfig(config);
-            trackedConfig.EnabledSubTrays ??= new List<string>();
-            var enabledSubTrays = trackedConfig.EnabledSubTrays.ToList();
-            enabledSubTrays.RemoveAll(name => name.Equals(detailName, StringComparison.OrdinalIgnoreCase));
-            trackedConfig.EnabledSubTrays = enabledSubTrays;
-            this.MarkSettingsChanged(refreshTrayIcons: true);
-        };
-        return checkBox;
-    }
-
-    private TextBox BuildApiKeyEditor(ProviderConfig config)
-    {
-        var keyBox = new TextBox
-        {
-            Text = ProviderApiKeyPresentationCatalog.GetDisplayApiKey(config.ApiKey, this._isPrivacyMode),
-            Tag = config,
-            VerticalContentAlignment = VerticalAlignment.Center,
-            FontSize = 11,
-            IsReadOnly = this._isPrivacyMode,
-        };
-
-        if (!this._isPrivacyMode)
-        {
-            keyBox.TextChanged += (s, e) =>
-            {
-                var trackedConfig = this.GetOrCreateTrackedConfig(config);
-                trackedConfig.ApiKey = keyBox.Text;
-                this.MarkSettingsChanged();
-            };
-        }
-
-        return keyBox;
-    }
-
-    private TextBlock CreateSecondaryStatusText(string text)
-    {
-        var statusText = new TextBlock
-        {
-            Text = text,
-            VerticalAlignment = VerticalAlignment.Center,
-            FontSize = 10,
-            Margin = new Thickness(0, 3, 0, 0),
-        };
-        statusText.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
-        return statusText;
-    }
-
     private void RefreshTrayIcons()
     {
         if (Application.Current is App app)
@@ -816,47 +384,6 @@ public partial class SettingsWindow : Window
         }
 
         this.ScheduleAutoSave();
-    }
-
-    private ProviderConfig GetOrCreateTrackedConfig(ProviderConfig config)
-    {
-        var existing = this._configs.FirstOrDefault(current =>
-            current.ProviderId.Equals(config.ProviderId, StringComparison.OrdinalIgnoreCase));
-        if (existing != null)
-        {
-            return existing;
-        }
-
-        var tracked = this.CloneConfig(config);
-        this._configs.Add(tracked);
-        return tracked;
-    }
-
-    private ProviderConfig CloneConfig(ProviderConfig config)
-    {
-        return new ProviderConfig
-        {
-            ProviderId = config.ProviderId,
-            ApiKey = config.ApiKey,
-            Type = config.Type,
-            PlanType = config.PlanType,
-            Limit = config.Limit,
-            BaseUrl = config.BaseUrl,
-            ShowInTray = config.ShowInTray,
-            EnableNotifications = config.EnableNotifications,
-            EnabledSubTrays = config.EnabledSubTrays.ToList(),
-            AuthSource = config.AuthSource,
-            Description = config.Description,
-            Models = config.Models
-                .Select(model => new AIModelConfig
-                {
-                    Id = model.Id,
-                    Name = model.Name,
-                    Matches = model.Matches.ToList(),
-                    Color = model.Color,
-                })
-                .ToList(),
-        };
     }
 
     private void ApplyFontPreferenceChange(Action applyChange)
@@ -884,66 +411,6 @@ public partial class SettingsWindow : Window
         }
 
         return saved;
-    }
-
-    private FrameworkElement CreateProviderIcon(string providerId)
-    {
-        // Map to SVG or create fallback
-        var image = new Image();
-        image.Source = this.GetProviderImageSource(providerId);
-        return image;
-    }
-
-    private ImageSource GetProviderImageSource(string providerId)
-    {
-        try
-        {
-            var filename = ProviderMetadataCatalog.GetIconAssetName(providerId);
-
-            var appDir = AppDomain.CurrentDomain.BaseDirectory;
-
-            // Try SVG first
-            var svgPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.svg");
-            if (System.IO.File.Exists(svgPath))
-            {
-                // Return a simple colored circle as fallback (SVG loading requires SharpVectors)
-                return this.CreateFallbackIcon(providerId);
-            }
-
-            // Try ICO
-            var icoPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.ico");
-            if (System.IO.File.Exists(icoPath))
-            {
-                var icoImage = new System.Windows.Media.Imaging.BitmapImage();
-                icoImage.BeginInit();
-                icoImage.UriSource = new Uri(icoPath);
-                icoImage.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                icoImage.EndInit();
-                icoImage.Freeze();
-                return icoImage;
-            }
-        }
-        catch (Exception ex)
-        {
-            this._logger.LogDebug(ex, "Failed to load provider icon for {ProviderId}", providerId);
-        }
-
-        return this.CreateFallbackIcon(providerId);
-    }
-
-    private ImageSource CreateFallbackIcon(string providerId)
-    {
-        // Create a simple colored circle as fallback
-        var (color, _) = ProviderVisualCatalog.GetBadge(providerId, Brushes.Gray);
-
-        // Return a drawing image with just a colored rectangle (simplified)
-        var drawing = new GeometryDrawing(
-            color,
-            new Pen(Brushes.Transparent, 0),
-            new RectangleGeometry(new Rect(0, 0, 16, 16)));
-        var image = new DrawingImage(drawing);
-        image.Freeze();
-        return image;
     }
 
     private void PopulateLayoutSettings()
@@ -991,7 +458,7 @@ public partial class SettingsWindow : Window
     {
         if (this.ShowUsedPercentagesCheck != null)
         {
-            this.ShowUsedPercentagesCheck.IsChecked = this._displayPreferences.ShouldShowUsedPercentages(this._preferences);
+            this.ShowUsedPercentagesCheck.IsChecked = this._preferences.PercentageDisplayMode == PercentageDisplayMode.Used;
         }
 
         if (this.ShowUsagePerHourCheck != null)
@@ -1003,74 +470,10 @@ public partial class SettingsWindow : Window
         {
             this.EnablePaceAdjustmentCheck.IsChecked = this._preferences.EnablePaceAdjustment;
         }
-    }
 
-    private void PopulateProviderVisibilitySettings()
-    {
-        this.ProviderCardVisibilityPanel.Children.Clear();
-        var hidden = this._preferences.HiddenProviderItemIds;
-
-        // Run the same pipeline as the main window (no hidden filter) to get every card
-        // that could potentially appear, then group by canonical provider.
-        var renderPrep = ProviderUsageDisplayCatalog.PrepareForMainWindow(this._usages);
-        var allCards = ProviderUsageDisplayCatalog
-            .ExpandSyntheticAggregateChildren(renderPrep.DisplayableUsages, hiddenItemIds: [])
-            .ToList();
-
-        var groups = allCards
-            .GroupBy(
-                u => ProviderMetadataCatalog.GetCanonicalProviderId(u.ProviderId ?? string.Empty),
-                StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        foreach (var group in groups)
+        if (this.UseRelativeResetTimeCheck != null)
         {
-            var cards = group.ToList();
-
-            if (cards.Count == 1)
-            {
-                // Single card: flat checkbox with no heading.
-                var usage = cards[0];
-                var checkBox = new CheckBox
-                {
-                    Content = usage.ProviderName ?? usage.ProviderId,
-                    Tag = usage.ProviderId,
-                    IsChecked = !hidden.Contains(usage.ProviderId ?? string.Empty, StringComparer.OrdinalIgnoreCase),
-                    Margin = new Thickness(0, 2, 0, 6),
-                    Foreground = (Brush)this.FindResource("SecondaryText"),
-                };
-                checkBox.Checked += this.ProviderVisibility_Changed;
-                checkBox.Unchecked += this.ProviderVisibility_Changed;
-                this.ProviderCardVisibilityPanel.Children.Add(checkBox);
-            }
-            else
-            {
-                // Multiple cards for one provider: bold heading + indented checkboxes.
-                ProviderMetadataCatalog.TryGet(group.Key, out var definition);
-                this.ProviderCardVisibilityPanel.Children.Add(new TextBlock
-                {
-                    Text = definition?.DisplayName ?? group.Key,
-                    FontWeight = FontWeights.SemiBold,
-                    Margin = new Thickness(0, 4, 0, 4),
-                    Foreground = (Brush)this.FindResource("SecondaryText"),
-                });
-
-                for (var i = 0; i < cards.Count; i++)
-                {
-                    var usage = cards[i];
-                    var checkBox = new CheckBox
-                    {
-                        Content = usage.ProviderName ?? usage.ProviderId,
-                        Tag = usage.ProviderId,
-                        IsChecked = !hidden.Contains(usage.ProviderId ?? string.Empty, StringComparer.OrdinalIgnoreCase),
-                        Margin = new Thickness(15, 2, 0, i == cards.Count - 1 ? 16 : 2),
-                        Foreground = (Brush)this.FindResource("SecondaryText"),
-                    };
-                    checkBox.Checked += this.ProviderVisibility_Changed;
-                    checkBox.Unchecked += this.ProviderVisibility_Changed;
-                    this.ProviderCardVisibilityPanel.Children.Add(checkBox);
-                }
-            }
+            this.UseRelativeResetTimeCheck.IsChecked = this._preferences.UseRelativeResetTime;
         }
     }
 
@@ -1279,520 +682,6 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private async void RefreshHistoryBtn_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var history = await this._monitorService.GetHistoryAsync(100);
-            this.HistoryDataGrid.ItemsSource = history;
-
-            if (history.Count == 0)
-            {
-                MessageBox.Show(
-                    "No history data available. The agent may not have collected any data yet.",
-                    "No Data",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                $"Failed to load history: {ex.Message}",
-                "History Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
-    }
-
-    private void ClearHistoryBtn_Click(object sender, RoutedEventArgs e)
-    {
-        this.HistoryDataGrid.ItemsSource = null;
-    }
-
-    private async void ExportCsvBtn_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            await this._monitorService.RefreshPortAsync();
-            var csv = await this._monitorService.ExportDataAsync("csv");
-            if (string.IsNullOrEmpty(csv))
-            {
-                MessageBox.Show(
-                    "No data to export or Monitor is not running.",
-                    "Export",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
-            }
-
-            var dialog = new SaveFileDialog
-            {
-                Filter = "CSV files (*.csv)|*.csv",
-                DefaultExt = ".csv",
-                FileName = $"usage_export_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                await File.WriteAllTextAsync(dialog.FileName, csv);
-                MessageBox.Show(
-                    $"Exported to {dialog.FileName}",
-                    "Export Complete",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                $"Export failed: {ex.Message}",
-                "Export Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
-    }
-
-    private async void ExportJsonBtn_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            await this._monitorService.RefreshPortAsync();
-            var json = await this._monitorService.ExportDataAsync("json");
-            if (string.Equals(json, "[]", StringComparison.Ordinal) || string.IsNullOrEmpty(json))
-            {
-                MessageBox.Show(
-                    "No data to export or Monitor is not running.",
-                    "Export",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
-            }
-
-            var dialog = new SaveFileDialog
-            {
-                Filter = "JSON files (*.json)|*.json",
-                DefaultExt = ".json",
-                FileName = $"usage_export_{DateTime.Now:yyyyMMdd_HHmmss}.json",
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                await File.WriteAllTextAsync(dialog.FileName, json);
-                MessageBox.Show(
-                    $"Exported to {dialog.FileName}",
-                    "Export Complete",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                $"Export failed: {ex.Message}",
-                "Export Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
-    }
-
-    private void BackupDbBtn_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var dialog = new SaveFileDialog
-            {
-                Filter = "Database files (*.db)|*.db",
-                DefaultExt = ".db",
-                FileName = $"usage_backup_{DateTime.Now:yyyyMMdd_HHmmss}.db",
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                var dbPath = this._pathProvider.GetDatabasePath();
-
-                if (File.Exists(dbPath))
-                {
-                    File.Copy(dbPath, dialog.FileName, true);
-                    MessageBox.Show(
-                        $"Backup saved to {dialog.FileName}",
-                        "Backup Complete",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                }
-                else
-                {
-                    MessageBox.Show(
-                        "Database file not found.",
-                        "Backup Error",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                $"Backup failed: {ex.Message}",
-                "Backup Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
-    }
-
-    private async void RestartMonitorBtn_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            // Kill any running agent process
-            foreach (var process in System.Diagnostics.Process.GetProcessesByName("AIUsageTracker.Monitor")
-                .Concat(System.Diagnostics.Process.GetProcessesByName("AIUsageTracker.Monitor")))
-            {
-                try
-                {
-                    process.Kill();
-                }
-                catch (Exception ex)
-                {
-                    this._logger.LogDebug(ex, "Failed to terminate monitor process {ProcessId}", process.Id);
-                }
-            }
-
-            await Task.Delay(1000);
-
-            // Restart agent
-            if (await this._monitorLifecycleService.EnsureAgentRunningAsync().ConfigureAwait(true))
-            {
-                MessageBox.Show(
-                    "Monitor restarted successfully.",
-                    "Restart Complete",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-            else
-            {
-                MessageBox.Show(
-                    "Failed to restart Monitor.",
-                    "Restart Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-            }
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                $"Failed to restart Monitor: {ex.Message}",
-                "Restart Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
-        finally
-        {
-            this.RefreshDiagnosticsLog();
-        }
-    }
-
-    private async void CheckHealthBtn_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var (isRunning, port) = await this._monitorLifecycleService.IsAgentRunningWithPortAsync().ConfigureAwait(true);
-            var healthSnapshot = await this._monitorService.GetHealthSnapshotAsync();
-            var status = isRunning ? "Running" : "Not Running";
-
-            MessageBox.Show(
-                this.BuildHealthCheckMessage(status, port, healthSnapshot),
-                "Health Check",
-                MessageBoxButton.OK,
-                this.GetHealthCheckIcon(isRunning, healthSnapshot));
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                $"Failed to check health: {ex.Message}",
-                "Health Check Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
-        finally
-        {
-            this.RefreshDiagnosticsLog();
-        }
-    }
-
-    private string BuildHealthCheckMessage(string processStatus, int port, MonitorHealthSnapshot? healthSnapshot)
-    {
-        var builder = new StringBuilder();
-        builder.AppendLine(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Monitor Status: {processStatus}"));
-        builder.AppendLine(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Port: {port}"));
-
-        if (healthSnapshot == null)
-        {
-            return builder.ToString();
-        }
-
-        builder.AppendLine($"Service Health: {healthSnapshot.ServiceHealth}");
-        builder.AppendLine($"Monitor Version: {healthSnapshot.AgentVersion ?? "unknown"}");
-        var contractVersion = healthSnapshot.EffectiveContractVersion ?? "unknown";
-        builder.AppendLine($"API Contract: {contractVersion}");
-        if (!string.IsNullOrWhiteSpace(healthSnapshot.EffectiveMinClientContractVersion))
-        {
-            builder.AppendLine($"Min Client Contract: {healthSnapshot.EffectiveMinClientContractVersion}");
-        }
-
-        builder.AppendLine($"Last Health Ping: {FormatHealthTimestamp(healthSnapshot.Timestamp)}");
-        builder.AppendLine($"Refresh Status: {healthSnapshot.RefreshHealth.Status}");
-        builder.AppendLine($"Last Refresh Attempt: {FormatHealthTimestamp(healthSnapshot.RefreshHealth.LastRefreshAttemptUtc)}");
-        builder.AppendLine($"Last Successful Refresh: {FormatHealthTimestamp(healthSnapshot.RefreshHealth.LastSuccessfulRefreshUtc)}");
-        builder.AppendLine(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Providers In Backoff: {healthSnapshot.RefreshHealth.ProvidersInBackoff}"));
-
-        if (healthSnapshot.RefreshHealth.FailingProviders.Count > 0)
-        {
-            builder.AppendLine($"Failing Providers: {string.Join(", ", healthSnapshot.RefreshHealth.FailingProviders)}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(healthSnapshot.RefreshHealth.LastError))
-        {
-            builder.AppendLine($"Last Refresh Error: {healthSnapshot.RefreshHealth.LastError}");
-        }
-
-        return builder.ToString();
-    }
-
-    private MessageBoxImage GetHealthCheckIcon(bool isRunning, MonitorHealthSnapshot? healthSnapshot)
-    {
-        if (!isRunning)
-        {
-            return MessageBoxImage.Warning;
-        }
-
-        return string.Equals(healthSnapshot?.ServiceHealth, "degraded", StringComparison.OrdinalIgnoreCase)
-            ? MessageBoxImage.Warning
-            : MessageBoxImage.Information;
-    }
-
-    private static string FormatHealthTimestamp(DateTime? timestampUtc)
-    {
-        if (!timestampUtc.HasValue)
-        {
-            return "Never";
-        }
-
-        return $"{timestampUtc.Value.ToLocalTime():yyyy-MM-dd HH:mm:ss} (local)";
-    }
-
-    private async void ExportDiagnosticsBtn_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            await this._monitorService.RefreshPortAsync();
-            await this._monitorService.RefreshAgentInfoAsync();
-
-            var (isRunning, port) = await this._monitorLifecycleService.IsAgentRunningWithPortAsync().ConfigureAwait(true);
-            var healthSnapshot = await this._monitorService.GetHealthSnapshotAsync();
-            var diagnosticsSnapshot = await this._monitorService.GetDiagnosticsSnapshotAsync();
-            var healthDetails = this.SerializeBundlePayload(
-                healthSnapshot,
-                "Health payload unavailable.");
-            var diagnosticsDetails = this.SerializeBundlePayload(
-                diagnosticsSnapshot,
-                "Diagnostics payload unavailable.");
-
-            var saveDialog = new SaveFileDialog
-            {
-                FileName = $"ai-usage-tracker-diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
-                Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
-                DefaultExt = ".txt",
-                AddExtension = true,
-            };
-
-            if (saveDialog.ShowDialog(this) != true)
-            {
-                return;
-            }
-
-            var telemetry = MonitorService.GetTelemetrySnapshot();
-            var bundle = new StringBuilder();
-            bundle.AppendLine("AI Usage Tracker - Diagnostics Bundle");
-            bundle.AppendLine($"GeneratedAtUtc: {DateTime.UtcNow:O}");
-            bundle.AppendLine($"SlimVersion: {typeof(SettingsWindow).Assembly.GetName().Version?.ToString() ?? "unknown"}");
-            bundle.AppendLine($"AgentUrl: {this._monitorService.AgentUrl}");
-            bundle.AppendLine($"AgentRunning: {isRunning}");
-            bundle.AppendLine($"AgentPort: {port.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
-            bundle.AppendLine();
-
-            bundle.AppendLine("=== Monitor Health Summary ===");
-            bundle.AppendLine(this.BuildHealthCheckMessage(isRunning ? "Running" : "Not Running", port, healthSnapshot).TrimEnd());
-            bundle.AppendLine();
-
-            bundle.AppendLine("=== Monitor Health ===");
-            bundle.AppendLine(healthDetails);
-            bundle.AppendLine();
-
-            bundle.AppendLine("=== Monitor Diagnostics ===");
-            this.AppendMonitorDiagnosticsSummary(bundle, diagnosticsSnapshot);
-            bundle.AppendLine();
-            bundle.AppendLine(diagnosticsDetails);
-            bundle.AppendLine();
-
-            bundle.AppendLine("=== Monitor Errors (monitor.json) ===");
-            if (this._monitorService.LastAgentErrors.Count == 0)
-            {
-                bundle.AppendLine("None");
-            }
-            else
-            {
-                foreach (var error in this._monitorService.LastAgentErrors)
-                {
-                    bundle.AppendLine($"- {error}");
-                }
-            }
-
-            bundle.AppendLine();
-
-            bundle.AppendLine("=== Slim Telemetry ===");
-            bundle.AppendFormat(
-                System.Globalization.CultureInfo.InvariantCulture,
-                "Usage: count={0}, avg={1:F1}ms, last={2}ms, errors={3} ({4:F1}%)\r\n",
-                telemetry.UsageRequestCount,
-                telemetry.UsageAverageLatencyMs,
-                telemetry.UsageLastLatencyMs,
-                telemetry.UsageErrorCount,
-                telemetry.UsageErrorRatePercent);
-            bundle.AppendFormat(
-                System.Globalization.CultureInfo.InvariantCulture,
-                "Refresh: count={0}, avg={1:F1}ms, last={2}ms, errors={3} ({4:F1}%)\r\n",
-                telemetry.RefreshRequestCount,
-                telemetry.RefreshAverageLatencyMs,
-                telemetry.RefreshLastLatencyMs,
-                telemetry.RefreshErrorCount,
-                telemetry.RefreshErrorRatePercent);
-            bundle.AppendLine();
-
-            bundle.AppendLine("=== Slim Diagnostics Log ===");
-            var diagnosticsLog = MonitorService.DiagnosticsLog;
-            if (diagnosticsLog.Count == 0)
-            {
-                bundle.AppendLine("No diagnostics captured yet.");
-            }
-            else
-            {
-                foreach (var line in diagnosticsLog)
-                {
-                    bundle.AppendLine(line);
-                }
-            }
-
-            await File.WriteAllTextAsync(saveDialog.FileName, bundle.ToString());
-            MessageBox.Show(
-                $"Diagnostics bundle saved to:\n{saveDialog.FileName}",
-                "Export Complete",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                $"Failed to export diagnostics bundle: {ex.Message}",
-                "Export Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
-        finally
-        {
-            this.RefreshDiagnosticsLog();
-        }
-    }
-
-    private string SerializeBundlePayload<T>(T? payload, string emptyFallback)
-    {
-        if (payload == null)
-        {
-            return emptyFallback;
-        }
-
-        return JsonSerializer.Serialize(payload, BundleJsonOptions);
-    }
-
-    private void AppendMonitorDiagnosticsSummary(StringBuilder bundle, AgentDiagnosticsSnapshot? diagnostics)
-    {
-        if (diagnostics == null)
-        {
-            bundle.AppendLine("Summary unavailable (typed diagnostics not available).");
-            return;
-        }
-
-        bundle.AppendLine("Summary:");
-        bundle.AppendFormat(
-            System.Globalization.CultureInfo.InvariantCulture,
-            "- Endpoint: port={0}, pid={1}, runtime={2}, args={3}\r\n",
-            diagnostics.Port,
-            diagnostics.ProcessId,
-            diagnostics.Runtime,
-            diagnostics.Args.Count);
-
-        if (diagnostics.RefreshTelemetry != null)
-        {
-            var refresh = diagnostics.RefreshTelemetry;
-            bundle.AppendFormat(
-                System.Globalization.CultureInfo.InvariantCulture,
-                "- Refresh telemetry: count={0}, success={1}, failure={2}, error_rate={3:F1}%, avg={4:F1}ms, last={5}ms\r\n",
-                refresh.RefreshCount,
-                refresh.RefreshSuccessCount,
-                refresh.RefreshFailureCount,
-                refresh.ErrorRatePercent,
-                refresh.AverageLatencyMs,
-                refresh.LastLatencyMs);
-        }
-
-        if (diagnostics.SchedulerTelemetry != null)
-        {
-            var scheduler = diagnostics.SchedulerTelemetry;
-            bundle.AppendFormat(
-                System.Globalization.CultureInfo.InvariantCulture,
-                "- Scheduler telemetry: queued={0} (h={1}, n={2}, l={3}), recurring={4}, executed={5}, failed={6}, enqueued={7}, dequeued={8}, coalesced_skipped={9}, noop_signals={10}, in_flight={11}\r\n",
-                scheduler.TotalQueuedJobs,
-                scheduler.HighPriorityQueuedJobs,
-                scheduler.NormalPriorityQueuedJobs,
-                scheduler.LowPriorityQueuedJobs,
-                scheduler.RecurringJobs,
-                scheduler.ExecutedJobs,
-                scheduler.FailedJobs,
-                scheduler.EnqueuedJobs,
-                scheduler.DequeuedJobs,
-                scheduler.CoalescedSkippedJobs,
-                scheduler.DispatchNoopSignals,
-                scheduler.InFlightJobs);
-        }
-
-        if (diagnostics.PipelineTelemetry != null)
-        {
-            var pipeline = diagnostics.PipelineTelemetry;
-            bundle.AppendFormat(
-                System.Globalization.CultureInfo.InvariantCulture,
-                "- Pipeline telemetry: processed={0}, accepted={1}, rejected={2}, invalid_identity={3}, inactive_filtered={4}, placeholders={5}, detail_adjusted={6}, normalized={7}, privacy_redacted={8}, last_run={9}/{10}\r\n",
-                pipeline.TotalProcessedEntries,
-                pipeline.TotalAcceptedEntries,
-                pipeline.TotalRejectedEntries,
-                pipeline.InvalidIdentityCount,
-                pipeline.InactiveProviderFilteredCount,
-                pipeline.PlaceholderFilteredCount,
-                pipeline.DetailContractAdjustedCount,
-                pipeline.NormalizedCount,
-                pipeline.PrivacyRedactedCount,
-                pipeline.LastRunAcceptedEntries,
-                pipeline.LastRunTotalEntries);
-        }
-
-        if (diagnostics.Observability?.ActivitySourceNames.Count > 0)
-        {
-            bundle.AppendFormat(
-                System.Globalization.CultureInfo.InvariantCulture,
-                "- Observability: activity_sources={0}\r\n",
-                string.Join(", ", diagnostics.Observability.ActivitySourceNames));
-        }
-    }
-
     private async Task PersistAllSettingsAsync(bool showErrorDialog)
     {
         if (this._isLoadingSettings)
@@ -1813,9 +702,10 @@ public partial class SettingsWindow : Window
             this._preferences.AggressiveAlwaysOnTop = this.AggressiveTopmostCheck.IsChecked ?? false;
             this._preferences.ForceWin32Topmost = this.ForceWin32TopmostCheck.IsChecked ?? false;
             var showUsedPercentages = this.ShowUsedPercentagesCheck.IsChecked ?? false;
-            this._displayPreferences.SetShowUsedPercentages(this._preferences, showUsedPercentages);
+            this._preferences.ShowUsedPercentages = showUsedPercentages;
             this._preferences.ShowUsagePerHour = this.ShowUsagePerHourCheck.IsChecked ?? false;
             this._preferences.EnablePaceAdjustment = this.EnablePaceAdjustmentCheck.IsChecked ?? true;
+            this._preferences.UseRelativeResetTime = this.UseRelativeResetTimeCheck.IsChecked ?? false;
             if (this.ThemeCombo.SelectedValue is AppTheme appTheme)
             {
                 this._preferences.Theme = appTheme;
@@ -1962,36 +852,6 @@ public partial class SettingsWindow : Window
         this.ScheduleAutoSave();
     }
 
-    private void ProviderVisibility_Changed(object sender, RoutedEventArgs e)
-    {
-        if (!this.IsInitialized || sender is not CheckBox { Tag: string itemId } cb)
-        {
-            return;
-        }
-
-        this.SetHiddenProviderItemId(itemId, !(cb.IsChecked ?? true));
-        this.ScheduleAutoSave();
-    }
-
-    private void SetHiddenProviderItemId(string id, bool hidden)
-    {
-        var list = this._preferences.HiddenProviderItemIds;
-        if (hidden)
-        {
-            if (!list.Contains(id, StringComparer.OrdinalIgnoreCase))
-            {
-                list.Add(id);
-            }
-        }
-        else
-        {
-            foreach (var item in list.Where(x => string.Equals(x, id, StringComparison.OrdinalIgnoreCase)).ToList())
-            {
-                list.Remove(item);
-            }
-        }
-    }
-
     private void LayoutSetting_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (!this.IsInitialized)
@@ -2092,4 +952,11 @@ public partial class SettingsWindow : Window
     }
 #pragma warning restore VSTHRD100
 
+    private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Escape)
+        {
+            this.Close();
+        }
+    }
 }

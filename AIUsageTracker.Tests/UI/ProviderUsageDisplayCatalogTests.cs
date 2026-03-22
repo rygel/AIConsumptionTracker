@@ -21,11 +21,11 @@ public sealed class ProviderUsageDisplayCatalogTests
             new() { ProviderId = "antigravity", IsAvailable = false },
         };
 
-        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
+        var preparation = MainWindowRuntimeLogic.PrepareForMainWindow(usages);
 
-        Assert.Equal(2, preparation.DisplayableUsages.Count);
-        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
-        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "antigravity", StringComparison.Ordinal));
+        Assert.Equal(2, preparation.Count);
+        Assert.Contains(preparation, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
+        Assert.Contains(preparation, usage => string.Equals(usage.ProviderId, "antigravity", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -37,10 +37,10 @@ public sealed class ProviderUsageDisplayCatalogTests
             new() { ProviderId = "codex", IsAvailable = true },
         };
 
-        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
+        var preparation = MainWindowRuntimeLogic.PrepareForMainWindow(usages);
 
-        Assert.Single(preparation.DisplayableUsages);
-        Assert.Equal("codex", preparation.DisplayableUsages[0].ProviderId);
+        Assert.Single(preparation);
+        Assert.Equal("codex", preparation[0].ProviderId);
     }
 
     [Fact]
@@ -52,11 +52,11 @@ public sealed class ProviderUsageDisplayCatalogTests
             new() { ProviderId = "antigravity.gemini-pro", IsAvailable = true },
         };
 
-        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
+        var preparation = MainWindowRuntimeLogic.PrepareForMainWindow(usages);
 
-        Assert.Equal(2, preparation.DisplayableUsages.Count);
-        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "antigravity", StringComparison.Ordinal));
-        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "antigravity.gemini-pro", StringComparison.Ordinal));
+        Assert.Equal(2, preparation.Count);
+        Assert.Contains(preparation, usage => string.Equals(usage.ProviderId, "antigravity", StringComparison.Ordinal));
+        Assert.Contains(preparation, usage => string.Equals(usage.ProviderId, "antigravity.gemini-pro", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -68,11 +68,11 @@ public sealed class ProviderUsageDisplayCatalogTests
             new() { ProviderId = "codex.spark", IsAvailable = true },
         };
 
-        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
+        var preparation = MainWindowRuntimeLogic.PrepareForMainWindow(usages);
 
-        Assert.Equal(2, preparation.DisplayableUsages.Count);
-        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
-        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "codex.spark", StringComparison.Ordinal));
+        Assert.Equal(2, preparation.Count);
+        Assert.Contains(preparation, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
+        Assert.Contains(preparation, usage => string.Equals(usage.ProviderId, "codex.spark", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -84,10 +84,10 @@ public sealed class ProviderUsageDisplayCatalogTests
             new() { ProviderId = "legacy-unknown-provider", IsAvailable = true },
         };
 
-        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
+        var preparation = MainWindowRuntimeLogic.PrepareForMainWindow(usages);
 
-        Assert.Single(preparation.DisplayableUsages);
-        Assert.Equal("codex", preparation.DisplayableUsages[0].ProviderId);
+        Assert.Single(preparation);
+        Assert.Equal("codex", preparation[0].ProviderId);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class ProviderUsageDisplayCatalogTests
             Details = new List<ProviderUsageDetail> { detail },
         };
 
-        var result = ProviderUsageDisplayCatalog.ExpandSyntheticAggregateChildren(
+        var result = MainWindowRuntimeLogic.ExpandSyntheticAggregateChildren(
             new[] { parent },
             Array.Empty<string>()).ToList();
 
@@ -123,11 +123,11 @@ public sealed class ProviderUsageDisplayCatalogTests
             new() { ProviderId = "codex.spark", IsAvailable = true },
         };
 
-        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
+        var preparation = MainWindowRuntimeLogic.PrepareForMainWindow(usages);
 
-        Assert.Equal(2, preparation.DisplayableUsages.Count);
-        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
-        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "codex.spark", StringComparison.Ordinal));
+        Assert.Equal(2, preparation.Count);
+        Assert.Contains(preparation, usage => string.Equals(usage.ProviderId, "codex", StringComparison.Ordinal));
+        Assert.Contains(preparation, usage => string.Equals(usage.ProviderId, "codex.spark", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -172,9 +172,9 @@ public sealed class ProviderUsageDisplayCatalogTests
             },
         };
 
-        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
+        var preparation = MainWindowRuntimeLogic.PrepareForMainWindow(usages);
 
-        var displayable = Assert.Single(preparation.DisplayableUsages);
+        var displayable = Assert.Single(preparation);
         Assert.Equal("gemini-cli", displayable.ProviderId);
         Assert.Equal("Gemini CLI", displayable.ProviderName);
     }
@@ -235,12 +235,12 @@ public sealed class ProviderUsageDisplayCatalogTests
             },
         };
 
-        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(usages);
+        var preparation = MainWindowRuntimeLogic.PrepareForMainWindow(usages);
 
-        Assert.Equal(3, preparation.DisplayableUsages.Count);
-        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "gemini-cli", StringComparison.Ordinal));
-        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "gemini-cli.minute", StringComparison.Ordinal));
-        Assert.Contains(preparation.DisplayableUsages, usage => string.Equals(usage.ProviderId, "gemini-cli.hourly", StringComparison.Ordinal));
+        Assert.Equal(3, preparation.Count);
+        Assert.Contains(preparation, usage => string.Equals(usage.ProviderId, "gemini-cli", StringComparison.Ordinal));
+        Assert.Contains(preparation, usage => string.Equals(usage.ProviderId, "gemini-cli.minute", StringComparison.Ordinal));
+        Assert.Contains(preparation, usage => string.Equals(usage.ProviderId, "gemini-cli.hourly", StringComparison.Ordinal));
     }
 
     // ── Synthetic aggregate children (claude-code) ─────────────────────────────
@@ -278,7 +278,7 @@ public sealed class ProviderUsageDisplayCatalogTests
             Details = new List<ProviderUsageDetail> { burstDetail, rollingDetail },
         };
 
-        var children = ProviderUsageDisplayCatalog.ExpandSyntheticAggregateChildren(
+        var children = MainWindowRuntimeLogic.ExpandSyntheticAggregateChildren(
             new[] { parent },
             Array.Empty<string>()).ToList();
 
@@ -326,7 +326,7 @@ public sealed class ProviderUsageDisplayCatalogTests
             },
         };
 
-        var children = ProviderUsageDisplayCatalog.ExpandSyntheticAggregateChildren(
+        var children = MainWindowRuntimeLogic.ExpandSyntheticAggregateChildren(
             new[] { parent },
             Array.Empty<string>()).ToList();
 
@@ -376,7 +376,7 @@ public sealed class ProviderUsageDisplayCatalogTests
             },
         };
 
-        var children = ProviderUsageDisplayCatalog.ExpandSyntheticAggregateChildren(
+        var children = MainWindowRuntimeLogic.ExpandSyntheticAggregateChildren(
             new[] { parent },
             Array.Empty<string>()).ToList();
 
@@ -421,7 +421,7 @@ public sealed class ProviderUsageDisplayCatalogTests
             },
         };
 
-        var children = ProviderUsageDisplayCatalog.ExpandSyntheticAggregateChildren(
+        var children = MainWindowRuntimeLogic.ExpandSyntheticAggregateChildren(
             new[] { parent },
             Array.Empty<string>()).ToList();
 
@@ -477,11 +477,13 @@ public sealed class ProviderUsageDisplayCatalogTests
             },
         };
 
-        var preparation = ProviderUsageDisplayCatalog.PrepareForMainWindow(new[] { stale, fresh });
+        var preparation = MainWindowRuntimeLogic.PrepareForMainWindow(new[] { stale, fresh });
 
-        var gemini = Assert.Single(preparation.DisplayableUsages);
+        var gemini = Assert.Single(preparation);
         Assert.Equal("gemini-cli", gemini.ProviderId);
         Assert.NotNull(gemini.Details);
         Assert.Equal(3, gemini.Details!.Count);
     }
 }
+
+

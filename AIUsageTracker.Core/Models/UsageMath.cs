@@ -242,11 +242,11 @@ public static class UsageMath
     /// When the user is <em>at or over pace</em>, the raw <paramref name="usedPercent"/> is
     /// returned unchanged so genuine high-usage situations still show as expected.
     /// </summary>
-    /// <param name="usedPercent">Current used percentage (0–100).</param>
-    /// <param name="nextResetUtc">Next reset time in UTC.</param>
-    /// <param name="periodDuration">Total duration of the quota window.</param>
-    /// <param name="nowUtc">Optional override for "now" (defaults to <see cref="DateTime.UtcNow"/>).</param>
-    /// <returns>Pace-adjusted used percentage clamped to [0, 100].</returns>
+    /// <summary>
+    /// Returns the projected end-of-period usage percentage, which is used for color thresholds.
+    /// Simple math: if you've used X% with Y% of the window elapsed, you're on track to use X/Y%.
+    /// Works for any window size (5h, 24h, 7-day, etc.).
+    /// </summary>
     public static double CalculatePaceAdjustedColorPercent(
         double usedPercent,
         DateTime nextResetUtc,
@@ -259,24 +259,22 @@ public static class UsageMath
             return ClampPercent(usedPercent);
         }
 
+        // Guard against DateTime underflow when nextResetUtc is too close to MinValue
+        if (nextResetUtc.Ticks < periodDuration.Ticks)
+        {
+            return ClampPercent(usedPercent);
+        }
+
         var periodStart = nextResetUtc - periodDuration;
         var elapsed = now - periodStart;
         var elapsedFraction = Math.Clamp(elapsed.TotalSeconds / periodDuration.TotalSeconds, 0.01, 1.0);
-        var expectedPercent = elapsedFraction * 100.0;
 
-        // Under pace: user has consumed less than expected → reward with a reduced colour score.
-        // Formula: usedPercent³ / expectedPercent²
-        //   If you are at 82% of expected pace (e.g. 73% used vs 88.5% expected), the raw formula
-        //   would give ~60% — right on the yellow boundary. The cubic numerator amplifies the
-        //   forgiveness so that "clearly under pace" situations stay green.
-        // Over pace: return raw usedPercent so genuine high-usage is still highlighted.
-        if (usedPercent < expectedPercent)
-        {
-            var expectedSq = Math.Max(expectedPercent * expectedPercent, 1.0);
-            return ClampPercent(usedPercent * usedPercent * usedPercent / expectedSq);
-        }
-
-        return ClampPercent(usedPercent);
+        // Project current usage rate to end of period.
+        // E.g., 73% used at 85.7% elapsed → projected 85.2% at reset.
+        // E.g., 40% used at 50% elapsed → projected 80% at reset.
+        // E.g., 20% used 1h into 5h window → projected 100% at reset.
+        var projected = usedPercent / elapsedFraction;
+        return ClampPercent(projected);
     }
 
     /// <summary>
@@ -301,11 +299,166 @@ public static class UsageMath
             return ClampPercent(usedPercent);
         }
 
+        // Guard against DateTime underflow when nextResetUtc is too close to MinValue
+        if (nextResetUtc.Ticks < periodDuration.Ticks)
+        {
+            return ClampPercent(usedPercent);
+        }
+
         var periodStart = nextResetUtc - periodDuration;
         var elapsed = now - periodStart;
         var elapsedFraction = Math.Clamp(elapsed.TotalSeconds / periodDuration.TotalSeconds, 0.01, 1.0);
 
         return ClampPercent(usedPercent / elapsedFraction);
+    }
+
+    /// <summary>
+    /// Returns the pace badge result for a provider. Single source of truth — all UI code calls this.
+    /// Returns null when pace info is unavailable (disabled or missing period data).
+    /// </summary>
+    public static PaceBadgeResult? GetPaceBadge(
+        double usedPercent,
+        bool enablePaceAdjustment,
+        DateTime? nextResetTime,
+        TimeSpan? periodDuration,
+        DateTime? nowUtc = null)
+    {
+        if (!enablePaceAdjustment || !periodDuration.HasValue || !nextResetTime.HasValue)
+        {
+            return null;
+        }
+
+        var nextReset = nextResetTime.Value.ToUniversalTime();
+        if (nextReset.Ticks < periodDuration.Value.Ticks)
+        {
+            return null;
+        }
+
+        var projected = CalculateProjectedFinalPercent(usedPercent, nextReset, periodDuration.Value, nowUtc);
+        return ClassifyPace(projected);
+    }
+
+    /// <summary>
+    /// Returns the pace badge result for an already-computed projected percent.
+    /// </summary>
+    public static PaceBadgeResult ClassifyPace(double projectedPercent)
+    {
+        var tier = projectedPercent switch
+        {
+            >= 100.0 => PaceTier.OverPace,
+            >= 70.0 => PaceTier.OnPace,
+            _ => PaceTier.Headroom,
+        };
+
+        return new PaceBadgeResult(tier, projectedPercent);
+    }
+
+    /// <summary>
+    /// Legacy wrapper — returns just the text string for backward compatibility.
+    /// </summary>
+    public static string? GetPaceBadgeText(
+        double usedPercent,
+        bool enablePaceAdjustment,
+        DateTime? nextResetTime,
+        TimeSpan? periodDuration,
+        DateTime? nowUtc = null)
+    {
+        return GetPaceBadge(usedPercent, enablePaceAdjustment, nextResetTime, periodDuration, nowUtc)?.Text;
+    }
+
+    /// <summary>
+    /// Legacy wrapper — returns just the text string for an already-computed projected percent.
+    /// </summary>
+    public static string? GetPaceBadgeText(double projectedPercent)
+    {
+        return ClassifyPace(projectedPercent).Text;
+    }
+
+    /// <summary>
+    /// Returns the pace-adjusted color percent for a provider. Single source of truth.
+    /// </summary>
+    public static double GetColorIndicatorPercent(
+        double usedPercent,
+        bool enablePaceAdjustment,
+        DateTime? nextResetTime,
+        TimeSpan? periodDuration,
+        DateTime? nowUtc = null)
+    {
+        if (!enablePaceAdjustment || !periodDuration.HasValue || !nextResetTime.HasValue)
+        {
+            return usedPercent;
+        }
+
+        return CalculatePaceAdjustedColorPercent(
+            usedPercent,
+            nextResetTime.Value.ToUniversalTime(),
+            periodDuration.Value,
+            nowUtc);
+    }
+
+    /// <summary>
+    /// Calculates how many days have elapsed in the current period. Returns 0 if data is invalid.
+    /// </summary>
+    public static double GetElapsedDays(DateTime? nextResetTime, TimeSpan? periodDuration, DateTime? nowUtc = null)
+    {
+        if (!nextResetTime.HasValue || !periodDuration.HasValue || periodDuration.Value.TotalDays < 1)
+        {
+            return 0;
+        }
+
+        var nextReset = nextResetTime.Value.ToUniversalTime();
+        if (nextReset.Ticks < periodDuration.Value.Ticks)
+        {
+            return 0;
+        }
+
+        var now = nowUtc ?? DateTime.UtcNow;
+        var periodStart = nextReset - periodDuration.Value;
+        return Math.Max(0, (now - periodStart).TotalDays);
+    }
+
+    public static string FormatAbsoluteTime(DateTime nextReset)
+    {
+        var local = nextReset.Kind == DateTimeKind.Utc ? nextReset.ToLocalTime() : nextReset;
+        var diff = local - DateTime.Now;
+        if (diff.TotalSeconds <= 0)
+        {
+            return "now";
+        }
+
+        if (local.Date == DateTime.Today)
+        {
+            return local.ToString("HH:mm");
+        }
+
+        if (local.Date == DateTime.Today.AddDays(1))
+        {
+            return $"Tomorrow {local:HH:mm}";
+        }
+
+        return diff.TotalDays < 7 ? $"{local:dddd HH:mm}" : $"{local:MMM d HH:mm}";
+    }
+
+    public static string FormatAbsoluteDate(DateTime nextReset)
+    {
+        var local = nextReset.Kind == DateTimeKind.Utc ? nextReset.ToLocalTime() : nextReset;
+        return $"{local:MMM d, HH:mm}";
+    }
+
+    public static string FormatRelativeTime(DateTime nextReset)
+    {
+        var diff = nextReset - DateTime.Now;
+        if (diff.TotalSeconds <= 0)
+        {
+            return "0m";
+        }
+
+        if (diff.TotalDays >= 1)
+        {
+            return $"{diff.Days}d {diff.Hours}h";
+        }
+
+        return diff.TotalHours >= 1 ? $"{diff.Hours}h {diff.Minutes}m" : $"{diff.Minutes}m";
     }
 
     public static BurnRateForecast CalculateBurnRateForecast(IEnumerable<ProviderUsage> history)

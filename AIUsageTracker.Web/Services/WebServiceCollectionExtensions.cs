@@ -27,14 +27,19 @@ internal static class WebServiceCollectionExtensions
         });
         services.AddSingleton<IWebDatabaseRepository>(sp => sp.GetRequiredService<WebDatabaseService>());
         services.AddSingleton<IUsageAnalyticsService, UsageAnalyticsService>();
+        services.AddSingleton<IMonitorLauncher, MonitorLauncher>();
         services.AddSingleton<IMonitorService, MonitorService>();
-        services.AddSingleton<IMonitorLauncherClient>(_ =>
+        services.AddSingleton<IMonitorLauncherClient>(sp =>
         {
             var scenarioPath = Environment.GetEnvironmentVariable(
                 ScenarioMonitorLauncherClient.ScenarioPathEnvironmentVariable);
-            return string.IsNullOrWhiteSpace(scenarioPath)
-                ? new MonitorLauncherClient()
-                : new ScenarioMonitorLauncherClient(scenarioPath);
+            if (!string.IsNullOrWhiteSpace(scenarioPath))
+            {
+                return new ScenarioMonitorLauncherClient(scenarioPath);
+            }
+
+            var launcher = sp.GetRequiredService<IMonitorLauncher>();
+            return new MonitorLauncherClient(launcher);
         });
         services.AddSingleton<IDataExportService>(sp =>
         {
@@ -43,7 +48,7 @@ internal static class WebServiceCollectionExtensions
             var dbPath = sp.GetRequiredService<WebDatabaseConnectionFactory>().GetDatabasePath();
             return new DataExportService(repo, logger, dbPath);
         });
-        services.AddSingleton<IMonitorLifecycleService, MonitorLifecycleService>();
+        services.AddSingleton<MonitorLifecycleService>();
         services.AddSingleton<MonitorProcessService>();
         services.AddSingleton<IConfigLoader, JsonConfigLoader>();
         return services;

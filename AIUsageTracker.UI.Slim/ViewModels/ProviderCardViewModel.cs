@@ -36,6 +36,9 @@ public partial class ProviderCardViewModel : BaseViewModel
     private bool _enablePaceAdjustment = true;
 
     [ObservableProperty]
+    private bool _useRelativeResetTime;
+
+    [ObservableProperty]
     private ObservableCollection<SubProviderCardViewModel> _details = new();
 
     private ProviderCardPresentation? _presentation;
@@ -49,6 +52,7 @@ public partial class ProviderCardViewModel : BaseViewModel
         this._showUsedPercentages = prefs.ShowUsedPercentages;
         this._showUsagePerHour = prefs.ShowUsagePerHour;
         this._enablePaceAdjustment = prefs.EnablePaceAdjustment;
+        this._useRelativeResetTime = prefs.UseRelativeResetTime;
 
         this.UpdatePresentation();
         this.PopulateDetails();
@@ -60,7 +64,7 @@ public partial class ProviderCardViewModel : BaseViewModel
 
     public string AccountDisplay => this.IsPrivacyMode
         ? "****"
-        : ProviderAccountDisplayCatalog.ResolveDisplayAccountName(this.ProviderId, this.Usage.AccountName, false);
+        : MainWindowRuntimeLogic.ResolveDisplayAccountName(this.ProviderId, this.Usage.AccountName, false);
 
     public bool HasAccountName => !string.IsNullOrWhiteSpace(this.Usage.AccountName);
 
@@ -94,25 +98,31 @@ public partial class ProviderCardViewModel : BaseViewModel
 
     public double SecondaryUsedPercent => this._presentation?.DualBucketSecondaryUsed ?? 0;
 
+    public double PrimaryColorPercent => this._presentation?.DualBucketPrimaryColorPercent
+                                         ?? this.PrimaryUsedPercent;
+
+    public double SecondaryColorPercent => this._presentation?.DualBucketSecondaryColorPercent
+                                          ?? this.SecondaryUsedPercent;
+
     public string? ResetBadgeText
     {
         get
         {
             var suppressSingle = this._presentation?.SuppressSingleResetTime ?? false;
-            var resetTimes = ProviderResetBadgePresentationCatalog.ResolveResetTimes(this.Usage, suppressSingle);
+            var resetTimes = MainWindowRuntimeLogic.ResolveResetTimes(this.Usage, suppressSingle);
             if (resetTimes.Count == 0)
             {
                 return null;
             }
 
-            var resetParts = resetTimes.Select(GetRelativeTimeString).ToList();
+            var resetParts = resetTimes.Select(t => this.UseRelativeResetTime ? UsageMath.FormatRelativeTime(t) : UsageMath.FormatAbsoluteTime(t)).ToList();
             return $"({string.Join(" | ", resetParts)})";
         }
     }
 
     public DateTime? NextResetTime => this.Usage.NextResetTime;
 
-    public string? TooltipContent => ProviderTooltipPresentationCatalog.BuildContent(this.Usage, this.DisplayName);
+    public string? TooltipContent => MainWindowRuntimeLogic.BuildTooltipContent(this.Usage, this.DisplayName);
 
     /// <summary>
     /// Gets a formatted req/hr badge string when ShowUsagePerHour is enabled and data is available,
@@ -142,40 +152,37 @@ public partial class ProviderCardViewModel : BaseViewModel
     {
         get
         {
-            if (!this.EnablePaceAdjustment || !this.Usage.PeriodDuration.HasValue || !this.Usage.NextResetTime.HasValue)
-            {
-                return this.UsedPercent;
-            }
-
-            return UsageMath.CalculatePaceAdjustedColorPercent(
+            return GetColorIndicatorPercent(
+                this.Usage,
                 this.UsedPercent,
-                this.Usage.NextResetTime.Value.ToUniversalTime(),
-                this.Usage.PeriodDuration.Value);
+                this.EnablePaceAdjustment);
         }
     }
 
     /// <summary>
-    /// Gets "On pace" badge when usage is meaningfully under the expected rate for the elapsed
-    /// fraction of the quota window. Null when pace info is unavailable or user is at/over pace.
+    /// Gets the full pace badge result (tier + projected percent), or null when unavailable.
     /// </summary>
-    public string? PaceBadgeText
+    public PaceBadgeResult? PaceBadge
     {
         get
         {
-            if (!this.EnablePaceAdjustment || !this.Usage.PeriodDuration.HasValue || !this.Usage.NextResetTime.HasValue)
-            {
-                return null;
-            }
-
-            var period = this.Usage.PeriodDuration.Value;
-            var periodStart = this.Usage.NextResetTime.Value.ToUniversalTime() - period;
-            var elapsed = DateTime.UtcNow - periodStart;
-            var elapsedFraction = Math.Clamp(elapsed.TotalSeconds / period.TotalSeconds, 0.01, 1.0);
-            var expectedPercent = elapsedFraction * 100.0;
-
-            return this.UsedPercent < expectedPercent * 0.95 ? "On pace" : null;
+            return UsageMath.GetPaceBadge(
+                this.UsedPercent,
+                this.EnablePaceAdjustment,
+                this.Usage.NextResetTime,
+                this.Usage.PeriodDuration);
         }
     }
+
+    /// <summary>
+    /// Gets the pace badge display text, or null when unavailable.
+    /// </summary>
+    public string? PaceBadgeText => this.PaceBadge?.Text;
+
+    /// <summary>
+    /// Gets the projected usage text (e.g. "Projected: 73%"), or null when unavailable.
+    /// </summary>
+    public string? ProjectedUsageText => this.PaceBadge?.ProjectedText;
 
     partial void OnUsageChanged(ProviderUsage value)
     {
@@ -197,13 +204,17 @@ public partial class ProviderCardViewModel : BaseViewModel
         OnPropertyChanged(nameof(HasDualQuotaBuckets));
         OnPropertyChanged(nameof(PrimaryUsedPercent));
         OnPropertyChanged(nameof(SecondaryUsedPercent));
+        OnPropertyChanged(nameof(PrimaryColorPercent));
+        OnPropertyChanged(nameof(SecondaryColorPercent));
         OnPropertyChanged(nameof(ResetBadgeText));
         OnPropertyChanged(nameof(NextResetTime));
         OnPropertyChanged(nameof(TooltipContent));
         OnPropertyChanged(nameof(HasDetails));
         OnPropertyChanged(nameof(UsageRateBadgeText));
         OnPropertyChanged(nameof(ColorIndicatorPercent));
+        OnPropertyChanged(nameof(PaceBadge));
         OnPropertyChanged(nameof(PaceBadgeText));
+        OnPropertyChanged(nameof(ProjectedUsageText));
     }
 
     partial void OnIsPrivacyModeChanged(bool value)
@@ -232,39 +243,39 @@ public partial class ProviderCardViewModel : BaseViewModel
 
     private void UpdatePresentation()
     {
-        this._presentation = ProviderCardPresentationCatalog.Create(this.Usage, this.ShowUsedPercentages);
+        this._presentation = MainWindowRuntimeLogic.Create(this.Usage, this.ShowUsedPercentages);
     }
 
     private void PopulateDetails()
     {
         this.Details.Clear();
 
-        var displayableDetails = ProviderSubDetailPresentationCatalog.GetDisplayableDetails(this.Usage);
+        var displayableDetails = MainWindowRuntimeLogic.GetDisplayableDetails(this.Usage);
         foreach (var detail in displayableDetails)
         {
             this.Details.Add(new SubProviderCardViewModel(detail, this.Usage.IsQuotaBased, this.IsPrivacyMode, this.ShowUsedPercentages));
         }
     }
 
-    private static string GetRelativeTimeString(DateTime nextReset)
+    private static double GetColorIndicatorPercent(
+        ProviderUsage usage,
+        double usedPercent,
+        bool enablePaceAdjustment,
+        DateTime? nowUtc = null)
     {
-        var diff = nextReset - DateTime.Now;
+        return UsageMath.GetColorIndicatorPercent(
+            usedPercent,
+            enablePaceAdjustment,
+            usage.NextResetTime,
+            usage.PeriodDuration,
+            nowUtc);
+    }
 
-        if (diff.TotalSeconds <= 0)
-        {
-            return "0m";
-        }
 
-        if (diff.TotalDays >= 1)
-        {
-            return $"{diff.Days}d {diff.Hours}h";
-        }
-
-        if (diff.TotalHours >= 1)
-        {
-            return $"{diff.Hours}h {diff.Minutes}m";
-        }
-
-        return $"{diff.Minutes}m";
+    partial void OnUseRelativeResetTimeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ResetBadgeText));
     }
 }
+
+

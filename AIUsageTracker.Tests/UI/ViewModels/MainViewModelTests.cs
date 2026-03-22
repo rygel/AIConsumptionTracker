@@ -18,13 +18,15 @@ namespace AIUsageTracker.Tests.UI.ViewModels;
 public class MainViewModelTests
 {
     private readonly Mock<IMonitorService> _mockMonitorService;
-    private readonly Mock<IUsageAnalyticsService> _mockAnalyticsService;
+    private readonly Mock<IBrowserService> _mockBrowserService;
+    private readonly Mock<IDialogService> _mockDialogService;
     private readonly ILogger<MainViewModel> _logger;
 
     public MainViewModelTests()
     {
         this._mockMonitorService = new Mock<IMonitorService>();
-        this._mockAnalyticsService = new Mock<IUsageAnalyticsService>();
+        this._mockBrowserService = new Mock<IBrowserService>();
+        this._mockDialogService = new Mock<IDialogService>();
         this._logger = NullLogger<MainViewModel>.Instance;
 
         // Default setup for RefreshPortAsync which is called before GetUsageAsync
@@ -39,10 +41,9 @@ public class MainViewModelTests
     {
         return new MainViewModel(
             this._mockMonitorService.Object,
-            this._mockAnalyticsService.Object,
             this._logger,
-            browserService,
-            dialogService);
+            browserService ?? this._mockBrowserService.Object,
+            dialogService ?? this._mockDialogService.Object);
     }
 
     [Fact]

@@ -523,7 +523,7 @@ public class GroupedUsageDisplayAdapterTests
     {
         // Kimi has no Model-type details; all its details are QuotaWindow (Weekly + 5h).
         // ProviderQuotaDetails must be surfaced as the parent's Details so that
-        // ProviderDualQuotaBucketPresentationCatalog.TryGetPresentation can render two bars.
+        // MainWindowRuntimeLogic.TryGetDualQuotaBucketPresentation can render two bars.
         var weeklyDetail = new ProviderUsageDetail
         {
             Name = "Weekly Limit",
@@ -574,7 +574,7 @@ public class GroupedUsageDisplayAdapterTests
     {
         // Regression: when the Spark model has QuotaBuckets with Burst and Rolling kinds,
         // the child codex.spark card must have Details with those kinds so
-        // ProviderDualQuotaBucketPresentationCatalog.TryGetPresentation can render dual bars.
+        // MainWindowRuntimeLogic.TryGetDualQuotaBucketPresentation can render dual bars.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -695,3 +695,4 @@ public class GroupedUsageDisplayAdapterTests
         Assert.Single(usages, u => string.Equals(u.ProviderId, "codex.spark", StringComparison.Ordinal));
     }
 }
+
