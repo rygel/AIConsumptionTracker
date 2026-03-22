@@ -20,7 +20,12 @@ public partial class CardDesignerWindow : Window
     {
         this.InitializeComponent();
         this._preferences = preferences;
-        this._sampleUsages = usages.Take(5).ToList();
+        this._sampleUsages = usages
+            .OrderByDescending(u => u.IsAvailable && u.UsedPercent > 0 ? 1 : 0)
+            .ThenByDescending(u => u.UsedPercent)
+            .ThenByDescending(u => u.IsAvailable ? 1 : 0)
+            .Take(5)
+            .ToList();
 
         this.PopulateSlotOptions();
         this.ApplyPreset(CardPreset.Detailed);
