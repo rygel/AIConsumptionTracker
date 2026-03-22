@@ -320,6 +320,10 @@
                                           Margin="0,4" Foreground="{DynamicResource SecondaryText}"
                                           ToolTip="Adjust progress-bar colour based on rolling-window pace"
                                           Checked="LayoutSetting_Changed" Unchecked="LayoutSetting_Changed"/>
+                                <CheckBox x:Name="UseRelativeResetTimeCheck" Content="Relative reset times"
+                                          Margin="0,4" Foreground="{DynamicResource SecondaryText}"
+                                          ToolTip="Show countdown (2h 15m) instead of absolute times (Saturday 17:44)"
+                                          Checked="LayoutSetting_Changed" Unchecked="LayoutSetting_Changed"/>
                             </StackPanel>
 
                             <!-- Right: Thresholds -->
