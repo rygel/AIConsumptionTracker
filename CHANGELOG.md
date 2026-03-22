@@ -2,125 +2,48 @@
 
 ## [Unreleased]
 
-## [2.3.2-beta.23] - 2026-03-22
-
-### Fixed
-- **Codex reset badge showed 3 parts instead of 2**: Spark's reset time leaked into the parent card, producing "(3h | 5d 2h | 2h)". Now correctly shows only burst + weekly: "(3h | 5d 2h)".
-
-### Changed
-- Added `.gitleaksbaseline.json` for 70 known false positives (dummy test keys, Google OAuth public client creds). Push scan now uses baseline so only new secrets trigger failure.
-
-## [2.3.2-beta.22] - 2026-03-22
+## [2.3.3] - 2026-03-22
 
 ### Added
-- **3-tier pace badges**: Headroom (green, projected <70%), On pace (green, 70–100%), Over pace (red, >100%). Replaces the previous binary On pace / Over pace system.
-- **Projected usage text**: Each pace badge now shows the projected end-of-period percentage (e.g. "Projected: 73%") so users see the raw data.
-- Color-coded badges: green for Headroom and On pace, red for Over pace.
-- New `PaceBadgeResult` struct and `PaceTier` enum — structured pace API for UI code.
-- 10 new pace classification tests covering all tier boundaries and toggle behavior.
-
-## [2.3.2-beta.21] - 2026-03-22
-
-### Performance
-- **Startup: parallelized monitor launch with WPF initialization**. Monitor warmup now fires immediately in `App.OnStartup` via `Task.Run`, running concurrently with the ~3s WPF `InitializeComponent`. Previously these ran sequentially (~19s total). Expected cold start: ~3.5s.
-- Added `CheckHealthAsync(TimeSpan timeout)` for fast-fail health checks (1.5s vs 12s default).
-- Orchestrator skips redundant health check when caller already knows monitor is down.
-
-### Security
-- Fixed path traversal vulnerability in `scripts/Seeder/Program.cs` — fixture paths now validated to stay within working directory.
-
-## [2.3.2-beta.20] - 2026-03-22
-
-### Fixed
-- **Startup speed**: eliminated 12-second HTTP timeout on cold start (early fetch waited for dead Monitor). Now does quick health check first — skips immediately if Monitor isn't running. Also eliminated redundant preferences double-load from disk.
-
-## [2.3.2-beta.19] - 2026-03-22
-
-### Fixed
-- **Startup deadlock (beta.18 regression)**: ConfigureAwait(false) in UI startup moved continuation off UI thread, causing empty UI. Fixed by removing ConfigureAwait(false) from UI code path.
-- Re-enabled 7 dangerous analyzer rules that were globally suppressed. Fixed all violations in code instead of suppressing.
-- Added ConfigureAwait guardrail test — scans all WPF code-behind for ConfigureAwait(false).
-
-## [2.3.2-beta.18] - 2026-03-22
-
-### Performance
-- **Startup: data in <1 second** (was ~12 seconds). Eliminated 5 redundant health checks, deleted RapidPoll, contract check runs in background.
-
-### Fixed
-- Update download progress window now themed (was white on dark theme — caught by new theme test).
-
-### Changed
-- Consolidated 10 duplicated helper methods into MainWindowRuntimeLogic.
-- Extracted GetResourceBrush to shared UIHelper.
-
-## [2.3.2-beta.17] - 2026-03-22
-
-### Changed
-- **Card Designer inlined into Settings**: no more separate window. Cards tab has config + live preview directly. Right-click provider card opens Settings at Cards tab.
-- **Dark icon visibility**: SVG icons get a subtle white glow on dark themes so black logos are visible.
-- **Other providers section**: same indent level as regular cards.
-- **Save Preset dialog**: properly themed (was white on dark theme).
-- **Eliminated remaining duplicated logic**: masking, time formatting consolidated into PrivacyHelper and UsageMath.
-- Added theme completeness and theme application regression tests.
-
-## [2.3.2-beta.16] - 2026-03-22
-
-### Fixed
-- **UI crash on stale provider data (beta.15 regression)**: DateTime overflow in ProviderCardRenderer.GetPaceBadgeText — same bug as beta.12/14 but in a different copy of the pace logic.
-- **Consolidated all pace logic into UsageMath**: GetPaceBadgeText, GetColorIndicatorPercent, GetElapsedDays now have one implementation. Zero duplicated period math remains in UI code.
-
-## [2.3.2-beta.15] - 2026-03-22
-
-### Added
-- **Card Designer** (experimental): new window to experiment with card layouts — configurable slots, presets, compact mode with background progress bar. Right-click any provider card to open.
+- **3-tier pace badges with projected usage**: Headroom (green, projected <70%), On pace (green, 70–100%), Over pace (red, >100%). Shows projected end-of-period percentage (e.g. "Projected: 73%") next to each badge.
+- **Card Designer** in Settings → Cards: configurable card slots, presets, compact mode with background progress bar.
 - **Auto-collapse inactive providers**: providers with 0% usage grouped into expandable "Other providers" section.
 - **Configurable reset time format**: absolute by default, relative optional via right-click or Settings.
 - **Daily budget in tooltip**: shows daily budget and expected vs actual usage for weekly providers.
-- **Per-window pace projection**: burst and weekly bars independently pace-projected.
+- **Per-window pace projection**: burst and weekly windows independently pace-projected.
+
+### Performance
+- **Startup ~19s → ~3.5s**: monitor launch now runs in parallel with WPF initialization. Fast-fail health checks (1.5s timeout), eliminated redundant HTTP timeouts and double preferences load.
+
+### Fixed
+- **Pace calculation completely reworked**: replaced cubic suppression formula with simple linear projection (`projected = used / elapsed_fraction`). Works correctly for all window sizes.
+- **Codex reset badge showed 3 parts**: Spark's reset time leaked into the parent card. Now correctly shows only burst + weekly.
+- **DateTime overflow on stale provider data**: three separate copies of pace logic each had the same underflow bug. Consolidated all pace math into `UsageMath` — single source of truth.
+- **Empty UI on startup**: MonitorLauncher DI resolution failed; added DI-friendly constructor.
+- **ConfigureAwait(false) deadlock**: removed from UI code path; added guardrail test.
+- **Pace used burst reset time instead of weekly**: parent card's NextResetTime now correctly uses the rolling window.
+- **Unthemed dialogs**: update progress window and save preset dialog now themed on dark mode.
+- Re-enabled 7 dangerous analyzer rules that were globally suppressed. Fixed all violations.
 
 ### Changed
-- **Settings redesigned**: new Cards tab, Layout tab slimmed, Data merged into Monitor, all tabs use two-column layouts.
-- **Screenshot baselines auto-commit**: no more separate PRs for baseline updates.
+- **~7,000 lines removed**: dead code, unused abstractions, duplicate interfaces, Polly resilience stack.
+- **Settings redesigned**: new Cards tab, Layout tab slimmed, Data merged into Monitor, two-column layouts.
+- Split SettingsWindow.xaml.cs into partial classes per tab.
+- Replace reflection-based provider discovery with explicit static registration.
+- Convert MonitorLauncher from static to injectable singleton.
+- Card Designer moved from separate window to inline Settings Cards tab.
+- Dark SVG icons get white glow on dark themes.
+- Consolidated duplicated helpers into UsageMath, PrivacyHelper, UIHelper.
 
-## [2.3.2-beta.14] - 2026-03-21
-
-### Fixed
-- **UI crash on stale provider data**: Pace calculation crashed with DateTime overflow when provider NextResetTime was too old, causing blank UI (56 render failures per session). Added underflow guard.
-- Added 15 integration tests: DI resolution, pace calculation end-to-end, provider response deserialization.
-
-## [2.3.2-beta.13] - 2026-03-21
-
-### Fixed
-- **Empty UI on startup (beta.12 regression)**: MonitorLauncher DI resolution failed because MS DI cannot resolve Func<> constructor parameters. Added a DI-friendly constructor. Added DI resolution smoke tests to prevent this class of bug.
-
-## [2.3.2-beta.12] - 2026-03-21
-
-### Fixed
-- **Pace calculation used burst reset time instead of weekly**: Codex and Claude Code set the parent card's NextResetTime from the 5-hour burst window, but PeriodDuration was 7 days. This made pace projection nonsensical — showing "On pace" when nearly all weekly quota was consumed. Fixed by correcting NextResetTime to the rolling window detail in the UI enrichment layer.
-
-### Changed
-- Split SettingsWindow.xaml.cs (2,500 lines) into partial classes per tab (Providers, Monitor, Data).
-- Split MainWindow update/SignalR logic into separate partial files.
-- Move Win32 P/Invoke declarations to shared Win32Interop helper class.
-- Replace reflection-based provider discovery with explicit static registration list.
-- Convert MonitorLauncher from static class to injectable singleton (remove AsyncLocal test overrides).
-- Delete unused experimental-rust CI workflow (12 Rust build jobs).
-
-## [2.3.2-beta.11] - 2026-03-21
-
-### Fixed
-- **Pace calculation now uses simple projection math**: replaced cubic suppression formula that hid real usage problems (e.g. 73% used at 88.5% elapsed showed green instead of warning). Now uses `projected = used / elapsed_fraction` — works correctly for all window sizes (5h, 24h, 7-day).
-- Badge shows "Over pace" when projected usage exceeds 100%, "On pace" when projected < 90%.
-
-### Changed
-- Remove unnecessary code and improve performance: stripped ~7,000 lines of dead code, unused abstractions, duplicate interfaces, and over-engineered patterns.
-- Removed Polly resilience stack (retry/circuit-breaker); providers use plain HttpClient.
+### Security
+- Fixed path traversal vulnerability in Seeder script.
+- Added gitleaks baseline for known false positives; push scan now uses baseline.
 
 ### CI/CD
-- Security scan now weekly-only (was running on every push/PR, duplicating Trivy).
-- Removed fake build-performance-monitor workflow.
-- Added NuGet caching to dependency-updates and security-scan workflows.
-- Spread Monday-only scheduled scans across Mon–Fri to avoid CI contention.
+- Security scan now weekly-only. Removed fake build-performance-monitor workflow.
+- NuGet caching added to publish, dependency-updates, and security-scan workflows.
+- Playwright browser caching for web tests.
+- Screenshot baselines auto-commit with [skip ci].
 
 ## [2.3.2-beta.7] - 2026-03-20
 
