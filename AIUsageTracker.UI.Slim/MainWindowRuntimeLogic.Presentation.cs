@@ -38,7 +38,7 @@ internal static partial class MainWindowRuntimeLogic
         bool showUsed)
     {
         var providerId = usage.ProviderId ?? string.Empty;
-        var isStale = usage.Details?.Any(d => d.IsStale) == true;
+        var isStale = usage.IsStale;
         var description = usage.Description ?? string.Empty;
         var isMissing = usage.State == ProviderUsageState.Missing;
         var isConsoleCheck = usage.State == ProviderUsageState.ConsoleCheck;
@@ -121,6 +121,8 @@ internal static partial class MainWindowRuntimeLogic
             hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.SecondaryUsedPercent : (double?)null,
             hasDualQuotaBucketPresentation ? ComputePaceProjectedPercent(dualQuotaBucketPresentation.PrimaryUsedPercent, dualQuotaBucketPresentation.PrimaryResetTime, dualQuotaBucketPresentation.PrimaryPeriodDuration) : (double?)null,
             hasDualQuotaBucketPresentation ? ComputePaceProjectedPercent(dualQuotaBucketPresentation.SecondaryUsedPercent, dualQuotaBucketPresentation.SecondaryResetTime, dualQuotaBucketPresentation.SecondaryPeriodDuration) : (double?)null,
+            hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.PrimaryLabel : null,
+            hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.SecondaryLabel : null,
             isStale);
     }
 
@@ -198,10 +200,12 @@ internal static partial class MainWindowRuntimeLogic
     {
         if (isAggregateParent)
         {
-            return (string.IsNullOrWhiteSpace(description) ? "Quota details unavailable" : description, false);
+            return (string.IsNullOrWhiteSpace(description) ? "Awaiting data" : description, false);
         }
 
-        if ((ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty)?.IsTooltipOnly ?? false))
+        // Reuse the already-resolved definition from the caller instead of a second catalog lookup.
+        var def = ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty);
+        if (def?.IsTooltipOnly ?? false)
         {
             return (GetTooltipOnlyCompactStatus(usage, description), false);
         }
@@ -267,6 +271,8 @@ internal static partial class MainWindowRuntimeLogic
         double? dualBucketSecondaryUsed = null,
         double? dualBucketPrimaryColorPercent = null,
         double? dualBucketSecondaryColorPercent = null,
+        string? dualBucketPrimaryLabel = null,
+        string? dualBucketSecondaryLabel = null,
         bool isStale = false)
     {
         return new ProviderCardPresentation(
@@ -283,6 +289,8 @@ internal static partial class MainWindowRuntimeLogic
             DualBucketSecondaryUsed: dualBucketSecondaryUsed,
             DualBucketPrimaryColorPercent: dualBucketPrimaryColorPercent,
             DualBucketSecondaryColorPercent: dualBucketSecondaryColorPercent,
+            DualBucketPrimaryLabel: dualBucketPrimaryLabel,
+            DualBucketSecondaryLabel: dualBucketSecondaryLabel,
             IsStale: isStale);
     }
 
@@ -361,12 +369,13 @@ internal static partial class MainWindowRuntimeLogic
             return Array.Empty<ProviderUsageDetail>();
         }
 
-        if (ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty)?.HasDisplayableDerivedProviders ?? false)
+        var providerDef = ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty);
+        if (providerDef?.HasDisplayableDerivedProviders ?? false)
         {
             return Array.Empty<ProviderUsageDetail>();
         }
 
-        if ((ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty)?.IsTooltipOnly ?? false))
+        if (providerDef?.IsTooltipOnly ?? false)
         {
             return Array.Empty<ProviderUsageDetail>();
         }
@@ -506,9 +515,13 @@ internal static partial class MainWindowRuntimeLogic
             return false;
         }
 
-        ProviderMetadataCatalog.TryGet(usage.ProviderId ?? string.Empty, out var definition);
-        var declaredWindows = definition?.QuotaWindows.Where(w => w.Kind != WindowKind.None).ToList();
-        if (declaredWindows == null || declaredWindows.Count == 0)
+        if (!ProviderMetadataCatalog.TryGet(usage.ProviderId ?? string.Empty, out var definition))
+        {
+            return false;
+        }
+
+        var declaredWindows = definition.QuotaWindows.Where(w => w.Kind != WindowKind.None).ToList();
+        if (declaredWindows.Count == 0)
         {
             return false;
         }
@@ -560,7 +573,7 @@ internal static partial class MainWindowRuntimeLogic
     {
         for (var index = 0; index < windows.Count; index++)
         {
-            if (ReferenceEquals(windows[index], declaredWindow))
+            if (windows[index].Kind == declaredWindow.Kind)
             {
                 return index;
             }
@@ -646,15 +659,24 @@ internal static partial class MainWindowRuntimeLogic
         return sameKindWindows.Count == 1 ? sameKindWindows[0] : null;
     }
 
+    private static readonly string[] DetailNameSuffixes = new[] { " Limit", " Quota", " Window" };
+
     private static string? ExtractDurationLabelFromDetailName(string? name)
     {
-        const string suffix = " Limit";
-        if (string.IsNullOrWhiteSpace(name) || !name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(name))
         {
             return null;
         }
 
-        return name[..^suffix.Length].Trim();
+        foreach (var suffix in DetailNameSuffixes)
+        {
+            if (name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                return name[..^suffix.Length].Trim();
+            }
+        }
+
+        return null;
     }
 
     private static string NormalizeIdentity(string? value)
@@ -686,6 +708,8 @@ internal sealed record ProviderCardPresentation(
     double? DualBucketSecondaryUsed = null,
     double? DualBucketPrimaryColorPercent = null,
     double? DualBucketSecondaryColorPercent = null,
+    string? DualBucketPrimaryLabel = null,
+    string? DualBucketSecondaryLabel = null,
     bool IsStale = false)
 {
     public bool HasDualBuckets => this.DualBucketPrimaryUsed.HasValue;
