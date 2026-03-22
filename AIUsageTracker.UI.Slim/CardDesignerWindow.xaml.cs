@@ -37,6 +37,7 @@ public partial class CardDesignerWindow : Window
         UsedPercent,
         RemainingPercent,
         ResetAbsolute,
+        ResetAbsoluteDate,
         ResetRelative,
         AccountName,
         StatusText,
@@ -50,22 +51,47 @@ public partial class CardDesignerWindow : Window
         PaceFocus,
     }
 
+    private sealed class SlotOption
+    {
+        public CardSlotContent Value { get; init; }
+
+        public string Label { get; init; } = string.Empty;
+
+        public override string ToString() => this.Label;
+    }
+
+    private sealed class UserPreset
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public CardSlotContent PrimaryBadge { get; set; }
+
+        public CardSlotContent SecondaryBadge { get; set; }
+
+        public CardSlotContent StatusLine { get; set; }
+
+        public CardSlotContent ResetInfo { get; set; }
+
+        public override string ToString() => this.Name;
+    }
+
     private void PopulateSlotOptions()
     {
-        var options = new[]
+        var options = new SlotOption[]
         {
-            new { Value = CardSlotContent.None, Label = "(empty)" },
-            new { Value = CardSlotContent.PaceBadge, Label = "Pace badge (On pace / Over pace)" },
-            new { Value = CardSlotContent.ProjectedPercent, Label = "Projected % at reset" },
-            new { Value = CardSlotContent.DailyBudget, Label = "Daily budget (14%/day)" },
-            new { Value = CardSlotContent.UsageRate, Label = "Usage rate (req/hr)" },
-            new { Value = CardSlotContent.UsedPercent, Label = "Used %" },
-            new { Value = CardSlotContent.RemainingPercent, Label = "Remaining %" },
-            new { Value = CardSlotContent.ResetAbsolute, Label = "Reset time (Saturday 17:44)" },
-            new { Value = CardSlotContent.ResetRelative, Label = "Reset time (4d 22h)" },
-            new { Value = CardSlotContent.AccountName, Label = "Account name" },
-            new { Value = CardSlotContent.StatusText, Label = "Status text" },
-            new { Value = CardSlotContent.AuthSource, Label = "Auth source" },
+            new() { Value = CardSlotContent.None, Label = "(empty)" },
+            new() { Value = CardSlotContent.PaceBadge, Label = "Pace badge (On pace / Over pace)" },
+            new() { Value = CardSlotContent.ProjectedPercent, Label = "Projected % at reset" },
+            new() { Value = CardSlotContent.DailyBudget, Label = "Daily budget (14%/day)" },
+            new() { Value = CardSlotContent.UsageRate, Label = "Usage rate (req/hr)" },
+            new() { Value = CardSlotContent.UsedPercent, Label = "Used %" },
+            new() { Value = CardSlotContent.RemainingPercent, Label = "Remaining %" },
+            new() { Value = CardSlotContent.ResetAbsolute, Label = "Reset time (Saturday 17:44)" },
+            new() { Value = CardSlotContent.ResetAbsoluteDate, Label = "Reset date (Mar 26, 17:44)" },
+            new() { Value = CardSlotContent.ResetRelative, Label = "Reset countdown (4d 22h)" },
+            new() { Value = CardSlotContent.AccountName, Label = "Account name" },
+            new() { Value = CardSlotContent.StatusText, Label = "Status text" },
+            new() { Value = CardSlotContent.AuthSource, Label = "Auth source" },
         };
 
         foreach (var combo in new[] { this.PrimaryBadgeSlot, this.SecondaryBadgeSlot, this.StatusLineSlot, this.ResetInfoSlot })
@@ -127,10 +153,11 @@ public partial class CardDesignerWindow : Window
 
     private Border BuildPreviewCard(ProviderUsage usage)
     {
+        var isCompact = this.CompactModeCheck?.IsChecked ?? false;
         var displayName = ProviderMetadataCatalog.ResolveDisplayLabel(usage);
         var primaryText = this.ResolveSlotText(usage, (CardSlotContent?)this.PrimaryBadgeSlot.SelectedValue ?? CardSlotContent.None);
         var secondaryText = this.ResolveSlotText(usage, (CardSlotContent?)this.SecondaryBadgeSlot.SelectedValue ?? CardSlotContent.None);
-        var statusText = this.ResolveSlotText(usage, (CardSlotContent?)this.StatusLineSlot.SelectedValue ?? CardSlotContent.None);
+        var statusText = isCompact ? string.Empty : this.ResolveSlotText(usage, (CardSlotContent?)this.StatusLineSlot.SelectedValue ?? CardSlotContent.None);
         var resetText = this.ResolveSlotText(usage, (CardSlotContent?)this.ResetInfoSlot.SelectedValue ?? CardSlotContent.None);
 
         var usedPercent = usage.UsedPercent;
@@ -143,8 +170,8 @@ public partial class CardDesignerWindow : Window
             BorderBrush = (Brush)this.FindResource("CardBorder"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(10, 8, 10, 8),
-            Margin = new Thickness(0, 0, 0, 4),
+            Padding = isCompact ? new Thickness(8, 4, 8, 4) : new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 0, 0, isCompact ? 2 : 4),
         };
 
         var stack = new StackPanel();
@@ -252,6 +279,7 @@ public partial class CardDesignerWindow : Window
             CardSlotContent.UsedPercent => $"{usage.UsedPercent:F0}% used",
             CardSlotContent.RemainingPercent => $"{Math.Max(0, 100 - usage.UsedPercent):F0}% remaining",
             CardSlotContent.ResetAbsolute => GetAbsoluteResetText(usage),
+            CardSlotContent.ResetAbsoluteDate => GetAbsoluteDateResetText(usage),
             CardSlotContent.ResetRelative => GetRelativeResetText(usage),
             CardSlotContent.AccountName => usage.AccountName ?? string.Empty,
             CardSlotContent.StatusText => usage.Description ?? string.Empty,
@@ -351,6 +379,20 @@ public partial class CardDesignerWindow : Window
         return $"{local:MMM d HH:mm}";
     }
 
+    private static string GetAbsoluteDateResetText(ProviderUsage usage)
+    {
+        if (!usage.NextResetTime.HasValue)
+        {
+            return string.Empty;
+        }
+
+        var local = usage.NextResetTime.Value.Kind == DateTimeKind.Utc
+            ? usage.NextResetTime.Value.ToLocalTime()
+            : usage.NextResetTime.Value;
+
+        return $"{local:MMM d, HH:mm}";
+    }
+
     private static string GetRelativeResetText(ProviderUsage usage)
     {
         if (!usage.NextResetTime.HasValue)
@@ -402,9 +444,100 @@ public partial class CardDesignerWindow : Window
         return Brushes.MediumSeaGreen;
     }
 
+    // --- User presets ---
+
+    private readonly List<UserPreset> _userPresets = new();
+
+    private void RefreshUserPresetCombo()
+    {
+        this.UserPresetCombo.ItemsSource = null;
+        this.UserPresetCombo.ItemsSource = this._userPresets;
+    }
+
+    private CardSlotContent GetSlotValue(ComboBox combo)
+    {
+        return (combo.SelectedValue as CardSlotContent?) ?? CardSlotContent.None;
+    }
+
+    private void SavePresetBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var name = PromptForName("Save Preset", "Preset name:");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        var existing = this._userPresets.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            this._userPresets.Remove(existing);
+        }
+
+        this._userPresets.Add(new UserPreset
+        {
+            Name = name,
+            PrimaryBadge = this.GetSlotValue(this.PrimaryBadgeSlot),
+            SecondaryBadge = this.GetSlotValue(this.SecondaryBadgeSlot),
+            StatusLine = this.GetSlotValue(this.StatusLineSlot),
+            ResetInfo = this.GetSlotValue(this.ResetInfoSlot),
+        });
+
+        this.RefreshUserPresetCombo();
+        this.UserPresetCombo.SelectedItem = this._userPresets.Last();
+    }
+
+    private void DeletePresetBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (this.UserPresetCombo.SelectedItem is UserPreset preset)
+        {
+            this._userPresets.Remove(preset);
+            this.RefreshUserPresetCombo();
+        }
+    }
+
+    private void UserPresetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (this.UserPresetCombo.SelectedItem is not UserPreset preset)
+        {
+            return;
+        }
+
+        this.PrimaryBadgeSlot.SelectedValue = preset.PrimaryBadge;
+        this.SecondaryBadgeSlot.SelectedValue = preset.SecondaryBadge;
+        this.StatusLineSlot.SelectedValue = preset.StatusLine;
+        this.ResetInfoSlot.SelectedValue = preset.ResetInfo;
+    }
+
+    private static string? PromptForName(string title, string prompt)
+    {
+        var dialog = new Window
+        {
+            Title = title,
+            Width = 320,
+            Height = 140,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStyle = WindowStyle.ToolWindow,
+        };
+
+        var textBox = new TextBox { Margin = new Thickness(12, 8, 12, 8), Text = "My Preset" };
+        var okButton = new Button { Content = "OK", Width = 80, Margin = new Thickness(0, 0, 12, 8), HorizontalAlignment = HorizontalAlignment.Right, IsDefault = true };
+        okButton.Click += (_, _) => { dialog.DialogResult = true; dialog.Close(); };
+
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock { Text = prompt, Margin = new Thickness(12, 12, 12, 0) });
+        stack.Children.Add(textBox);
+        stack.Children.Add(okButton);
+        dialog.Content = stack;
+
+        return dialog.ShowDialog() == true ? textBox.Text : null;
+    }
+
     // --- Event handlers ---
 
     private void SlotConfig_Changed(object sender, SelectionChangedEventArgs e) => this.RenderPreview();
+
+    private void CompactMode_Changed(object sender, RoutedEventArgs e) => this.RenderPreview();
 
     private void PresetCompact_Click(object sender, RoutedEventArgs e)
     {
