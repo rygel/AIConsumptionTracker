@@ -157,21 +157,102 @@ public partial class CardDesignerWindow : Window
         var displayName = ProviderMetadataCatalog.ResolveDisplayLabel(usage);
         var primaryText = this.ResolveSlotText(usage, (CardSlotContent?)this.PrimaryBadgeSlot.SelectedValue ?? CardSlotContent.None);
         var secondaryText = this.ResolveSlotText(usage, (CardSlotContent?)this.SecondaryBadgeSlot.SelectedValue ?? CardSlotContent.None);
-        var statusText = isCompact ? string.Empty : this.ResolveSlotText(usage, (CardSlotContent?)this.StatusLineSlot.SelectedValue ?? CardSlotContent.None);
+        var statusText = this.ResolveSlotText(usage, (CardSlotContent?)this.StatusLineSlot.SelectedValue ?? CardSlotContent.None);
         var resetText = this.ResolveSlotText(usage, (CardSlotContent?)this.ResetInfoSlot.SelectedValue ?? CardSlotContent.None);
 
         var usedPercent = usage.UsedPercent;
         var barWidth = Math.Max(0, Math.Min(100, usedPercent));
 
-        // Card container
+        return isCompact
+            ? this.BuildCompactCard(displayName, primaryText, secondaryText, statusText, resetText, usedPercent, barWidth, usage)
+            : this.BuildDetailedCard(displayName, primaryText, secondaryText, statusText, resetText, usedPercent, barWidth, usage);
+    }
+
+    private Border BuildCompactCard(
+        string displayName, string primaryText, string secondaryText,
+        string statusText, string resetText, double usedPercent, double barWidth,
+        ProviderUsage usage)
+    {
+        var card = new Border
+        {
+            Background = (Brush)this.FindResource("CardBackground"),
+            BorderBrush = (Brush)this.FindResource("CardBorder"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            Padding = new Thickness(6, 3, 6, 3),
+            Margin = new Thickness(0, 0, 0, 1),
+        };
+
+        // Everything on one line: [bar] Name | status | badges | reset
+        var row = new DockPanel();
+
+        // Right side: reset, badges, status (docked right, in reverse order)
+        void AddRight(string text, Brush fg, double fontSize = 8.5)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+
+            var block = new TextBlock
+            {
+                Text = text,
+                FontSize = fontSize,
+                Foreground = fg,
+                Margin = new Thickness(6, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            DockPanel.SetDock(block, Dock.Right);
+            row.Children.Add(block);
+        }
+
+        AddRight(resetText, (Brush)this.FindResource("StatusTextWarning"), 8.5);
+        AddRight(primaryText, this.GetBadgeColor(primaryText), 8);
+        AddRight(secondaryText, (Brush)this.FindResource("TertiaryText"), 8);
+        AddRight(statusText, (Brush)this.FindResource("SecondaryText"), 8);
+
+        // Left side: thin color bar + name
+        if (usage.IsAvailable && usage.IsQuotaBased)
+        {
+            var colorBar = new Border
+            {
+                Width = 3,
+                Background = this.GetBarColor(usedPercent),
+                Opacity = 0.7,
+                CornerRadius = new CornerRadius(1),
+                Margin = new Thickness(0, 0, 6, 0),
+            };
+            DockPanel.SetDock(colorBar, Dock.Left);
+            row.Children.Add(colorBar);
+        }
+
+        var nameBlock = new TextBlock
+        {
+            Text = displayName,
+            FontSize = 10,
+            Foreground = (Brush)this.FindResource("PrimaryText"),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        row.Children.Add(nameBlock);
+
+        card.Child = row;
+        return card;
+    }
+
+    private Border BuildDetailedCard(
+        string displayName, string primaryText, string secondaryText,
+        string statusText, string resetText, double usedPercent, double barWidth,
+        ProviderUsage usage)
+    {
         var card = new Border
         {
             Background = (Brush)this.FindResource("CardBackground"),
             BorderBrush = (Brush)this.FindResource("CardBorder"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
-            Padding = isCompact ? new Thickness(8, 4, 8, 4) : new Thickness(10, 8, 10, 8),
-            Margin = new Thickness(0, 0, 0, isCompact ? 2 : 4),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 0, 0, 4),
         };
 
         var stack = new StackPanel();
@@ -179,48 +260,29 @@ public partial class CardDesignerWindow : Window
         // Row 1: Name + badges
         var topRow = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
 
-        if (!string.IsNullOrWhiteSpace(resetText))
+        void AddRightBadge(string text, Brush fg, double fontSize, FontWeight weight)
         {
-            var resetBlock = new TextBlock
+            if (string.IsNullOrWhiteSpace(text))
             {
-                Text = resetText,
-                FontSize = 10,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = (Brush)this.FindResource("StatusTextWarning"),
+                return;
+            }
+
+            var block = new TextBlock
+            {
+                Text = text,
+                FontSize = fontSize,
+                FontWeight = weight,
+                Foreground = fg,
                 Margin = new Thickness(8, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
             };
-            DockPanel.SetDock(resetBlock, Dock.Right);
-            topRow.Children.Add(resetBlock);
+            DockPanel.SetDock(block, Dock.Right);
+            topRow.Children.Add(block);
         }
 
-        if (!string.IsNullOrWhiteSpace(primaryText))
-        {
-            var primaryBlock = new TextBlock
-            {
-                Text = primaryText,
-                FontSize = 9,
-                Foreground = GetBadgeColor(primaryText),
-                Margin = new Thickness(8, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            DockPanel.SetDock(primaryBlock, Dock.Right);
-            topRow.Children.Add(primaryBlock);
-        }
-
-        if (!string.IsNullOrWhiteSpace(secondaryText))
-        {
-            var secondaryBlock = new TextBlock
-            {
-                Text = secondaryText,
-                FontSize = 9,
-                Foreground = (Brush)this.FindResource("TertiaryText"),
-                Margin = new Thickness(8, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            DockPanel.SetDock(secondaryBlock, Dock.Right);
-            topRow.Children.Add(secondaryBlock);
-        }
+        AddRightBadge(resetText, (Brush)this.FindResource("StatusTextWarning"), 10, FontWeights.SemiBold);
+        AddRightBadge(primaryText, this.GetBadgeColor(primaryText), 9, FontWeights.Normal);
+        AddRightBadge(secondaryText, (Brush)this.FindResource("TertiaryText"), 9, FontWeights.Normal);
 
         var nameBlock = new TextBlock
         {
@@ -242,7 +304,7 @@ public partial class CardDesignerWindow : Window
 
             var barFill = new Border
             {
-                Background = GetBarColor(usedPercent),
+                Background = this.GetBarColor(usedPercent),
                 Opacity = 0.45,
             };
             Grid.SetColumn(barFill, 0);
