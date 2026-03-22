@@ -90,7 +90,7 @@ public partial class MainWindow : Window
                     var (inactiveHeader, inactiveContainer) = this.CreateCollapsibleHeader(
                         $"Other providers ({inactiveUsages.Count})",
                         Brushes.Gray,
-                        isGroupHeader: false,
+                        isGroupHeader: true,
                         groupKey: $"inactive_{section.SectionKey}",
                         () => !this._preferences.ShowInactiveProviders,
                         collapsed =>
