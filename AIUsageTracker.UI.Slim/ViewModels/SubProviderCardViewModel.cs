@@ -80,7 +80,7 @@ public partial class SubProviderCardViewModel : BaseViewModel
         var presentation = MainWindowRuntimeLogic.BuildDetailPresentation(
             this.Detail,
             this.ShowUsedPercentages,
-            GetRelativeTimeString);
+            UsageMath.FormatRelativeTime);
         this._hasProgress = presentation.HasProgress;
         this._usedPercent = presentation.UsedPercent;
         this._indicatorWidth = presentation.IndicatorWidth;
@@ -99,27 +99,6 @@ public partial class SubProviderCardViewModel : BaseViewModel
         this.OnPropertyChanged(nameof(this.NextResetTime));
     }
 
-    private static string GetRelativeTimeString(DateTime nextReset)
-    {
-        var diff = nextReset - DateTime.Now;
-
-        if (diff.TotalSeconds <= 0)
-        {
-            return "0m";
-        }
-
-        if (diff.TotalDays >= 1)
-        {
-            return $"{diff.Days}d {diff.Hours}h";
-        }
-
-        if (diff.TotalHours >= 1)
-        {
-            return $"{diff.Hours}h {diff.Minutes}m";
-        }
-
-        return $"{diff.Minutes}m";
-    }
 }
 
 
