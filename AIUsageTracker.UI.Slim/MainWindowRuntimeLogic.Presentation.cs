@@ -121,6 +121,8 @@ internal static partial class MainWindowRuntimeLogic
             hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.SecondaryUsedPercent : (double?)null,
             hasDualQuotaBucketPresentation ? ComputePaceProjectedPercent(dualQuotaBucketPresentation.PrimaryUsedPercent, dualQuotaBucketPresentation.PrimaryResetTime, dualQuotaBucketPresentation.PrimaryPeriodDuration) : (double?)null,
             hasDualQuotaBucketPresentation ? ComputePaceProjectedPercent(dualQuotaBucketPresentation.SecondaryUsedPercent, dualQuotaBucketPresentation.SecondaryResetTime, dualQuotaBucketPresentation.SecondaryPeriodDuration) : (double?)null,
+            hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.PrimaryLabel : null,
+            hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.SecondaryLabel : null,
             isStale);
     }
 
@@ -267,6 +269,8 @@ internal static partial class MainWindowRuntimeLogic
         double? dualBucketSecondaryUsed = null,
         double? dualBucketPrimaryColorPercent = null,
         double? dualBucketSecondaryColorPercent = null,
+        string? dualBucketPrimaryLabel = null,
+        string? dualBucketSecondaryLabel = null,
         bool isStale = false)
     {
         return new ProviderCardPresentation(
@@ -283,6 +287,8 @@ internal static partial class MainWindowRuntimeLogic
             DualBucketSecondaryUsed: dualBucketSecondaryUsed,
             DualBucketPrimaryColorPercent: dualBucketPrimaryColorPercent,
             DualBucketSecondaryColorPercent: dualBucketSecondaryColorPercent,
+            DualBucketPrimaryLabel: dualBucketPrimaryLabel,
+            DualBucketSecondaryLabel: dualBucketSecondaryLabel,
             IsStale: isStale);
     }
 
@@ -686,6 +692,8 @@ internal sealed record ProviderCardPresentation(
     double? DualBucketSecondaryUsed = null,
     double? DualBucketPrimaryColorPercent = null,
     double? DualBucketSecondaryColorPercent = null,
+    string? DualBucketPrimaryLabel = null,
+    string? DualBucketSecondaryLabel = null,
     bool IsStale = false)
 {
     public bool HasDualBuckets => this.DualBucketPrimaryUsed.HasValue;
