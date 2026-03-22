@@ -189,14 +189,11 @@ public partial class CardDesignerWindow : Window
 
         if (useBackgroundBar && usage.IsAvailable && usage.IsQuotaBased && barWidth > 0)
         {
+            // Full card background fill
             bgGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(barWidth, GridUnitType.Star) });
             bgGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0, 100 - barWidth), GridUnitType.Star) });
 
-            var fill = new Border
-            {
-                Background = this.GetBarColor(usedPercent),
-                Opacity = 0.15,
-            };
+            var fill = new Border { Background = this.GetBarColor(usedPercent), Opacity = 0.15 };
             Grid.SetColumn(fill, 0);
             bgGrid.Children.Add(fill);
 
@@ -236,6 +233,21 @@ public partial class CardDesignerWindow : Window
         AddRight(secondaryText, (Brush)this.FindResource("TertiaryText"), 8);
         AddRight(statusText, (Brush)this.FindResource("SecondaryText"), 8);
 
+        // Left edge color bar (when NOT using background bar)
+        if (!useBackgroundBar && usage.IsAvailable && usage.IsQuotaBased)
+        {
+            var colorBar = new Border
+            {
+                Width = 3,
+                Background = this.GetBarColor(usedPercent),
+                Opacity = 0.7,
+                CornerRadius = new CornerRadius(1),
+                Margin = new Thickness(0, 0, 6, 0),
+            };
+            DockPanel.SetDock(colorBar, Dock.Left);
+            row.Children.Add(colorBar);
+        }
+
         var nameBlock = new TextBlock
         {
             Text = displayName,
@@ -246,7 +258,6 @@ public partial class CardDesignerWindow : Window
         };
         row.Children.Add(nameBlock);
 
-        // Layer: background grid + content row
         bgGrid.Children.Add(row);
         card.Child = bgGrid;
         return card;
