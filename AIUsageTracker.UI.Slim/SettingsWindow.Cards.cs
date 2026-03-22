@@ -473,24 +473,54 @@ public partial class SettingsWindow
         return (combo.SelectedValue as CardSlotContent?) ?? CardSlotContent.None;
     }
 
-    private static string? PromptForName(string title, string prompt)
+    private string? PromptForName(string title, string prompt)
     {
+        var res = Application.Current.Resources;
         var dialog = new Window
         {
             Title = title,
             Width = 320,
             Height = 140,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this,
             ResizeMode = ResizeMode.NoResize,
             WindowStyle = WindowStyle.ToolWindow,
+            Background = res["Background"] as Brush ?? Brushes.Black,
+            Foreground = res["PrimaryText"] as Brush ?? Brushes.White,
         };
 
-        var textBox = new TextBox { Margin = new Thickness(12, 8, 12, 8), Text = "My Preset" };
-        var okButton = new Button { Content = "OK", Width = 80, Margin = new Thickness(0, 0, 12, 8), HorizontalAlignment = HorizontalAlignment.Right, IsDefault = true };
+        var textBox = new TextBox
+        {
+            Margin = new Thickness(12, 8, 12, 8),
+            Text = "My Preset",
+            Background = res["ControlBackground"] as Brush ?? Brushes.DarkGray,
+            Foreground = res["PrimaryText"] as Brush ?? Brushes.White,
+            BorderBrush = res["ControlBorder"] as Brush ?? Brushes.Gray,
+            Padding = new Thickness(6, 4, 6, 4),
+        };
+
+        var okButton = new Button
+        {
+            Content = "OK",
+            MinWidth = 75,
+            MinHeight = 23,
+            Margin = new Thickness(0, 0, 12, 8),
+            Padding = new Thickness(12, 4, 12, 4),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            IsDefault = true,
+            Background = res["ButtonBackground"] as Brush ?? Brushes.DarkGray,
+            Foreground = res["PrimaryText"] as Brush ?? Brushes.White,
+            BorderBrush = res["ControlBorder"] as Brush ?? Brushes.Gray,
+        };
         okButton.Click += (_, _) => { dialog.DialogResult = true; dialog.Close(); };
 
         var stack = new StackPanel();
-        stack.Children.Add(new TextBlock { Text = prompt, Margin = new Thickness(12, 12, 12, 0) });
+        stack.Children.Add(new TextBlock
+        {
+            Text = prompt,
+            Margin = new Thickness(12, 12, 12, 0),
+            Foreground = res["SecondaryText"] as Brush ?? Brushes.LightGray,
+        });
         stack.Children.Add(textBox);
         stack.Children.Add(okButton);
         dialog.Content = stack;
