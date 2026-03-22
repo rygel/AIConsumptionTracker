@@ -468,6 +468,11 @@ public partial class SettingsWindow : Window
         {
             this.EnablePaceAdjustmentCheck.IsChecked = this._preferences.EnablePaceAdjustment;
         }
+
+        if (this.UseRelativeResetTimeCheck != null)
+        {
+            this.UseRelativeResetTimeCheck.IsChecked = this._preferences.UseRelativeResetTime;
+        }
     }
 
     private void OpenCardDesignerBtn_Click(object sender, RoutedEventArgs e)
@@ -721,6 +726,7 @@ public partial class SettingsWindow : Window
             this._preferences.ShowUsedPercentages = showUsedPercentages;
             this._preferences.ShowUsagePerHour = this.ShowUsagePerHourCheck.IsChecked ?? false;
             this._preferences.EnablePaceAdjustment = this.EnablePaceAdjustmentCheck.IsChecked ?? true;
+            this._preferences.UseRelativeResetTime = this.UseRelativeResetTimeCheck.IsChecked ?? false;
             if (this.ThemeCombo.SelectedValue is AppTheme appTheme)
             {
                 this._preferences.Theme = appTheme;
