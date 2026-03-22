@@ -135,12 +135,18 @@ public partial class MainWindow : Window
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this,
                 ResizeMode = ResizeMode.NoResize,
+                Background = this.GetResourceBrush("Background", Brushes.Black),
                 Content = new StackPanel
                 {
                     Margin = new Thickness(20),
                     Children =
                     {
-                        new TextBlock { Text = $"Downloading version {this._latestUpdate.Version}...", Margin = new Thickness(0, 0, 0, 10) },
+                        new TextBlock
+                        {
+                            Text = $"Downloading version {this._latestUpdate.Version}...",
+                            Margin = new Thickness(0, 0, 0, 10),
+                            Foreground = this.GetResourceBrush("PrimaryText", Brushes.White),
+                        },
                         progressBar,
                     },
                 },

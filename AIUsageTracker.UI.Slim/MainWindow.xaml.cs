@@ -552,10 +552,8 @@ public partial class MainWindow : Window
             : this.GetResourceBrush("SecondaryText", Brushes.Gray);
     }
 
-    private SolidColorBrush GetResourceBrush(string key, SolidColorBrush fallback)
-    {
-        return this.FindResource(key) as SolidColorBrush ?? fallback;
-    }
+    private SolidColorBrush GetResourceBrush(string key, SolidColorBrush fallback) =>
+        UIHelper.GetResourceBrush(key, fallback);
 
     private void LogDiagnostic(string message)
     {
