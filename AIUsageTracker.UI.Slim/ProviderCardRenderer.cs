@@ -69,6 +69,39 @@ internal sealed class ProviderCardRenderer
             Grid.SetRow(secondaryRow, 1);
             pGrid.Children.Add(primaryRow);
             pGrid.Children.Add(secondaryRow);
+
+            // Burst/weekly labels on each bar row (from provider metadata)
+            if (!string.IsNullOrEmpty(presentation.DualBucketPrimaryLabel))
+            {
+                var burstLabel = new TextBlock
+                {
+                    Text = presentation.DualBucketPrimaryLabel,
+                    FontSize = 8,
+                    Foreground = this._getResourceBrush("TertiaryText", Brushes.Gray),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(3, 0, 0, 0),
+                    Opacity = 0.8,
+                };
+                Grid.SetRow(burstLabel, 0);
+                pGrid.Children.Add(burstLabel);
+            }
+
+            if (!string.IsNullOrEmpty(presentation.DualBucketSecondaryLabel))
+            {
+                var weeklyLabel = new TextBlock
+                {
+                    Text = presentation.DualBucketSecondaryLabel,
+                    FontSize = 8,
+                    Foreground = this._getResourceBrush("TertiaryText", Brushes.Gray),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(3, 0, 0, 0),
+                    Opacity = 0.8,
+                };
+                Grid.SetRow(weeklyLabel, 1);
+                pGrid.Children.Add(weeklyLabel);
+            }
         }
         else
         {
@@ -199,11 +232,25 @@ internal sealed class ProviderCardRenderer
                 isChild),
             Dock.Left);
 
+        if (presentation.IsStale)
+        {
+            // Add visible "Stale" badge before the provider name
+            AddDockedElement(
+                contentPanel,
+                this.CreateDockedTextBlock(
+                    "Stale",
+                    fontSize: 9,
+                    foreground: Brushes.IndianRed,
+                    fontWeight: FontWeights.SemiBold,
+                    margin: new Thickness(6, 0, 0, 0)),
+                Dock.Right);
+        }
+
         grid.Children.Add(contentPanel);
 
         if (presentation.IsStale)
         {
-            grid.Opacity = 0.65;
+            grid.Opacity = 0.55;
         }
 
         var toolTipContent = MainWindowRuntimeLogic.BuildTooltipContent(usage, friendlyName);
