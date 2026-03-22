@@ -475,6 +475,29 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void OpenCardDesignerBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var usages = new List<ProviderUsage>();
+        try
+        {
+            var monitorService = App.MonitorService;
+            var task = monitorService.GetUsageAsync();
+            task.Wait(TimeSpan.FromSeconds(3));
+            if (task.IsCompletedSuccessfully)
+            {
+                usages.AddRange(task.Result);
+            }
+        }
+        catch
+        {
+            // Fall through with empty usages — designer will show placeholder
+        }
+
+        var designer = new CardDesignerWindow(this._preferences, usages);
+        designer.Owner = this;
+        designer.ShowDialog();
+    }
+
     private IReadOnlyList<ThemeOption> GetThemeOptions()
     {
         return new List<ThemeOption>
