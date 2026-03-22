@@ -8,6 +8,23 @@
         Foreground="{DynamicResource PrimaryText}"
         WindowStartupLocation="CenterScreen">
 
+    <Window.Resources>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="{DynamicResource ComboBoxBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryText}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorder}"/>
+        </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="{DynamicResource ComboBoxBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryText}"/>
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ComboBoxItemHover}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
