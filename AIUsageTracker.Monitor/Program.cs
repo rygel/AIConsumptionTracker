@@ -209,6 +209,7 @@ public class Program
             builder.Services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
             builder.Services.AddSingleton<UsageDatabase>();
             builder.Services.AddSingleton<IUsageDatabase>(sp => sp.GetRequiredService<UsageDatabase>());
+            builder.Services.AddSingleton<CachedGroupedUsageProjectionService>();
             if (OperatingSystem.IsWindows())
             {
                 builder.Services.AddSingleton<INotificationService, WindowsNotificationService>();
