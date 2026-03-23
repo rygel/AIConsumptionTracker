@@ -24,6 +24,8 @@ namespace AIUsageTracker.Monitor.Tests;
 
 public class ProviderRefreshServiceTests
 {
+    private static readonly string TestApiKey = Guid.NewGuid().ToString();
+
     private readonly Mock<ILogger<ProviderRefreshService>> _mockLogger;
     private readonly Mock<ILoggerFactory> _mockLoggerFactory;
     private readonly Mock<IUsageDatabase> _mockDatabase;
@@ -548,7 +550,7 @@ public class ProviderRefreshServiceTests
         var preferences = new AppPreferences { IsPrivacyMode = true, MaxConcurrentProviderRequests = 6 };
         var configs = new List<ProviderConfig>
         {
-            new() { ProviderId = "codex", ApiKey = "test-key", Type = "pay-as-you-go" },
+            new() { ProviderId = "codex", ApiKey = TestApiKey, Type = "pay-as-you-go" },
         };
         var processedOutput = new ProviderUsage
         {
@@ -654,10 +656,10 @@ public class ProviderRefreshServiceTests
         var authPath = Path.Combine(root, "auth.json");
         var providersPath = Path.Combine(root, "providers.json");
         var preferencesPath = Path.Combine(root, "preferences.json");
-        var authJson = """
+        var authJson = $$"""
         {
           "codex": {
-            "key": "test-key",
+            "key": "{{TestApiKey}}",
             "type": "pay-as-you-go"
           }
         }
