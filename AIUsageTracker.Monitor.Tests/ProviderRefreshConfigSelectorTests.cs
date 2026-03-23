@@ -162,7 +162,7 @@ public class ProviderRefreshConfigSelectorTests
                 AutoIncludeWhenUnconfigured = autoIncludeWhenUnconfigured,
                 FamilyMode = familyMode,
             });
-        mock.Setup(provider => provider.GetUsageAsync(It.IsAny<ProviderConfig>(), It.IsAny<Action<ProviderUsage>?>()))
+        mock.Setup(provider => provider.GetUsageAsync(It.IsAny<ProviderConfig>(), It.IsAny<Action<ProviderUsage>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<ProviderUsage>());
         return mock.Object;
     }

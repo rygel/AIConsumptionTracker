@@ -91,7 +91,7 @@ public class ProviderRefreshService : BackgroundService
     {
         var coalesceKey = BuildManualRefreshCoalesceKey(forceAll, includeProviderIds, bypassCircuitBreaker);
         return this._refreshJobScheduler.QueueManualRefresh(
-            _ => this.TriggerRefreshAsync(forceAll, includeProviderIds, bypassCircuitBreaker),
+            ct => this.TriggerRefreshAsync(forceAll, includeProviderIds, bypassCircuitBreaker, ct),
             coalesceKey);
     }
 
@@ -138,13 +138,13 @@ public class ProviderRefreshService : BackgroundService
 
         this._refreshJobScheduler.RegisterRecurringRefresh(
             this._refreshInterval,
-            _ => this.TriggerRefreshAsync());
+            ct => this.TriggerRefreshAsync(cancellationToken: ct));
 
         var isEmpty = await this._database.IsHistoryEmptyAsync().ConfigureAwait(false);
         if (isEmpty)
         {
             this._startupSequenceService.QueueInitialDataSeeding(
-                () => this.TriggerRefreshAsync(forceAll: true));
+                ct => this.TriggerRefreshAsync(forceAll: true, cancellationToken: ct));
         }
         else
         {
@@ -155,7 +155,7 @@ public class ProviderRefreshService : BackgroundService
             // Only do targeted refresh for system providers that need immediate correctness
             // All other providers will be refreshed on the normal scheduled interval
             this._startupSequenceService.QueueStartupTargetedRefresh(
-                providerIds => this.TriggerRefreshAsync(forceAll: true, includeProviderIds: providerIds));
+                (providerIds, ct) => this.TriggerRefreshAsync(forceAll: true, includeProviderIds: providerIds, cancellationToken: ct));
         }
 
         try
@@ -173,7 +173,8 @@ public class ProviderRefreshService : BackgroundService
     public virtual async Task TriggerRefreshAsync(
         bool forceAll = false,
         IReadOnlyCollection<string>? includeProviderIds = null,
-        bool bypassCircuitBreaker = false)
+        bool bypassCircuitBreaker = false,
+        CancellationToken cancellationToken = default)
     {
         using var refreshActivity = ActivitySource.StartActivity("monitor.provider_refresh", ActivityKind.Internal);
         refreshActivity?.SetTag("refresh.force_all", forceAll);
@@ -193,7 +194,7 @@ public class ProviderRefreshService : BackgroundService
             return;
         }
 
-        await this._refreshSemaphore.WaitAsync().ConfigureAwait(false);
+        await this._refreshSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             await this.EnsureProviderManagerConcurrencyAsync().ConfigureAwait(false);
@@ -236,7 +237,7 @@ public class ProviderRefreshService : BackgroundService
 
             if (refreshableConfigs.Count > 0 || circuitSkippedConfigs.Count > 0)
             {
-                await this.RefreshAndStoreProviderDataAsync(configs, refreshableConfigs, circuitSkippedConfigs).ConfigureAwait(false);
+                await this.RefreshAndStoreProviderDataAsync(configs, refreshableConfigs, circuitSkippedConfigs, cancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -273,7 +274,8 @@ public class ProviderRefreshService : BackgroundService
     private async Task RefreshAndStoreProviderDataAsync(
         IList<ProviderConfig> allConfigs,
         IList<ProviderConfig> refreshableConfigs,
-        IList<ProviderConfig> circuitSkippedConfigs)
+        IList<ProviderConfig> circuitSkippedConfigs,
+        CancellationToken cancellationToken = default)
     {
         if (this.ProviderManager == null)
         {
@@ -295,7 +297,8 @@ public class ProviderRefreshService : BackgroundService
             usages = await this.ProviderManager.GetAllUsageAsync(
                 forceRefresh: true,
                 progressCallback: _ => { },
-                includeProviderIds: providerIdsToQuery).ConfigureAwait(false);
+                includeProviderIds: providerIdsToQuery,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
 
             this._logger.LogDebug("Received {Count} total usage results", usages.Count());
         }
@@ -367,7 +370,7 @@ public class ProviderRefreshService : BackgroundService
         return this._refreshTelemetryManager.GetSnapshot(this._providerCircuitBreakerService.GetProviderDiagnostics());
     }
 
-    public async Task<(bool Success, string Message, int Status)> CheckProviderAsync(string providerId)
+    public async Task<(bool Success, string Message, int Status)> CheckProviderAsync(string providerId, CancellationToken cancellationToken = default)
     {
         if (this.ProviderManager == null)
         {
@@ -376,7 +379,7 @@ public class ProviderRefreshService : BackgroundService
 
         try
         {
-            await this._refreshSemaphore.WaitAsync().ConfigureAwait(false);
+            await this._refreshSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
                 await this.EnsureProviderManagerConcurrencyAsync().ConfigureAwait(false);
@@ -385,7 +388,7 @@ public class ProviderRefreshService : BackgroundService
                     return (false, "ProviderManager not initialized", 503);
                 }
 
-                var usages = await this.ProviderManager.GetUsageAsync(providerId).ConfigureAwait(false);
+                var usages = await this.ProviderManager.GetUsageAsync(providerId, cancellationToken).ConfigureAwait(false);
                 return await this._connectivityCheckService.EvaluateAsync(providerId, usages).ConfigureAwait(false);
             }
             finally

@@ -66,7 +66,7 @@ public class AntigravityProvider : ProviderBase
     public override string ProviderId => StaticDefinition.ProviderId;
 
     /// <inheritdoc/>
-    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null, CancellationToken cancellationToken = default)
     {
         var results = new List<ProviderUsage>();
 

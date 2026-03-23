@@ -48,7 +48,8 @@ public class StartupAntiHammerTests
         public override Task TriggerRefreshAsync(
             bool forceAll = false,
             IReadOnlyCollection<string>? includeProviderIds = null,
-            bool bypassCircuitBreaker = false)
+            bool bypassCircuitBreaker = false,
+            CancellationToken cancellationToken = default)
         {
             this.TriggerCalls.Add((forceAll, includeProviderIds));
             return Task.CompletedTask;

@@ -594,7 +594,7 @@ public class ProviderRefreshServiceTests
         var provider = new Mock<IProviderService>();
         provider.SetupGet(p => p.ProviderId).Returns("codex");
         provider.SetupGet(p => p.Definition).Returns(providerDefinition);
-        provider.Setup(p => p.GetUsageAsync(It.IsAny<ProviderConfig>(), It.IsAny<Action<ProviderUsage>?>()))
+        provider.Setup(p => p.GetUsageAsync(It.IsAny<ProviderConfig>(), It.IsAny<Action<ProviderUsage>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[]
             {
                 new ProviderUsage

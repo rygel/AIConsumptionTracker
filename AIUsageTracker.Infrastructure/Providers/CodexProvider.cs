@@ -92,7 +92,7 @@ public class CodexProvider : ProviderBase
 
     public override string ProviderId => StaticDefinition.ProviderId;
 
-    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null, CancellationToken cancellationToken = default)
     {
         string? knownAccountIdentity = null;
         try

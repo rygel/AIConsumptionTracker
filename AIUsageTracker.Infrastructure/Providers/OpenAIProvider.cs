@@ -84,7 +84,7 @@ public class OpenAIProvider : ProviderBase
     public override string ProviderId => StaticDefinition.ProviderId;
 
     /// <inheritdoc/>
-    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null)
+    public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null, CancellationToken cancellationToken = default)
     {
         if (!string.IsNullOrWhiteSpace(config.ApiKey) && IsApiKey(config.ApiKey))
         {

@@ -49,8 +49,8 @@ public class AllProvidersWorkingTests
         {
             AdditionalHandledProviderIds = new[] { "minimax-io", "minimax-global" },
         });
-        mockMinimax.Setup(p => p.GetUsageAsync(It.IsAny<ProviderConfig>(), It.IsAny<Action<ProviderUsage>?>()))
-            .ReturnsAsync((ProviderConfig c, Action<ProviderUsage>? callback) => new[]
+        mockMinimax.Setup(p => p.GetUsageAsync(It.IsAny<ProviderConfig>(), It.IsAny<Action<ProviderUsage>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ProviderConfig c, Action<ProviderUsage>? callback, CancellationToken _) => new[]
             {
                 new ProviderUsage
                 {
