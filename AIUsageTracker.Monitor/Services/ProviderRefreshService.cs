@@ -235,9 +235,10 @@ public class ProviderRefreshService : BackgroundService
                 this._logger.LogInformation("Circuit breaker skipping {Count} provider(s) this cycle", circuitSkippedCount);
             }
 
+            IReadOnlyList<ProviderUsage>? refreshedUsages = null;
             if (refreshableConfigs.Count > 0 || circuitSkippedConfigs.Count > 0)
             {
-                await this.RefreshAndStoreProviderDataAsync(configs, refreshableConfigs, circuitSkippedConfigs, cancellationToken).ConfigureAwait(false);
+                refreshedUsages = await this.RefreshAndStoreProviderDataAsync(configs, refreshableConfigs, circuitSkippedConfigs, cancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -252,7 +253,7 @@ public class ProviderRefreshService : BackgroundService
             refreshSucceeded = true;
             refreshActivity?.SetStatus(ActivityStatusCode.Ok);
 
-            await this._refreshNotificationService.NotifyUsageUpdatedAsync().ConfigureAwait(false);
+            await this._refreshNotificationService.NotifyUsageUpdatedAsync(refreshedUsages).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -271,7 +272,7 @@ public class ProviderRefreshService : BackgroundService
         }
     }
 
-    private async Task RefreshAndStoreProviderDataAsync(
+    private async Task<IReadOnlyList<ProviderUsage>> RefreshAndStoreProviderDataAsync(
         IList<ProviderConfig> allConfigs,
         IList<ProviderConfig> refreshableConfigs,
         IList<ProviderConfig> circuitSkippedConfigs,
@@ -363,6 +364,7 @@ public class ProviderRefreshService : BackgroundService
 
         this._logger.LogInformation("Done: {Count} records", filteredUsages.Count);
         this._logger.LogDebug("Refresh complete. Stored {Count} provider histories", filteredUsages.Count);
+        return filteredUsages;
     }
 
     public RefreshTelemetrySnapshot GetRefreshTelemetrySnapshot()
