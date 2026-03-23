@@ -18,6 +18,10 @@ namespace AIUsageTracker.Tests.Integration;
 /// </summary>
 public class ProviderResponseDeserializationTests
 {
+    private static readonly string TestApiKey1 = Guid.NewGuid().ToString();
+    private static readonly string TestApiKey2 = Guid.NewGuid().ToString();
+    private static readonly string TestApiKey3 = Guid.NewGuid().ToString();
+
     /// <summary>
     /// Codex provider: realistic response with primary_window, secondary_window, and
     /// an additional_rate_limits entry for Spark. Verifies the full ProviderUsage output
@@ -74,7 +78,7 @@ public class ProviderResponseDeserializationTests
         var config = new ProviderConfig
         {
             ProviderId = "codex",
-            ApiKey = "test-access-token",
+            ApiKey = TestApiKey1,
         };
 
         // Act
@@ -161,7 +165,7 @@ public class ProviderResponseDeserializationTests
 
         var httpClient = CreateMockHttpClient(responseJson, HttpStatusCode.OK);
         var provider = new CodexProvider(httpClient, NullLogger<CodexProvider>.Instance, authFilePath: "C:\\nonexistent\\auth.json");
-        var config = new ProviderConfig { ProviderId = "codex", ApiKey = "test-token" };
+        var config = new ProviderConfig { ProviderId = "codex", ApiKey = TestApiKey2 };
 
         var usages = (await provider.GetUsageAsync(config)).ToList();
 
@@ -310,7 +314,7 @@ public class ProviderResponseDeserializationTests
 
         var httpClient = CreateMockHttpClient(responseJson, HttpStatusCode.OK);
         var provider = new CodexProvider(httpClient, NullLogger<CodexProvider>.Instance, authFilePath: "C:\\nonexistent\\auth.json");
-        var config = new ProviderConfig { ProviderId = "codex", ApiKey = "expired-token" };
+        var config = new ProviderConfig { ProviderId = "codex", ApiKey = TestApiKey3 };
 
         var usages = (await provider.GetUsageAsync(config)).ToList();
 

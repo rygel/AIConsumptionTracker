@@ -14,12 +14,14 @@ namespace AIUsageTracker.Tests.Infrastructure.Providers;
 
 public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
 {
+    private static readonly string TestApiKey = Guid.NewGuid().ToString();
+
     private readonly ClaudeCodeProvider _provider;
 
     public ClaudeCodeProviderTests()
     {
         this._provider = new ClaudeCodeProvider(this.Logger.Object, this.HttpClient);
-        this.Config.ApiKey = "test-oauth-token";
+        this.Config.ApiKey = TestApiKey;
     }
 
     /// <summary>
