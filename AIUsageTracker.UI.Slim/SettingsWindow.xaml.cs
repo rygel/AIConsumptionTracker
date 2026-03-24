@@ -249,6 +249,8 @@ public partial class SettingsWindow : Window
             ShowUsedPercentages = false,
             ColorThresholdYellow = 60,
             ColorThresholdRed = 80,
+            ShowDualQuotaBars = true,
+            DualQuotaSingleBarMode = DualQuotaSingleBarMode.Rolling,
             FontFamily = "Segoe UI",
             FontSize = 12,
             FontBold = false,
@@ -422,6 +424,7 @@ public partial class SettingsWindow : Window
         this.AlwaysOnTopCheck.IsChecked = this._preferences.AlwaysOnTop;
         this.AggressiveTopmostCheck.IsChecked = this._preferences.AggressiveAlwaysOnTop;
         this.ForceWin32TopmostCheck.IsChecked = this._preferences.ForceWin32Topmost;
+        this.PopulateDualQuotaBarWindowCombo();
         this.ApplyDisplayModePreference();
         this.ThemeCombo.DisplayMemberPath = nameof(ThemeOption.Label);
         this.ThemeCombo.SelectedValuePath = nameof(ThemeOption.Value);
@@ -470,6 +473,16 @@ public partial class SettingsWindow : Window
             this.ShowUsagePerHourCheck.IsChecked = this._preferences.ShowUsagePerHour;
         }
 
+        if (this.ShowDualQuotaBarsCheck != null)
+        {
+            this.ShowDualQuotaBarsCheck.IsChecked = this._preferences.ShowDualQuotaBars;
+        }
+
+        if (this.DualQuotaBarWindowCombo != null)
+        {
+            this.DualQuotaBarWindowCombo.SelectedValue = this._preferences.DualQuotaSingleBarMode;
+        }
+
         if (this.EnablePaceAdjustmentCheck != null)
         {
             this.EnablePaceAdjustmentCheck.IsChecked = this._preferences.EnablePaceAdjustment;
@@ -479,6 +492,34 @@ public partial class SettingsWindow : Window
         {
             this.UseRelativeResetTimeCheck.IsChecked = this._preferences.UseRelativeResetTime;
         }
+
+        this.UpdateDualQuotaControlsState();
+    }
+
+    private void PopulateDualQuotaBarWindowCombo()
+    {
+        if (this.DualQuotaBarWindowCombo == null)
+        {
+            return;
+        }
+
+        this.DualQuotaBarWindowCombo.ItemsSource = new[]
+        {
+            new { Label = "Weekly (rolling window)", Value = DualQuotaSingleBarMode.Rolling },
+            new { Label = "Hourly/burst window", Value = DualQuotaSingleBarMode.Burst },
+        };
+        this.DualQuotaBarWindowCombo.DisplayMemberPath = "Label";
+        this.DualQuotaBarWindowCombo.SelectedValuePath = "Value";
+    }
+
+    private void UpdateDualQuotaControlsState()
+    {
+        if (this.DualQuotaBarWindowCombo == null || this.ShowDualQuotaBarsCheck == null)
+        {
+            return;
+        }
+
+        this.DualQuotaBarWindowCombo.IsEnabled = !(this.ShowDualQuotaBarsCheck.IsChecked ?? true);
     }
 
     private IReadOnlyList<ThemeOption> GetThemeOptions()
@@ -708,6 +749,11 @@ public partial class SettingsWindow : Window
             var showUsedPercentages = this.ShowUsedPercentagesCheck.IsChecked ?? false;
             this._preferences.ShowUsedPercentages = showUsedPercentages;
             this._preferences.ShowUsagePerHour = this.ShowUsagePerHourCheck.IsChecked ?? false;
+            this._preferences.ShowDualQuotaBars = this.ShowDualQuotaBarsCheck.IsChecked ?? true;
+            if (this.DualQuotaBarWindowCombo?.SelectedValue is DualQuotaSingleBarMode dualMode)
+            {
+                this._preferences.DualQuotaSingleBarMode = dualMode;
+            }
             this._preferences.EnablePaceAdjustment = this.EnablePaceAdjustmentCheck.IsChecked ?? true;
             this._preferences.UseRelativeResetTime = this.UseRelativeResetTimeCheck.IsChecked ?? false;
             if (this.ThemeCombo.SelectedValue is AppTheme appTheme)
@@ -887,6 +933,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        this.UpdateDualQuotaControlsState();
         this.ApplyNotificationControlsState();
         this.ScheduleAutoSave();
     }

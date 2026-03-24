@@ -490,6 +490,26 @@ internal static partial class MainWindowRuntimeLogic
             : Array.Empty<DateTime>();
     }
 
+    internal static IReadOnlyList<DateTime> ResolveResetTimesForWindow(ProviderUsage usage, WindowKind windowKind)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+
+        if (windowKind == WindowKind.None)
+        {
+            return Array.Empty<DateTime>();
+        }
+
+        return usage.Details?
+            .Where(detail => detail.DetailType == ProviderUsageDetailType.QuotaWindow)
+            .Where(detail => detail.QuotaBucketKind == windowKind)
+            .Where(detail => detail.NextResetTime.HasValue)
+            .Where(detail => UsageMath.GetEffectiveUsedPercent(detail).HasValue)
+            .Select(detail => detail.NextResetTime!.Value)
+            .Distinct()
+            .ToList()
+            ?? new List<DateTime>();
+    }
+
     /// <summary>
     /// Builds a multi-line tooltip string for a provider card, including daily budget
     /// information for multi-day quota periods and per-detail rate limit breakdowns.

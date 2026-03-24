@@ -26,7 +26,14 @@ public partial class App
         var yellowThreshold = prefs?.ColorThresholdYellow ?? 60;
         var redThreshold = prefs?.ColorThresholdRed ?? 80;
         var showUsed = prefs?.PercentageDisplayMode == PercentageDisplayMode.Used;
-        var desiredIcons = this.BuildDesiredIcons(usages, configs, showUsed);
+        var showDualQuotaBars = prefs?.ShowDualQuotaBars ?? true;
+        var dualQuotaSingleBarMode = prefs?.DualQuotaSingleBarMode ?? DualQuotaSingleBarMode.Rolling;
+        var desiredIcons = this.BuildDesiredIcons(
+            usages,
+            configs,
+            showUsed,
+            showDualQuotaBars,
+            dualQuotaSingleBarMode);
 
         this.SyncProviderTrayIcons(desiredIcons, yellowThreshold, redThreshold, showUsed);
     }
@@ -34,7 +41,9 @@ public partial class App
     private Dictionary<string, (string ToolTip, double Percentage, bool IsQuota)> BuildDesiredIcons(
         IReadOnlyList<ProviderUsage> usages,
         IReadOnlyList<ProviderConfig> configs,
-        bool showUsed)
+        bool showUsed,
+        bool showDualQuotaBars,
+        DualQuotaSingleBarMode dualQuotaSingleBarMode)
     {
         var desiredIcons = new Dictionary<string, (string ToolTip, double Percentage, bool IsQuota)>(StringComparer.OrdinalIgnoreCase);
         foreach (var config in configs)
@@ -50,7 +59,15 @@ public partial class App
                 !usage.Description.Contains("unknown", StringComparison.OrdinalIgnoreCase))
             {
                 var isQuota = usage.IsQuotaBased || usage.PlanType == PlanType.Coding;
-                var statusText = MainWindowRuntimeLogic.Create(usage, showUsed).StatusText;
+                var presentation = MainWindowRuntimeLogic.Create(usage, showUsed);
+                var statusText = presentation.StatusText;
+                if (presentation.HasDualBuckets && !showDualQuotaBars)
+                {
+                    statusText = MainWindowRuntimeLogic.BuildSingleDualQuotaStatusText(
+                        presentation,
+                        showUsed,
+                        dualQuotaSingleBarMode);
+                }
                 var providerLabel = ProviderMetadataCatalog.ResolveDisplayLabel(usage);
                 desiredIcons[config.ProviderId] = ($"{providerLabel}: {statusText}", usage.RemainingPercent, isQuota);
             }
@@ -250,5 +267,4 @@ public partial class App
         this._mainWindow.Activate();
     }
 }
-
 

@@ -105,6 +105,11 @@ public class AppPreferences
 
     public bool ShowUsagePerHour { get; set; } = false;
 
+    public bool ShowDualQuotaBars { get; set; } = true;
+
+    [JsonConverter(typeof(JsonStringEnumConverter<DualQuotaSingleBarMode>))]
+    public DualQuotaSingleBarMode DualQuotaSingleBarMode { get; set; } = DualQuotaSingleBarMode.Rolling;
+
     /// <summary>
     /// Gets or sets a value indicating whether when true, progress-bar colour and notification threshold are adjusted for rolling-window
     /// pace: a provider at 70% usage with 1 day left of a 7-day window is treated as on-budget,
