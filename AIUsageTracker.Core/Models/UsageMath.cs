@@ -419,8 +419,9 @@ public static class UsageMath
 
     public static string FormatAbsoluteTime(DateTime nextReset)
     {
-        var local = AsUtc(nextReset).ToLocalTime();
-        var diff = local - DateTime.Now;
+        var utc = AsUtc(nextReset);
+        var local = utc.ToLocalTime();
+        var diff = utc - DateTime.UtcNow;
         if (diff.TotalSeconds <= 0)
         {
             return "now";

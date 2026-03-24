@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+- **Dual quota bar toggle**: users can now disable dual bars and select whether the single bar reflects the rolling (weekly) or burst (hourly) window.
+
+### Fixed
+- **Single-bar status and reset badges**: when dual bars are disabled, the status text and reset badge now reflect the selected quota window.
+- **Tray tooltip consistency**: tray icon status text now matches the selected single-window mode when dual bars are off.
+
+### Changed
+- **Provider icon backdrop**: dark-theme provider icons now render on a rounded square backdrop instead of a white outline, with a slightly brighter fill for legibility.
+
 ## [2.3.4-beta.2] - 2026-03-23
 
 ### Fixed

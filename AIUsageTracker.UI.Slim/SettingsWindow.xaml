@@ -440,6 +440,24 @@
                                           Margin="0,4" Foreground="{DynamicResource SecondaryText}"
                                           ToolTip="Show a live burn-rate badge on each provider card"
                                           Checked="LayoutSetting_Changed" Unchecked="LayoutSetting_Changed"/>
+                                <CheckBox x:Name="ShowDualQuotaBarsCheck" Content="Show dual quota bars"
+                                          Margin="0,4" Foreground="{DynamicResource SecondaryText}"
+                                          ToolTip="Show separate burst/rolling bars when a provider reports multiple quota windows"
+                                          Checked="LayoutSetting_Changed" Unchecked="LayoutSetting_Changed"/>
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Single-bar window" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource SecondaryText}" Margin="0,0,8,0" FontSize="11"/>
+                                    <ComboBox x:Name="DualQuotaBarWindowCombo" Grid.Column="1" Height="24"
+                                              Background="{DynamicResource ControlBackground}"
+                                              Foreground="{DynamicResource PrimaryText}"
+                                              BorderBrush="{DynamicResource ControlBorder}"
+                                              SelectionChanged="LayoutSetting_Changed"
+                                              ToolTip="Applies when dual quota bars are turned off"/>
+                                </Grid>
                                 <CheckBox x:Name="EnablePaceAdjustmentCheck" Content="Pace-Aware Colours"
                                           Margin="0,4" Foreground="{DynamicResource SecondaryText}"
                                           ToolTip="Adjust progress-bar colour based on rolling-window pace"

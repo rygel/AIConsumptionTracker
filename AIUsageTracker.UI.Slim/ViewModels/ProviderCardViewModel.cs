@@ -33,6 +33,12 @@ public partial class ProviderCardViewModel : BaseViewModel
     private bool _showUsagePerHour;
 
     [ObservableProperty]
+    private bool _showDualQuotaBars = true;
+
+    [ObservableProperty]
+    private DualQuotaSingleBarMode _dualQuotaSingleBarMode = DualQuotaSingleBarMode.Rolling;
+
+    [ObservableProperty]
     private bool _enablePaceAdjustment = true;
 
     [ObservableProperty]
@@ -51,6 +57,8 @@ public partial class ProviderCardViewModel : BaseViewModel
         this._redThreshold = prefs.ColorThresholdRed;
         this._showUsedPercentages = prefs.ShowUsedPercentages;
         this._showUsagePerHour = prefs.ShowUsagePerHour;
+        this._showDualQuotaBars = prefs.ShowDualQuotaBars;
+        this._dualQuotaSingleBarMode = prefs.DualQuotaSingleBarMode;
         this._enablePaceAdjustment = prefs.EnablePaceAdjustment;
         this._useRelativeResetTime = prefs.UseRelativeResetTime;
 
@@ -68,7 +76,20 @@ public partial class ProviderCardViewModel : BaseViewModel
 
     public bool HasAccountName => !string.IsNullOrWhiteSpace(this.Usage.AccountName);
 
-    public double ProgressPercentage => this.ShowUsedPercentages ? this.UsedPercent : this.RemainingPercent;
+    public double ProgressPercentage
+    {
+        get
+        {
+            if (this._presentation?.HasDualBuckets == true && !this.ShowDualQuotaBars)
+            {
+                var used = this.GetSingleBarDualQuotaUsedPercent();
+                var remaining = Math.Max(0, 100 - used);
+                return this.ShowUsedPercentages ? used : remaining;
+            }
+
+            return this.ShowUsedPercentages ? this.UsedPercent : this.RemainingPercent;
+        }
+    }
 
     public double UsedPercent => this._presentation?.UsedPercent ?? 0;
 
@@ -76,7 +97,22 @@ public partial class ProviderCardViewModel : BaseViewModel
 
     public bool ShouldShowProgress => this._presentation?.ShouldHaveProgress ?? false;
 
-    public string StatusText => this._presentation?.StatusText ?? string.Empty;
+    public string StatusText
+    {
+        get
+        {
+            var presentation = this._presentation;
+            if (presentation?.HasDualBuckets == true && !this.ShowDualQuotaBars)
+            {
+                return MainWindowRuntimeLogic.BuildSingleDualQuotaStatusText(
+                    presentation,
+                    this.ShowUsedPercentages,
+                    this.DualQuotaSingleBarMode);
+            }
+
+            return presentation?.StatusText ?? string.Empty;
+        }
+    }
 
     public ProviderCardStatusTone StatusTone => this._presentation?.StatusTone ?? ProviderCardStatusTone.Secondary;
 
@@ -92,7 +128,7 @@ public partial class ProviderCardViewModel : BaseViewModel
 
     public bool IsQuotaBased => this.Usage.IsQuotaBased;
 
-    public bool HasDualQuotaBuckets => this._presentation?.HasDualBuckets ?? false;
+    public bool HasDualQuotaBuckets => (this._presentation?.HasDualBuckets ?? false) && this.ShowDualQuotaBars;
 
     public double PrimaryUsedPercent => this._presentation?.DualBucketPrimaryUsed ?? 0;
 
@@ -116,8 +152,27 @@ public partial class ProviderCardViewModel : BaseViewModel
     {
         get
         {
-            var suppressSingle = this._presentation?.SuppressSingleResetTime ?? false;
-            var resetTimes = MainWindowRuntimeLogic.ResolveResetTimes(this.Usage, suppressSingle);
+            if (this._presentation == null)
+            {
+                return null;
+            }
+
+            IReadOnlyList<DateTime> resetTimes;
+            if (this._presentation.HasDualBuckets && !this.ShowDualQuotaBars)
+            {
+                var preferredKind = MainWindowRuntimeLogic.GetPreferredDualBucketKind(
+                    this._presentation,
+                    this.DualQuotaSingleBarMode);
+                resetTimes = preferredKind.HasValue
+                    ? MainWindowRuntimeLogic.ResolveResetTimesForWindow(this.Usage, preferredKind.Value)
+                    : Array.Empty<DateTime>();
+            }
+            else
+            {
+                var suppressSingle = this._presentation.SuppressSingleResetTime;
+                resetTimes = MainWindowRuntimeLogic.ResolveResetTimes(this.Usage, suppressSingle);
+            }
+
             if (resetTimes.Count == 0)
             {
                 return null;
@@ -160,6 +215,11 @@ public partial class ProviderCardViewModel : BaseViewModel
     {
         get
         {
+            if (this._presentation?.HasDualBuckets == true && !this.ShowDualQuotaBars)
+            {
+                return this.GetSingleBarDualQuotaColorPercent();
+            }
+
             return GetColorIndicatorPercent(
                 this.Usage,
                 this.UsedPercent,
@@ -243,6 +303,23 @@ public partial class ProviderCardViewModel : BaseViewModel
         OnPropertyChanged(nameof(UsageRateBadgeText));
     }
 
+    partial void OnShowDualQuotaBarsChanged(bool value)
+    {
+        OnPropertyChanged(nameof(HasDualQuotaBuckets));
+        OnPropertyChanged(nameof(ProgressPercentage));
+        OnPropertyChanged(nameof(ColorIndicatorPercent));
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(ResetBadgeText));
+    }
+
+    partial void OnDualQuotaSingleBarModeChanged(DualQuotaSingleBarMode value)
+    {
+        OnPropertyChanged(nameof(ProgressPercentage));
+        OnPropertyChanged(nameof(ColorIndicatorPercent));
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(ResetBadgeText));
+    }
+
     partial void OnEnablePaceAdjustmentChanged(bool value)
     {
         OnPropertyChanged(nameof(ColorIndicatorPercent));
@@ -279,11 +356,45 @@ public partial class ProviderCardViewModel : BaseViewModel
             nowUtc);
     }
 
+    private double GetSingleBarDualQuotaUsedPercent()
+    {
+        if (this._presentation == null || !this._presentation.HasDualBuckets)
+        {
+            return this.UsedPercent;
+        }
+
+        var usePrimary = MainWindowRuntimeLogic.ShouldUsePrimaryDualBucket(
+            this._presentation,
+            this.DualQuotaSingleBarMode);
+        return usePrimary
+            ? this._presentation.DualBucketPrimaryUsed!.Value
+            : this._presentation.DualBucketSecondaryUsed!.Value;
+    }
+
+    private double GetSingleBarDualQuotaColorPercent()
+    {
+        if (this._presentation == null || !this._presentation.HasDualBuckets)
+        {
+            return GetColorIndicatorPercent(
+                this.Usage,
+                this.UsedPercent,
+                this.EnablePaceAdjustment);
+        }
+
+        var usePrimary = MainWindowRuntimeLogic.ShouldUsePrimaryDualBucket(
+            this._presentation,
+            this.DualQuotaSingleBarMode);
+        if (usePrimary)
+        {
+            return this._presentation.DualBucketPrimaryColorPercent ?? this._presentation.DualBucketPrimaryUsed!.Value;
+        }
+
+        return this._presentation.DualBucketSecondaryColorPercent ?? this._presentation.DualBucketSecondaryUsed!.Value;
+    }
+
 
     partial void OnUseRelativeResetTimeChanged(bool value)
     {
         OnPropertyChanged(nameof(ResetBadgeText));
     }
 }
-
-

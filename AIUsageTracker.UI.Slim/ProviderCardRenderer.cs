@@ -58,7 +58,8 @@ internal sealed class ProviderCardRenderer
         };
 
         var pGrid = new Grid();
-        if (presentation.HasDualBuckets)
+        var useDualBars = presentation.HasDualBuckets && this._preferences.ShowDualQuotaBars;
+        if (useDualBars)
         {
             pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -105,11 +106,23 @@ internal sealed class ProviderCardRenderer
         }
         else
         {
-            var indicatorWidth = showUsed ? presentation.UsedPercent : presentation.RemainingPercent;
-            var colorIndicatorPercent = GetColorIndicatorPercent(
-                usage,
-                presentation.UsedPercent,
-                this._preferences.EnablePaceAdjustment);
+            double indicatorWidth;
+            double colorIndicatorPercent;
+
+            if (presentation.HasDualBuckets && !this._preferences.ShowDualQuotaBars)
+            {
+                var (selectedUsed, selectedColor) = this.GetSingleBarDualQuotaPercents(presentation);
+                indicatorWidth = showUsed ? selectedUsed : Math.Max(0, 100 - selectedUsed);
+                colorIndicatorPercent = selectedColor;
+            }
+            else
+            {
+                indicatorWidth = showUsed ? presentation.UsedPercent : presentation.RemainingPercent;
+                colorIndicatorPercent = GetColorIndicatorPercent(
+                    usage,
+                    presentation.UsedPercent,
+                    this._preferences.EnablePaceAdjustment);
+            }
             pGrid = this.CreateSingleProgressLayer(colorIndicatorPercent, indicatorWidth, opacity: 0.45);
         }
 
@@ -140,6 +153,13 @@ internal sealed class ProviderCardRenderer
         }
 
         var statusText = presentation.StatusText;
+        if (presentation.HasDualBuckets && !this._preferences.ShowDualQuotaBars)
+        {
+            statusText = MainWindowRuntimeLogic.BuildSingleDualQuotaStatusText(
+                presentation,
+                showUsed,
+                this._preferences.DualQuotaSingleBarMode);
+        }
         Brush statusBrush = presentation.StatusTone switch
         {
             ProviderCardStatusTone.Missing => Brushes.IndianRed,
@@ -366,9 +386,23 @@ internal sealed class ProviderCardRenderer
 
     private string? BuildResetBadgeText(ProviderUsage usage, ProviderCardPresentation presentation)
     {
-        var resetTimes = MainWindowRuntimeLogic.ResolveResetTimes(
-            usage,
-            presentation.SuppressSingleResetTime);
+        IReadOnlyList<DateTime> resetTimes;
+        if (presentation.HasDualBuckets && !this._preferences.ShowDualQuotaBars)
+        {
+            var preferredKind = MainWindowRuntimeLogic.GetPreferredDualBucketKind(
+                presentation,
+                this._preferences.DualQuotaSingleBarMode);
+            resetTimes = preferredKind.HasValue
+                ? MainWindowRuntimeLogic.ResolveResetTimesForWindow(usage, preferredKind.Value)
+                : Array.Empty<DateTime>();
+        }
+        else
+        {
+            resetTimes = MainWindowRuntimeLogic.ResolveResetTimes(
+                usage,
+                presentation.SuppressSingleResetTime);
+        }
+
         if (resetTimes.Count == 0)
         {
             return null;
@@ -406,6 +440,20 @@ internal sealed class ProviderCardRenderer
             usage.NextResetTime,
             usage.PeriodDuration,
             nowUtc);
+    }
+
+    private (double UsedPercent, double ColorPercent) GetSingleBarDualQuotaPercents(ProviderCardPresentation presentation)
+    {
+        var usePrimary = MainWindowRuntimeLogic.ShouldUsePrimaryDualBucket(
+            presentation,
+            this._preferences.DualQuotaSingleBarMode);
+        var used = usePrimary
+            ? presentation.DualBucketPrimaryUsed!.Value
+            : presentation.DualBucketSecondaryUsed!.Value;
+        var color = usePrimary
+            ? presentation.DualBucketPrimaryColorPercent ?? used
+            : presentation.DualBucketSecondaryColorPercent ?? used;
+        return (used, color);
     }
 
     private Border CreateBulletMarker()
@@ -482,5 +530,3 @@ internal sealed class ProviderCardRenderer
         DockPanel.SetDock(element, dock);
     }
 }
-
-
