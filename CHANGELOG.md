@@ -2,10 +2,15 @@
 
 ## [Unreleased]
 
+## [2.3.4-beta.3] - 2026-03-24
+
 ### Added
+- **Check for Updates button**: Settings > Updates tab now has a manual "Check for Updates" button with inline status feedback.
 - **Dual quota bar toggle**: users can now disable dual bars and select whether the single bar reflects the rolling (weekly) or burst (hourly) window.
 
 ### Fixed
+- **Reset timer showing 0m**: countdown timer was off by the local UTC offset due to SQLite/Dapper returning `DateTime` with `Kind=Unspecified`. Added Dapper `UtcDateTimeHandler` to tag all database reads as UTC.
+- **UTC enforcement**: all internal timestamps now use UTC. `DateTime.Now` replaced with `DateTime.UtcNow` in providers (Gemini, Antigravity, Kimi, OpenRouter) and `ResetTimeParser`. Local time conversion only at display boundary.
 - **Single-bar status and reset badges**: when dual bars are disabled, the status text and reset badge now reflect the selected quota window.
 - **Tray tooltip consistency**: tray icon status text now matches the selected single-window mode when dual bars are off.
 
