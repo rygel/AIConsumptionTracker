@@ -293,23 +293,36 @@ public static class UsageMath
         TimeSpan periodDuration,
         DateTime? nowUtc = null)
     {
+        return Math.Clamp(CalculateProjectedFinalPercentUnclamped(usedPercent, nextResetUtc, periodDuration, nowUtc), 0d, 100d);
+    }
+
+    /// <summary>
+    /// Same as <see cref="CalculateProjectedFinalPercent"/> but without clamping to 100%.
+    /// Used by pace badge to show the actual overshoot (e.g. +4% over quota).
+    /// </summary>
+    internal static double CalculateProjectedFinalPercentUnclamped(
+        double usedPercent,
+        DateTime nextResetUtc,
+        TimeSpan periodDuration,
+        DateTime? nowUtc = null)
+    {
         var now = nowUtc ?? DateTime.UtcNow;
         if (periodDuration.TotalSeconds <= 0)
         {
-            return ClampPercent(usedPercent);
+            return Math.Max(0, usedPercent);
         }
 
         // Guard against DateTime underflow when nextResetUtc is too close to MinValue
         if (nextResetUtc.Ticks < periodDuration.Ticks)
         {
-            return ClampPercent(usedPercent);
+            return Math.Max(0, usedPercent);
         }
 
         var periodStart = nextResetUtc - periodDuration;
         var elapsed = now - periodStart;
         var elapsedFraction = Math.Clamp(elapsed.TotalSeconds / periodDuration.TotalSeconds, 0.01, 1.0);
 
-        return ClampPercent(usedPercent / elapsedFraction);
+        return Math.Max(0, usedPercent / elapsedFraction);
     }
 
     /// <summary>
@@ -334,7 +347,7 @@ public static class UsageMath
             return null;
         }
 
-        var projected = CalculateProjectedFinalPercent(usedPercent, nextReset, periodDuration.Value, nowUtc);
+        var projected = CalculateProjectedFinalPercentUnclamped(usedPercent, nextReset, periodDuration.Value, nowUtc);
         return ClassifyPace(projected);
     }
 
