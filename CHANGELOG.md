@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [2.3.4-beta.4] - 2026-03-25
+
+### Changed
+- **Pace badge delta**: projected text now shows symmetric delta — `-30%` for headroom, `+5%` for over pace — instead of verbose labels.
+
+### Dependencies
+- Bump Meziantou.Analyzer 3.0.25 → 3.0.27
+- Bump github/codeql-action 4.34.0 → 4.34.1
+
 ## [2.3.4-beta.3] - 2026-03-24
 
 ### Added
