@@ -321,9 +321,9 @@
                                           Foreground="{DynamicResource SecondaryText}" FontSize="11"
                                           ToolTip="Fill card background with progress bar. When off, shows a thin color indicator on the left edge."
                                           Checked="CardCompactMode_Changed" Unchecked="CardCompactMode_Changed" Margin="0,3"/>
-                                <CheckBox x:Name="CompactModeCheck" Content="Compact cards"
+                                <CheckBox x:Name="CompactModeCheck" Content="No quota bar in background"
                                           Foreground="{DynamicResource SecondaryText}" FontSize="11"
-                                          ToolTip="Smaller card height, tighter spacing, reduced font sizes"
+                                          ToolTip="Hide the progress bar background fill, show only the left color indicator"
                                           Checked="CardCompactMode_Changed" Unchecked="CardCompactMode_Changed" Margin="0,3"/>
                                 <CheckBox x:Name="ShowDualQuotaBarsCheck" Content="Dual quota bars"
                                           Foreground="{DynamicResource SecondaryText}" FontSize="11"
