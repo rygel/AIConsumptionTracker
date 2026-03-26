@@ -16,11 +16,13 @@ public class IndexModel : PageModel
 {
     private readonly WebDatabaseService _dbService;
     private readonly IUsageAnalyticsService _analyticsService;
+    private readonly IPreferencesStore _preferencesStore;
 
-    public IndexModel(WebDatabaseService dbService, IUsageAnalyticsService analyticsService)
+    public IndexModel(WebDatabaseService dbService, IUsageAnalyticsService analyticsService, IPreferencesStore preferencesStore)
     {
         this._dbService = dbService;
         this._analyticsService = analyticsService;
+        this._preferencesStore = preferencesStore;
     }
 
     public IReadOnlyList<ProviderUsage>? LatestUsage { get; set; }
@@ -54,11 +56,16 @@ public class IndexModel : PageModel
     // Always on.
     public bool EnableExperimentalComparison { get; set; } = true;
 
+    public int ColorThresholdYellow { get; set; } = 60;
+
+    public int ColorThresholdRed { get; set; } = 80;
+
     public async Task OnGetAsync([FromQuery] bool? showUsed)
     {
         this.ResolveShowUsedPreference(showUsed);
         this.ResolveShowInactivePreference();
         this.ResolveExperimentalAnomalyPreference();
+        await this.LoadColorThresholdsAsync().ConfigureAwait(false);
 
         // Budget and comparison are always enabled (experimental)
         this.EnableExperimentalBudgetPolicies = true;
@@ -174,6 +181,13 @@ public class IndexModel : PageModel
         {
             this.UsageComparisons = (await this._analyticsService.GetUsageComparisonsAsync(providerIds)).ToList();
         }
+    }
+
+    private async Task LoadColorThresholdsAsync()
+    {
+        var prefs = await this._preferencesStore.LoadAsync().ConfigureAwait(false);
+        this.ColorThresholdYellow = prefs.ColorThresholdYellow;
+        this.ColorThresholdRed = prefs.ColorThresholdRed;
     }
 
     private void SetBooleanCookie(string name, bool value)
