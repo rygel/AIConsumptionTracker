@@ -627,7 +627,6 @@ public class MonitorLauncher : IMonitorLauncher
         return Path.Combine(localAppData, CanonicalProductFolder, "monitor.json");
     }
 
-
     internal static string BuildLaunchMutexName()
     {
         return MutexNameBuilder.BuildGlobalName("AIUsageTracker_MonitorLaunch_");
