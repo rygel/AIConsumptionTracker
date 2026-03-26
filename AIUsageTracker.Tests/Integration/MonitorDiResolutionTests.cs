@@ -169,6 +169,8 @@ public class MonitorDiResolutionTests
         public string GetProviderConfigFilePath() => Path.Combine(_root, "providers.json");
 
         public string GetUserProfileRoot() => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        public string GetMonitorInfoFilePath() => Path.Combine(this.GetAppDataRoot(), "monitor.json");
     }
 
     private sealed class StubProviderDiscoveryService : IProviderDiscoveryService
