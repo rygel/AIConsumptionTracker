@@ -183,12 +183,9 @@ public class AntigravityProvider : ProviderBase
                         candidatePorts.Add(commandLinePort.Value);
                     }
 
-                    foreach (var listeningPort in await this.FindListeningPortsAsync(pid).ConfigureAwait(false))
+                    foreach (var listeningPort in (await this.FindListeningPortsAsync(pid).ConfigureAwait(false)).Where(p => !candidatePorts.Contains(p)))
                     {
-                        if (!candidatePorts.Contains(listeningPort))
-                        {
-                            candidatePorts.Add(listeningPort);
-                        }
+                        candidatePorts.Add(listeningPort);
                     }
 
                     if (!candidatePorts.Any())
@@ -444,14 +441,11 @@ public class AntigravityProvider : ProviderBase
         long totalUsed = 0;
         var hasRawNumbers = false;
 
-        foreach (var cfg in configMap.Values)
+        foreach (var cfg in configMap.Values.Where(c => c.QuotaInfo?.TotalRequests.HasValue == true))
         {
-            if (cfg.QuotaInfo?.TotalRequests.HasValue == true)
-            {
-                totalLimit += cfg.QuotaInfo.TotalRequests.Value;
-                totalUsed += cfg.QuotaInfo.UsedRequests ?? 0;
-                hasRawNumbers = true;
-            }
+            totalLimit += cfg.QuotaInfo!.TotalRequests!.Value;
+            totalUsed += cfg.QuotaInfo.UsedRequests ?? 0;
+            hasRawNumbers = true;
         }
 
         if (!hasRawNumbers || totalLimit <= 0)
@@ -469,12 +463,9 @@ public class AntigravityProvider : ProviderBase
 
         if (group.ModelLabels != null)
         {
-            foreach (var label in group.ModelLabels)
+            foreach (var label in group.ModelLabels.Where(l => !string.IsNullOrWhiteSpace(l)))
             {
-                if (!string.IsNullOrWhiteSpace(label))
-                {
-                    labels.Add(label);
-                }
+                labels.Add(label);
             }
         }
 
@@ -544,16 +535,14 @@ public class AntigravityProvider : ProviderBase
 
         if (sort.ExtensionData != null)
         {
-            foreach (var key in new[] { "name", "label", "title", "id", "sortName", "sort_name" })
+            var resolved = new[] { "name", "label", "title", "id", "sortName", "sort_name" }
+                .Where(key => sort.ExtensionData.TryGetValue(key, out _))
+                .Select(key => TryReadStringFromJsonElement(sort.ExtensionData[key]))
+                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+            if (resolved != null)
             {
-                if (sort.ExtensionData.TryGetValue(key, out var element))
-                {
-                    var value = TryReadStringFromJsonElement(element);
-                    if (!string.IsNullOrWhiteSpace(value))
-                    {
-                        return value;
-                    }
-                }
+                return resolved;
             }
         }
 
@@ -589,16 +578,14 @@ public class AntigravityProvider : ProviderBase
 
         if (group.ExtensionData != null)
         {
-            foreach (var key in new[] { "name", "label", "title", "groupName", "displayName", "group_label", "group_name" })
+            var resolved = new[] { "name", "label", "title", "groupName", "displayName", "group_label", "group_name" }
+                .Where(key => group.ExtensionData.TryGetValue(key, out _))
+                .Select(key => TryReadStringFromJsonElement(group.ExtensionData[key]))
+                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+            if (resolved != null)
             {
-                if (group.ExtensionData.TryGetValue(key, out var element))
-                {
-                    var value = TryReadStringFromJsonElement(element);
-                    if (!string.IsNullOrWhiteSpace(value))
-                    {
-                        return value;
-                    }
-                }
+                return resolved;
             }
         }
 
@@ -616,13 +603,9 @@ public class AntigravityProvider : ProviderBase
 
         if (element.ValueKind == JsonValueKind.Object)
         {
-            foreach (var key in new[] { "name", "label", "title", "displayName" })
-            {
-                if (element.TryGetProperty(key, out var nested) && nested.ValueKind == JsonValueKind.String)
-                {
-                    return nested.GetString();
-                }
-            }
+            return new[] { "name", "label", "title", "displayName" }
+                .Select(key => element.TryGetProperty(key, out var nested) && nested.ValueKind == JsonValueKind.String ? nested.GetString() : null)
+                .FirstOrDefault(value => value != null);
         }
 
         return null;
@@ -720,21 +703,12 @@ public class AntigravityProvider : ProviderBase
 
         var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         var regex = new Regex($@"\s+TCP\s+(?:127\.0\.0\.1|\[::1\]):(\d+)\s+.*LISTENING\s+{pid}", RegexOptions.None, TimeSpan.FromSeconds(1));
-        var ports = new List<int>();
-
-        foreach (var line in lines)
-        {
-            var match = regex.Match(line);
-            if (match.Success && int.TryParse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture, out var parsedPort))
-            {
-                if (!ports.Contains(parsedPort))
-                {
-                    ports.Add(parsedPort);
-                }
-            }
-        }
-
-        return ports;
+        return lines
+            .Select(line => regex.Match(line))
+            .Where(match => match.Success && int.TryParse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture, out _))
+            .Select(match => int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture))
+            .Distinct()
+            .ToList();
     }
 
     private async Task<List<ProviderUsage>> FetchUsageAsync(int port, string csrfToken, ProviderConfig config)

@@ -159,11 +159,10 @@ public class MonitorLauncher : IMonitorLauncher
     public async Task<bool> StartAgentAsync()
     {
         await this._startupSemaphore.WaitAsync().ConfigureAwait(false);
-        Mutex? launchMutex = null;
+        using var launchMutex = new Mutex(initiallyOwned: false, name: BuildLaunchMutexName());
         var holdsLaunchMutex = false;
         try
         {
-            launchMutex = new Mutex(initiallyOwned: false, name: BuildLaunchMutexName());
             try
             {
                 holdsLaunchMutex = launchMutex.WaitOne(TimeSpan.FromSeconds(LaunchMutexWaitSeconds));
@@ -212,7 +211,7 @@ public class MonitorLauncher : IMonitorLauncher
         }
         finally
         {
-            if (holdsLaunchMutex && launchMutex != null)
+            if (holdsLaunchMutex)
             {
                 try
                 {
@@ -224,7 +223,6 @@ public class MonitorLauncher : IMonitorLauncher
                 }
             }
 
-            launchMutex?.Dispose();
             this._startupSemaphore.Release();
         }
     }

@@ -196,6 +196,7 @@ public class IndexModel : PageModel
         {
             Expires = DateTimeOffset.UtcNow.AddYears(1),
             HttpOnly = false,
+            Secure = true,
             SameSite = SameSiteMode.Strict,
         });
     }

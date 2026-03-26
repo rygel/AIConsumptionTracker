@@ -156,13 +156,15 @@ public class AppPreferences
 
     private static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement property)
     {
-        foreach (var candidate in element.EnumerateObject())
+        var match = element.EnumerateObject()
+            .Where(candidate => string.Equals(candidate.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            .Cast<JsonProperty?>()
+            .FirstOrDefault();
+
+        if (match.HasValue)
         {
-            if (string.Equals(candidate.Name, propertyName, StringComparison.OrdinalIgnoreCase))
-            {
-                property = candidate.Value;
-                return true;
-            }
+            property = match.Value.Value;
+            return true;
         }
 
         property = default;

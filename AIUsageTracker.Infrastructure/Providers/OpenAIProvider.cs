@@ -267,7 +267,7 @@ public class OpenAIProvider : ProviderBase
 
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, "https://api.openai.com/v1/models");
+            using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.openai.com/v1/models");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
             var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
 

@@ -412,7 +412,7 @@ public static class UsageMath
 
         // Check for no consumption trend - all samples have same usage (before any trimming or validation)
         var firstUsage = samples[0].RequestsUsed;
-        var allSame = samples.All(x => x.RequestsUsed == firstUsage);
+        var allSame = samples.All(x => Math.Abs(x.RequestsUsed - firstUsage) < 0.001);
         if (allSame)
         {
             return BurnRateForecast.Unavailable("No consumption trend");
@@ -637,7 +637,7 @@ public static class UsageMath
         }
 
         // Check for no consumption trend - all samples have same usage
-        var hasNoTrend = cycleSamples.All(x => x.RequestsUsed == cycleSamples[0].RequestsUsed);
+        var hasNoTrend = cycleSamples.All(x => Math.Abs(x.RequestsUsed - cycleSamples[0].RequestsUsed) < 0.001);
         if (hasNoTrend)
         {
             return BurnRateForecast.Unavailable("No consumption trend");

@@ -169,7 +169,7 @@ public class UsageDatabase : IUsageDatabase
                 ProviderId = config.ProviderId,
                 ProviderName = friendlyName ?? config.ProviderId,
                 AuthSource = config.AuthSource ?? "manual",
-                AccountName = (string?)null,
+                AccountName = default(string),
                 ConfigJson = JsonSerializer.Serialize(safeConfig),
             }).ConfigureAwait(false);
         }
@@ -331,8 +331,8 @@ public class UsageDatabase : IUsageDatabase
         string? newNextResetTime,
         string newStatusMessage)
     {
-        return usage.RequestsUsed == last.RequestsUsed
-            && usage.RequestsAvailable == last.RequestsAvailable
+        return Math.Abs(usage.RequestsUsed - last.RequestsUsed) < 0.001
+            && Math.Abs(usage.RequestsAvailable - last.RequestsAvailable) < 0.001
             && (usage.IsAvailable ? 1L : 0L) == last.IsAvailable
             && (long)usage.HttpStatus == last.HttpStatus
             && string.Equals(newStatusMessage, last.StatusMessage ?? string.Empty, StringComparison.Ordinal)

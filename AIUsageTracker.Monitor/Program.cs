@@ -30,70 +30,65 @@ public class Program
     {
         bool isDebugMode = args.Contains("--debug", StringComparer.Ordinal);
         IAppPathProvider pathProvider = new DefaultAppPathProvider();
-        ILoggerFactory? loggerFactory = null;
-        ILogger? logger = null;
-        Mutex? startupMutex = null;
         var holdsStartupMutex = false;
+
+        var resolvedLogPath = MonitorLogPathResolver.Resolve(pathProvider, DateTime.Now);
+        if (resolvedLogPath.UsedFallback)
+        {
+            await Console.Error.WriteLineAsync(
+                $"Preferred monitor log directory '{resolvedLogPath.PreferredDirectory}' unavailable. Using fallback '{resolvedLogPath.LogDirectory}'.").ConfigureAwait(false);
+        }
+
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder
+                .SetMinimumLevel(isDebugMode ? LogLevel.Debug : LogLevel.Information)
+                .AddProvider(new FileLoggerProvider(resolvedLogPath.LogFile));
+            if (isDebugMode)
+            {
+                builder.AddConsole();
+            }
+        });
+
+        var logger = loggerFactory.CreateLogger("Monitor");
+
+        if (resolvedLogPath.UsedFallback)
+        {
+            logger.LogWarning(
+                "Preferred monitor log directory {PreferredLogDirectory} unavailable. Using fallback {FallbackLogDirectory}.",
+                resolvedLogPath.PreferredDirectory,
+                resolvedLogPath.LogDirectory);
+        }
+
+        // Rotate logs: keep only last 7 days
+        try
+        {
+            var cutoffDate = DateTime.Now.AddDays(-7);
+            foreach (var fileInfo in Directory.GetFiles(resolvedLogPath.LogDirectory, "monitor_*.log")
+                         .Select(log => new FileInfo(log))
+                         .Where(fi => fi.LastWriteTime < cutoffDate))
+            {
+                fileInfo.Delete();
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Log rotation error");
+        }
+
+        var monitorVersion = System.Reflection.CustomAttributeExtensions
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(Program).Assembly)
+            ?.InformationalVersion ?? "unknown";
+        logger.LogInformation("=== Monitor starting === (v{Version})", monitorVersion);
+
+        // Machine-wide mutex to prevent concurrent launches
+        string mutexName = @"Global\AIUsageTracker_Monitor_" + Environment.UserName;
+        bool createdNew;
+        using var startupMutex = new Mutex(true, mutexName, out createdNew);
+        holdsStartupMutex = createdNew;
 
         try
         {
-            var resolvedLogPath = MonitorLogPathResolver.Resolve(pathProvider, DateTime.Now);
-            if (resolvedLogPath.UsedFallback)
-            {
-                await Console.Error.WriteLineAsync(
-                    $"Preferred monitor log directory '{resolvedLogPath.PreferredDirectory}' unavailable. Using fallback '{resolvedLogPath.LogDirectory}'.").ConfigureAwait(false);
-            }
-
-            loggerFactory = LoggerFactory.Create(builder =>
-            {
-                builder
-                    .SetMinimumLevel(isDebugMode ? LogLevel.Debug : LogLevel.Information)
-                    .AddProvider(new FileLoggerProvider(resolvedLogPath.LogFile));
-                if (isDebugMode)
-                {
-                    builder.AddConsole();
-                }
-            });
-
-            logger = loggerFactory.CreateLogger("Monitor");
-
-            if (resolvedLogPath.UsedFallback)
-            {
-                logger.LogWarning(
-                    "Preferred monitor log directory {PreferredLogDirectory} unavailable. Using fallback {FallbackLogDirectory}.",
-                    resolvedLogPath.PreferredDirectory,
-                    resolvedLogPath.LogDirectory);
-            }
-
-            // Rotate logs: keep only last 7 days
-            try
-            {
-                var cutoffDate = DateTime.Now.AddDays(-7);
-                foreach (var log in Directory.GetFiles(resolvedLogPath.LogDirectory, "monitor_*.log"))
-                {
-                    var fileInfo = new FileInfo(log);
-                    if (fileInfo.LastWriteTime < cutoffDate)
-                    {
-                        fileInfo.Delete();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Log rotation error");
-            }
-
-            var monitorVersion = System.Reflection.CustomAttributeExtensions
-                .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(Program).Assembly)
-                ?.InformationalVersion ?? "unknown";
-            logger.LogInformation("=== Monitor starting === (v{Version})", monitorVersion);
-
-            // Machine-wide mutex to prevent concurrent launches
-            string mutexName = @"Global\AIUsageTracker_Monitor_" + Environment.UserName;
-            bool createdNew;
-            startupMutex = new Mutex(true, mutexName, out createdNew);
-            holdsStartupMutex = createdNew;
-
             var monitorLauncher = new MonitorLauncher(loggerFactory.CreateLogger<MonitorLauncher>());
 
             if (!createdNew)
@@ -312,21 +307,13 @@ public class Program
         }
         catch (Exception ex)
         {
-            if (logger is not null)
-            {
-                logger.LogError(ex, "Monitor startup failed");
-                MonitorInfoPersistence.SaveMonitorInfo(0, isDebugMode, logger, pathProvider, startupStatus: $"failed: {ex.Message}");
-            }
-            else
-            {
-                await Console.Error.WriteLineAsync($"Monitor startup failed before logger initialization: {ex}").ConfigureAwait(false);
-            }
-
+            logger.LogError(ex, "Monitor startup failed");
+            MonitorInfoPersistence.SaveMonitorInfo(0, isDebugMode, logger, pathProvider, startupStatus: $"failed: {ex.Message}");
             throw;
         }
         finally
         {
-            if (holdsStartupMutex && startupMutex != null)
+            if (holdsStartupMutex)
             {
                 try
                 {
@@ -334,12 +321,9 @@ public class Program
                 }
                 catch (ApplicationException)
                 {
-                    logger?.LogDebug("Startup mutex ownership was lost before shutdown.");
+                    logger.LogDebug("Startup mutex ownership was lost before shutdown.");
                 }
             }
-
-            startupMutex?.Dispose();
-            loggerFactory?.Dispose();
         }
     }
 

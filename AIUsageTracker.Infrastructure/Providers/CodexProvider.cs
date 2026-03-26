@@ -199,15 +199,7 @@ public class CodexProvider : ProviderBase
 
     private static string? ResolveKnownAccountIdentity(params string?[] candidates)
     {
-        foreach (var candidate in candidates)
-        {
-            if (!string.IsNullOrWhiteSpace(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        return null;
+        return candidates.Where(c => !string.IsNullOrWhiteSpace(c)).FirstOrDefault();
     }
 
     private static string? ResolveAccountIdentity(
@@ -394,15 +386,8 @@ public class CodexProvider : ProviderBase
             return null;
         }
 
-        foreach (var candidate in candidates)
-        {
-            if (LooksLikeSparkWindow(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        return candidates.First();
+        var match = candidates.Where(LooksLikeSparkWindow).Cast<SparkWindow?>().FirstOrDefault();
+        return match ?? candidates.First();
     }
 
     private static bool LooksLikeSparkWindow(SparkWindow candidate)
