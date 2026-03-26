@@ -951,6 +951,7 @@ public partial class SettingsWindow : Window
         this.SyncDisplayPreferencesFromControls();
         this.ScheduleAutoSave();
         this.RenderCardPreview();
+        this.NotifyMainWindowChanged();
     }
 
     private void LayoutSetting_TextChanged(object sender, TextChangedEventArgs e)
@@ -963,6 +964,7 @@ public partial class SettingsWindow : Window
         this.SyncDisplayPreferencesFromControls();
         this.ScheduleAutoSave();
         this.RenderCardPreview();
+        this.NotifyMainWindowChanged();
     }
 
     /// <summary>

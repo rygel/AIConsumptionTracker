@@ -130,6 +130,10 @@ public class AppPreferences
     [JsonConverter(typeof(JsonStringEnumConverter<CardSlotContent>))]
     public CardSlotContent CardResetInfo { get; set; } = CardSlotContent.ResetAbsolute;
 
+    public bool CardCompactMode { get; set; } = false;
+
+    public bool CardBackgroundBar { get; set; } = true;
+
     public static AppPreferences Deserialize(string json)
     {
         var preferences = JsonSerializer.Deserialize<AppPreferences>(json) ?? new AppPreferences();

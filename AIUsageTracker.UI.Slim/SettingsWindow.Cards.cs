@@ -62,6 +62,8 @@ public partial class SettingsWindow
         this.SecondaryBadgeSlot.SelectedValue = this._preferences.CardSecondaryBadge;
         this.StatusLineSlot.SelectedValue = this._preferences.CardStatusLine;
         this.ResetInfoSlot.SelectedValue = this._preferences.CardResetInfo;
+        this.CompactModeCheck.IsChecked = this._preferences.CardCompactMode;
+        this.BackgroundBarCheck.IsChecked = this._preferences.CardBackgroundBar;
 
         this.RenderCardPreview();
     }
@@ -157,6 +159,14 @@ public partial class SettingsWindow
         }
     }
 
+    private void NotifyMainWindowChanged()
+    {
+        if (this.Owner is MainWindow mainWindow)
+        {
+            mainWindow.RenderProviders();
+        }
+    }
+
     private void RefreshCardUserPresetCombo()
     {
         this.UserPresetCombo.ItemsSource = null;
@@ -228,6 +238,7 @@ public partial class SettingsWindow
         this.SyncCardSlotPreferences();
         this.ScheduleAutoSave();
         this.RenderCardPreview();
+        this.NotifyMainWindowChanged();
     }
 
     private void SyncCardSlotPreferences()
@@ -253,7 +264,14 @@ public partial class SettingsWindow
         }
     }
 
-    private void CardCompactMode_Changed(object sender, RoutedEventArgs e) => this.RenderCardPreview();
+    private void CardCompactMode_Changed(object sender, RoutedEventArgs e)
+    {
+        this._preferences.CardCompactMode = this.CompactModeCheck?.IsChecked ?? false;
+        this._preferences.CardBackgroundBar = this.BackgroundBarCheck?.IsChecked ?? true;
+        this.ScheduleAutoSave();
+        this.RenderCardPreview();
+        this.NotifyMainWindowChanged();
+    }
 
     private void CardPresetCompact_Click(object sender, RoutedEventArgs e)
     {

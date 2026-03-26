@@ -49,10 +49,11 @@ internal sealed class ProviderCardRenderer
         var friendlyName = ProviderMetadataCatalog.ResolveDisplayLabel(usage);
         var presentation = MainWindowRuntimeLogic.Create(usage, showUsed, this._preferences.ColorThresholdRed);
 
+        var isCompact = this._preferences.CardCompactMode;
         var grid = new Grid
         {
-            Margin = new Thickness(isChild ? 20 : 0, 0, 0, 2),
-            Height = 24,
+            Margin = new Thickness(isChild ? 20 : 0, 0, 0, isCompact ? 1 : 2),
+            Height = isCompact ? 20 : 24,
             Background = Brushes.Transparent,
             Tag = providerId,
         };
@@ -148,17 +149,19 @@ internal sealed class ProviderCardRenderer
         };
         grid.Children.Add(bg);
 
-        var contentPanel = new DockPanel { LastChildFill = false, Margin = new Thickness(6, 0, 6, 0) };
+        var contentPadding = isCompact ? 4 : 6;
+        var contentPanel = new DockPanel { LastChildFill = false, Margin = new Thickness(contentPadding, 0, contentPadding, 0) };
         if (isChild)
         {
             AddDockedElement(contentPanel, this.CreateBulletMarker(), Dock.Left);
         }
         else
         {
+            var iconSize = isCompact ? 12 : 14;
             var providerIcon = this._createProviderIcon(providerId);
-            providerIcon.Margin = new Thickness(0, 0, 6, 0);
-            providerIcon.Width = 14;
-            providerIcon.Height = 14;
+            providerIcon.Margin = new Thickness(0, 0, isCompact ? 4 : 6, 0);
+            providerIcon.Width = iconSize;
+            providerIcon.Height = iconSize;
             providerIcon.VerticalAlignment = VerticalAlignment.Center;
             AddDockedElement(contentPanel, providerIcon, Dock.Left);
         }
@@ -478,14 +481,15 @@ internal sealed class ProviderCardRenderer
             return;
         }
 
+        var compact = this._preferences.CardCompactMode;
         AddDockedElement(
             panel,
             this.CreateDockedTextBlock(
                 text,
-                fontSize: fontSize,
+                fontSize: compact ? fontSize - 1 : fontSize,
                 foreground: foreground,
                 fontWeight: fontWeight ?? FontWeights.Normal,
-                margin: new Thickness(6, 0, 0, 0)),
+                margin: new Thickness(compact ? 4 : 6, 0, 0, 0)),
             Dock.Right);
     }
 

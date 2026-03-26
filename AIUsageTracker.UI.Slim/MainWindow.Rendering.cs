@@ -15,7 +15,7 @@ namespace AIUsageTracker.UI.Slim;
 
 public partial class MainWindow : Window
 {
-    private void RenderProviders()
+    internal void RenderProviders()
     {
         this.LogDiagnostic("[DIAGNOSTIC] RenderProviders called");
         this.ProvidersList.Children.Clear();
