@@ -46,6 +46,12 @@ public class DefaultAppPathProvider : IAppPathProvider
         return GetCanonicalProviderConfigPath(localAppData);
     }
 
+    public string GetMonitorInfoFilePath()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(GetCanonicalAppDataRoot(localAppData), "monitor.json");
+    }
+
     public string GetUserProfileRoot()
     {
         return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);

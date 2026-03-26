@@ -49,10 +49,11 @@ internal sealed class ProviderCardRenderer
         var friendlyName = ProviderMetadataCatalog.ResolveDisplayLabel(usage);
         var presentation = MainWindowRuntimeLogic.Create(usage, showUsed, this._preferences.ColorThresholdRed);
 
+        var isCompact = this._preferences.CardCompactMode;
         var grid = new Grid
         {
-            Margin = new Thickness(isChild ? 20 : 0, 0, 0, 2),
-            Height = 24,
+            Margin = new Thickness(isChild ? 20 : 0, 0, 0, isCompact ? 1 : 2),
+            Height = isCompact ? 20 : 24,
             Background = Brushes.Transparent,
             Tag = providerId,
         };
@@ -137,28 +138,53 @@ internal sealed class ProviderCardRenderer
             this._preferences.ColorThresholdRed,
             this._preferences.EnablePaceAdjustment);
 
-        pGrid.Visibility = presentation.ShouldHaveProgress ? Visibility.Visible : Visibility.Collapsed;
-        grid.Children.Add(pGrid);
-
-        var bg = new Border
+        var useBackgroundBar = this._preferences.CardBackgroundBar;
+        if (useBackgroundBar)
         {
-            Background = this._getResourceBrush("CardBackground", Brushes.DarkGray),
-            CornerRadius = new CornerRadius(0),
-            Visibility = presentation.ShouldHaveProgress ? Visibility.Collapsed : Visibility.Visible,
-        };
-        grid.Children.Add(bg);
+            pGrid.Visibility = presentation.ShouldHaveProgress ? Visibility.Visible : Visibility.Collapsed;
+            grid.Children.Add(pGrid);
 
-        var contentPanel = new DockPanel { LastChildFill = false, Margin = new Thickness(6, 0, 6, 0) };
+            var bg = new Border
+            {
+                Background = this._getResourceBrush("CardBackground", Brushes.DarkGray),
+                CornerRadius = new CornerRadius(0),
+                Visibility = presentation.ShouldHaveProgress ? Visibility.Collapsed : Visibility.Visible,
+            };
+            grid.Children.Add(bg);
+        }
+        else
+        {
+            // Color-indicator-only mode: thin color stripe on the left edge
+            grid.Children.Add(new Border
+            {
+                Background = this._getResourceBrush("CardBackground", Brushes.DarkGray),
+            });
+
+            if (presentation.ShouldHaveProgress)
+            {
+                grid.Children.Add(new Border
+                {
+                    Width = 3,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Background = this.GetProgressBarColor(cardPaceColor.ColorPercent),
+                    Opacity = 0.8,
+                });
+            }
+        }
+
+        var contentPadding = isCompact ? 4 : 6;
+        var contentPanel = new DockPanel { LastChildFill = false, Margin = new Thickness(contentPadding, 0, contentPadding, 0) };
         if (isChild)
         {
             AddDockedElement(contentPanel, this.CreateBulletMarker(), Dock.Left);
         }
         else
         {
+            var iconSize = isCompact ? 12 : 14;
             var providerIcon = this._createProviderIcon(providerId);
-            providerIcon.Margin = new Thickness(0, 0, 6, 0);
-            providerIcon.Width = 14;
-            providerIcon.Height = 14;
+            providerIcon.Margin = new Thickness(0, 0, isCompact ? 4 : 6, 0);
+            providerIcon.Width = iconSize;
+            providerIcon.Height = iconSize;
             providerIcon.VerticalAlignment = VerticalAlignment.Center;
             AddDockedElement(contentPanel, providerIcon, Dock.Left);
         }
@@ -478,14 +504,15 @@ internal sealed class ProviderCardRenderer
             return;
         }
 
+        var compact = this._preferences.CardCompactMode;
         AddDockedElement(
             panel,
             this.CreateDockedTextBlock(
                 text,
-                fontSize: fontSize,
+                fontSize: compact ? fontSize - 1 : fontSize,
                 foreground: foreground,
                 fontWeight: fontWeight ?? FontWeights.Normal,
-                margin: new Thickness(6, 0, 0, 0)),
+                margin: new Thickness(compact ? 4 : 6, 0, 0, 0)),
             Dock.Right);
     }
 
