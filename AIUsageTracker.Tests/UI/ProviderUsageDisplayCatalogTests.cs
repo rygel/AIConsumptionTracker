@@ -91,30 +91,6 @@ public sealed class ProviderUsageDisplayCatalogTests
     }
 
     [Fact]
-    public void ExpandSyntheticAggregateChildren_YieldsParentAsIs_WhenProviderDoesNotUseSyntheticChildren()
-    {
-        var detail = new ProviderUsageDetail
-        {
-            Name = "Gemini 3 Flash",
-        };
-        detail.SetPercentageValue(100, PercentageValueSemantic.Remaining);
-
-        var parent = new ProviderUsage
-        {
-            ProviderId = "antigravity",
-            IsAvailable = true,
-            Details = new List<ProviderUsageDetail> { detail },
-        };
-
-        var result = MainWindowRuntimeLogic.ExpandSyntheticAggregateChildren(
-            new[] { parent },
-            Array.Empty<string>()).ToList();
-
-        Assert.Single(result);
-        Assert.Equal("antigravity", result[0].ProviderId);
-    }
-
-    [Fact]
     public void PrepareForMainWindow_UsesProviderMetadata_ForCodexFamilyBehavior()
     {
         var usages = new List<ProviderUsage>

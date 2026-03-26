@@ -50,19 +50,12 @@ internal static partial class MainWindowRuntimeLogic
         var isConsoleCheck = usage.State == ProviderUsageState.ConsoleCheck;
         var isError = usage.State == ProviderUsageState.Error;
         var isUnknown = usage.State == ProviderUsageState.Unknown;
-        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
-        var presDef = ProviderMetadataCatalog.Find(canonicalProviderId);
-        var isAggregateParent = presDef != null
-            && string.Equals(canonicalProviderId, presDef.ProviderId, StringComparison.OrdinalIgnoreCase)
-            && presDef.RenderDetailsAsSyntheticChildrenInMainWindow
-            && string.Equals(providerId, canonicalProviderId, StringComparison.OrdinalIgnoreCase);
         var isStatusOnlyProvider = usage.IsStatusOnly;
         var hasDualQuotaBucketPresentation = TryGetDualQuotaBucketPresentation(usage, out var dualQuotaBucketPresentation);
         var remainingPercent = usage.RemainingPercent;
         var usedPercent = usage.UsedPercent;
         var shouldHaveProgress = usage.IsAvailable &&
             !isUnknown &&
-            !isAggregateParent &&
             !isStatusOnlyProvider &&
             (usage.UsedPercent > 0 || usage.IsQuotaBased) &&
             !isMissing &&
@@ -108,7 +101,6 @@ internal static partial class MainWindowRuntimeLogic
             showUsed,
             description,
             isUnknown,
-            isAggregateParent,
             isStatusOnlyProvider,
             hasDualQuotaBucketPresentation,
             dualQuotaBucketPresentation);
@@ -201,16 +193,10 @@ internal static partial class MainWindowRuntimeLogic
         bool showUsed,
         string description,
         bool isUnknown,
-        bool isAggregateParent,
         bool isStatusOnlyProvider,
         bool hasDualQuotaBucketPresentation,
         (string PrimaryLabel, double PrimaryUsedPercent, DateTime? PrimaryResetTime, TimeSpan? PrimaryPeriodDuration, WindowKind PrimaryKind, string SecondaryLabel, double SecondaryUsedPercent, DateTime? SecondaryResetTime, TimeSpan? SecondaryPeriodDuration, WindowKind SecondaryKind) dualQuotaBucketPresentation)
     {
-        if (isAggregateParent)
-        {
-            return (string.IsNullOrWhiteSpace(description) ? "Awaiting data" : description, false);
-        }
-
         // Reuse the already-resolved definition from the caller instead of a second catalog lookup.
         var def = ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty);
         if (def?.IsTooltipOnly ?? false)
@@ -651,11 +637,7 @@ internal static partial class MainWindowRuntimeLogic
         return int.MaxValue;
     }
 
-    private static bool ShouldUseSharedCollapsePreference(string providerId)
-    {
-        return ProviderMetadataCatalog.Find(
-            ProviderMetadataCatalog.GetCanonicalProviderId(providerId ?? string.Empty))?.CollapseDerivedChildrenInMainWindow ?? false;
-    }
+    private static bool ShouldUseSharedCollapsePreference(string providerId) => false;
 
     private static bool IsDisplayableDetail(ProviderUsageDetail detail) => IsEligibleDetail(detail, includeRateLimit: true);
 
