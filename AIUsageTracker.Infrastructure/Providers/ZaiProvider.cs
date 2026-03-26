@@ -57,7 +57,7 @@ public class ZaiProvider : ProviderBase
 
         var providerLabel = this.Definition.DisplayName;
 
-        var request = new HttpRequestMessage(HttpMethod.Get, "https://api.z.ai/api/monitor/usage/quota/limit");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.z.ai/api/monitor/usage/quota/limit");
 
         // Z.AI uses raw key in Authorization header without "Bearer" prefix based on Swift ref
         request.Headers.TryAddWithoutValidation("Authorization", config.ApiKey);

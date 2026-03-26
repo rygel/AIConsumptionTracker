@@ -714,16 +714,9 @@ public class MonitorService : IMonitorService
 
     private static string? TryGetJsonString(JsonElement root, IEnumerable<string> propertyNames)
     {
-        foreach (var propertyName in propertyNames)
-        {
-            var value = TryGetJsonString(root, propertyName);
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
-        }
-
-        return null;
+        return propertyNames
+            .Select(propertyName => TryGetJsonString(root, propertyName))
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
     }
 
     private string BuildMonitorUrl(string relativePath)

@@ -161,18 +161,15 @@ public static class ResetTimeParser
         try
         {
             // Try as Unix timestamp (number)
-            if (element.ValueKind == JsonValueKind.Number)
+            if (element.ValueKind == JsonValueKind.Number && element.TryGetInt64(out var longValue))
             {
-                if (element.TryGetInt64(out var longValue))
+                // Assume seconds if value is reasonably small, otherwise assume milliseconds
+                if (longValue < Year2100UnixSeconds)
                 {
-                    // Assume seconds if value is reasonably small, otherwise assume milliseconds
-                    if (longValue < Year2100UnixSeconds)
-                    {
-                        return FromUnixSeconds(longValue);
-                    }
-
-                    return FromUnixMilliseconds(longValue);
+                    return FromUnixSeconds(longValue);
                 }
+
+                return FromUnixMilliseconds(longValue);
             }
 
             // Try as string

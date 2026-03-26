@@ -359,7 +359,7 @@ public class ClaudeCodeProvider : ProviderBase
         {
             // Make a test request to get rate limit headers
             // Note: Anthropic API doesn't have a usage endpoint, so we use rate limits from headers
-            var testRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
+            using var testRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
             testRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
             testRequest.Headers.Add("anthropic-version", "2023-06-01");
             testRequest.Content = new StringContent("{\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}", System.Text.Encoding.UTF8, "application/json");
@@ -446,36 +446,28 @@ public class ClaudeCodeProvider : ProviderBase
     {
         var info = new RateLimitInfo();
 
-        if (headers.TryGetValues("anthropic-ratelimit-requests-limit", out var requestLimitValues))
+        if (headers.TryGetValues("anthropic-ratelimit-requests-limit", out var requestLimitValues) &&
+            int.TryParse(requestLimitValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var limit))
         {
-            if (int.TryParse(requestLimitValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var limit))
-            {
-                info.RequestsLimit = limit;
-            }
+            info.RequestsLimit = limit;
         }
 
-        if (headers.TryGetValues("anthropic-ratelimit-requests-remaining", out var requestRemainingValues))
+        if (headers.TryGetValues("anthropic-ratelimit-requests-remaining", out var requestRemainingValues) &&
+            int.TryParse(requestRemainingValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var remaining))
         {
-            if (int.TryParse(requestRemainingValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var remaining))
-            {
-                info.RequestsRemaining = remaining;
-            }
+            info.RequestsRemaining = remaining;
         }
 
-        if (headers.TryGetValues("anthropic-ratelimit-input-tokens-limit", out var inputLimitValues))
+        if (headers.TryGetValues("anthropic-ratelimit-input-tokens-limit", out var inputLimitValues) &&
+            int.TryParse(inputLimitValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var inputLimit))
         {
-            if (int.TryParse(inputLimitValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var inputLimit))
-            {
-                info.InputTokensLimit = inputLimit;
-            }
+            info.InputTokensLimit = inputLimit;
         }
 
-        if (headers.TryGetValues("anthropic-ratelimit-input-tokens-remaining", out var inputRemainingValues))
+        if (headers.TryGetValues("anthropic-ratelimit-input-tokens-remaining", out var inputRemainingValues) &&
+            int.TryParse(inputRemainingValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var inputRemaining))
         {
-            if (int.TryParse(inputRemainingValues.FirstOrDefault(), CultureInfo.InvariantCulture, out var inputRemaining))
-            {
-                info.InputTokensRemaining = inputRemaining;
-            }
+            info.InputTokensRemaining = inputRemaining;
         }
 
         return info;
@@ -600,7 +592,7 @@ public class ClaudeCodeProvider : ProviderBase
         }
 
         var remainingMatch = Regex.Match(output, @"Remaining[:\s]+\$?(?<remaining>[0-9.]+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
-        if (remainingMatch.Success && budgetLimit == 0)
+        if (remainingMatch.Success && budgetLimit is 0)
         {
             double remaining;
             if (double.TryParse(remainingMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out remaining))

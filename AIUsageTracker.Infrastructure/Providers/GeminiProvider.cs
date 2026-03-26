@@ -140,7 +140,7 @@ public class GeminiProvider : ProviderBase
             {
                 this._logger.LogDebug(
                     "Gemini quota refresh started for account {AccountEmail} using project {ProjectId}",
-                    account.Email,
+                    RedactEmail(account.Email),
                     account.ProjectId);
                 var accessToken = await this.RefreshTokenAsync(account.RefreshToken).ConfigureAwait(false);
                 var buckets = await this.FetchQuotaAsync(accessToken, account.ProjectId).ConfigureAwait(false);
@@ -150,7 +150,7 @@ public class GeminiProvider : ProviderBase
                     "Gemini quota received {BucketCount} bucket(s) and resolved {ModelCount} model detail(s) for {AccountEmail}: {BucketSummary}",
                     allBuckets.Count,
                     modelQuotaDetails.Count,
-                    account.Email,
+                    RedactEmail(account.Email),
                     string.Join(
                         ", ",
                         allBuckets.Select(bucket =>
@@ -211,7 +211,7 @@ public class GeminiProvider : ProviderBase
             }
             catch (Exception ex)
             {
-                this._logger.LogWarning(ex, "Failed to fetch Gemini quota for {AccountEmail}", account.Email);
+                this._logger.LogWarning(ex, "Failed to fetch Gemini quota for {AccountEmail}", RedactEmail(account.Email));
             }
         }
 
@@ -290,7 +290,7 @@ public class GeminiProvider : ProviderBase
 
             this._logger.LogDebug(
                 "Gemini CLI auth resolved account {AccountEmail} with project {ProjectId}",
-                email,
+                RedactEmail(email),
                 projectId);
 
             return new AntigravityAccounts
@@ -546,7 +546,7 @@ public class GeminiProvider : ProviderBase
 
     private async Task<string> DoRefreshTokenAsync(string refreshToken, string clientId, string clientSecret)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token");
         var content = new FormUrlEncodedContent(new Dictionary<string, string>(StringComparer.Ordinal)
         {
             { "client_id", clientId },
@@ -565,7 +565,7 @@ public class GeminiProvider : ProviderBase
 
     private async Task<List<Bucket>?> FetchQuotaAsync(string accessToken, string projectId)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota");
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
         request.Content = JsonContent.Create(new { project = projectId });
 
@@ -715,6 +715,22 @@ public class GeminiProvider : ProviderBase
             "exp" => "Exp",
             _ => char.ToUpperInvariant(token[0]) + token[1..].ToLowerInvariant(),
         };
+    }
+
+    private static string RedactEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return "(unknown)";
+        }
+
+        var atIndex = email.IndexOf('@');
+        if (atIndex <= 0)
+        {
+            return "***";
+        }
+
+        return email[0] + "***" + email[atIndex..];
     }
 
     private static string TruncateForLog(string? value, int maxLength = 600)
