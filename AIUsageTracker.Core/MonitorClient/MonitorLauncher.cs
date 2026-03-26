@@ -33,7 +33,7 @@ public class MonitorLauncher : IMonitorLauncher
     /// DI constructor — takes only the logger. Used by the DI container.
     /// </summary>
     public MonitorLauncher(ILogger<MonitorLauncher> logger)
-        : this(logger, monitorInfoPathOverride: null)
+        : this(logger, monitorInfoCandidatePathsOverride: null)
     {
     }
 
@@ -42,38 +42,18 @@ public class MonitorLauncher : IMonitorLauncher
     /// </summary>
     internal MonitorLauncher(
         ILogger<MonitorLauncher>? logger = null,
-        string? monitorInfoPathOverride = null,
+        Func<IEnumerable<string>>? monitorInfoCandidatePathsOverride = null,
         Func<int, Task<bool>>? healthCheckOverride = null,
         Func<int, Task<bool>>? processRunningOverride = null,
         Func<int, Task<bool>>? stopProcessOverride = null,
         Func<Task<bool>>? stopNamedProcessesOverride = null)
     {
         this._logger = logger;
-        this._monitorInfoPathOverride = monitorInfoPathOverride;
+        this._monitorInfoPathOverride = monitorInfoCandidatePathsOverride?.Invoke().FirstOrDefault();
         this._healthCheckOverride = healthCheckOverride;
         this._processRunningOverride = processRunningOverride;
         this._stopProcessOverride = stopProcessOverride;
         this._stopNamedProcessesOverride = stopNamedProcessesOverride;
-    }
-
-    /// <summary>
-    /// Legacy test constructor — converts candidate paths override to single path.
-    /// </summary>
-    internal MonitorLauncher(
-        ILogger<MonitorLauncher>? logger,
-        Func<IEnumerable<string>>? monitorInfoCandidatePathsOverride,
-        Func<int, Task<bool>>? healthCheckOverride,
-        Func<int, Task<bool>>? processRunningOverride,
-        Func<int, Task<bool>>? stopProcessOverride = null,
-        Func<Task<bool>>? stopNamedProcessesOverride = null)
-        : this(
-            logger,
-            monitorInfoPathOverride: monitorInfoCandidatePathsOverride?.Invoke().FirstOrDefault(),
-            healthCheckOverride,
-            processRunningOverride,
-            stopProcessOverride,
-            stopNamedProcessesOverride)
-    {
     }
 
     public async Task<int> GetAgentPortAsync()
