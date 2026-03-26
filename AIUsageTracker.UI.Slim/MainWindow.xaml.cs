@@ -612,6 +612,12 @@ public partial class MainWindow : Window
 
         if (settingsResult == true)
         {
+            // Read updated preferences from the shared in-memory object.
+            this._preferences = App.Preferences;
+            this._isPrivacyMode = this._preferences.IsPrivacyMode;
+            App.SetPrivacyMode(this._isPrivacyMode);
+            this._preferencesLoaded = true;
+
             this.ApplyPreferencesFromSettings();
             await this.InitializeAsync();
         }
@@ -619,15 +625,10 @@ public partial class MainWindow : Window
 
     private void ApplyPreferencesFromSettings()
     {
-        // Use the in-memory preferences directly — the SettingsWindow already
-        // updated App.Preferences and persisted to disk. No file round-trip needed.
-        this._preferences = App.Preferences;
-        this._isPrivacyMode = this._preferences.IsPrivacyMode;
-        App.SetPrivacyMode(this._isPrivacyMode);
-        this._preferencesLoaded = true;
-
-        this.ApplyPreferences();
-        this.UpdatePrivacyButtonState();
+        if (this._isLoading)
+        {
+            return;
+        }
 
         bool hasUsages;
         lock (this._dataLock)
@@ -635,10 +636,25 @@ public partial class MainWindow : Window
             hasUsages = this._usages.Count > 0;
         }
 
-        if (hasUsages)
+        void ApplyUiState()
         {
-            this.RenderProviders();
-            _ = this.UpdateTrayIconsAsync();
+            this.ApplyPreferences();
+            this.UpdatePrivacyButtonState();
+
+            if (hasUsages)
+            {
+                this.RenderProviders();
+                _ = this.UpdateTrayIconsAsync();
+            }
+        }
+
+        if (this.Dispatcher.CheckAccess())
+        {
+            ApplyUiState();
+        }
+        else
+        {
+            _ = this.Dispatcher.BeginInvoke(ApplyUiState);
         }
     }
 

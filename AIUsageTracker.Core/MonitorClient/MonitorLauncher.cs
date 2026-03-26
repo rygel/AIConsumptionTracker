@@ -20,12 +20,10 @@ public class MonitorLauncher : IMonitorLauncher
     private const int LaunchMutexWaitSeconds = 3;
     private const string CanonicalProductFolder = "AIUsageTracker";
 
-    private static readonly char[] DirectorySeparators = ['\\', '/'];
-
     private readonly SemaphoreSlim _startupSemaphore = new(1, 1);
     private readonly HttpClient _healthCheckHttpClient = new HttpClient { Timeout = TimeSpan.FromMilliseconds(500) };
     private readonly ILogger<MonitorLauncher>? _logger;
-    private readonly Func<IEnumerable<string>>? _monitorInfoCandidatePathsOverride;
+    private readonly string? _monitorInfoPathOverride;
     private readonly Func<int, Task<bool>>? _healthCheckOverride;
     private readonly Func<int, Task<bool>>? _processRunningOverride;
     private readonly Func<int, Task<bool>>? _stopProcessOverride;
@@ -35,7 +33,7 @@ public class MonitorLauncher : IMonitorLauncher
     /// DI constructor — takes only the logger. Used by the DI container.
     /// </summary>
     public MonitorLauncher(ILogger<MonitorLauncher> logger)
-        : this(logger, null, null, null, null, null)
+        : this(logger, monitorInfoPathOverride: null)
     {
     }
 
@@ -44,18 +42,38 @@ public class MonitorLauncher : IMonitorLauncher
     /// </summary>
     internal MonitorLauncher(
         ILogger<MonitorLauncher>? logger = null,
-        Func<IEnumerable<string>>? monitorInfoCandidatePathsOverride = null,
+        string? monitorInfoPathOverride = null,
         Func<int, Task<bool>>? healthCheckOverride = null,
         Func<int, Task<bool>>? processRunningOverride = null,
         Func<int, Task<bool>>? stopProcessOverride = null,
         Func<Task<bool>>? stopNamedProcessesOverride = null)
     {
         this._logger = logger;
-        this._monitorInfoCandidatePathsOverride = monitorInfoCandidatePathsOverride;
+        this._monitorInfoPathOverride = monitorInfoPathOverride;
         this._healthCheckOverride = healthCheckOverride;
         this._processRunningOverride = processRunningOverride;
         this._stopProcessOverride = stopProcessOverride;
         this._stopNamedProcessesOverride = stopNamedProcessesOverride;
+    }
+
+    /// <summary>
+    /// Legacy test constructor — converts candidate paths override to single path.
+    /// </summary>
+    internal MonitorLauncher(
+        ILogger<MonitorLauncher>? logger,
+        Func<IEnumerable<string>>? monitorInfoCandidatePathsOverride,
+        Func<int, Task<bool>>? healthCheckOverride,
+        Func<int, Task<bool>>? processRunningOverride,
+        Func<int, Task<bool>>? stopProcessOverride = null,
+        Func<Task<bool>>? stopNamedProcessesOverride = null)
+        : this(
+            logger,
+            monitorInfoPathOverride: monitorInfoCandidatePathsOverride?.Invoke().FirstOrDefault(),
+            healthCheckOverride,
+            processRunningOverride,
+            stopProcessOverride,
+            stopNamedProcessesOverride)
+    {
     }
 
     public async Task<int> GetAgentPortAsync()
@@ -70,31 +88,10 @@ public class MonitorLauncher : IMonitorLauncher
         return readyState.IsRunning;
     }
 
-    public static IReadOnlyList<string> GetMonitorInfoWriteCandidatePaths(string appDataRoot, string userProfileRoot)
+    public static string GetCanonicalMonitorInfoFilePath()
     {
-        _ = userProfileRoot;
-        return new[] { GetCanonicalMonitorInfoPath(appDataRoot) };
-    }
-
-    public static IReadOnlyList<string> GetMonitorInfoReadCandidatePaths(string appDataRoot, string userProfileRoot)
-    {
-        _ = userProfileRoot;
-        return new[] { GetCanonicalMonitorInfoPath(appDataRoot) };
-    }
-
-    public static IReadOnlyList<string> GetMonitorInfoReadCandidatePathsFromEnvironment()
-    {
-        var appDataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var userProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return GetMonitorInfoReadCandidatePaths(appDataRoot, userProfileRoot);
-    }
-
-    public static string? ResolveExistingMonitorInfoReadPath()
-    {
-        return GetMonitorInfoReadCandidatePathsFromEnvironment()
-            .Where(File.Exists)
-            .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
-            .FirstOrDefault();
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(localAppData, CanonicalProductFolder, "monitor.json");
     }
 
     public async Task<(bool IsRunning, int Port)> IsAgentRunningWithPortAsync()
@@ -308,7 +305,8 @@ public class MonitorLauncher : IMonitorLauncher
     {
         try
         {
-            foreach (var infoPath in this.GetExistingAgentInfoPaths())
+            var infoPath = this.GetMonitorInfoPath();
+            if (File.Exists(infoPath))
             {
                 this.InvalidateMonitorInfoPath(infoPath);
             }
@@ -427,7 +425,8 @@ public class MonitorLauncher : IMonitorLauncher
         string? path = null;
         try
         {
-            path = this.GetExistingAgentInfoPaths().FirstOrDefault();
+            var candidatePath = this.GetMonitorInfoPath();
+            path = File.Exists(candidatePath) ? candidatePath : null;
             if (path != null)
             {
                 var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
@@ -617,39 +616,17 @@ public class MonitorLauncher : IMonitorLauncher
         }
     }
 
-    private IEnumerable<string> GetExistingAgentInfoPaths()
+    private string GetMonitorInfoPath()
     {
-        return this.GetMonitorInfoCandidatePaths()
-            .Where(File.Exists)
-            .OrderByDescending(path => File.GetLastWriteTimeUtc(path));
-    }
-
-    private IEnumerable<string> GetMonitorInfoCandidatePaths()
-    {
-        if (this._monitorInfoCandidatePathsOverride != null)
+        if (!string.IsNullOrWhiteSpace(this._monitorInfoPathOverride))
         {
-            return this._monitorInfoCandidatePathsOverride();
+            return this._monitorInfoPathOverride;
         }
 
-        return GetMonitorInfoReadCandidatePathsFromEnvironment();
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(localAppData, CanonicalProductFolder, "monitor.json");
     }
 
-    internal static string GetCanonicalMonitorInfoPath(string appDataRoot)
-    {
-        if (string.IsNullOrWhiteSpace(appDataRoot))
-        {
-            return Path.Combine(CanonicalProductFolder, "monitor.json");
-        }
-
-        var normalizedRoot = appDataRoot.TrimEnd(DirectorySeparators);
-        var leaf = Path.GetFileName(normalizedRoot);
-        if (leaf.Equals(CanonicalProductFolder, StringComparison.OrdinalIgnoreCase))
-        {
-            return Path.Combine(normalizedRoot, "monitor.json");
-        }
-
-        return Path.Combine(normalizedRoot, CanonicalProductFolder, "monitor.json");
-    }
 
     internal static string BuildLaunchMutexName()
     {
