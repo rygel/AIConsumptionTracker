@@ -524,6 +524,20 @@
                                   ToolTip="Uses native SetWindowPos topmost reassertion without activating the window."
                                   Checked="LayoutSetting_Changed" Unchecked="LayoutSetting_Changed"/>
 
+                        <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,12,0,12"/>
+
+                        <!-- Windows Startup -->
+                        <TextBlock Text="Windows Startup" FontWeight="Bold" FontSize="12"
+                                   Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,10"/>
+                        <CheckBox x:Name="StartMonitorWithWindowsCheck" Content="Start Monitor with Windows"
+                                  Margin="0,4" Foreground="{DynamicResource SecondaryText}"
+                                  ToolTip="Automatically start the background Monitor service when Windows starts."
+                                  Checked="LayoutSetting_Changed" Unchecked="LayoutSetting_Changed"/>
+                        <CheckBox x:Name="StartUiWithWindowsCheck" Content="Start UI with Windows"
+                                  Margin="0,4" Foreground="{DynamicResource SecondaryText}"
+                                  ToolTip="Automatically start the UI when Windows starts."
+                                  Checked="LayoutSetting_Changed" Unchecked="LayoutSetting_Changed"/>
+
                         <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
