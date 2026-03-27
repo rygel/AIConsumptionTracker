@@ -359,18 +359,22 @@ public sealed class GroupedUsageProjectionServiceTests
         Assert.Single(spark.QuotaBuckets, b => b.QuotaBucketKind == WindowKind.Burst);
         Assert.Single(spark.QuotaBuckets, b => b.QuotaBucketKind == WindowKind.Rolling);
 
-        // All 5 details pass through (model detail + 2 model-scoped QW + 2 provider-level QW).
-        // The UI reads QuotaWindow details with empty ModelName for the parent dual bar.
-        Assert.Equal(5, provider.ProviderDetails.Count);
-        Assert.Equal(2, provider.ProviderDetails.Count(d =>
-            d.DetailType == ProviderUsageDetailType.QuotaWindow && string.IsNullOrWhiteSpace(d.ModelName)));
+        // Only provider-level QW entries (no ModelName) appear in ProviderDetails.
+        // Model-scoped QW and Model-typed entries are excluded — the parent card dual bar
+        // must show only provider-level windows, not per-model windows.
+        Assert.Equal(2, provider.ProviderDetails.Count);
+        Assert.All(provider.ProviderDetails, d =>
+        {
+            Assert.Equal(ProviderUsageDetailType.QuotaWindow, d.DetailType);
+            Assert.True(string.IsNullOrWhiteSpace(d.ModelName));
+        });
     }
 
     [Fact]
-    public void Build_KimiUsage_PassesThroughAllDetails_InProviderDetails()
+    public void Build_KimiUsage_FiltersToQuotaWindowDetails_InProviderDetails()
     {
-        // All details from ProviderUsage.Details flow into ProviderDetails (including Credits).
-        // The UI filters by DetailType when rendering — None-kind details simply don't drive dual bars.
+        // ProviderDetails contains only non-stale provider-level QuotaWindow entries.
+        // Credit-type details are excluded — the UI no longer needs to filter by DetailType.
         var creditDetail = new ProviderUsageDetail
         {
             Name = "Credits",
@@ -402,6 +406,6 @@ public sealed class GroupedUsageProjectionServiceTests
         var snapshot = GroupedUsageProjectionService.Build(usages);
 
         var provider = Assert.Single(snapshot.Providers);
-        Assert.Equal(2, provider.ProviderDetails.Count); // both Credit and QuotaWindow pass through
+        Assert.Single(provider.ProviderDetails); // only QuotaWindow passes through; Credit is excluded
     }
 }

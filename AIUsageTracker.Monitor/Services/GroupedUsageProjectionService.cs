@@ -53,6 +53,10 @@ public static class GroupedUsageProjectionService
         var displayName = ResolveProviderDisplayName(primary, canonicalProviderId);
         var providerDetails = primary.Details is { Count: > 0 }
             ? (IReadOnlyList<ProviderUsageDetail>)primary.Details
+                .Where(d => !d.IsStale
+                    && d.DetailType == ProviderUsageDetailType.QuotaWindow
+                    && string.IsNullOrWhiteSpace(d.ModelName))
+                .ToList()
             : Array.Empty<ProviderUsageDetail>();
         return new AgentGroupedProviderUsage
         {
