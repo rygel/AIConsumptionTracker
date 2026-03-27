@@ -519,11 +519,10 @@ public class GroupedUsageDisplayAdapterTests
     }
 
     [Fact]
-    public void Expand_KimiSnapshot_AttachesProviderQuotaDetailsToParent_WhenNoModelDetails()
+    public void Expand_KimiSnapshot_AttachesProviderDetailsToParent()
     {
         // Kimi has no Model-type details; all its details are QuotaWindow (Weekly + 5h).
-        // ProviderQuotaDetails must be surfaced as the parent's Details so that
-        // MainWindowRuntimeLogic.TryGetDualQuotaBucketPresentation can render two bars.
+        // ProviderDetails must flow through directly so TryGetDualQuotaBucketPresentation can render two bars.
         var weeklyDetail = new ProviderUsageDetail
         {
             Name = "Weekly Limit",
@@ -550,8 +549,7 @@ public class GroupedUsageDisplayAdapterTests
                     IsAvailable = true,
                     IsQuotaBased = true,
                     UsedPercent = 25,
-                    Models = Array.Empty<AgentGroupedModelUsage>(),
-                    ProviderQuotaDetails = new[] { weeklyDetail, burstDetail },
+                    ProviderDetails = new[] { weeklyDetail, burstDetail },
                 },
             },
         };
@@ -617,7 +615,6 @@ public class GroupedUsageDisplayAdapterTests
                             },
                         },
                     },
-                    ProviderQuotaDetails = Array.Empty<ProviderUsageDetail>(),
                 },
             },
         };
@@ -635,12 +632,10 @@ public class GroupedUsageDisplayAdapterTests
     }
 
     [Fact]
-    public void Expand_CodexSnapshot_PrefersProviderQuotaDetails_ForParentCard_WhenModelsAlsoPresent()
+    public void Expand_CodexSnapshot_UsesProviderDetails_ForParentCard_WhileModelsStillBuildChildCards()
     {
-        // Regression: when a provider has both Models (for child card building) and ProviderQuotaDetails
-        // (5h + Weekly windows), the parent card must use the QuotaWindow details — not the Model details.
-        // If model details win, TryGetPresentation finds no QuotaWindow entries and the parent never
-        // renders dual progress bars.
+        // ProviderDetails (the quota windows) flow to the parent card.
+        // Models are only used for child card generation — Spark gets its own codex.spark card.
         var burstDetail = new ProviderUsageDetail
         {
             Name = "5-hour quota",
@@ -676,7 +671,7 @@ public class GroupedUsageDisplayAdapterTests
                             RemainingPercentage = 80,
                         },
                     },
-                    ProviderQuotaDetails = new[] { burstDetail, rollingDetail },
+                    ProviderDetails = new[] { burstDetail, rollingDetail },
                 },
             },
         };
@@ -685,13 +680,10 @@ public class GroupedUsageDisplayAdapterTests
 
         var parent = Assert.Single(usages, u => string.Equals(u.ProviderId, "codex", StringComparison.Ordinal));
         Assert.NotNull(parent.Details);
-
-        // Parent must have the QuotaWindow details (for dual bar), not the Model detail.
-        Assert.All(parent.Details!, d => Assert.Equal(ProviderUsageDetailType.QuotaWindow, d.DetailType));
         Assert.Single(parent.Details!, d => d.QuotaBucketKind == WindowKind.Burst);
         Assert.Single(parent.Details!, d => d.QuotaBucketKind == WindowKind.Rolling);
 
-        // Child card must still be built from the model.
+        // Child card must still be built from Models.
         Assert.Single(usages, u => string.Equals(u.ProviderId, "codex.spark", StringComparison.Ordinal));
     }
 }
