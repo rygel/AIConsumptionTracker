@@ -65,8 +65,8 @@ internal sealed class ProviderCardRenderer
             pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-            var primaryRow = this.CreateProgressLayer(presentation.DualBucketPrimaryUsed!.Value, showUsed, opacity: 0.55);
-            var secondaryRow = this.CreateProgressLayer(presentation.DualBucketSecondaryUsed!.Value, showUsed, opacity: 0.35);
+            var primaryRow = this.CreateProgressLayer(presentation.DualBucketPrimaryUsed!.Value, presentation.DualBucketPrimaryColorPercent ?? presentation.DualBucketPrimaryUsed!.Value, showUsed, opacity: 0.55);
+            var secondaryRow = this.CreateProgressLayer(presentation.DualBucketSecondaryUsed!.Value, presentation.DualBucketSecondaryColorPercent ?? presentation.DualBucketSecondaryUsed!.Value, showUsed, opacity: 0.35);
             Grid.SetRow(primaryRow, 0);
             Grid.SetRow(secondaryRow, 1);
             pGrid.Children.Add(primaryRow);
@@ -297,11 +297,11 @@ internal sealed class ProviderCardRenderer
         return grid;
     }
 
-    private Grid CreateProgressLayer(double usedPercent, bool showUsed, double opacity)
+    private Grid CreateProgressLayer(double usedPercent, double colorPercent, bool showUsed, double opacity)
     {
         var remainingPercent = Math.Max(0, 100 - usedPercent);
         var indicatorWidth = showUsed ? usedPercent : remainingPercent;
-        return this.CreateSingleProgressLayer(usedPercent, indicatorWidth, opacity);
+        return this.CreateSingleProgressLayer(colorPercent, indicatorWidth, opacity);
     }
 
     private Grid CreateSingleProgressLayer(double usedPercent, double indicatorWidth, double opacity)
