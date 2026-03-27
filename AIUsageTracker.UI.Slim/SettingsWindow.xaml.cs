@@ -323,7 +323,15 @@ public partial class SettingsWindow : Window
         // window actually closes, and only when shown via ShowDialog().
         if (!this.DialogResult.HasValue)
         {
-            this.DialogResult = true;
+            try
+            {
+                this.DialogResult = true;
+            }
+            catch (InvalidOperationException)
+            {
+                // Window was closed via Close() rather than ShowDialog() — e.g., in
+                // headless screenshot mode. DialogResult cannot be set; ignore.
+            }
         }
     }
 

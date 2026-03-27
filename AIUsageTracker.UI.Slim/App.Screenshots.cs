@@ -173,26 +173,12 @@ public partial class App
 
             await this.CaptureMainWindowScreenshotAsync(Path.Combine(screenshotsDir, "screenshot_dashboard_privacy.png"));
             await this.CaptureSettingsScreenshotsAsync(screenshotsDir);
-            await this.CaptureInfoScreenshotAsync(Path.Combine(screenshotsDir, "screenshot_info_privacy.png"));
+            this.CaptureInfoScreenshot(Path.Combine(screenshotsDir, "screenshot_info_privacy.png"));
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Headless screenshot capture failed");
             Environment.ExitCode = 1;
-
-            // Write to a file so CI can surface the error even for GUI-subsystem processes
-            // (which have no visible stdout). Uploaded as artifact on workflow failure.
-            try
-            {
-                var screenshotsDir = this.ResolveOutputDirectory(args);
-                File.WriteAllText(
-                    Path.Combine(screenshotsDir, "screenshot_debug_error.txt"),
-                    $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] {ex}");
-            }
-            catch
-            {
-                // Best effort — do not mask the original error.
-            }
         }
         finally
         {
@@ -263,25 +249,16 @@ public partial class App
 #pragma warning restore VSTHRD001
     }
 
-#pragma warning disable VSTHRD001 // Headless screenshot capture intentionally waits for dispatcher idle before rendering.
-    private async Task CaptureInfoScreenshotAsync(string outputPath)
+    private void CaptureInfoScreenshot(string outputPath)
     {
         var window = this.InfoDialogFactory();
         try
         {
-            // Show() must be called before rendering so WPF initialises the visual tree
-            // and resolves DynamicResource bindings. Without it, window.Content exists but
-            // the layout pass produces zero height (SizeToContent="Height" with no Show()
-            // means the HWND is never created and resources remain unresolved).
-            window.Show();
-
             if (window is InfoDialog infoDialog)
             {
                 infoDialog.PrepareForHeadlessScreenshot();
             }
 
-            window.UpdateLayout();
-            await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
             window.UpdateLayout();
             RenderWindowContent(window, outputPath);
         }
@@ -290,5 +267,4 @@ public partial class App
             window.Close();
         }
     }
-#pragma warning restore VSTHRD001
 }
