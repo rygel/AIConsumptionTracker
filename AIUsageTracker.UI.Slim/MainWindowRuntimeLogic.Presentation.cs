@@ -43,8 +43,7 @@ internal static partial class MainWindowRuntimeLogic
         // Detail-level IsStale covers parents that fetch successfully but whose
         // child data is old (e.g. Antigravity "Application not running" — parent
         // refreshes every cycle, but model details are days old).
-        var isStale = usage.IsStale
-            || (usage.Details?.Count > 0 && usage.Details.All(d => d.IsStale));
+        var isStale = usage.IsStale;
         var description = usage.Description ?? string.Empty;
         var isMissing = usage.State == ProviderUsageState.Missing;
         var isConsoleCheck = usage.State == ProviderUsageState.ConsoleCheck;
@@ -395,144 +394,6 @@ internal static partial class MainWindowRuntimeLogic
             : $"{UsageMath.ClampPercent(usage.RemainingPercent):F0}% remaining";
     }
 
-    public static (string ProviderId, string Title, IReadOnlyList<ProviderUsageDetail> Details, bool IsCollapsed)? Build(
-        ProviderUsage usage,
-        AppPreferences preferences)
-    {
-        ArgumentNullException.ThrowIfNull(usage);
-        ArgumentNullException.ThrowIfNull(preferences);
-
-        var details = GetDisplayableDetails(usage);
-        if (details.Count == 0)
-        {
-            return null;
-        }
-
-        var providerId = usage.ProviderId ?? string.Empty;
-        var title = $"{ProviderMetadataCatalog.ResolveDisplayLabel(usage)} Details";
-        var isCollapsed = GetIsCollapsed(preferences, providerId);
-
-        return (providerId, title, details, isCollapsed);
-    }
-
-    public static IReadOnlyList<ProviderUsageDetail> GetDisplayableDetails(ProviderUsage usage)
-    {
-        if (usage.Details?.Any() != true)
-        {
-            return Array.Empty<ProviderUsageDetail>();
-        }
-
-        var providerDef = ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty);
-        if (providerDef?.HasDisplayableDerivedProviders ?? false)
-        {
-            return Array.Empty<ProviderUsageDetail>();
-        }
-
-        if (providerDef?.IsTooltipOnly ?? false)
-        {
-            return Array.Empty<ProviderUsageDetail>();
-        }
-
-        return usage.Details
-            .Where(IsDisplayableDetail)
-            .OrderBy(GetDetailSortOrder)
-            .ThenBy(detail => detail.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
-    public static (bool HasProgress, double UsedPercent, double IndicatorWidth, string DisplayText, string? ResetText)
-        BuildDetailPresentation(
-            ProviderUsageDetail detail,
-            bool showUsed,
-            Func<DateTime, string> relativeTimeFormatter)
-    {
-        var parsedUsed = UsageMath.GetEffectiveUsedPercent(detail);
-        var hasPercent = parsedUsed.HasValue;
-        var usedPercent = parsedUsed ?? 0;
-        var remainingPercent = 100.0 - usedPercent;
-        var displayPercent = showUsed ? usedPercent : remainingPercent;
-        var displayText = hasPercent
-            ? GetDisplayText(detail, showUsed, includeSemanticLabel: false)
-            : GetStoredDisplayText(detail);
-        var indicatorWidth = Math.Clamp(displayPercent, 0, 100);
-        var resetText = detail.NextResetTime.HasValue
-            ? $"({relativeTimeFormatter(detail.NextResetTime.Value)})"
-            : null;
-
-        return (
-            HasProgress: hasPercent,
-            UsedPercent: usedPercent,
-            IndicatorWidth: indicatorWidth,
-            DisplayText: displayText,
-            ResetText: resetText);
-    }
-
-    public static bool IsEligibleDetail(ProviderUsageDetail detail, bool includeRateLimit = true)
-    {
-        if (string.IsNullOrWhiteSpace(detail.Name))
-        {
-            return false;
-        }
-
-        if (detail.ShowAsSubCard)
-        {
-            return true;
-        }
-
-        return detail.DetailType == ProviderUsageDetailType.Model ||
-               detail.DetailType == ProviderUsageDetailType.Other ||
-               (includeRateLimit && detail.DetailType == ProviderUsageDetailType.RateLimit);
-    }
-
-    public static bool IsEligibleTrayDetail(ProviderUsageDetail detail)
-    {
-        if (!IsEligibleDetail(detail, includeRateLimit: true))
-        {
-            return false;
-        }
-
-        return !detail.Name.Contains("window", StringComparison.OrdinalIgnoreCase) &&
-               !detail.Name.Contains("credit", StringComparison.OrdinalIgnoreCase);
-    }
-
-    public static string GetStoredDisplayText(ProviderUsageDetail detail, bool includeComplement = false)
-    {
-        if (detail.TryGetPercentageValue(out var percentage, out var semantic, out var decimalPlaces))
-        {
-            return FormatPercentage(percentage, semantic, decimalPlaces, includeComplement);
-        }
-
-        return string.IsNullOrWhiteSpace(detail.Description) ? "No data" : detail.Description;
-    }
-
-    public static string GetDisplayText(
-        ProviderUsageDetail detail,
-        bool showUsed,
-        bool includeSemanticLabel,
-        bool includeComplement = false)
-    {
-        var usedPercent = UsageMath.GetEffectiveUsedPercent(detail);
-        if (!usedPercent.HasValue)
-        {
-            return GetStoredDisplayText(detail, includeComplement: false);
-        }
-
-        var decimalPlaces = detail.TryGetPercentageValue(out _, out _, out var precision)
-            ? precision
-            : 0;
-        var displayPercent = showUsed
-            ? UsageMath.ClampPercent(usedPercent.Value)
-            : UsageMath.ClampPercent(100.0 - usedPercent.Value);
-
-        if (!includeSemanticLabel)
-        {
-            return $"{displayPercent.ToString($"F{decimalPlaces}", CultureInfo.InvariantCulture)}%";
-        }
-
-        var semantic = showUsed ? PercentageValueSemantic.Used : PercentageValueSemantic.Remaining;
-        return FormatPercentage(displayPercent, semantic, decimalPlaces, includeComplement);
-    }
-
     public static bool GetIsCollapsed(AppPreferences preferences, string providerId)
     {
         ArgumentNullException.ThrowIfNull(preferences);
@@ -558,74 +419,48 @@ internal static partial class MainWindowRuntimeLogic
     {
         presentation = default;
 
-        if (usage.Details?.Any() != true)
+        // Dual-bar data comes from companion WindowCards: flat ProviderUsage cards
+        // with WindowKind = Burst or Rolling, populated by GroupedUsageDisplayAdapter
+        // from ProviderDetails. We need exactly one Burst card and one Rolling card.
+        var windowCards = usage.WindowCards;
+        if (windowCards == null || windowCards.Count == 0)
         {
             return false;
         }
 
-        var quotaBuckets = usage.Details
-            .Where(detail => detail.DetailType == ProviderUsageDetailType.QuotaWindow)
-            .Where(detail => detail.QuotaBucketKind != WindowKind.None)
-            .ToList();
+        var burstCard = windowCards.FirstOrDefault(c => c.WindowKind == WindowKind.Burst);
+        var rollingCard = windowCards.FirstOrDefault(c => c.WindowKind == WindowKind.Rolling);
 
-        if (quotaBuckets.Count < 2)
+        if (burstCard == null || rollingCard == null)
         {
             return false;
         }
 
+        // Resolve labels: prefer the card's Name; fall back to the declared window label.
         if (!ProviderMetadataCatalog.TryGet(usage.ProviderId ?? string.Empty, out var definition))
         {
             return false;
         }
 
-        var declaredWindows = definition.QuotaWindows.Where(w => w.Kind != WindowKind.None).ToList();
-        if (declaredWindows.Count == 0)
-        {
-            return false;
-        }
+        var burstWindow = definition.QuotaWindows.FirstOrDefault(w => w.Kind == WindowKind.Burst);
+        var rollingWindow = definition.QuotaWindows.FirstOrDefault(w => w.Kind == WindowKind.Rolling);
 
-        var orderedBuckets = quotaBuckets
-            .Select(detail => new
-            {
-                Detail = detail,
-                DeclaredWindow = FindMatchingPresentationWindow(detail, declaredWindows),
-            })
-            .Where(x => x.DeclaredWindow != null)
-            .OrderBy(x => GetDeclaredWindowOrder(x.DeclaredWindow!, declaredWindows))
-            .ToList();
+        var burstLabel = burstCard.Name ?? burstWindow?.DetailName ?? "Burst";
+        var rollingLabel = rollingCard.Name ?? rollingWindow?.DetailName ?? "Rolling";
 
-        if (orderedBuckets.Count < 2)
-        {
-            return false;
-        }
-
-        var first = orderedBuckets[0];
-        var second = orderedBuckets.Skip(1).FirstOrDefault(x => x.Detail.QuotaBucketKind != first.Detail.QuotaBucketKind);
-
-        if (second == null)
-        {
-            return false;
-        }
-
-        var parsedFirst = UsageMath.GetEffectiveUsedPercent(first.Detail);
-        var parsedSecond = UsageMath.GetEffectiveUsedPercent(second.Detail);
-
-        if (!parsedFirst.HasValue || !parsedSecond.HasValue)
-        {
-            return false;
-        }
-
+        // The shorter window (Burst) is primary (top bar), Rolling is secondary (bottom bar).
         presentation = (
-            PrimaryLabel: first.DeclaredWindow!.DualBarLabel,
-            PrimaryUsedPercent: parsedFirst.Value,
-            PrimaryResetTime: first.Detail.NextResetTime,
-            PrimaryPeriodDuration: first.DeclaredWindow.PeriodDuration,
-            PrimaryKind: first.Detail.QuotaBucketKind,
-            SecondaryLabel: second.DeclaredWindow!.DualBarLabel,
-            SecondaryUsedPercent: parsedSecond.Value,
-            SecondaryResetTime: second.Detail.NextResetTime,
-            SecondaryPeriodDuration: second.DeclaredWindow!.PeriodDuration,
-            SecondaryKind: second.Detail.QuotaBucketKind);
+            PrimaryLabel: burstLabel,
+            PrimaryUsedPercent: burstCard.UsedPercent,
+            PrimaryResetTime: burstCard.NextResetTime,
+            PrimaryPeriodDuration: burstWindow?.PeriodDuration,
+            PrimaryKind: WindowKind.Burst,
+            SecondaryLabel: rollingLabel,
+            SecondaryUsedPercent: rollingCard.UsedPercent,
+            SecondaryResetTime: rollingCard.NextResetTime,
+            SecondaryPeriodDuration: rollingWindow?.PeriodDuration,
+            SecondaryKind: WindowKind.Rolling);
+
         return true;
     }
 
@@ -643,26 +478,6 @@ internal static partial class MainWindowRuntimeLogic
     }
 
     private static bool ShouldUseSharedCollapsePreference(string providerId) => false;
-
-    private static bool IsDisplayableDetail(ProviderUsageDetail detail) => IsEligibleDetail(detail, includeRateLimit: true);
-
-    internal static int GetDetailSortOrder(ProviderUsageDetail detail)
-    {
-        // ShowAsSubCard QuotaWindow details have explicit ordering:
-        // Rolling (e.g. "All Models") sorts before Model rows, Burst ("Current Session") sorts after.
-        if (detail.ShowAsSubCard && detail.DetailType == ProviderUsageDetailType.QuotaWindow)
-        {
-            return detail.QuotaBucketKind == WindowKind.Burst ? 2 : 0;
-        }
-
-        return detail.DetailType switch
-        {
-            ProviderUsageDetailType.Model => 1,
-            ProviderUsageDetailType.RateLimit => 3,
-            ProviderUsageDetailType.Other => 4,
-            _ => 5,
-        };
-    }
 
     private static string FormatPercentage(
         double percentage,
@@ -692,23 +507,6 @@ internal static partial class MainWindowRuntimeLogic
         var complementValue = UsageMath.ClampPercent(100.0 - percentage).ToString(format, CultureInfo.InvariantCulture);
         var complementLabel = semantic == PercentageValueSemantic.Used ? "remaining" : "used";
         return $"{value}% {semanticLabel} ({complementValue}% {complementLabel})";
-    }
-
-    private static QuotaWindowDefinition? FindMatchingPresentationWindow(
-        ProviderUsageDetail detail,
-        IReadOnlyList<QuotaWindowDefinition> declaredWindows)
-    {
-        var detailNameMatch = declaredWindows.FirstOrDefault(window =>
-            window.Kind == detail.QuotaBucketKind &&
-            window.DetailName != null &&
-            string.Equals(window.DetailName, detail.Name, StringComparison.OrdinalIgnoreCase));
-        if (detailNameMatch != null)
-        {
-            return detailNameMatch;
-        }
-
-        var sameKindWindows = declaredWindows.Where(window => window.Kind == detail.QuotaBucketKind).ToList();
-        return sameKindWindows.Count == 1 ? sameKindWindows[0] : null;
     }
 
     private static string NormalizeIdentity(string? value)
