@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [2.3.4-beta.8] - 2026-03-27
+
+### Changed
+- Dependency updates: CommunityToolkit.Mvvm, SignalR.Client, Microsoft.Extensions.\*, System.\*, coverlet, Meziantou.Analyzer, Playwright, MSTest, System.Reactive, dotnet-sdk 8.0.419, codecov-action v6, codeql-action, setup-dotnet
+
+### Fixed
+- Resolve remaining CodeQL code scanning alerts: useless upcasts in JSON helpers, `Path.Combine` → `Path.Join` in MonitorLauncher, narrowed generic catch clauses
+
 ## [2.3.4-beta.7] - 2026-03-27
 
 ### Fixed
