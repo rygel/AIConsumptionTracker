@@ -2,6 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Linq;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.UI.Slim;
@@ -645,7 +646,7 @@ public class GroupedUsageDisplayAdapterTests
     }
 
     [Fact]
-    public void Expand_ClaudeCodeSnapshot_ProducesThreeChildRows_CurrentSessionSonnetAllModels()
+    public void Expand_ClaudeCodeSnapshot_ProducesTwoChildRows_SonnetAndAllModels()
     {
         var snapshot = new AgentGroupedUsageSnapshot
         {
@@ -671,17 +672,16 @@ public class GroupedUsageDisplayAdapterTests
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
-        Assert.Equal(4, usages.Count);
+        // Parent + sonnet child + all-models child; current-session is NOT a visible derived row
+        Assert.Equal(3, usages.Count);
         Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal));
+        Assert.Empty(usages.Where(u => string.Equals(u.ProviderId, "claude-code.current-session", StringComparison.Ordinal)));
 
-        var session = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code.current-session", StringComparison.Ordinal));
-        var sonnet  = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code.sonnet", StringComparison.Ordinal));
-        var all     = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code.all-models", StringComparison.Ordinal));
+        var sonnet = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code.sonnet", StringComparison.Ordinal));
+        var all    = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code.all-models", StringComparison.Ordinal));
 
-        Assert.Equal("Current Session", session.ProviderName);
         Assert.Equal("Sonnet", sonnet.ProviderName);
         Assert.Equal("All Models", all.ProviderName);
-        Assert.Equal(3, session.UsedPercent, 1);
         Assert.Equal(2, sonnet.UsedPercent, 1);
         Assert.Equal(5, all.UsedPercent, 1);
     }
