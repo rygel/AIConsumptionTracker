@@ -138,7 +138,7 @@ public class GitHubCopilotProvider : ProviderBase
             state.State = ProviderUsageState.Error;
         }
 
-        return new[] { this.BuildUsageResult(state) };
+        return this.BuildUsageResults(state);
     }
 
     private static HttpRequestMessage CreateBearerRequest(string url, string token)
@@ -482,9 +482,9 @@ public class GitHubCopilotProvider : ProviderBase
         }
     }
 
-    private ProviderUsage BuildUsageResult(CopilotUsageState state)
+    private IEnumerable<ProviderUsage> BuildUsageResults(CopilotUsageState state)
     {
-        return new ProviderUsage
+        var baseUsage = new ProviderUsage
         {
             ProviderId = this.ProviderId,
             ProviderName = "GitHub Copilot",
@@ -499,10 +499,79 @@ public class GitHubCopilotProvider : ProviderBase
             IsQuotaBased = this.Definition.IsQuotaBased,
             AuthSource = string.IsNullOrEmpty(state.PlanName) ? AuthSource.Unknown : state.PlanName,
             NextResetTime = state.ResetTime,
-            Details = state.Details,
             RawJson = state.RawJson,
             HttpStatus = state.HttpStatus,
         };
+
+        if (state.Details == null || state.Details.Count == 0)
+        {
+            return new[] { baseUsage };
+        }
+
+        var results = new List<ProviderUsage>();
+
+        var weeklyDetail = state.Details.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Rolling);
+        var burstDetail = state.Details.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Burst);
+
+        if (weeklyDetail != null)
+        {
+            var weeklyUsed = UsageMath.GetEffectiveUsedPercent(weeklyDetail) ?? (100.0 - state.Percentage);
+            results.Add(new ProviderUsage
+            {
+                ProviderId = this.ProviderId,
+                ProviderName = "GitHub Copilot",
+                CardId = "weekly",
+                GroupId = this.ProviderId,
+                Name = "Weekly Quota",
+                AccountName = baseUsage.AccountName,
+                IsAvailable = state.IsAvailable,
+                State = state.State,
+                Description = weeklyDetail.Description,
+                UsedPercent = weeklyUsed,
+                RequestsAvailable = state.CostLimit,
+                RequestsUsed = state.CostUsed,
+                PlanType = this.Definition.PlanType,
+                IsQuotaBased = this.Definition.IsQuotaBased,
+                AuthSource = baseUsage.AuthSource,
+                NextResetTime = state.ResetTime,
+                PeriodDuration = TimeSpan.FromDays(7),
+                RawJson = state.RawJson,
+                HttpStatus = state.HttpStatus,
+            });
+        }
+
+        if (burstDetail != null)
+        {
+            var burstUsed = UsageMath.GetEffectiveUsedPercent(burstDetail) ?? 0.0;
+            results.Add(new ProviderUsage
+            {
+                ProviderId = this.ProviderId,
+                ProviderName = "GitHub Copilot",
+                CardId = "burst",
+                GroupId = this.ProviderId,
+                Name = "5-Hour Window",
+                AccountName = baseUsage.AccountName,
+                IsAvailable = state.IsAvailable,
+                State = state.State,
+                Description = burstDetail.Description,
+                UsedPercent = burstUsed,
+                RequestsAvailable = 0,
+                RequestsUsed = 0,
+                PlanType = this.Definition.PlanType,
+                IsQuotaBased = this.Definition.IsQuotaBased,
+                AuthSource = baseUsage.AuthSource,
+                PeriodDuration = TimeSpan.FromHours(5),
+                RawJson = state.RawJson,
+                HttpStatus = state.HttpStatus,
+            });
+        }
+
+        if (results.Count == 0)
+        {
+            return new[] { baseUsage };
+        }
+
+        return results;
     }
 
     private sealed class CopilotUsageState

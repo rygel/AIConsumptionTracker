@@ -111,7 +111,7 @@ public class OpenAIProvider : ProviderBase
 
         try
         {
-            return new[] { await this.GetNativeUsageAsync(accessToken, accountId).ConfigureAwait(false) };
+            return await this.GetNativeUsageAsync(accessToken, accountId).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -322,7 +322,7 @@ public class OpenAIProvider : ProviderBase
         }
     }
 
-    private async Task<ProviderUsage> GetNativeUsageAsync(string accessToken, string? accountId)
+    private async Task<IEnumerable<ProviderUsage>> GetNativeUsageAsync(string accessToken, string? accountId)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, WhamUsageEndpoint);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -336,47 +336,112 @@ public class OpenAIProvider : ProviderBase
 
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
-            return this.CreateUnavailableUsage($"Session invalid ({(int)response.StatusCode})", (int)response.StatusCode);
+            return new[] { this.CreateUnavailableUsage($"Session invalid ({(int)response.StatusCode})", (int)response.StatusCode) };
         }
 
         if (!response.IsSuccessStatusCode)
         {
-            return this.CreateUnavailableUsage($"Session usage request failed ({(int)response.StatusCode})", (int)response.StatusCode);
+            return new[] { this.CreateUnavailableUsage($"Session usage request failed ({(int)response.StatusCode})", (int)response.StatusCode) };
         }
 
         using var doc = JsonDocument.Parse(content);
         if (doc.RootElement.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String)
         {
-            return this.CreateUnavailableUsage(detail.GetString() ?? "Session usage request failed", (int)response.StatusCode);
+            return new[] { this.CreateUnavailableUsage(detail.GetString() ?? "Session usage request failed", (int)response.StatusCode) };
         }
 
         var planType = doc.RootElement.ReadString("plan_type") ?? "chatgpt";
-        var primaryUsed = doc.RootElement.ReadDouble("rate_limit", "primary_window", "used_percent") ?? 0.0;
-        var secondaryUsed = doc.RootElement.ReadDouble("rate_limit", "secondary_window", "used_percent") ?? 0.0;
-        var nextResetTime = ResolveResetTime(doc.RootElement);
+        var accountIdentity = GetAccountIdentity(doc.RootElement, accessToken, accountId) ?? string.Empty;
+        var httpStatus = (int)response.StatusCode;
+        var sessionDetails = BuildOpenAiSessionDetails(doc.RootElement);
 
-        // Use the higher of primary or secondary window usage for the main display.
-        // The API may return 0 for primary_window but have actual usage in secondary_window.
-        var used = Math.Max(primaryUsed, secondaryUsed);
-        var remaining = Math.Clamp(100.0 - used, 0.0, 100.0);
+        var results = new List<ProviderUsage>();
 
-        return new ProviderUsage
+        var primaryDetail = sessionDetails.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Burst);
+        var weeklyDetail = sessionDetails.FirstOrDefault(d => d.QuotaBucketKind == WindowKind.Rolling);
+        var creditsDetail = sessionDetails.FirstOrDefault(d => d.DetailType == ProviderUsageDetailType.Credit);
+
+        var creditsDesc = creditsDetail != null
+            ? $" | Credits: {creditsDetail.Description}"
+            : string.Empty;
+
+        if (primaryDetail != null)
         {
-            ProviderId = this.ProviderId,
-            ProviderName = this.Definition.DisplayName,
-            AccountName = GetAccountIdentity(doc.RootElement, accessToken, accountId) ?? string.Empty,
-            IsAvailable = true,
-            IsQuotaBased = this.Definition.IsQuotaBased,
-            PlanType = this.Definition.PlanType,
-            UsedPercent = used,
-            RequestsUsed = used,
-            RequestsAvailable = 100,
-            Description = $"{remaining:F0}% remaining ({used:F0}% used) | Plan: {planType}",
-            AuthSource = AuthSource.OpenCodeSession,
-            NextResetTime = nextResetTime,
-            Details = BuildOpenAiSessionDetails(doc.RootElement),
-            RawJson = content,
-            HttpStatus = (int)response.StatusCode,
-        };
+            var primaryUsed = UsageMath.GetEffectiveUsedPercent(primaryDetail) ?? 0.0;
+            results.Add(new ProviderUsage
+            {
+                ProviderId = this.ProviderId,
+                ProviderName = this.Definition.DisplayName,
+                CardId = "burst",
+                GroupId = this.ProviderId,
+                Name = "5-hour quota",
+                AccountName = accountIdentity,
+                IsAvailable = true,
+                IsQuotaBased = this.Definition.IsQuotaBased,
+                PlanType = this.Definition.PlanType,
+                UsedPercent = primaryUsed,
+                RequestsUsed = primaryUsed,
+                RequestsAvailable = 100,
+                Description = $"{primaryDetail.Description} | Plan: {planType}{creditsDesc}",
+                AuthSource = AuthSource.OpenCodeSession,
+                NextResetTime = primaryDetail.NextResetTime,
+                PeriodDuration = TimeSpan.FromHours(5),
+                RawJson = content,
+                HttpStatus = httpStatus,
+            });
+        }
+
+        if (weeklyDetail != null)
+        {
+            var weeklyUsed = UsageMath.GetEffectiveUsedPercent(weeklyDetail) ?? 0.0;
+            results.Add(new ProviderUsage
+            {
+                ProviderId = this.ProviderId,
+                ProviderName = this.Definition.DisplayName,
+                CardId = "weekly",
+                GroupId = this.ProviderId,
+                Name = "Weekly quota",
+                AccountName = accountIdentity,
+                IsAvailable = true,
+                IsQuotaBased = this.Definition.IsQuotaBased,
+                PlanType = this.Definition.PlanType,
+                UsedPercent = weeklyUsed,
+                RequestsUsed = weeklyUsed,
+                RequestsAvailable = 100,
+                Description = $"{weeklyDetail.Description} | Plan: {planType}{creditsDesc}",
+                AuthSource = AuthSource.OpenCodeSession,
+                NextResetTime = weeklyDetail.NextResetTime,
+                PeriodDuration = TimeSpan.FromDays(7),
+                RawJson = content,
+                HttpStatus = httpStatus,
+            });
+        }
+
+        if (results.Count == 0)
+        {
+            var primaryUsed = doc.RootElement.ReadDouble("rate_limit", "primary_window", "used_percent") ?? 0.0;
+            var secondaryUsed = doc.RootElement.ReadDouble("rate_limit", "secondary_window", "used_percent") ?? 0.0;
+            var used = Math.Max(primaryUsed, secondaryUsed);
+            var remaining = Math.Clamp(100.0 - used, 0.0, 100.0);
+            results.Add(new ProviderUsage
+            {
+                ProviderId = this.ProviderId,
+                ProviderName = this.Definition.DisplayName,
+                AccountName = accountIdentity,
+                IsAvailable = true,
+                IsQuotaBased = this.Definition.IsQuotaBased,
+                PlanType = this.Definition.PlanType,
+                UsedPercent = used,
+                RequestsUsed = used,
+                RequestsAvailable = 100,
+                Description = $"{remaining:F0}% remaining ({used:F0}% used) | Plan: {planType}{creditsDesc}",
+                AuthSource = AuthSource.OpenCodeSession,
+                NextResetTime = ResolveResetTime(doc.RootElement),
+                RawJson = content,
+                HttpStatus = httpStatus,
+            });
+        }
+
+        return results;
     }
 }

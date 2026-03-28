@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
+using AIUsageTracker.Infrastructure.Providers;
 using AIUsageTracker.UI.Slim.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -75,15 +76,7 @@ public partial class MainWindow : Window
 
                 var (activeUsages, inactiveUsages) = SplitActiveInactive(section.Usages);
 
-                foreach (var usage in activeUsages)
-                {
-                    this.AddProviderCard(usage, container, cardRenderer);
-
-                    if (usage.Details?.Any() == true)
-                    {
-                        this.AddCollapsibleSubProviders(usage, container, cardRenderer);
-                    }
-                }
+                this.AddProviderCardsWithGrouping(activeUsages, container, cardRenderer);
 
                 if (inactiveUsages.Count > 0)
                 {
@@ -101,10 +94,7 @@ public partial class MainWindow : Window
                     container.Children.Add(inactiveHeader);
                     container.Children.Add(inactiveContainer);
 
-                    foreach (var usage in inactiveUsages)
-                    {
-                        this.AddProviderCard(usage, inactiveContainer, cardRenderer);
-                    }
+                    this.AddProviderCardsWithGrouping(inactiveUsages, inactiveContainer, cardRenderer);
                 }
             }
 
@@ -297,6 +287,62 @@ public partial class MainWindow : Window
             this.CreateTopmostAwareToolTip,
             this.ConfigureCardToolTip,
             UsageMath.FormatRelativeTime);
+    }
+
+    private void AddProviderCardsWithGrouping(IReadOnlyList<ProviderUsage> usages, StackPanel container, ProviderCardRenderer cardRenderer)
+    {
+        // Group consecutive cards by GroupId for visual grouping.
+        // Cards with GroupId == null are standalone and rendered directly.
+        var i = 0;
+        while (i < usages.Count)
+        {
+            var usage = usages[i];
+            var groupId = usage.GroupId;
+
+            if (string.IsNullOrEmpty(groupId))
+            {
+                this.AddProviderCard(usage, container, cardRenderer);
+                i++;
+                continue;
+            }
+
+            // Collect all cards in this group
+            var groupCards = new List<ProviderUsage>();
+            while (i < usages.Count && string.Equals(usages[i].GroupId, groupId, StringComparison.OrdinalIgnoreCase))
+            {
+                groupCards.Add(usages[i]);
+                i++;
+            }
+
+            if (groupCards.Count == 1)
+            {
+                // Single card in group — render standalone
+                this.AddProviderCard(groupCards[0], container, cardRenderer);
+                continue;
+            }
+
+            // Multiple cards in a group — render first card normally, rest as children
+            this.AddProviderCard(groupCards[0], container, cardRenderer, isChild: false);
+
+            var (groupHeader, groupContainer) = this.CreateCollapsibleHeader(
+                $"{ProviderMetadataCatalog.ResolveDisplayLabel(groupCards[0])} Details",
+                System.Windows.Media.Brushes.DeepSkyBlue,
+                isGroupHeader: false,
+                groupKey: null,
+                () => MainWindowRuntimeLogic.GetIsCollapsedForGroup(this._preferences, groupId),
+                v => MainWindowRuntimeLogic.SetIsCollapsedForGroup(this._preferences, groupId, v));
+
+            container.Children.Add(groupHeader);
+            container.Children.Add(groupContainer);
+
+            if (!MainWindowRuntimeLogic.GetIsCollapsedForGroup(this._preferences, groupId))
+            {
+                for (var j = 1; j < groupCards.Count; j++)
+                {
+                    this.AddProviderCard(groupCards[j], groupContainer, cardRenderer, isChild: true);
+                }
+            }
+        }
     }
 
     private void AddProviderCard(ProviderUsage usage, StackPanel container, ProviderCardRenderer cardRenderer, bool isChild = false)

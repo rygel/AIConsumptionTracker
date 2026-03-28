@@ -45,6 +45,25 @@ internal static partial class MainWindowRuntimeLogic
         return $"Monitor offline — last sync {ago}";
     }
 
+    public static bool GetIsCollapsedForGroup(AppPreferences preferences, string groupId)
+    {
+        ArgumentNullException.ThrowIfNull(preferences);
+        return preferences.CollapsedGroupIds.TryGetValue(groupId, out var collapsed) && collapsed;
+    }
+
+    public static void SetIsCollapsedForGroup(AppPreferences preferences, string groupId, bool isCollapsed)
+    {
+        ArgumentNullException.ThrowIfNull(preferences);
+        if (isCollapsed)
+        {
+            preferences.CollapsedGroupIds[groupId] = true;
+        }
+        else
+        {
+            preferences.CollapsedGroupIds.Remove(groupId);
+        }
+    }
+
     public static bool GetSectionIsCollapsed(AppPreferences preferences, bool isQuotaBased)
     {
         ArgumentNullException.ThrowIfNull(preferences);
@@ -125,7 +144,7 @@ internal static partial class MainWindowRuntimeLogic
                 var id = usage.ProviderId ?? string.Empty;
                 return (ProviderMetadataCatalog.Find(id)?.ShowInMainWindow ?? false) && !hiddenSet.Contains(id);
             })
-            .GroupBy(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(usage => $"{usage.ProviderId ?? string.Empty}::{usage.CardId ?? string.Empty}", StringComparer.OrdinalIgnoreCase)
             .Select(SelectPreferredUsage)
             .ToList();
 
@@ -250,11 +269,6 @@ internal static partial class MainWindowRuntimeLogic
         if (usage.HttpStatus is >= 200 and < 300)
         {
             score += 100;
-        }
-
-        if (usage.Details?.Count > 0)
-        {
-            score += 5;
         }
 
         if (usage.NextResetTime.HasValue)

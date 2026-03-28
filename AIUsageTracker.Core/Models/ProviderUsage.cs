@@ -57,6 +57,30 @@ public class ProviderUsage
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ParentProviderId { get; set; }
 
+    /// <summary>
+    /// Gets or sets the display name for this specific card (e.g. "Current Session", "Sonnet").
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// Gets or sets the stable identifier for this specific card within a provider.
+    /// Used as the database composite key alongside ProviderId.
+    /// Independent of the display Name — renaming Name does not break history.
+    /// Examples: "current-session", "all-models", "sonnet", "spark".
+    /// Null for single-card providers (treated as the default card for that provider).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CardId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the rendering-only grouping tag. Cards sharing the same GroupId are rendered together
+    /// as a visual group. Collapse/expand operates on the group, not on a parent card.
+    /// Null means the card is standalone.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GroupId { get; set; }
+
     public IReadOnlyList<ProviderUsageDetail>? Details { get; set; }
 
     // Temporary property for database serialization - not serialized to JSON
@@ -107,9 +131,8 @@ public class ProviderUsage
     /// Set by the display layer when synthesising child provider rows from aggregate details,
     /// or directly by the provider when the usage row represents a single rolling window.
     /// Null when no rolling-window period duration is known.
-    /// Not stored in the database — derived on read and never serialised.
     /// </summary>
-    [JsonIgnore]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public TimeSpan? PeriodDuration { get; set; }
 
     public (UpstreamResponseValidity Validity, string Note) EvaluateUpstreamResponseValidity()

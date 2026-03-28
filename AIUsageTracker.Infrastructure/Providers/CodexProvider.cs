@@ -492,62 +492,100 @@ public class CodexProvider : ProviderBase
         var secondaryUsedPercent = root.ReadDouble("rate_limit", "secondary_window", "used_percent");
         var secondaryResetSeconds = root.ReadDouble("rate_limit", "secondary_window", "reset_after_seconds");
         var sparkWindow = ExtractSparkWindow(root);
-        var primaryModelName = ResolveModelName(root);
         var accountIdentity = ResolveAccountIdentity(root, jwtEmail, authIdentity, accountId);
 
-        // Use the highest usage percentage across all windows for the parent display.
-        // The API may return 0 for primary_window but have actual usage in spark/secondary windows.
-        var effectiveUsedPercent = ResolveEffectiveUsedPercent(
-            primaryUsedPercent,
-            secondaryUsedPercent,
-            sparkWindow.PrimaryUsedPercent,
-            sparkWindow.SecondaryUsedPercent);
-        var remainingPercent = Math.Clamp(100.0 - effectiveUsedPercent, 0.0, 100.0);
-
-        // Spark's effective constraint is the max of its own 5h window, the Spark-block secondary
-        // window, and the shared weekly quota. All three sources must be considered.
-        // Spark's own secondary window (additional_rate_limits[spark]) is an independent counter
-        // from the main rate_limit.secondary_window. Prefer Spark's own when present; fall back
-        // to the main secondary only when Spark has no secondary window of its own.
         var sparkEffectiveWeeklyForParent = sparkWindow.SecondaryUsedPercent ?? secondaryUsedPercent ?? 0.0;
         var effectiveSparkPercent = sparkWindow.HasWindowData
             ? (double?)Math.Max(sparkWindow.PrimaryUsedPercent ?? 0.0, sparkEffectiveWeeklyForParent)
             : null;
 
-        var details = BuildDetails(
-            primaryUsedPercent,
-            effectiveUsedPercent,
-            primaryResetSeconds,
-            secondaryUsedPercent,
-            secondaryResetSeconds,
-            sparkWindow,
-            primaryModelName,
-            root);
-        // Use the weekly (rolling) reset time for the parent card so pace calculation
-        // matches the 7-day PeriodDuration. Fall back to burst only if weekly unavailable.
-        var nextResetTime = ResolveResetTimeFromSeconds(secondaryResetSeconds)
-                            ?? ResolveNextResetTime(primaryResetSeconds, sparkWindow.PrimaryResetAfterSeconds);
-        var usages = new List<ProviderUsage>
+        // Primary card: 5-hour burst
+        var burstResetTime = ResolveNextResetTime(primaryResetSeconds, null);
+        var burstCard = new ProviderUsage
         {
-            new ProviderUsage
+            ProviderId = this.ProviderId,
+            ProviderName = StaticDefinition.DisplayName,
+            CardId = "burst",
+            GroupId = this.ProviderId,
+            Name = "5-hour quota",
+            UsedPercent = primaryUsedPercent,
+            RequestsUsed = primaryUsedPercent,
+            RequestsAvailable = 100.0,
+            IsQuotaBased = this.Definition.IsQuotaBased,
+            PlanType = this.Definition.PlanType,
+            IsAvailable = true,
+            Description = $"{Math.Clamp(100.0 - primaryUsedPercent, 0.0, 100.0):F0}% remaining | Plan: {planType}",
+            AccountName = accountIdentity ?? string.Empty,
+            AuthSource = AuthSource.CodexNative(planType),
+            NextResetTime = burstResetTime,
+            PeriodDuration = TimeSpan.FromHours(5),
+            RawJson = rawJson,
+            HttpStatus = httpStatus,
+        };
+
+        var usages = new List<ProviderUsage> { burstCard };
+
+        // Weekly card when secondary window data is present
+        if (secondaryUsedPercent.HasValue)
+        {
+            var weeklyResetTime = ResolveResetTimeFromSeconds(secondaryResetSeconds);
+            var weeklyRemaining = Math.Clamp(100.0 - secondaryUsedPercent.Value, 0.0, 100.0);
+            var weeklyDesc = sparkWindow.HasWindowData && effectiveSparkPercent.HasValue
+                ? $"{weeklyRemaining:F0}% remaining | Plan: {planType} | Spark: {effectiveSparkPercent.Value:F0}% used"
+                : $"{weeklyRemaining:F0}% remaining | Plan: {planType}";
+            usages.Add(new ProviderUsage
             {
                 ProviderId = this.ProviderId,
                 ProviderName = StaticDefinition.DisplayName,
-                UsedPercent = effectiveUsedPercent,
-                RequestsUsed = effectiveUsedPercent,
+                CardId = "weekly",
+                GroupId = this.ProviderId,
+                Name = "Weekly quota",
+                UsedPercent = secondaryUsedPercent.Value,
+                RequestsUsed = secondaryUsedPercent.Value,
                 RequestsAvailable = 100.0,
                 IsQuotaBased = this.Definition.IsQuotaBased,
                 PlanType = this.Definition.PlanType,
                 IsAvailable = true,
-                Description = BuildUsageDescription(remainingPercent, effectiveUsedPercent, effectiveSparkPercent, planType),
+                Description = weeklyDesc,
                 AccountName = accountIdentity ?? string.Empty,
                 AuthSource = AuthSource.CodexNative(planType),
-                NextResetTime = nextResetTime,
-                Details = details,
+                NextResetTime = weeklyResetTime,
+                PeriodDuration = TimeSpan.FromDays(7),
                 RawJson = rawJson,
                 HttpStatus = httpStatus,
-            },
-        };
+            });
+        }
+
+        // Spark card when Spark window data is present
+        if (sparkWindow.HasWindowData)
+        {
+            var sparkOwnUsed = sparkWindow.PrimaryUsedPercent ?? 0.0;
+            var sparkEffectiveUsed = effectiveSparkPercent ?? sparkOwnUsed;
+            var sparkBurstResetTime = ResolveNextResetTime(sparkWindow.PrimaryResetAfterSeconds, null);
+            var sparkWeeklyResetTime = ResolveResetTimeFromSeconds(sparkWindow.SecondaryResetAfterSeconds ?? secondaryResetSeconds);
+            var sparkResetTime = sparkWeeklyResetTime ?? sparkBurstResetTime;
+            usages.Add(new ProviderUsage
+            {
+                ProviderId = "codex.spark",
+                ProviderName = StaticDefinition.DisplayNameOverrides.GetValueOrDefault("codex.spark", "OpenAI (GPT-5.3 Codex Spark)"),
+                CardId = "spark",
+                GroupId = this.ProviderId,
+                Name = "Spark",
+                UsedPercent = sparkEffectiveUsed,
+                RequestsUsed = sparkEffectiveUsed,
+                RequestsAvailable = 100.0,
+                IsQuotaBased = this.Definition.IsQuotaBased,
+                PlanType = this.Definition.PlanType,
+                IsAvailable = true,
+                Description = $"{Math.Clamp(100.0 - sparkEffectiveUsed, 0.0, 100.0):F0}% remaining | Plan: {planType}",
+                AccountName = accountIdentity ?? string.Empty,
+                AuthSource = AuthSource.CodexNative(planType),
+                NextResetTime = sparkResetTime,
+                PeriodDuration = TimeSpan.FromDays(7),
+                RawJson = rawJson,
+                HttpStatus = httpStatus,
+            });
+        }
 
         return usages;
     }

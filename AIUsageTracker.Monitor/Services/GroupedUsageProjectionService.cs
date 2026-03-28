@@ -96,6 +96,13 @@ public static class GroupedUsageProjectionService
         string canonicalProviderId)
     {
         var usages = group.ToList();
+
+        // Flat-card providers: if any usages have a CardId, project them directly as models.
+        if (usages.Any(u => !string.IsNullOrWhiteSpace(u.CardId)))
+        {
+            return BuildModelsFromFlatCards(usages, canonicalProviderId);
+        }
+
         if ((ProviderMetadataCatalog.Find(canonicalProviderId)?.UseChildProviderRowsForGroupedModels ?? false) &&
             ShouldBuildModelsFromExplicitChildRows(usages, canonicalProviderId))
         {
@@ -103,6 +110,35 @@ public static class GroupedUsageProjectionService
         }
 
         return BuildModelsFromDetails(usages);
+    }
+
+    private static IReadOnlyList<AgentGroupedModelUsage> BuildModelsFromFlatCards(
+        IEnumerable<ProviderUsage> group,
+        string canonicalProviderId)
+    {
+        return group
+            .Where(u => !string.IsNullOrWhiteSpace(u.CardId))
+            .GroupBy(u => u.CardId!, StringComparer.OrdinalIgnoreCase)
+            .Select(cardGroup => cardGroup.OrderByDescending(u => u.FetchedAt).First())
+            .OrderBy(u => u.CardId, StringComparer.OrdinalIgnoreCase)
+            .Select(u =>
+            {
+                var usedPercentage = UsageMath.ClampPercent(u.UsedPercent);
+                var remainingPercentage = UsageMath.ClampPercent(u.RemainingPercent);
+                var model = new AgentGroupedModelUsage
+                {
+                    ModelId = u.CardId!,
+                    ModelName = u.Name ?? u.CardId!,
+                    UsedPercentage = usedPercentage,
+                    RemainingPercentage = remainingPercentage,
+                    NextResetTime = u.NextResetTime,
+                    Description = u.Description ?? string.Empty,
+                    QuotaBuckets = BuildSummaryQuotaBuckets(usedPercentage, remainingPercentage, u.NextResetTime, u.Description),
+                };
+                ApplyEffectiveModelState(model, u.IsQuotaBased);
+                return model;
+            })
+            .ToList();
     }
 
     private static IReadOnlyList<AgentGroupedModelUsage> BuildModelsFromDetails(IEnumerable<ProviderUsage> group)

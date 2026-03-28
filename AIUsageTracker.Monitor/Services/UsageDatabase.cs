@@ -231,11 +231,11 @@ public class UsageDatabase : IUsageDatabase
                 IsActive = u.IsAvailable ? 1 : 0,
             })).ConfigureAwait(false);
 
-            // Dedup gate: load the last stored row per provider and only INSERT when
+            // Dedup gate: load the last stored row per (provider_id, card_id) and only INSERT when
             // something meaningful has changed. When data is unchanged, we UPDATE the
             // existing row's fetched_at so the stale-data detector keeps seeing a fresh
             // timestamp even though no new row was written.
-            var providerIds = validUsages.Select(u => u.ProviderId!).ToList();
+            var providerIds = validUsages.Select(u => u.ProviderId!).Distinct().ToList();
             var lastRows = await LoadLastHistoryRowsAsync(connection, providerIds).ConfigureAwait(false);
 
             var toInsert = new List<HistoryInsertParams>();
@@ -257,7 +257,9 @@ public class UsageDatabase : IUsageDatabase
                     ? validityEval.Note
                     : u.UpstreamResponseNote;
 
-                if (lastRows.TryGetValue(u.ProviderId!, out var last)
+                // Composite dedup key: provider_id + card_id (null card_id = legacy single-card provider)
+                var dedupKey = $"{u.ProviderId!}::{u.CardId ?? string.Empty}";
+                if (lastRows.TryGetValue(dedupKey, out var last)
                     && IsHistoryUnchanged(u, last, detailsJson, nextResetTime, statusMessage))
                 {
                     toTouch.Add(new HistoryTouchParams(last.Id, fetchedAt));
@@ -278,7 +280,9 @@ public class UsageDatabase : IUsageDatabase
                         u.HttpStatus,
                         validityInt,
                         validityNote,
-                        u.ParentProviderId));
+                        u.ParentProviderId,
+                        u.CardId,
+                        u.GroupId));
                 }
             }
 
@@ -291,14 +295,14 @@ public class UsageDatabase : IUsageDatabase
                         is_available, status_message, next_reset_time, fetched_at,
                         details_json, response_latency_ms, http_status,
                         upstream_response_validity, upstream_response_note,
-                        parent_provider_id
+                        parent_provider_id, card_id, group_id
                     ) VALUES (
                         @ProviderId,
                         @RequestsUsed, @RequestsAvailable, @RequestsPercentage,
                         @IsAvailable, @StatusMessage, @NextResetTime, @FetchedAt,
                         @DetailsJson, @ResponseLatencyMs, @HttpStatus,
                         @UpstreamResponseValidity, @UpstreamResponseNote,
-                        @ParentProviderId
+                        @ParentProviderId, @CardId, @GroupId
                     )";
 
                 await connection.ExecuteAsync(insertSql, toInsert).ConfigureAwait(false);
@@ -353,6 +357,7 @@ public class UsageDatabase : IUsageDatabase
         const string sql = @"
             SELECT h.id AS Id,
                    h.provider_id AS ProviderId,
+                   h.card_id AS CardId,
                    h.requests_used AS RequestsUsed,
                    h.requests_available AS RequestsAvailable,
                    h.is_available AS IsAvailable,
@@ -365,16 +370,19 @@ public class UsageDatabase : IUsageDatabase
                 SELECT MAX(id)
                 FROM provider_history
                 WHERE provider_id IN @Ids
-                GROUP BY provider_id
+                GROUP BY provider_id, card_id
             )";
 
         var rows = await connection.QueryAsync<LastHistoryRow>(sql, new { Ids = providerIds }).ConfigureAwait(false);
-        return rows.ToDictionary(r => r.ProviderId, StringComparer.OrdinalIgnoreCase);
+        return rows.ToDictionary(
+            r => $"{r.ProviderId}::{r.CardId ?? string.Empty}",
+            StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed record LastHistoryRow(
         long Id,
         string ProviderId,
+        string? CardId,
         double RequestsUsed,
         double RequestsAvailable,
         long IsAvailable,
@@ -397,7 +405,9 @@ public class UsageDatabase : IUsageDatabase
         int HttpStatus,
         int UpstreamResponseValidity,
         string UpstreamResponseNote,
-        string? ParentProviderId);
+        string? ParentProviderId,
+        string? CardId,
+        string? GroupId);
 
     private sealed record HistoryTouchParams(long Id, long FetchedAt);
 
@@ -583,13 +593,15 @@ public class UsageDatabase : IUsageDatabase
                        COALESCE(h.upstream_response_note, '') AS UpstreamResponseNote,
                        COALESCE(p.account_name, '') AS AccountName,
                        COALESCE(p.auth_source, '') AS AuthSource,
-                       h.parent_provider_id AS ParentProviderId
+                       h.parent_provider_id AS ParentProviderId,
+                       h.card_id AS CardId,
+                       h.group_id AS GroupId
                 FROM provider_history h
                 LEFT JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.id IN (
-                    SELECT MAX(id) FROM provider_history GROUP BY provider_id
+                    SELECT MAX(id) FROM provider_history GROUP BY provider_id, card_id
                 )
-                ORDER BY h.provider_id";
+                ORDER BY h.provider_id, h.card_id";
 
             var results = (await connection.QueryAsync<ProviderUsage>(sql).ConfigureAwait(false)).ToList();
 
