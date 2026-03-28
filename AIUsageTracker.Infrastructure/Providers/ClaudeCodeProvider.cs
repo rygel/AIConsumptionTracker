@@ -283,6 +283,7 @@ public class ClaudeCodeProvider : ProviderBase
                 CardId = "sonnet",
                 GroupId = this.ProviderId,
                 Name = "Sonnet",
+                WindowKind = WindowKind.ModelSpecific,
                 UsedPercent = UsageMath.ClampPercent(response.SevenDaySonnet.Utilization),
                 NextResetTime = response.SevenDay?.ResetsAt,
                 PeriodDuration = TimeSpan.FromDays(7),

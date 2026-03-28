@@ -62,17 +62,32 @@ internal sealed class ProviderCardRenderer
         var useDualBars = presentation.HasDualBuckets && this._preferences.ShowDualQuotaBars;
         if (useDualBars)
         {
+            var hasTriple = presentation.HasTripleBuckets;
+            var secondaryRow = hasTriple ? 2 : 1;
+
             pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            if (hasTriple)
+            {
+                pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            }
+
             pGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-            var primaryRow = this.CreateProgressLayer(presentation.DualBucketPrimaryUsed!.Value, presentation.DualBucketPrimaryColorPercent ?? presentation.DualBucketPrimaryUsed!.Value, showUsed, opacity: 0.55);
-            var secondaryRow = this.CreateProgressLayer(presentation.DualBucketSecondaryUsed!.Value, presentation.DualBucketSecondaryColorPercent ?? presentation.DualBucketSecondaryUsed!.Value, showUsed, opacity: 0.35);
-            Grid.SetRow(primaryRow, 0);
-            Grid.SetRow(secondaryRow, 1);
-            pGrid.Children.Add(primaryRow);
-            pGrid.Children.Add(secondaryRow);
+            var primaryBarRow = this.CreateProgressLayer(presentation.DualBucketPrimaryUsed!.Value, presentation.DualBucketPrimaryColorPercent ?? presentation.DualBucketPrimaryUsed!.Value, showUsed, opacity: 0.55);
+            var secondaryBarRow = this.CreateProgressLayer(presentation.DualBucketSecondaryUsed!.Value, presentation.DualBucketSecondaryColorPercent ?? presentation.DualBucketSecondaryUsed!.Value, showUsed, opacity: 0.35);
+            Grid.SetRow(primaryBarRow, 0);
+            Grid.SetRow(secondaryBarRow, secondaryRow);
+            pGrid.Children.Add(primaryBarRow);
+            pGrid.Children.Add(secondaryBarRow);
 
-            // Burst/weekly labels on each bar row (from provider metadata)
+            if (hasTriple)
+            {
+                var middleBarRow = this.CreateProgressLayer(presentation.DualBucketMiddleUsed!.Value, presentation.DualBucketMiddleColorPercent ?? presentation.DualBucketMiddleUsed!.Value, showUsed, opacity: 0.45);
+                Grid.SetRow(middleBarRow, 1);
+                pGrid.Children.Add(middleBarRow);
+            }
+
+            // Labels on each bar row
             if (!string.IsNullOrEmpty(presentation.DualBucketPrimaryLabel))
             {
                 var burstLabel = new TextBlock
@@ -89,6 +104,22 @@ internal sealed class ProviderCardRenderer
                 pGrid.Children.Add(burstLabel);
             }
 
+            if (hasTriple && !string.IsNullOrEmpty(presentation.DualBucketMiddleLabel))
+            {
+                var middleLabel = new TextBlock
+                {
+                    Text = presentation.DualBucketMiddleLabel,
+                    FontSize = 8,
+                    Foreground = this._getResourceBrush("TertiaryText", Brushes.Gray),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(3, 0, 0, 0),
+                    Opacity = 0.8,
+                };
+                Grid.SetRow(middleLabel, 1);
+                pGrid.Children.Add(middleLabel);
+            }
+
             if (!string.IsNullOrEmpty(presentation.DualBucketSecondaryLabel))
             {
                 var weeklyLabel = new TextBlock
@@ -101,7 +132,7 @@ internal sealed class ProviderCardRenderer
                     Margin = new Thickness(3, 0, 0, 0),
                     Opacity = 0.8,
                 };
-                Grid.SetRow(weeklyLabel, 1);
+                Grid.SetRow(weeklyLabel, secondaryRow);
                 pGrid.Children.Add(weeklyLabel);
             }
         }

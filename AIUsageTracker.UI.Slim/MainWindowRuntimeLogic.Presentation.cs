@@ -114,6 +114,14 @@ internal static partial class MainWindowRuntimeLogic
                 redThreshold);
         }
 
+        var middleColorPercent = hasDualQuotaBucketPresentation && dualQuotaBucketPresentation.HasMiddle
+            ? UsageMath.ComputePaceColor(
+                dualQuotaBucketPresentation.MiddleUsedPercent!.Value,
+                dualQuotaBucketPresentation.MiddleResetTime,
+                dualQuotaBucketPresentation.MiddlePeriodDuration,
+                redThreshold).ColorPercent
+            : (double?)null;
+
         return CreatePresentation(
             isMissing,
             isUnknown,
@@ -133,7 +141,11 @@ internal static partial class MainWindowRuntimeLogic
             hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.PrimaryKind : (WindowKind?)null,
             hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.SecondaryKind : (WindowKind?)null,
             isStale,
-            dualBucketRollingPaceColor: rollingPaceColor);
+            dualBucketRollingPaceColor: rollingPaceColor,
+            dualBucketMiddleUsed: hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.MiddleUsedPercent : null,
+            dualBucketMiddleColorPercent: middleColorPercent,
+            dualBucketMiddleLabel: hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.MiddleLabel : null,
+            dualBucketMiddleKind: hasDualQuotaBucketPresentation ? dualQuotaBucketPresentation.MiddleKind : null);
     }
 
     private static bool TryCreateSpecialPresentation(
@@ -205,7 +217,7 @@ internal static partial class MainWindowRuntimeLogic
         bool isUnknown,
         bool isStatusOnlyProvider,
         bool hasDualQuotaBucketPresentation,
-        (string PrimaryLabel, double PrimaryUsedPercent, DateTime? PrimaryResetTime, TimeSpan? PrimaryPeriodDuration, WindowKind PrimaryKind, string SecondaryLabel, double SecondaryUsedPercent, DateTime? SecondaryResetTime, TimeSpan? SecondaryPeriodDuration, WindowKind SecondaryKind) dualQuotaBucketPresentation)
+        MultiQuotaBucketPresentation dualQuotaBucketPresentation)
     {
         // Reuse the already-resolved definition from the caller instead of a second catalog lookup.
         var def = ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty);
@@ -280,7 +292,11 @@ internal static partial class MainWindowRuntimeLogic
         WindowKind? dualBucketPrimaryKind = null,
         WindowKind? dualBucketSecondaryKind = null,
         bool isStale = false,
-        PaceColorResult? dualBucketRollingPaceColor = null)
+        PaceColorResult? dualBucketRollingPaceColor = null,
+        double? dualBucketMiddleUsed = null,
+        double? dualBucketMiddleColorPercent = null,
+        string? dualBucketMiddleLabel = null,
+        WindowKind? dualBucketMiddleKind = null)
     {
         return new ProviderCardPresentation(
             IsMissing: isMissing,
@@ -301,15 +317,27 @@ internal static partial class MainWindowRuntimeLogic
             DualBucketPrimaryKind: dualBucketPrimaryKind,
             DualBucketSecondaryKind: dualBucketSecondaryKind,
             IsStale: isStale,
-            DualBucketRollingPaceColor: dualBucketRollingPaceColor);
+            DualBucketRollingPaceColor: dualBucketRollingPaceColor,
+            DualBucketMiddleUsed: dualBucketMiddleUsed,
+            DualBucketMiddleColorPercent: dualBucketMiddleColorPercent,
+            DualBucketMiddleLabel: dualBucketMiddleLabel,
+            DualBucketMiddleKind: dualBucketMiddleKind);
     }
 
     private static string BuildDualQuotaBucketStatusText(
-        (string PrimaryLabel, double PrimaryUsedPercent, DateTime? PrimaryResetTime, TimeSpan? PrimaryPeriodDuration, WindowKind PrimaryKind, string SecondaryLabel, double SecondaryUsedPercent, DateTime? SecondaryResetTime, TimeSpan? SecondaryPeriodDuration, WindowKind SecondaryKind) presentation,
+        MultiQuotaBucketPresentation presentation,
         bool showUsed)
     {
-        return $"{FormatDualQuotaBucketSegment(presentation.PrimaryLabel, presentation.PrimaryUsedPercent, showUsed)} | " +
-               $"{FormatDualQuotaBucketSegment(presentation.SecondaryLabel, presentation.SecondaryUsedPercent, showUsed)}";
+        var primary = FormatDualQuotaBucketSegment(presentation.PrimaryLabel, presentation.PrimaryUsedPercent, showUsed);
+        var secondary = FormatDualQuotaBucketSegment(presentation.SecondaryLabel, presentation.SecondaryUsedPercent, showUsed);
+
+        if (presentation.HasMiddle && !string.IsNullOrWhiteSpace(presentation.MiddleLabel))
+        {
+            var middle = FormatDualQuotaBucketSegment(presentation.MiddleLabel!, presentation.MiddleUsedPercent!.Value, showUsed);
+            return $"{primary} | {middle} | {secondary}";
+        }
+
+        return $"{primary} | {secondary}";
     }
 
     internal static string BuildSingleDualQuotaStatusText(
@@ -428,13 +456,15 @@ internal static partial class MainWindowRuntimeLogic
 
     internal static bool TryGetDualQuotaBucketPresentation(
         ProviderUsage usage,
-        out (string PrimaryLabel, double PrimaryUsedPercent, DateTime? PrimaryResetTime, TimeSpan? PrimaryPeriodDuration, WindowKind PrimaryKind, string SecondaryLabel, double SecondaryUsedPercent, DateTime? SecondaryResetTime, TimeSpan? SecondaryPeriodDuration, WindowKind SecondaryKind) presentation)
+        out MultiQuotaBucketPresentation presentation)
     {
         presentation = default;
 
-        // Dual-bar data comes from companion WindowCards: flat ProviderUsage cards
-        // with WindowKind = Burst or Rolling, populated by GroupedUsageDisplayAdapter
-        // from ProviderDetails. We need exactly one Burst card and one Rolling card.
+        // Multi-bar data comes from companion WindowCards: flat ProviderUsage cards
+        // with WindowKind = Burst, ModelSpecific, or Rolling, populated by
+        // GroupedUsageDisplayAdapter from ProviderDetails.
+        // We need exactly one Burst card and one Rolling card; a ModelSpecific card
+        // is optional and, when present, appears as a middle (second) bar.
         var windowCards = usage.WindowCards;
         if (windowCards == null || windowCards.Count == 0)
         {
@@ -457,12 +487,20 @@ internal static partial class MainWindowRuntimeLogic
 
         var burstWindow = definition.QuotaWindows.FirstOrDefault(w => w.Kind == WindowKind.Burst);
         var rollingWindow = definition.QuotaWindows.FirstOrDefault(w => w.Kind == WindowKind.Rolling);
+        var modelSpecificWindow = definition.QuotaWindows.FirstOrDefault(w => w.Kind == WindowKind.ModelSpecific);
 
         var burstLabel = burstCard.Name ?? burstWindow?.DetailName ?? "Burst";
         var rollingLabel = rollingCard.Name ?? rollingWindow?.DetailName ?? "Rolling";
 
-        // The shorter window (Burst) is primary (top bar), Rolling is secondary (bottom bar).
-        presentation = (
+        // Optional middle bar: highest-utilization ModelSpecific card (e.g. Sonnet quota).
+        var modelSpecificCard = windowCards
+            .Where(c => c.WindowKind == WindowKind.ModelSpecific)
+            .OrderByDescending(c => c.UsedPercent)
+            .FirstOrDefault();
+
+        // The shorter window (Burst) is primary (top), ModelSpecific is middle (if present),
+        // Rolling is secondary (bottom).
+        presentation = new MultiQuotaBucketPresentation(
             PrimaryLabel: burstLabel,
             PrimaryUsedPercent: burstCard.UsedPercent,
             PrimaryResetTime: burstCard.NextResetTime,
@@ -472,7 +510,12 @@ internal static partial class MainWindowRuntimeLogic
             SecondaryUsedPercent: rollingCard.UsedPercent,
             SecondaryResetTime: rollingCard.NextResetTime,
             SecondaryPeriodDuration: rollingWindow?.PeriodDuration,
-            SecondaryKind: WindowKind.Rolling);
+            SecondaryKind: WindowKind.Rolling,
+            MiddleLabel: modelSpecificCard != null ? (modelSpecificCard.Name ?? modelSpecificWindow?.DetailName ?? "Model") : null,
+            MiddleUsedPercent: modelSpecificCard?.UsedPercent,
+            MiddleResetTime: modelSpecificCard?.NextResetTime,
+            MiddlePeriodDuration: modelSpecificCard != null ? modelSpecificWindow?.PeriodDuration : null,
+            MiddleKind: modelSpecificCard != null ? WindowKind.ModelSpecific : null);
 
         return true;
     }
@@ -556,7 +599,43 @@ internal sealed record ProviderCardPresentation(
     WindowKind? DualBucketPrimaryKind = null,
     WindowKind? DualBucketSecondaryKind = null,
     bool IsStale = false,
-    PaceColorResult? DualBucketRollingPaceColor = null)
+    PaceColorResult? DualBucketRollingPaceColor = null,
+    double? DualBucketMiddleUsed = null,
+    double? DualBucketMiddleColorPercent = null,
+    string? DualBucketMiddleLabel = null,
+    WindowKind? DualBucketMiddleKind = null)
 {
     public bool HasDualBuckets => this.DualBucketPrimaryUsed.HasValue;
+
+    /// <summary>
+    /// True when a middle bar (e.g. Sonnet model-specific quota) is present alongside
+    /// the primary (Burst) and secondary (Rolling) bars.
+    /// </summary>
+    public bool HasTripleBuckets => this.HasDualBuckets && this.DualBucketMiddleUsed.HasValue;
+}
+
+/// <summary>
+/// Presentation data for a provider card that has multiple quota-window bars
+/// (Burst primary, optional ModelSpecific middle, Rolling secondary).
+/// Replaces the ad-hoc anonymous tuple used by TryGetDualQuotaBucketPresentation.
+/// </summary>
+internal readonly record struct MultiQuotaBucketPresentation(
+    string PrimaryLabel,
+    double PrimaryUsedPercent,
+    DateTime? PrimaryResetTime,
+    TimeSpan? PrimaryPeriodDuration,
+    WindowKind PrimaryKind,
+    string SecondaryLabel,
+    double SecondaryUsedPercent,
+    DateTime? SecondaryResetTime,
+    TimeSpan? SecondaryPeriodDuration,
+    WindowKind SecondaryKind,
+    string? MiddleLabel,
+    double? MiddleUsedPercent,
+    DateTime? MiddleResetTime,
+    TimeSpan? MiddlePeriodDuration,
+    WindowKind? MiddleKind)
+{
+    /// <summary>True when a ModelSpecific middle bar is populated.</summary>
+    public bool HasMiddle => this.MiddleUsedPercent.HasValue;
 }

@@ -73,4 +73,62 @@ public class DualProgressBarLogicTests
 
         Assert.False(result);
     }
+
+    [Fact]
+    public void TryGetPresentation_ClaudeCode_WithSonnetCard_ReturnsTripleBuckets()
+    {
+        // Claude Code emits three window cards: current-session (Burst), sonnet (ModelSpecific),
+        // and all-models (Rolling). When all three are present the presentation should report
+        // HasTripleBuckets = true with the middle bar populated from the sonnet card.
+        var reset = DateTime.UtcNow.AddDays(4);
+        var usage = new ProviderUsage
+        {
+            ProviderId = "claude-code",
+            IsQuotaBased = true,
+            WindowCards = new List<ProviderUsage>
+            {
+                new() { WindowKind = WindowKind.Burst,         Name = "Current Session", UsedPercent = 8,  NextResetTime = DateTime.UtcNow.AddHours(3) },
+                new() { WindowKind = WindowKind.ModelSpecific, Name = "Sonnet",           UsedPercent = 2,  NextResetTime = reset },
+                new() { WindowKind = WindowKind.Rolling,       Name = "All Models",       UsedPercent = 2,  NextResetTime = reset },
+            },
+        };
+
+        var ok = MainWindowRuntimeLogic.TryGetDualQuotaBucketPresentation(usage, out var p);
+
+        Assert.True(ok);
+        Assert.True(p.HasMiddle);
+
+        var card = MainWindowRuntimeLogic.Create(usage, showUsed: true);
+        Assert.True(card.HasTripleBuckets);
+        Assert.Equal("Sonnet", card.DualBucketMiddleLabel);
+        Assert.Equal(WindowKind.ModelSpecific, card.DualBucketMiddleKind);
+        Assert.Equal(2.0, card.DualBucketMiddleUsed!.Value, 1);
+    }
+
+    [Fact]
+    public void TryGetPresentation_ClaudeCode_WithoutSonnetCard_ReturnsDualBuckets()
+    {
+        // If only Burst + Rolling cards are present (e.g. Opus plan with no Sonnet quota),
+        // the presentation should fall back gracefully to HasDualBuckets without a middle bar.
+        var reset = DateTime.UtcNow.AddDays(4);
+        var usage = new ProviderUsage
+        {
+            ProviderId = "claude-code",
+            IsQuotaBased = true,
+            WindowCards = new List<ProviderUsage>
+            {
+                new() { WindowKind = WindowKind.Burst,   Name = "Current Session", UsedPercent = 5, NextResetTime = DateTime.UtcNow.AddHours(2) },
+                new() { WindowKind = WindowKind.Rolling, Name = "All Models",      UsedPercent = 1, NextResetTime = reset },
+            },
+        };
+
+        var ok = MainWindowRuntimeLogic.TryGetDualQuotaBucketPresentation(usage, out var p);
+
+        Assert.True(ok);
+        Assert.False(p.HasMiddle);
+
+        var card = MainWindowRuntimeLogic.Create(usage, showUsed: true);
+        Assert.True(card.HasDualBuckets);
+        Assert.False(card.HasTripleBuckets);
+    }
 }
