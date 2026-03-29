@@ -42,8 +42,7 @@ public class AntigravityProvider : ProviderBase
         "antigravity",
         "Google Antigravity",
         PlanType.Coding,
-        isQuotaBased: true,
-        defaultConfigType: "quota-based")
+        isQuotaBased: true)
     {
         FamilyMode = ProviderFamilyMode.FlatWindowCards,
         SettingsMode = ProviderSettingsMode.AutoDetectedStatus,

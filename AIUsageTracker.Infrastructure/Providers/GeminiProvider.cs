@@ -20,8 +20,7 @@ public class GeminiProvider : ProviderBase
         "gemini-cli",
         "Google Gemini",
         PlanType.Coding,
-        isQuotaBased: true,
-        defaultConfigType: "quota-based")
+        isQuotaBased: true)
     {
         AdditionalHandledProviderIds = new[] { "gemini" },
         DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

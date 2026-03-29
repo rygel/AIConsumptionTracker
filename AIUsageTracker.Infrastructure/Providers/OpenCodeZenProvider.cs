@@ -63,9 +63,9 @@ public class OpenCodeZenProvider : ProviderBase
         "opencode-zen",
         ProviderDisplayName,
         PlanType.Usage,
-        isQuotaBased: false,
-        defaultConfigType: "pay-as-you-go")
+        isQuotaBased: false)
     {
+        SettingsMode = ProviderSettingsMode.AutoDetectedStatus,
         AdditionalHandledProviderIds = new[] { "opencode-go" },
         DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {

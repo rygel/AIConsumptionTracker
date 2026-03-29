@@ -39,8 +39,7 @@ public class ClaudeCodeProvider : ProviderBase
         "claude-code",
         "Claude Code",
         PlanType.Usage,
-        isQuotaBased: true,
-        defaultConfigType: "quota-based")
+        isQuotaBased: true)
     {
         DiscoveryEnvironmentVariables = new[] { "ANTHROPIC_API_KEY", "CLAUDE_API_KEY" },
         IconAssetName = "anthropic",

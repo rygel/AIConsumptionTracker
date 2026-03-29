@@ -20,8 +20,7 @@ public class CodexProvider : ProviderBase
         "codex",
         "OpenAI (Codex)",
         PlanType.Coding,
-        isQuotaBased: true,
-        defaultConfigType: "quota-based")
+        isQuotaBased: true)
     {
         DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {

@@ -12,8 +12,7 @@ public sealed class ProviderDefinition
         string providerId,
         string displayName,
         PlanType planType,
-        bool isQuotaBased,
-        string defaultConfigType)
+        bool isQuotaBased)
     {
         if (string.IsNullOrWhiteSpace(providerId))
         {
@@ -29,7 +28,6 @@ public sealed class ProviderDefinition
         this.DisplayName = displayName.Trim();
         this.PlanType = planType;
         this.IsQuotaBased = isQuotaBased;
-        this.DefaultConfigType = defaultConfigType;
     }
 
     public string ProviderId { get; }
@@ -39,8 +37,6 @@ public sealed class ProviderDefinition
     public PlanType PlanType { get; }
 
     public bool IsQuotaBased { get; }
-
-    public string DefaultConfigType { get; }
 
     public ProviderFamilyMode FamilyMode { get; init; } = ProviderFamilyMode.Standalone;
 
