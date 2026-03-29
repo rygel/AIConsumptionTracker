@@ -215,9 +215,9 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity", true)]
-    [InlineData("gemini-cli", true)]
-    [InlineData("codex", true)]
+    [InlineData("antigravity", false)]
+    [InlineData("gemini-cli", false)]
+    [InlineData("codex", false)]
     [InlineData("github-copilot", false)]
     public void HasDisplayableDerivedProviders_UsesProviderFamilyPolicy(string providerId, bool expected)
     {
@@ -225,7 +225,7 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity", true)]
+    [InlineData("antigravity", false)]
     [InlineData("gemini-cli", false)]
     [InlineData("codex", false)]
     [InlineData("github-copilot", false)]
@@ -235,8 +235,8 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("codex", new[] { "codex.spark" })]
-    [InlineData("gemini-cli", new[] { "gemini-cli.minute", "gemini-cli.hourly", "gemini-cli.daily" })]
+    [InlineData("codex", new string[0])]
+    [InlineData("gemini-cli", new string[0])]
     [InlineData("antigravity", new string[0])]
     public void GetVisibleDerivedProviderIds_UsesProviderDefinitions(string providerId, string[] expected)
     {
@@ -507,13 +507,13 @@ public class ProviderMetadataCatalogTests
 
         var antigravity = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("antigravity"));
         Assert.Equal(ProviderSettingsMode.AutoDetectedStatus, antigravity.SettingsMode);
-        Assert.Equal(ProviderFamilyMode.DynamicChildProviderRows, antigravity.FamilyMode);
-        Assert.True(antigravity.UseChildProviderRowsForGroupedModels);
+        Assert.Equal(ProviderFamilyMode.FlatWindowCards, antigravity.FamilyMode);
+        Assert.False(antigravity.UseChildProviderRowsForGroupedModels);
         Assert.Equal("[Antigravity]", antigravity.DerivedModelDisplaySuffix);
 
         var gemini = Assert.IsType<ProviderDefinition>(ProviderMetadataCatalog.Find("gemini-cli"));
         Assert.Equal(ProviderSettingsMode.StandardApiKey, gemini.SettingsMode);
-        Assert.Equal(ProviderFamilyMode.VisibleDerivedProviders, gemini.FamilyMode);
+        Assert.Equal(ProviderFamilyMode.FlatWindowCards, gemini.FamilyMode);
         Assert.True(gemini.SupportsChildProviderIds);
         Assert.False(gemini.UseChildProviderRowsForGroupedModels);
 

@@ -121,7 +121,7 @@ internal static partial class MainWindowRuntimeLogic
     {
         var hiddenIds = hiddenItemIds ?? Array.Empty<string>();
         var renderPreparation = PrepareForMainWindow(usages, hiddenIds);
-        var orderedUsages = OrderForMainWindow(renderPreparation).ToList();
+        var orderedUsages = renderPreparation.ToList();
         foreach (var usage in orderedUsages)
         {
             EnrichWithPeriodDuration(usage);
@@ -178,19 +178,6 @@ internal static partial class MainWindowRuntimeLogic
         return sections;
     }
 
-    internal static IEnumerable<ProviderUsage> OrderForMainWindow(IEnumerable<ProviderUsage> usages)
-    {
-        return usages
-            .OrderByDescending(usage => usage.IsQuotaBased)
-            .ThenBy(
-                usage => GetFamilyDisplayName(usage),
-                StringComparer.OrdinalIgnoreCase)
-            .ThenBy(
-                usage => ProviderMetadataCatalog.ResolveDisplayLabel(usage),
-                StringComparer.OrdinalIgnoreCase)
-            .ThenBy(usage => usage.ProviderId ?? string.Empty, StringComparer.OrdinalIgnoreCase);
-    }
-
     /// <summary>
     /// Sets PeriodDuration on a ProviderUsage from rolling/model-specific quota windows
     /// so downstream colour logic can compute pace directly from Usage.PeriodDuration.
@@ -236,13 +223,6 @@ internal static partial class MainWindowRuntimeLogic
             .OrderByDescending(GetSelectionScore)
             .ThenByDescending(usage => usage.FetchedAt)
             .First();
-    }
-
-    private static string GetFamilyDisplayName(ProviderUsage usage)
-    {
-        var providerId = usage.ProviderId ?? string.Empty;
-        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
-        return ProviderMetadataCatalog.GetConfiguredDisplayName(canonicalProviderId);
     }
 
     private static int GetSelectionScore(ProviderUsage usage)

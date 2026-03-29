@@ -46,7 +46,7 @@ public class AntigravityProvider : ProviderBase
         defaultConfigType: "quota-based")
     {
         AutoIncludeWhenUnconfigured = true,
-        FamilyMode = ProviderFamilyMode.DynamicChildProviderRows,
+        FamilyMode = ProviderFamilyMode.FlatWindowCards,
         SettingsMode = ProviderSettingsMode.AutoDetectedStatus,
         RefreshOnStartupWithCachedData = true,
         SupportsAccountIdentity = true,
@@ -889,11 +889,16 @@ public class AntigravityProvider : ProviderBase
                 detailUsed = cfg.QuotaInfo.UsedRequests;
             }
 
+            var cardId = childId.Length > this.ProviderId.Length + 1
+                ? childId[(this.ProviderId.Length + 1)..]
+                : childId;
+
             var childUsage = new ProviderUsage
             {
                 ProviderId = childId,
+                CardId = cardId,
+                Name = childName,
                 ProviderName = childName,
-                ParentProviderId = this.ProviderId,
                 UsedPercent = 100 - detailRemaining,
                 RequestsUsed = 100 - detailRemaining,
                 RequestsAvailable = 100,
