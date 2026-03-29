@@ -45,4 +45,7 @@ public class ProviderConfig
 
     [JsonPropertyName("models")]
     public IReadOnlyList<AIModelConfig> Models { get; set; } = [];
+
+    [JsonPropertyName("show_cached_models_when_offline")]
+    public bool ShowCachedModelsWhenOffline { get; set; }
 }

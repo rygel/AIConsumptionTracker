@@ -15,12 +15,12 @@ internal static class FlatWindowCardBuilder
         var cards = new List<ProviderUsage>(provider.Models.Count);
         foreach (var model in provider.Models)
         {
-            var flatProviderId = $"{provider.ProviderId}.{model.ModelId}";
             var modelState = AgentGroupedUsageValueResolver.ResolveModelEffectiveState(model, provider.IsQuotaBased);
 
             cards.Add(new ProviderUsage
             {
-                ProviderId = flatProviderId,
+                ProviderId = provider.ProviderId,
+                CardId = model.ModelId,
                 ProviderName = model.ModelName,
                 AccountName = provider.AccountName,
                 IsAvailable = provider.IsAvailable,
@@ -31,7 +31,7 @@ internal static class FlatWindowCardBuilder
                 Description = modelState.Description,
                 FetchedAt = provider.FetchedAt,
                 NextResetTime = modelState.NextResetTime,
-                PeriodDuration = ResolvePeriodDuration(flatProviderId),
+                PeriodDuration = ResolvePeriodDuration(provider.ProviderId),
             });
         }
 
