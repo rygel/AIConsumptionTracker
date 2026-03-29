@@ -152,15 +152,6 @@ public static class ProviderMetadataCatalog
             .ToList();
     }
 
-    public static IReadOnlyList<string> GetWellKnownProviderIds()
-    {
-        return Definitions
-            .Where(definition => definition.IncludeInWellKnownProviders)
-            .Select(definition => definition.ProviderId)
-            .OrderBy(providerId => providerId, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
     public static IReadOnlyList<string> GetProviderIdsWithDedicatedSessionAuthFiles()
     {
         return Definitions

@@ -34,7 +34,6 @@ public class MinimaxProvider : ProviderBase
         isQuotaBased: true,
         defaultConfigType: "quota-based")
     {
-        IncludeInWellKnownProviders = true,
         AdditionalHandledProviderIds = new[] { InternationalProviderId, InternationalLegacyProviderId },
         DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {

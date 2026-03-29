@@ -29,7 +29,6 @@ public class XiaomiProvider : ProviderBase
         isQuotaBased: true,
         defaultConfigType: "quota-based")
     {
-        IncludeInWellKnownProviders = true,
         DiscoveryEnvironmentVariables = new[] { "XIAOMI_API_KEY", "MIMO_API_KEY" },
         IconAssetName = "xiaomi",
         BadgeColorHex = "#FFA500",

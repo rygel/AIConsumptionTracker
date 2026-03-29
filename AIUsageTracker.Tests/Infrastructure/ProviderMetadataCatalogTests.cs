@@ -308,16 +308,6 @@ public class ProviderMetadataCatalogTests
     }
 
     [Fact]
-    public void GetWellKnownProviderIds_UsesProviderMetadata()
-    {
-        var providerIds = ProviderMetadataCatalog.GetWellKnownProviderIds();
-
-        Assert.Contains("codex", providerIds);
-        Assert.Contains("github-copilot", providerIds);
-        Assert.DoesNotContain("openai", providerIds);
-    }
-
-    [Fact]
     public void GetProviderIdsWithDedicatedSessionAuthFiles_UsesProviderMetadata()
     {
         var providerIds = ProviderMetadataCatalog.GetProviderIdsWithDedicatedSessionAuthFiles();

@@ -23,7 +23,6 @@ public class CodexProvider : ProviderBase
         isQuotaBased: true,
         defaultConfigType: "quota-based")
     {
-        IncludeInWellKnownProviders = true,
         DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["codex.spark"] = "OpenAI (GPT-5.3 Codex Spark)",
