@@ -624,8 +624,7 @@ public class ProviderRefreshServiceTests
             isQuotaBased: false,
             defaultConfigType: "pay-as-you-go")
         {
-            AutoIncludeWhenUnconfigured = true,
-        };
+            };
         var provider = new Mock<IProviderService>();
         provider.SetupGet(p => p.ProviderId).Returns("codex");
         provider.SetupGet(p => p.Definition).Returns(providerDefinition);

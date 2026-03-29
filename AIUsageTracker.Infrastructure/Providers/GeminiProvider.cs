@@ -23,7 +23,6 @@ public class GeminiProvider : ProviderBase
         isQuotaBased: true,
         defaultConfigType: "quota-based")
     {
-        AutoIncludeWhenUnconfigured = true,
         AdditionalHandledProviderIds = new[] { "gemini" },
         DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {

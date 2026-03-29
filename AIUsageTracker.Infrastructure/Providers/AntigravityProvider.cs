@@ -45,7 +45,6 @@ public class AntigravityProvider : ProviderBase
         isQuotaBased: true,
         defaultConfigType: "quota-based")
     {
-        AutoIncludeWhenUnconfigured = true,
         FamilyMode = ProviderFamilyMode.FlatWindowCards,
         SettingsMode = ProviderSettingsMode.AutoDetectedStatus,
         RefreshOnStartupWithCachedData = true,

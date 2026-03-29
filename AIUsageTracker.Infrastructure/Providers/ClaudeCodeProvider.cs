@@ -42,7 +42,6 @@ public class ClaudeCodeProvider : ProviderBase
         isQuotaBased: true,
         defaultConfigType: "quota-based")
     {
-        AutoIncludeWhenUnconfigured = true,
         DiscoveryEnvironmentVariables = new[] { "ANTHROPIC_API_KEY", "CLAUDE_API_KEY" },
         IconAssetName = "anthropic",
         BadgeColorHex = "#FFA500",

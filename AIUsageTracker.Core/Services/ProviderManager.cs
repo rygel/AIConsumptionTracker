@@ -131,15 +131,7 @@ public class ProviderManager : IDisposable
 
         if (config == null)
         {
-            var definition = this._providers
-                .Select(p => p.Definition)
-                .FirstOrDefault(d => d.HandlesProviderId(providerId) && d.AutoIncludeWhenUnconfigured);
-            if (definition == null)
-            {
-                throw new ArgumentException($"Provider '{providerId}' not found in configuration.", nameof(providerId));
-            }
-
-            config = definition.CreateDefaultConfig(providerId);
+            throw new ArgumentException($"Provider '{providerId}' not found in configuration.", nameof(providerId));
         }
 
         return await this.FetchSingleProviderUsageAsync(config, null, cancellationToken).ConfigureAwait(false);
@@ -299,21 +291,6 @@ public class ProviderManager : IDisposable
         var configs = overrideConfigs != null
             ? overrideConfigs.Select(CloneConfig).ToList()
             : (await this.GetConfigsAsync(forceRefresh: true).ConfigureAwait(false)).ToList();
-
-        if (overrideConfigs == null)
-        {
-            foreach (var definition in this._providers
-                         .Select(p => p.Definition)
-                         .Where(d => d.AutoIncludeWhenUnconfigured))
-            {
-                if (configs.Any(c => c.ProviderId.Equals(definition.ProviderId, StringComparison.OrdinalIgnoreCase)))
-                {
-                    continue;
-                }
-
-                configs.Add(definition.CreateDefaultConfig());
-            }
-        }
 
         if (includeProviderIds != null && includeProviderIds.Count > 0)
         {

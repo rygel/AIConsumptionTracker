@@ -61,7 +61,6 @@ public class Program
 
         services.AddHttpClient();
         services.AddConfiguredHttpClients();
-        services.AddSingleton<IProviderMetadataCatalog>(ProviderMetadataCatalog.Default);
         services.AddSingleton<IMonitorLauncher, MonitorLauncher>();
         services.AddSingleton<IMonitorService, MonitorService>();
         services.AddSingleton<MonitorLifecycleService>();

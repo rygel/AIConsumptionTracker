@@ -17,7 +17,6 @@ internal static class WebServiceCollectionExtensions
 {
     public static IServiceCollection AddAIUsageTrackerWebServices(this IServiceCollection services, string databasePath)
     {
-        services.AddSingleton<IProviderMetadataCatalog>(ProviderMetadataCatalog.Default);
         services.AddSingleton<IAppPathProvider, DefaultAppPathProvider>();
         services.AddSingleton(_ => new WebDatabaseConnectionFactory(databasePath));
         services.AddSingleton(sp =>

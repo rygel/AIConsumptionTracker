@@ -42,8 +42,6 @@ public sealed class ProviderDefinition
 
     public string DefaultConfigType { get; }
 
-    public bool AutoIncludeWhenUnconfigured { get; init; }
-
     public ProviderFamilyMode FamilyMode { get; init; } = ProviderFamilyMode.Standalone;
 
     public bool SupportsChildProviderIds => ProviderFamilyPolicy.SupportsChildProviderIds(this.FamilyMode);

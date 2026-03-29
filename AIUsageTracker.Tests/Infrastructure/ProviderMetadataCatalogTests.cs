@@ -121,17 +121,6 @@ public class ProviderMetadataCatalogTests
     }
 
     [Theory]
-    [InlineData("antigravity", true)]
-    [InlineData("antigravity.some-model", true)]
-    [InlineData("github-copilot", true)]
-    [InlineData("codex", false)]
-    [InlineData("openrouter", false)]
-    public void IsAutoIncluded_UsesProviderDefinitions(string providerId, bool expected)
-    {
-        Assert.Equal(expected, ProviderMetadataCatalog.Find(providerId)?.AutoIncludeWhenUnconfigured ?? false);
-    }
-
-    [Theory]
     [InlineData("codex.spark", "codex")]
     [InlineData("antigravity.claude-opus", "antigravity")]
     [InlineData("kimi", "kimi-for-coding")]
@@ -435,8 +424,7 @@ public class ProviderMetadataCatalogTests
             if (localRuntimeProviders.Contains(definition.ProviderId))
             {
                 Assert.True(
-                    definition.SettingsMode == ProviderSettingsMode.AutoDetectedStatus ||
-                    definition.AutoIncludeWhenUnconfigured,
+                    definition.SettingsMode == ProviderSettingsMode.AutoDetectedStatus,
                     $"Provider '{definition.ProviderId}' must declare local runtime auth mode.");
                 continue;
             }

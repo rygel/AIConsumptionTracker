@@ -156,7 +156,6 @@ public partial class App : Application
     private static void ConfigureServices(IServiceCollection services)
     {
         // Infrastructure
-        services.AddSingleton<IProviderMetadataCatalog>(ProviderMetadataCatalog.Default);
         services.AddSingleton<IAppPathProvider, AIUsageTracker.Infrastructure.Helpers.DefaultAppPathProvider>();
         services.AddSingleton<UiPreferencesStore>();
         services.AddSingleton<IUiPreferencesStore>(sp => sp.GetRequiredService<UiPreferencesStore>());
