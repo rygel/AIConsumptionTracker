@@ -146,6 +146,7 @@ internal static partial class MainWindowRuntimeLogic
             })
             .GroupBy(usage => $"{usage.ProviderId ?? string.Empty}::{usage.CardId ?? string.Empty}", StringComparer.OrdinalIgnoreCase)
             .Select(SelectPreferredUsage)
+            .OrderByDescending(usage => usage.IsQuotaBased)
             .ToList();
 
         return filteredUsages;
