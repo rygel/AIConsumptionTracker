@@ -55,10 +55,10 @@ public class ClaudeCodeProvider : ProviderBase
         },
         QuotaWindows = new QuotaWindowDefinition[]
         {
-            new(WindowKind.Burst,         "5h",     ChildProviderId: "claude-code.current-session", SettingsLabel: "Current Session (5-hour quota)", DetailName: "Current Session", PeriodDuration: TimeSpan.FromHours(5)),
-            new(WindowKind.ModelSpecific, "Sonnet", ChildProviderId: "claude-code.sonnet",         SettingsLabel: "Sonnet (7-day model quota)",    DetailName: "Sonnet",          PeriodDuration: TimeSpan.FromDays(7)),
-            new(WindowKind.ModelSpecific, "Opus",   ChildProviderId: "claude-code.opus",           SettingsLabel: "Opus (7-day model quota)",      DetailName: "Opus",            PeriodDuration: TimeSpan.FromDays(7)),
-            new(WindowKind.Rolling,       "7-day",  ChildProviderId: "claude-code.all-models",     SettingsLabel: "All Models (7-day combined)",   DetailName: "All Models",      PeriodDuration: TimeSpan.FromDays(7)),
+            new(WindowKind.None, "Current Session", ChildProviderId: "claude-code.current-session", SettingsLabel: "Current Session (5-hour quota)", DetailName: "Current Session", PeriodDuration: TimeSpan.FromHours(5)),
+            new(WindowKind.None, "Sonnet",          ChildProviderId: "claude-code.sonnet",          SettingsLabel: "Sonnet (7-day model quota)",    DetailName: "Sonnet",          PeriodDuration: TimeSpan.FromDays(7)),
+            new(WindowKind.None, "Opus",            ChildProviderId: "claude-code.opus",            SettingsLabel: "Opus (7-day model quota)",      DetailName: "Opus",            PeriodDuration: TimeSpan.FromDays(7)),
+            new(WindowKind.None, "All Models",      ChildProviderId: "claude-code.all-models",      SettingsLabel: "All Models (7-day combined)",   DetailName: "All Models",      PeriodDuration: TimeSpan.FromDays(7)),
         },
         FamilyMode = ProviderFamilyMode.FlatWindowCards,
     };

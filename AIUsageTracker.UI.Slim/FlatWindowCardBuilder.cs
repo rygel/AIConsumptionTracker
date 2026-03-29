@@ -47,8 +47,13 @@ internal static class FlatWindowCardBuilder
 
         if (string.Equals(providerId, definition.ProviderId, StringComparison.OrdinalIgnoreCase))
         {
-            return definition.QuotaWindows
-                .FirstOrDefault(window => window.Kind == WindowKind.Rolling && window.PeriodDuration.HasValue)
+            // Prefer a Rolling window; fall back to the longest available window.
+            return (definition.QuotaWindows
+                        .FirstOrDefault(window => window.Kind == WindowKind.Rolling && window.PeriodDuration.HasValue)
+                    ?? definition.QuotaWindows
+                        .Where(window => window.PeriodDuration.HasValue)
+                        .OrderByDescending(window => window.PeriodDuration)
+                        .FirstOrDefault())
                 ?.PeriodDuration;
         }
 
