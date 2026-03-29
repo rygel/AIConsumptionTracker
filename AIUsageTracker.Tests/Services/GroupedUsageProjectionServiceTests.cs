@@ -128,4 +128,56 @@ public sealed class GroupedUsageProjectionServiceTests
         Assert.Contains(provider.ProviderDetails, d => d.WindowKind == WindowKind.Rolling);
         Assert.Contains(provider.ProviderDetails, d => d.WindowKind == WindowKind.Burst);
     }
+
+    [Fact]
+    public void Build_ClaudeCodeWithWindowKindCards_ProjectsAllAsModels_BecauseFlatWindowCards()
+    {
+        // Claude Code is FamilyMode = FlatWindowCards. Its cards mix WindowKind values
+        // (Burst for current-session, None for sonnet, Rolling for all-models).
+        // All must be projected as Models so each gets its own flat card in the UI.
+        var usages = new[]
+        {
+            new ProviderUsage
+            {
+                ProviderId = "claude-code",
+                CardId = "current-session",
+                Name = "Current Session",
+                WindowKind = WindowKind.Burst,
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Usage,
+                UsedPercent = 14,
+            },
+            new ProviderUsage
+            {
+                ProviderId = "claude-code",
+                CardId = "sonnet",
+                Name = "Sonnet",
+                WindowKind = WindowKind.None,
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Usage,
+                UsedPercent = 73,
+            },
+            new ProviderUsage
+            {
+                ProviderId = "claude-code",
+                CardId = "all-models",
+                Name = "All Models",
+                WindowKind = WindowKind.Rolling,
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Usage,
+                UsedPercent = 73,
+            },
+        };
+
+        var snapshot = GroupedUsageProjectionService.Build(usages);
+
+        var provider = Assert.Single(snapshot.Providers);
+        Assert.Equal(3, provider.Models.Count); // all three become flat model cards
+        Assert.Contains(provider.Models, m => m.ModelId == "current-session");
+        Assert.Contains(provider.Models, m => m.ModelId == "sonnet");
+        Assert.Contains(provider.Models, m => m.ModelId == "all-models");
+    }
 }
