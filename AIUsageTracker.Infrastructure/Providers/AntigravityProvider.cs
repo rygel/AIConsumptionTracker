@@ -46,7 +46,6 @@ public class AntigravityProvider : ProviderBase
         defaultConfigType: "quota-based")
     {
         AutoIncludeWhenUnconfigured = true,
-        IncludeInWellKnownProviders = true,
         FamilyMode = ProviderFamilyMode.DynamicChildProviderRows,
         SettingsMode = ProviderSettingsMode.AutoDetectedStatus,
         RefreshOnStartupWithCachedData = true,

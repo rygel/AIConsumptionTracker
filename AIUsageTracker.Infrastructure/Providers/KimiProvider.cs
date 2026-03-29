@@ -31,7 +31,6 @@ public class KimiProvider : ProviderBase
         isQuotaBased: true,
         defaultConfigType: "quota-based")
     {
-        IncludeInWellKnownProviders = true,
         AdditionalHandledProviderIds = new[] { "kimi" },
         DiscoveryEnvironmentVariables = new[] { "KIMI_API_KEY", "MOONSHOT_API_KEY" },
         IconAssetName = "kimi",

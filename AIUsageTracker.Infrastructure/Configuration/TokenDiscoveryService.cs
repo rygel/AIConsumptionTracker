@@ -29,10 +29,7 @@ public class TokenDiscoveryService
         var discoveredConfigs = new List<ProviderConfig>();
         var environmentVariables = this.GetNormalizedEnvironmentVariables();
 
-        // 1. Start with well-known supported providers (ensure they show up in --all)
-        this.AddWellKnownProviders(discoveredConfigs);
-
-        // 2. Discover from environment variables
+        // 1. Discover from environment variables
         foreach (var entry in environmentVariables)
         {
             this.TryAddEnvironmentVariable(discoveredConfigs, entry.Key, entry.Value);
@@ -168,14 +165,6 @@ public class TokenDiscoveryService
                 resolved.ApiKey,
                 resolved.Description,
                 resolved.AuthSource);
-        }
-    }
-
-    private void AddWellKnownProviders(List<ProviderConfig> configs)
-    {
-        foreach (var id in ProviderMetadataCatalog.GetWellKnownProviderIds())
-        {
-            this.AddIfNotExists(configs, id, string.Empty, "Well-known provider", AuthSource.SystemDefault);
         }
     }
 

@@ -30,7 +30,6 @@ public class DeepSeekProvider : ProviderBase
         isQuotaBased: false,
         defaultConfigType: "pay-as-you-go")
     {
-        IncludeInWellKnownProviders = true,
         ShowInSettings = false,
         DiscoveryEnvironmentVariables = new[] { "DEEPSEEK_API_KEY" },
         RooConfigPropertyNames = new[] { "deepseekApiKey" },

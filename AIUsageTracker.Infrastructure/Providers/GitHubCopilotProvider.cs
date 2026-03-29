@@ -32,7 +32,6 @@ public class GitHubCopilotProvider : ProviderBase
         defaultConfigType: "quota-based")
     {
         AutoIncludeWhenUnconfigured = true,
-        IncludeInWellKnownProviders = true,
         SettingsMode = ProviderSettingsMode.ExternalAuthStatus,
         SupportsAccountIdentity = true,
         IconAssetName = "github",

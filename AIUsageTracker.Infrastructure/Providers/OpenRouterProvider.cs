@@ -29,7 +29,6 @@ public class OpenRouterProvider : ProviderBase
         isQuotaBased: true,
         defaultConfigType: "pay-as-you-go")
     {
-        IncludeInWellKnownProviders = true,
         DiscoveryEnvironmentVariables = new[] { "OPENROUTER_API_KEY" },
         RooConfigPropertyNames = new[] { "openrouterApiKey" },
         IconAssetName = "openai",
