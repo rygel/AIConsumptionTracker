@@ -49,7 +49,7 @@ internal sealed class ProviderCardRenderer
         var friendlyName = definition != null
             ? (definition.ResolveDisplayName(providerId) ?? usage.ProviderName)
             : ProviderMetadataCatalog.ResolveDisplayLabel(usage);
-        var presentation = MainWindowRuntimeLogic.Create(usage, showUsed, this._preferences.ColorThresholdRed, this._preferences.EnablePaceAdjustment);
+        var presentation = MainWindowRuntimeLogic.Create(usage, showUsed, this._preferences.EnablePaceAdjustment);
 
         var isCompact = this._preferences.CardCompactMode;
         var grid = new Grid
@@ -263,11 +263,12 @@ internal sealed class ProviderCardRenderer
 
     private Brush GetProgressBarColor(PaceColorResult paceColor)
     {
-        // When pace adjustment is active, let the tier drive the color:
-        // Headroom/OnPace → green regardless of raw usage; only OverPace triggers yellow/red.
-        if (paceColor.IsPaceAdjusted && paceColor.PaceTier != PaceTier.OverPace)
+        if (paceColor.IsPaceAdjusted)
         {
-            return this._getResourceBrush("ProgressBarGreen", Brushes.MediumSeaGreen);
+            // Tier is the single source of truth: Headroom/OnPace → green, OverPace → red.
+            return paceColor.PaceTier == PaceTier.OverPace
+                ? this._getResourceBrush("ProgressBarRed", Brushes.Crimson)
+                : this._getResourceBrush("ProgressBarGreen", Brushes.MediumSeaGreen);
         }
 
         return this.GetProgressBarColor(paceColor.ColorPercent);
