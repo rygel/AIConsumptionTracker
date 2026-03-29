@@ -210,9 +210,7 @@ public static class ProviderMetadataCatalog
         }
 
         return Definitions.Any(definition =>
-            definition.QuotaWindows.Any(window =>
-                window.IsVisibleDerivedProvider &&
-                string.Equals(window.ChildProviderId, providerId, StringComparison.OrdinalIgnoreCase)));
+            definition.SettingsAdditionalProviderIds.Contains(providerId, StringComparer.OrdinalIgnoreCase));
     }
 
     public static bool TryCreateDefaultConfig(

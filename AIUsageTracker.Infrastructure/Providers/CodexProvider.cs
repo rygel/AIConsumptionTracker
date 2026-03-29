@@ -54,7 +54,7 @@ public class CodexProvider : ProviderBase
         {
             new(WindowKind.Burst,         "5h",     ChildProviderId: "codex.burst",   PeriodDuration: TimeSpan.FromHours(5)),
             new(WindowKind.Rolling,       "Weekly", ChildProviderId: "codex.weekly",  PeriodDuration: TimeSpan.FromDays(7)),
-            new(WindowKind.ModelSpecific, "Spark",  ChildProviderId: "codex.spark",   PeriodDuration: TimeSpan.FromDays(7), IsVisibleDerivedProvider: true),
+            new(WindowKind.ModelSpecific, "Spark",  ChildProviderId: "codex.spark",   PeriodDuration: TimeSpan.FromDays(7)),
         },
     };
 
