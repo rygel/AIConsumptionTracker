@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [2.3.4-beta.14] - 2026-03-30
+
+### Fixed
+- **Codex and Spark are now independent providers**: removed the parent-child hierarchy that caused endless layout bugs. "OpenAI (Codex)" and "OpenAI (GPT-5.3 Codex Spark)" are now two standalone providers, each with their own burst+rolling dual bars.
+- **Spark card shows both 5-hour and weekly bars**: Spark previously collapsed its burst and rolling windows into a single card. Now emits separate burst+rolling usages so the dual-bar toggle works consistently.
+- **Settings not persisted when closing window**: checkbox events during initialization overwrote preferences with defaults; closing via X button killed the auto-save timer before it fired.
+
+### Added
+- **Card catalog screenshot generator**: 16 screenshots showing every card setting permutation (presets, compact mode, background bar, dual bars, pace adjustment, show used, reset time, badge slots) with auto-generated markdown documentation. Run via `--card-catalog` or `scripts/generate_card_catalog.ps1`.
+
 ## [2.3.4-beta.13] - 2026-03-30
 
 ### Fixed
