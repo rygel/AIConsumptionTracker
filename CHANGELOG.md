@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [2.3.4-beta.13] - 2026-03-30
+
+### Fixed
+- **Update errors were invisible**: `ILogger` output from the update checker had no file sink in the UI app — download/install failures vanished silently. Added `[UPDATE]` diagnostic log entries at every decision point and the download URL is now shown in the error dialog.
+
+### Added
+- **End-to-end update pipeline tests**: 19 integration tests against the live GitHub Releases API and CDN verify the full update flow — beta update check, download URLs for all architectures return HTTP 200, release assets exist with non-zero sizes, appcast files are valid XML with correct versions and lengths, stable appcast URLs resolve, and the GitHub API contract hasn't changed.
+
 ## [2.3.4-beta.12] - 2026-03-30
 
 ### Fixed
