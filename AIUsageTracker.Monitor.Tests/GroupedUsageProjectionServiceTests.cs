@@ -172,11 +172,11 @@ public sealed class GroupedUsageProjectionServiceTests
     }
 
     [Fact]
-    public void Build_CodexUsageWithFlatCards_ProjectsSparkModelFromCardId()
+    public void Build_CodexUsageWithFlatCards_ProjectsAllWindowCardsAsModels()
     {
-        // Codex emits flat cards: burst (WindowKind.Burst), weekly (WindowKind.Rolling), spark (codex.spark).
-        // The spark card has CardId="spark" and is the only card with CardId != null for the codex group.
-        // Since cardIds exist, BuildModelsFromFlatCards is used.
+        // Codex is FlatWindowCards: burst (WindowKind.Burst), weekly (WindowKind.Rolling), and
+        // spark (codex.spark) should all be projected as flat model cards so the UI renders them
+        // as 3 independent single-bar cards (not a single dual-bar card).
         var usages = new[]
         {
             new ProviderUsage
@@ -220,7 +220,13 @@ public sealed class GroupedUsageProjectionServiceTests
 
         var provider = Assert.Single(snapshot.Providers);
 
-        // Provider-level window cards (WindowKind != None) go into ProviderDetails
+        // FlatWindowCards → all window cards become flat model rows
+        Assert.Equal(3, provider.Models.Count);
+        Assert.Contains(provider.Models, m => m.ModelId == "burst");
+        Assert.Contains(provider.Models, m => m.ModelId == "weekly");
+        Assert.Contains(provider.Models, m => m.ModelId == "spark");
+
+        // Provider-level window cards (WindowKind != None) still appear in ProviderDetails
         Assert.Equal(2, provider.ProviderDetails.Count);
         Assert.Contains(provider.ProviderDetails, d => d.WindowKind == WindowKind.Burst);
         Assert.Contains(provider.ProviderDetails, d => d.WindowKind == WindowKind.Rolling);
