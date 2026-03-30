@@ -160,6 +160,7 @@ public partial class App
             }
 
             var isThemeSmokeMode = args.Contains("--theme-smoke", StringComparer.OrdinalIgnoreCase);
+            var isCardCatalogMode = args.Contains("--card-catalog", StringComparer.OrdinalIgnoreCase);
             this.ConfigureHeadlessScreenshotPreferences(selectedTheme);
             var screenshotsDir = this.ResolveOutputDirectory(args);
             Directory.CreateDirectory(screenshotsDir);
@@ -168,6 +169,12 @@ public partial class App
             {
                 var smokeFileName = $"theme_smoke_{selectedTheme.ToString().ToLowerInvariant()}.png";
                 await this.CaptureMainWindowScreenshotAsync(Path.Combine(screenshotsDir, smokeFileName));
+                return;
+            }
+
+            if (isCardCatalogMode)
+            {
+                await this.CaptureCardCatalogAsync(screenshotsDir);
                 return;
             }
 
@@ -247,6 +254,44 @@ public partial class App
 #pragma warning disable VSTHRD001 // WPF screenshot capture needs the window dispatcher to reach idle before rendering.
         await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
 #pragma warning restore VSTHRD001
+    }
+
+    private async Task CaptureCardCatalogAsync(string outputDirectory)
+    {
+        var catalogDir = Path.Combine(outputDirectory, "card-catalog");
+        Directory.CreateDirectory(catalogDir);
+        var logger = CreateLogger<App>();
+        var captured = new List<(string FileName, string Label, string Description)>();
+
+        foreach (var permutation in CardCatalogPermutations.All)
+        {
+            var fileName = $"card_{permutation.Slug}.png";
+            var outputPath = Path.Combine(catalogDir, fileName);
+            permutation.Apply(Preferences);
+            logger.LogInformation("Capturing card catalog: {Slug}", permutation.Slug);
+
+            var window = Host.Services.GetRequiredService<MainWindow>();
+            try
+            {
+                await window.PrepareForHeadlessScreenshotAsync(deterministic: true);
+                await this.WaitForDispatcherIdleAsync(window);
+                RenderWindowContent(window, outputPath);
+                captured.Add((fileName, permutation.Label, permutation.Description));
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
+        // Reset to defaults after catalog capture.
+        this.ConfigureHeadlessScreenshotPreferences(Preferences.Theme);
+
+        // Generate markdown index.
+        var markdown = CardCatalogPermutations.GenerateMarkdown(captured);
+        var markdownPath = Path.Combine(catalogDir, "CARD-CATALOG.md");
+        await File.WriteAllTextAsync(markdownPath, markdown);
+        logger.LogInformation("Card catalog: {Count} screenshots + markdown index written to {Dir}", captured.Count, catalogDir);
     }
 
     private void CaptureInfoScreenshot(string outputPath)
