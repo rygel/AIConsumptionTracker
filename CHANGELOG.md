@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [2.3.4-beta.16] - 2026-03-30
+
+### Changed
+- **Test release**: no code changes — verifies that beta.15's in-app update (without UAC elevation) can download and install beta.16 successfully.
+
 ## [2.3.4-beta.15] - 2026-03-30
 
 ### Fixed
