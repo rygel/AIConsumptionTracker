@@ -619,7 +619,9 @@ public class UsageDatabase : IUsageDatabase
                 FROM provider_history h
                 LEFT JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.id IN (
-                    SELECT MAX(id) FROM provider_history GROUP BY provider_id, card_id
+                    SELECT MAX(id) FROM provider_history
+                    WHERE fetched_at >= (strftime('%s', 'now') - 86400)
+                    GROUP BY provider_id, card_id
                 )
                 ORDER BY h.provider_id, h.card_id";
 
