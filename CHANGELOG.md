@@ -2,6 +2,85 @@
 
 ## [Unreleased]
 
+## [2.3.4-beta.19] - 2026-04-01
+
+### Added
+- **HTTP failure classification model**: structured `HttpFailureClassification` enum and `HttpFailureContext` record provide a shared vocabulary for HTTP/network failure types across all providers (`Authentication`, `Authorization`, `RateLimit`, `Network`, `Timeout`, `Server`, `Client`, `Deserialization`).
+- **Centralized HTTP failure mapper**: `HttpFailureMapper` is the single source of truth for classifying HTTP responses and exceptions — used by `HttpRequestBuilderExtensions` and providers.
+- **Classification-aware circuit-breaker backoff**: rate-limited providers now use the server-supplied `Retry-After` delay instead of blind exponential backoff. Rate limits without `Retry-After` use flat base backoff (1 min) rather than escalating exponential growth.
+- **Operator diagnostics for open circuits**: `ProviderRefreshDiagnostic.LastFailureClassification` and `RefreshTelemetrySnapshot.OpenCircuitsByClassification` expose why circuits are open (auth failure, rate limit, server error, network issue).
+- **Provider contract formalized**: `IProviderService.GetUsageAsync` documents the no-throw contract and optional `FailureContext` attachment convention; `DeepSeekProvider` and `GeminiProvider` are pilot adopters.
+
+## [2.3.4-beta.18] - 2026-03-30
+
+### Changed
+- **Test release**: verifies beta.17's in-app update fix (FileStream lock + no UAC) works end-to-end.
+
+## [2.3.4-beta.17] - 2026-03-30
+
+### Fixed
+- **Installer download failed with file lock on move**: `DownloadInstallerAsync` used `using var` (declaration-scoped) for the `FileStream`, keeping the file handle open until end-of-method. `File.Move` then failed with an `IOException` because the `.partial` file was still locked. Switched to block-scoped `using` so the stream is disposed before the move.
+
+### Added
+- **Download-then-move regression test**: end-to-end test downloads a real appcast XML to a `.partial` temp file using the same `FileStream` block pattern, then moves it to the final path. Catches the exact bug: if someone reverts to `using var`, the file lock causes the move to fail.
+
+## [2.3.4-beta.16] - 2026-03-30
+
+### Changed
+- **Test release**: no code changes — verifies that beta.15's in-app update (without UAC elevation) can download and install beta.16 successfully.
+
+## [2.3.4-beta.15] - 2026-03-30
+
+### Fixed
+- **Update download failed silently — installer used unnecessary UAC elevation**: `Verb = "runas"` forced a UAC prompt even though the Inno Setup installer uses `PrivilegesRequired=lowest`. The UAC prompt was hidden behind the topmost main window, causing the install to fail silently. Removed the `runas` verb.
+- **Changelog and download progress windows hidden behind main window**: both now inherit `Topmost` from the main window.
+- **Update failure reason was invisible**: `DownloadAndInstallUpdateAsync` now returns `UpdateInstallResult` with a specific failure reason (HTTP status, timeout, file I/O, UAC rejection) shown in both the error dialog and the diagnostic log.
+
+## [2.3.4-beta.14] - 2026-03-30
+
+### Fixed
+- **Codex and Spark are now independent providers**: removed the parent-child hierarchy that caused endless layout bugs. "OpenAI (Codex)" and "OpenAI (GPT-5.3 Codex Spark)" are now two standalone providers, each with their own burst+rolling dual bars.
+- **Spark card shows both 5-hour and weekly bars**: Spark previously collapsed its burst and rolling windows into a single card. Now emits separate burst+rolling usages so the dual-bar toggle works consistently.
+- **Settings not persisted when closing window**: checkbox events during initialization overwrote preferences with defaults; closing via X button killed the auto-save timer before it fired.
+
+### Added
+- **Card catalog screenshot generator**: 16 screenshots showing every card setting permutation (presets, compact mode, background bar, dual bars, pace adjustment, show used, reset time, badge slots) with auto-generated markdown documentation. Run via `--card-catalog` or `scripts/generate_card_catalog.ps1`.
+
+## [2.3.4-beta.13] - 2026-03-30
+
+### Fixed
+- **Update errors were invisible**: `ILogger` output from the update checker had no file sink in the UI app — download/install failures vanished silently. Added `[UPDATE]` diagnostic log entries at every decision point and the download URL is now shown in the error dialog.
+
+### Added
+- **End-to-end update pipeline tests**: 19 integration tests against the live GitHub Releases API and CDN verify the full update flow — beta update check, download URLs for all architectures return HTTP 200, release assets exist with non-zero sizes, appcast files are valid XML with correct versions and lengths, stable appcast URLs resolve, and the GitHub API contract hasn't changed.
+
+## [2.3.4-beta.12] - 2026-03-30
+
+### Fixed
+- **OpenAI Codex showed dual-bar layout instead of 3 flat cards**: `BuildModels()` filtered flat model cards by `WindowKind == None`, but Codex uses `Burst`/`Rolling`/`ModelSpecific` — all cards fell through to `LegacyParentCardBuilder` which assembled a dual-bar. `FamilyMode.FlatWindowCards` is now checked first as an early return, projecting all cards as flat models regardless of `WindowKind`.
+- **Beta appcast files committed with missing enclosure length**: the `appcast_beta*.xml` files had placeholder content instead of real release items with installer sizes. All 4 beta appcast files now contain the actual 2.3.4-beta.11 release data with correct byte counts.
+- **Settings window silently reverted main window preference changes**: toggling "Show Used" on the main window and then changing "Pace-aware colours" in the already-open settings window overwrote "Show Used". The settings window was loading a separate `AppPreferences` from disk instead of using the shared in-memory instance.
+
+### Added
+- **End-to-end appcast regression tests**: `AppcastXmlConsistencyTests` validates all 8 committed appcast files on every test run — non-zero installer length for beta feeds, URL/version/architecture consistency, default feed identical to x64, and Sparkle attribute correctness. `UpdateChannelConfigurationEndToEndTests` verifies `generate-appcast.sh` reads `INSTALLER_SIZE_*` env vars correctly. `verify-release-artifacts.ps1` now checks `length > 0` in the publish pipeline.
+
+## [2.3.4-beta.11] - 2026-03-30
+
+### Fixed
+- **Claude Code cards now show "Claude Code (Current Session)" etc.**: flat cards were displaying bare names ("Current Session", "Sonnet", "All Models") with no provider context. `FlatCardShowProviderPrefix` on `ProviderDefinition` enables prefixing for providers whose card names are generic.
+- **Claude Code "Current Session" and "All Models" cards not appearing**: stale DB rows stored `WindowKind.Burst` / `WindowKind.Rolling` from older Monitor binaries. `GetLatestHistoryAsync` now re-derives `WindowKind` from the canonical `QuotaWindowDefinition` using `ChildProviderId` matching, so stale values are corrected on load without a DB migration.
+- **OpenAI Codex "Spark" appeared as a standalone flat card**: `Spark` had no `WindowKind` in older DB rows (NULL → `None`), so it incorrectly passed the flat-model filter. The same `WindowKind` re-derivation now correctly marks it `ModelSpecific`, routing it to the combined "OpenAI (Codex)" card.
+- **Flat-card projection gated on `FamilyMode`**: `GroupedUsageProjectionService.BuildModels` now uses a pure data-driven rule (`WindowKind == None`) instead of consulting `FamilyMode`, removing the `isFlatWindowCards`/`hasModelCards` guards.
+
+## [2.3.4-beta.10] - 2026-03-29
+
+### Fixed
+- **Settings window showed provider as "Inactive" when running**: flat provider cards were being created with a namespaced `ProviderId` (e.g. `antigravity.gemini-pro`) instead of the provider's own `ProviderId`. The settings lookup now correctly finds the card because `ProviderId` is the provider identifier and `CardId` is the model identifier.
+- **"Other providers (N)" sub-headers removed**: the active/inactive sub-grouping inside each section was removed. Only the two top-level sections ("Plans & Quotas" and "Pay As You Go") remain.
+
+### Added
+- **"Show model information when not running" checkbox**: AntiGravity (and other auto-detected flat-card providers) now have a "Models offline" checkbox in Settings. When enabled, the last-fetched per-model cards are shown with a stale indicator even when the process is not running.
+
 ## [2.3.4-beta.9] - 2026-03-28
 
 ### Changed

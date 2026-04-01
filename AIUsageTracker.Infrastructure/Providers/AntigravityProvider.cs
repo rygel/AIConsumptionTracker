@@ -23,6 +23,7 @@ public class AntigravityProvider : ProviderBase
     private readonly HttpClient _httpClient;
     private readonly ILogger<AntigravityProvider> _logger;
     private ProviderUsage? _cachedUsage;
+    private List<ProviderUsage>? _cachedChildUsages;
     private DateTime _cacheTimestamp;
     private List<(int Pid, string Token, int? Port)>? _cachedProcessInfos;
     private DateTime _lastProcessCheck = DateTime.MinValue;
@@ -88,9 +89,7 @@ public class AntigravityProvider : ProviderBase
                             this._logger.LogDebug("Antigravity reset time passed while offline; status is unknown until reconnect");
                             description += " (Status unknown until next Antigravity refresh)";
 
-                            return new[]
-                            {
-                                new ProviderUsage
+                            return this.WithOfflineChildren(new ProviderUsage
                             {
                                 ProviderId = this.ProviderId,
                                 ProviderName = this.Definition.DisplayName,
@@ -98,13 +97,11 @@ public class AntigravityProvider : ProviderBase
                                 UsedPercent = 0,
                                 RequestsUsed = 0,
                                 RequestsAvailable = this._cachedUsage.RequestsAvailable,
-
                                 AccountName = this._cachedUsage.AccountName,
                                 Description = description,
                                 IsQuotaBased = this.Definition.IsQuotaBased,
                                 PlanType = this.Definition.PlanType,
-                            },
-                            };
+                            }, config);
                         }
                     }
 
@@ -113,9 +110,7 @@ public class AntigravityProvider : ProviderBase
                         description += " (Usage unknown until next Antigravity refresh)";
                     }
 
-                    return new[]
-                    {
-                        new ProviderUsage
+                    return this.WithOfflineChildren(new ProviderUsage
                     {
                         ProviderId = this.ProviderId,
                         ProviderName = this.Definition.DisplayName,
@@ -127,8 +122,7 @@ public class AntigravityProvider : ProviderBase
                         Description = description,
                         IsQuotaBased = this.Definition.IsQuotaBased,
                         PlanType = this.Definition.PlanType,
-                    },
-                    };
+                    }, config);
                 }
                 else
                 {
@@ -808,6 +802,7 @@ public class AntigravityProvider : ProviderBase
         results.Insert(0, summary);
 
         this._cachedUsage = summary;
+        this._cachedChildUsages = results.Skip(1).ToList();
         this._cacheTimestamp = DateTime.UtcNow;
 
         return results;
@@ -862,6 +857,21 @@ public class AntigravityProvider : ProviderBase
             RawJson = rawJson,
             HttpStatus = httpStatus,
         };
+    }
+
+    private IEnumerable<ProviderUsage> WithOfflineChildren(ProviderUsage summary, ProviderConfig config)
+    {
+        if (!config.ShowCachedModelsWhenOffline || this._cachedChildUsages == null || this._cachedChildUsages.Count == 0)
+        {
+            return new[] { summary };
+        }
+
+        foreach (var child in this._cachedChildUsages)
+        {
+            child.IsStale = true;
+        }
+
+        return new[] { summary }.Concat(this._cachedChildUsages);
     }
 
     private List<ProviderUsage> BuildChildUsages(

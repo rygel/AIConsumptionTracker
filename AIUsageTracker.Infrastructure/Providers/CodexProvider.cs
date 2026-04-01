@@ -22,11 +22,6 @@ public class CodexProvider : ProviderBase
         PlanType.Coding,
         isQuotaBased: true)
     {
-        DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["codex.spark"] = "OpenAI (GPT-5.3 Codex Spark)",
-        },
-        FamilyMode = ProviderFamilyMode.FlatWindowCards,
         DiscoveryEnvironmentVariables = new[] { "CODEX_API_KEY" },
         SettingsMode = ProviderSettingsMode.SessionAuthStatus,
         SessionStatusLabel = "OpenAI (Codex)",
@@ -48,12 +43,37 @@ public class CodexProvider : ProviderBase
         {
             ProviderEndpoints.OpenAI.ProfileClaimKey,
         },
+        FamilyMode = ProviderFamilyMode.FlatWindowCards,
+        DisplayNameOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["codex.spark"] = "OpenAI (GPT-5.3 Codex Spark)",
+        },
         SettingsAdditionalProviderIds = new[] { "codex.spark" },
         QuotaWindows = new QuotaWindowDefinition[]
         {
-            new(WindowKind.Burst,         "5h",     ChildProviderId: "codex.burst",   PeriodDuration: TimeSpan.FromHours(5)),
-            new(WindowKind.Rolling,       "Weekly", ChildProviderId: "codex.weekly",  PeriodDuration: TimeSpan.FromDays(7)),
-            new(WindowKind.ModelSpecific, "Spark",  ChildProviderId: "codex.spark",   PeriodDuration: TimeSpan.FromDays(7)),
+            new(WindowKind.Burst,   "5h",     PeriodDuration: TimeSpan.FromHours(5)),
+            new(WindowKind.Rolling, "Weekly", PeriodDuration: TimeSpan.FromDays(7)),
+        },
+    };
+
+    /// <summary>
+    /// Metadata reference for the Spark model card. Not registered in the catalog
+    /// (codex.spark is a child of the codex definition via FlatWindowCards family mode).
+    /// Used internally by CodexProvider and as a metadata reference for tooling.
+    /// </summary>
+    public static ProviderDefinition SparkDefinition { get; } = new(
+        "codex.spark",
+        "OpenAI (GPT-5.3 Codex Spark)",
+        PlanType.Coding,
+        isQuotaBased: true)
+    {
+        IconAssetName = "openai",
+        BadgeColorHex = "#008B8B",
+        BadgeInitial = "AI",
+        QuotaWindows = new QuotaWindowDefinition[]
+        {
+            new(WindowKind.Burst,   "5h",     PeriodDuration: TimeSpan.FromHours(5)),
+            new(WindowKind.Rolling, "Weekly", PeriodDuration: TimeSpan.FromDays(7)),
         },
     };
 
@@ -252,17 +272,6 @@ public class CodexProvider : ProviderBase
         normalized = normalized.Replace('_', '-');
         normalized = normalized.Replace("  ", " ");
         return string.IsNullOrWhiteSpace(normalized) ? fallback : normalized;
-    }
-
-    private static DateTime? ResolveNextResetTime(double? primaryResetSeconds, double? sparkResetSeconds)
-    {
-        var resetSeconds = primaryResetSeconds ?? sparkResetSeconds;
-        if (!resetSeconds.HasValue || resetSeconds.Value <= 0)
-        {
-            return null;
-        }
-
-        return DateTime.UtcNow.AddSeconds(resetSeconds.Value).ToLocalTime();
     }
 
     private static double ResolveEffectiveUsedPercent(
@@ -483,13 +492,12 @@ public class CodexProvider : ProviderBase
         var sparkWindow = ExtractSparkWindow(root);
         var accountIdentity = ResolveAccountIdentity(root, jwtEmail, authIdentity, accountId);
 
-        var sparkEffectiveWeeklyForParent = sparkWindow.SecondaryUsedPercent ?? secondaryUsedPercent ?? 0.0;
         var effectiveSparkPercent = sparkWindow.HasWindowData
-            ? (double?)Math.Max(sparkWindow.PrimaryUsedPercent ?? 0.0, sparkEffectiveWeeklyForParent)
+            ? (double?)Math.Max(sparkWindow.PrimaryUsedPercent ?? 0.0, sparkWindow.SecondaryUsedPercent ?? 0.0)
             : null;
 
         // Primary card: 5-hour burst
-        var burstResetTime = ResolveNextResetTime(primaryResetSeconds, null);
+        var burstResetTime = ResolveResetTimeFromSeconds(primaryResetSeconds);
         var burstCard = new ProviderUsage
         {
             ProviderId = this.ProviderId,
@@ -547,31 +555,58 @@ public class CodexProvider : ProviderBase
             });
         }
 
-        // Spark card when Spark window data is present
+        // Spark burst + rolling cards — same pattern as the main Codex cards so
+        // the "OpenAI (GPT-5.3 Codex Spark)" card is dual-bar capable.
         if (sparkWindow.HasWindowData)
         {
-            var sparkOwnUsed = sparkWindow.PrimaryUsedPercent ?? 0.0;
-            var sparkEffectiveUsed = effectiveSparkPercent ?? sparkOwnUsed;
-            var sparkBurstResetTime = ResolveNextResetTime(sparkWindow.PrimaryResetAfterSeconds, null);
-            var sparkWeeklyResetTime = ResolveResetTimeFromSeconds(sparkWindow.SecondaryResetAfterSeconds ?? secondaryResetSeconds);
-            var sparkResetTime = sparkWeeklyResetTime ?? sparkBurstResetTime;
+            var sparkDisplayName = StaticDefinition.DisplayNameOverrides.GetValueOrDefault("codex.spark", "OpenAI (GPT-5.3 Codex Spark)");
+            var sparkBurstUsed = sparkWindow.PrimaryUsedPercent ?? 0.0;
+            var sparkBurstResetTime = ResolveResetTimeFromSeconds(sparkWindow.PrimaryResetAfterSeconds);
+
             usages.Add(new ProviderUsage
             {
                 ProviderId = "codex.spark",
-                ProviderName = StaticDefinition.DisplayNameOverrides.GetValueOrDefault("codex.spark", "OpenAI (GPT-5.3 Codex Spark)"),
-                CardId = "spark",
+                ProviderName = sparkDisplayName,
+                CardId = "spark.burst",
                 GroupId = this.ProviderId,
-                Name = "Spark",
-                UsedPercent = sparkEffectiveUsed,
-                RequestsUsed = sparkEffectiveUsed,
+                Name = "Spark 5-hour quota",
+                WindowKind = WindowKind.Burst,
+                UsedPercent = sparkBurstUsed,
+                RequestsUsed = sparkBurstUsed,
                 RequestsAvailable = 100.0,
                 IsQuotaBased = this.Definition.IsQuotaBased,
                 PlanType = this.Definition.PlanType,
                 IsAvailable = true,
-                Description = $"{Math.Clamp(100.0 - sparkEffectiveUsed, 0.0, 100.0):F0}% remaining | Plan: {planType}",
+                Description = $"{Math.Clamp(100.0 - sparkBurstUsed, 0.0, 100.0):F0}% remaining | Plan: {planType}",
                 AccountName = accountIdentity ?? string.Empty,
                 AuthSource = AuthSource.CodexNative(planType),
-                NextResetTime = sparkResetTime,
+                NextResetTime = sparkBurstResetTime,
+                PeriodDuration = TimeSpan.FromHours(5),
+                RawJson = rawJson,
+                HttpStatus = httpStatus,
+            });
+
+            var sparkWeeklyUsed = sparkWindow.SecondaryUsedPercent ?? 0.0;
+            var sparkWeeklyResetTime = ResolveResetTimeFromSeconds(sparkWindow.SecondaryResetAfterSeconds);
+
+            usages.Add(new ProviderUsage
+            {
+                ProviderId = "codex.spark",
+                ProviderName = sparkDisplayName,
+                CardId = "spark.weekly",
+                GroupId = this.ProviderId,
+                Name = "Spark weekly quota",
+                WindowKind = WindowKind.Rolling,
+                UsedPercent = sparkWeeklyUsed,
+                RequestsUsed = sparkWeeklyUsed,
+                RequestsAvailable = 100.0,
+                IsQuotaBased = this.Definition.IsQuotaBased,
+                PlanType = this.Definition.PlanType,
+                IsAvailable = true,
+                Description = $"{Math.Clamp(100.0 - sparkWeeklyUsed, 0.0, 100.0):F0}% remaining | Plan: {planType}",
+                AccountName = accountIdentity ?? string.Empty,
+                AuthSource = AuthSource.CodexNative(planType),
+                NextResetTime = sparkWeeklyResetTime,
                 PeriodDuration = TimeSpan.FromDays(7),
                 RawJson = rawJson,
                 HttpStatus = httpStatus,

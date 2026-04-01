@@ -123,7 +123,7 @@ public class GitHubUpdateChecker
         }
     }
 
-    public async Task<bool> DownloadAndInstallUpdateAsync(AIUsageTracker.Core.Interfaces.UpdateInfo updateInfo, IProgress<double>? progress = null)
+    public async Task<UpdateInstallResult> DownloadAndInstallUpdateAsync(AIUsageTracker.Core.Interfaces.UpdateInfo updateInfo, IProgress<double>? progress = null)
     {
         try
         {
@@ -131,24 +131,52 @@ public class GitHubUpdateChecker
 
             if (string.IsNullOrEmpty(updateInfo.DownloadUrl))
             {
-                this._logger.LogWarning("No download URL available for update");
-                return false;
+                return UpdateInstallResult.Fail("No download URL available.");
             }
 
             var downloadPath = GetInstallerDownloadPath(updateInfo.Version);
+            this._logger.LogInformation("Downloading update from {Url} to {Path}", updateInfo.DownloadUrl, downloadPath);
             var downloadSucceeded = await this.DownloadInstallerAsync(updateInfo.DownloadUrl, downloadPath, progress).ConfigureAwait(false);
             if (!downloadSucceeded)
             {
-                return false;
+                return UpdateInstallResult.Fail($"Download failed — file not found at {downloadPath} after transfer.");
             }
 
-            return this.StartInstaller(downloadPath);
+            this._logger.LogInformation("Download succeeded ({Path}), launching installer", downloadPath);
+            if (!this.StartInstaller(downloadPath))
+            {
+                return UpdateInstallResult.Fail($"Installer failed to launch from {downloadPath}. Check UAC or antivirus.");
+            }
+
+            return UpdateInstallResult.Ok();
+        }
+        catch (System.Net.Http.HttpRequestException ex)
+        {
+            this._logger.LogError(ex, "HTTP error during update download");
+            return UpdateInstallResult.Fail($"HTTP error: {ex.StatusCode} — {ex.Message}");
+        }
+        catch (TaskCanceledException ex)
+        {
+            this._logger.LogError(ex, "Download timed out");
+            return UpdateInstallResult.Fail($"Download timed out: {ex.Message}");
+        }
+        catch (System.IO.IOException ex)
+        {
+            this._logger.LogError(ex, "File system error during update");
+            return UpdateInstallResult.Fail($"File error: {ex.Message}");
         }
         catch (Exception ex)
         {
             this._logger.LogError(ex, "Error during download and install");
-            return false;
+            return UpdateInstallResult.Fail($"{ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    public readonly record struct UpdateInstallResult(bool Success, string FailureReason)
+    {
+        public static UpdateInstallResult Ok() => new(true, string.Empty);
+
+        public static UpdateInstallResult Fail(string reason) => new(false, reason);
     }
 
     /// <summary>
@@ -336,22 +364,24 @@ public class GitHubUpdateChecker
         var downloadedBytes = 0L;
         var buffer = new byte[8192];
 
-        using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-        using var fileStream = new FileStream(partialDownloadPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-        int read;
-        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false)) > 0)
+        using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+        using (var fileStream = new FileStream(partialDownloadPath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            await fileStream.WriteAsync(buffer, 0, read).ConfigureAwait(false);
-            downloadedBytes += read;
-            if (totalBytes > 0 && progress != null)
+            int read;
+            while ((read = await stream.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false)) > 0)
             {
-                var percentage = (double)downloadedBytes / totalBytes * 100;
-                progress.Report(percentage);
+                await fileStream.WriteAsync(buffer, 0, read).ConfigureAwait(false);
+                downloadedBytes += read;
+                if (totalBytes > 0 && progress != null)
+                {
+                    var percentage = (double)downloadedBytes / totalBytes * 100;
+                    progress.Report(percentage);
+                }
             }
+
+            await fileStream.FlushAsync().ConfigureAwait(false);
         }
 
-        await fileStream.FlushAsync().ConfigureAwait(false);
         File.Move(partialDownloadPath, downloadPath, overwrite: true);
         this._logger.LogInformation("Download completed successfully to {Path}", downloadPath);
 
@@ -406,7 +436,6 @@ public class GitHubUpdateChecker
             FileName = installerPath,
             Arguments = "/CLOSEAPPLICATIONS /RESTARTAPPLICATIONS",
             UseShellExecute = true,
-            Verb = "runas", // Run as administrator
         };
 
         try

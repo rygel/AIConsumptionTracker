@@ -15,7 +15,7 @@ public class GroupedUsageDisplayAdapterTests
     public void Expand_GeminiSnapshot_ProducesThreeFlatCards_NoParent()
     {
         // Gemini uses FlatWindowCards: each model becomes an independent flat card.
-        // No parent aggregate card, no suffix appended to ProviderName.
+        // All flat cards share the parent ProviderId; the model is stored in CardId.
         var now = DateTime.UtcNow;
         var snapshot = new AgentGroupedUsageSnapshot
         {
@@ -68,11 +68,11 @@ public class GroupedUsageDisplayAdapterTests
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
         Assert.Equal(3, usages.Count);
-        Assert.Empty(usages.Where(u => string.Equals(u.ProviderId, "gemini-cli", StringComparison.Ordinal)));
+        Assert.Equal(3, usages.Count(u => string.Equals(u.ProviderId, "gemini-cli", StringComparison.Ordinal)));
 
-        var flashLite = Assert.Single(usages, u => string.Equals(u.ProviderId, "gemini-cli.gemini-2.5-flash-lite", StringComparison.Ordinal));
-        var flashPreview = Assert.Single(usages, u => string.Equals(u.ProviderId, "gemini-cli.gemini-3-flash-preview", StringComparison.Ordinal));
-        var pro = Assert.Single(usages, u => string.Equals(u.ProviderId, "gemini-cli.gemini-2.5-pro", StringComparison.Ordinal));
+        var flashLite = Assert.Single(usages, u => string.Equals(u.ProviderId, "gemini-cli", StringComparison.Ordinal) && string.Equals(u.CardId, "gemini-2.5-flash-lite", StringComparison.Ordinal));
+        var flashPreview = Assert.Single(usages, u => string.Equals(u.ProviderId, "gemini-cli", StringComparison.Ordinal) && string.Equals(u.CardId, "gemini-3-flash-preview", StringComparison.Ordinal));
+        var pro = Assert.Single(usages, u => string.Equals(u.ProviderId, "gemini-cli", StringComparison.Ordinal) && string.Equals(u.CardId, "gemini-2.5-pro", StringComparison.Ordinal));
 
         Assert.Equal("Gemini 2.5 Flash Lite", flashLite.ProviderName);
         Assert.Equal("Gemini 3 Flash Preview", flashPreview.ProviderName);
@@ -83,8 +83,9 @@ public class GroupedUsageDisplayAdapterTests
     [Fact]
     public void Expand_CodexSnapshot_CreatesSparkFlatCard_WhenModelIdIsSpark()
     {
-        // Codex uses FlatWindowCards; flat card ProviderId = "{parentId}.{modelId}".
-        // ModelId = "spark" produces "codex.spark" with PeriodDuration from the matched QuotaWindow.
+        // When the snapshot already has Models populated, each model becomes a flat card.
+        // ModelId = "spark" produces a card with ProviderId = "codex", CardId = "spark"
+        // with PeriodDuration from the matched QuotaWindow.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -114,7 +115,8 @@ public class GroupedUsageDisplayAdapterTests
 
         Assert.Single(usages);
         var spark = usages[0];
-        Assert.Equal("codex.spark", spark.ProviderId);
+        Assert.Equal("codex", spark.ProviderId);
+        Assert.Equal("spark", spark.CardId);
         Assert.Equal("Spark", spark.ProviderName);
         Assert.Equal(28, spark.UsedPercent, 1); // RemainingPercentage = 72 → UsedPercent = 28
         Assert.Equal(TimeSpan.FromDays(7), spark.PeriodDuration);
@@ -160,8 +162,8 @@ public class GroupedUsageDisplayAdapterTests
     [Fact]
     public void Expand_CodexSnapshot_NoSparkFlatCard_WhenModelIdIsNotSpark()
     {
-        // Without a model with ModelId = "spark", there is no "codex.spark" flat card.
-        // Any model creates a flat card keyed directly by ModelId.
+        // Without a model with ModelId = "spark", there is no card with CardId = "spark".
+        // Any model creates a flat card with ProviderId = parent, CardId = modelId.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -190,14 +192,16 @@ public class GroupedUsageDisplayAdapterTests
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
         Assert.Single(usages);
-        Assert.Equal("codex.gpt-5.3-codex", usages[0].ProviderId);
-        Assert.DoesNotContain(usages, u => string.Equals(u.ProviderId, "codex.spark", StringComparison.Ordinal));
+        Assert.Equal("codex", usages[0].ProviderId);
+        Assert.Equal("gpt-5.3-codex", usages[0].CardId);
+        Assert.DoesNotContain(usages, u => string.Equals(u.CardId, "spark", StringComparison.Ordinal));
     }
 
     [Fact]
     public void Expand_GithubCopilotWithSingleModel_ProducesSingleFlatCard()
     {
-        // Any provider with models uses flat cards — one card per model, keyed by ModelId.
+        // Any provider with models uses flat cards — one card per model.
+        // ProviderId = parent provider, CardId = modelId.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -226,7 +230,8 @@ public class GroupedUsageDisplayAdapterTests
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
         Assert.Single(usages);
-        Assert.Equal("github-copilot.weekly", usages[0].ProviderId);
+        Assert.Equal("github-copilot", usages[0].ProviderId);
+        Assert.Equal("weekly", usages[0].CardId);
         Assert.Equal("Weekly Quota", usages[0].ProviderName);
     }
 
@@ -278,7 +283,7 @@ public class GroupedUsageDisplayAdapterTests
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
-        var derived = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli.gemini-3-flash-preview", StringComparison.Ordinal));
+        var derived = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli", StringComparison.Ordinal) && string.Equals(usage.CardId, "gemini-3-flash-preview", StringComparison.Ordinal));
         Assert.Equal(65, derived.UsedPercent, 1); // most constrained bucket: 65% used
         Assert.Equal(65, derived.RequestsUsed, 1);
         Assert.Equal("35% remaining", derived.Description);
@@ -325,9 +330,9 @@ public class GroupedUsageDisplayAdapterTests
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
-        var minute = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli.minute", StringComparison.Ordinal));
-        var hourly = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli.hourly", StringComparison.Ordinal));
-        var daily = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli.daily", StringComparison.Ordinal));
+        var minute = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli", StringComparison.Ordinal) && string.Equals(usage.CardId, "minute", StringComparison.Ordinal));
+        var hourly = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli", StringComparison.Ordinal) && string.Equals(usage.CardId, "hourly", StringComparison.Ordinal));
+        var daily = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli", StringComparison.Ordinal) && string.Equals(usage.CardId, "daily", StringComparison.Ordinal));
 
         Assert.Equal("Zulu Minute", minute.ProviderName);
         Assert.Equal("Bravo Hourly", hourly.ProviderName);
@@ -369,17 +374,17 @@ public class GroupedUsageDisplayAdapterTests
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
-        var minute = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli.minute", StringComparison.Ordinal));
+        var minute = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli", StringComparison.Ordinal) && string.Equals(usage.CardId, "minute", StringComparison.Ordinal));
         Assert.Equal("Minute Model", minute.ProviderName);
 
-        var dynamic = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli.gemini-3-pro", StringComparison.Ordinal));
+        var dynamic = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli", StringComparison.Ordinal) && string.Equals(usage.CardId, "gemini-3-pro", StringComparison.Ordinal));
         Assert.Equal("Gemini 3 Pro", dynamic.ProviderName);
     }
 
     [Fact]
     public void Expand_CodexSnapshot_CreatesFlatCardPerModel_KeyedByModelId()
     {
-        // Flat card ProviderId = "{parentId}.{modelId}" — no selector-based remapping.
+        // When Models are present, each becomes a flat card: ProviderId = parent, CardId = modelId.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -413,8 +418,8 @@ public class GroupedUsageDisplayAdapterTests
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
         Assert.Equal(2, usages.Count);
-        var burst = Assert.Single(usages, u => string.Equals(u.ProviderId, "codex.burst", StringComparison.Ordinal));
-        var spark = Assert.Single(usages, u => string.Equals(u.ProviderId, "codex.spark", StringComparison.Ordinal));
+        var burst = Assert.Single(usages, u => string.Equals(u.ProviderId, "codex", StringComparison.Ordinal) && string.Equals(u.CardId, "burst", StringComparison.Ordinal));
+        var spark = Assert.Single(usages, u => string.Equals(u.ProviderId, "codex", StringComparison.Ordinal) && string.Equals(u.CardId, "spark", StringComparison.Ordinal));
         Assert.Equal("5-hour quota", burst.ProviderName);
         Assert.Equal("Spark", spark.ProviderName);
         Assert.Equal(60, spark.UsedPercent, 1); // RemainingPercentage=40 → UsedPercent = 60
@@ -465,7 +470,7 @@ public class GroupedUsageDisplayAdapterTests
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
-        var derived = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli.gemini-2.5-flash-lite", StringComparison.Ordinal));
+        var derived = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "gemini-cli", StringComparison.Ordinal) && string.Equals(usage.CardId, "gemini-2.5-flash-lite", StringComparison.Ordinal));
         Assert.Equal(23, derived.UsedPercent, 1); // EffectiveUsedPercentage = 23
         Assert.Equal(23, derived.RequestsUsed, 1);
         Assert.Equal("77.0% Remaining", derived.Description);
@@ -476,7 +481,7 @@ public class GroupedUsageDisplayAdapterTests
     public void Expand_AntigravitySnapshot_ProducesSingleFlatCard_NoParent()
     {
         // Antigravity uses FlatWindowCards: each model becomes an independent flat card.
-        // No parent aggregate card, no suffix appended to ProviderName.
+        // All flat cards share ProviderId = "antigravity"; the model is stored in CardId.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -506,9 +511,9 @@ public class GroupedUsageDisplayAdapterTests
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
         Assert.Single(usages);
-        Assert.Empty(usages.Where(u => string.Equals(u.ProviderId, "antigravity", StringComparison.Ordinal)));
         var flat = usages[0];
-        Assert.Equal("antigravity.gemini-3-flash", flat.ProviderId);
+        Assert.Equal("antigravity", flat.ProviderId);
+        Assert.Equal("gemini-3-flash", flat.CardId);
         Assert.Equal("Gemini 3 Flash", flat.ProviderName);
         Assert.Equal(0, flat.UsedPercent, 1);
         Assert.Equal("100% Remaining", flat.Description);
@@ -604,7 +609,7 @@ public class GroupedUsageDisplayAdapterTests
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
-        var spark = Assert.Single(usages, u => string.Equals(u.ProviderId, "codex.spark", StringComparison.Ordinal));
+        var spark = Assert.Single(usages, u => string.Equals(u.ProviderId, "codex", StringComparison.Ordinal) && string.Equals(u.CardId, "spark", StringComparison.Ordinal));
         Assert.Null(spark.WindowCards); // Flat cards have no window cards
         Assert.Equal(98, spark.UsedPercent, 1); // EffectiveUsedPercentage = 98 wins
     }
@@ -646,16 +651,17 @@ public class GroupedUsageDisplayAdapterTests
 
         Assert.Single(usages); // Only the flat card, no parent
         var spark = usages[0];
-        Assert.Equal("codex.spark", spark.ProviderId);
+        Assert.Equal("codex", spark.ProviderId);
+        Assert.Equal("spark", spark.CardId);
         Assert.Null(spark.WindowCards); // ProviderDetails are not mapped to WindowCards on flat cards
-        Assert.DoesNotContain(usages, u => string.Equals(u.ProviderId, "codex", StringComparison.Ordinal));
+        Assert.DoesNotContain(usages, u => string.Equals(u.ProviderId, "codex", StringComparison.Ordinal) && u.CardId == null);
     }
 
     [Fact]
     public void Expand_ClaudeCodeSnapshot_ProducesFlatWindowCards_NoParent()
     {
         // Claude Code uses FlatWindowCards mode: every quota window becomes its own
-        // independent top-level card. No parent aggregate card, no child rows.
+        // independent top-level card. ProviderId = "claude-code" on all; CardId = modelId.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -680,26 +686,25 @@ public class GroupedUsageDisplayAdapterTests
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
 
-        // Three flat cards — no parent "claude-code" card
+        // Three flat cards — all with ProviderId = "claude-code", each with a distinct CardId
         Assert.Equal(3, usages.Count);
-        Assert.Empty(usages.Where(u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal)));
+        Assert.Equal(3, usages.Count(u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal)));
 
-        var currentSession = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code.current-session", StringComparison.Ordinal));
-        var sonnet         = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code.sonnet",         StringComparison.Ordinal));
-        var allModels      = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code.all-models",     StringComparison.Ordinal));
+        var currentSession = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal) && string.Equals(u.CardId, "current-session", StringComparison.Ordinal));
+        var sonnet         = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal) && string.Equals(u.CardId, "sonnet",          StringComparison.Ordinal));
+        var allModels      = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal) && string.Equals(u.CardId, "all-models",      StringComparison.Ordinal));
 
-        Assert.Equal("Current Session", currentSession.ProviderName);
-        Assert.Equal("Sonnet",          sonnet.ProviderName);
-        Assert.Equal("All Models",      allModels.ProviderName);
+        Assert.Equal("Claude Code (Current Session)", currentSession.ProviderName);
+        Assert.Equal("Claude Code (Sonnet)",          sonnet.ProviderName);
+        Assert.Equal("Claude Code (All Models)",      allModels.ProviderName);
 
         Assert.Equal(3, currentSession.UsedPercent, 1);
         Assert.Equal(2, sonnet.UsedPercent, 1);
         Assert.Equal(5, allModels.UsedPercent, 1);
 
-        // PeriodDuration resolved from QuotaWindowDefinition via ChildProviderId
-        Assert.Equal(TimeSpan.FromHours(5), currentSession.PeriodDuration);  // Burst: 5h
-        Assert.Equal(TimeSpan.FromDays(7),  sonnet.PeriodDuration);          // ModelSpecific: 7d
-        Assert.Equal(TimeSpan.FromDays(7),  allModels.PeriodDuration);       // Rolling: 7d
+        // PeriodDuration resolved from the provider's Rolling QuotaWindowDefinition (same for all flat cards)
+        Assert.Equal(TimeSpan.FromDays(7), currentSession.PeriodDuration);
+        Assert.Equal(TimeSpan.FromDays(7), sonnet.PeriodDuration);
+        Assert.Equal(TimeSpan.FromDays(7), allModels.PeriodDuration);
     }
 }
-

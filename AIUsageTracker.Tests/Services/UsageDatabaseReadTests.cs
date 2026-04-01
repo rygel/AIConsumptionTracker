@@ -61,6 +61,20 @@ public sealed class UsageDatabaseReadTests : IDisposable
     }
 
     [Fact]
+    public async Task GetLatestHistoryAsync_RowOlderThan24h_IsExcludedFromResultsAsync()
+    {
+        // Rows older than 24 h are excluded at the SQL level — the provider must not appear at all.
+        var db = await this.CreateDatabaseAsync();
+        var veryOldFetch = DateTime.UtcNow.AddHours(-25);
+
+        await db.StoreHistoryAsync([MakeUsage("antigravity", isAvailable: true, fetchedAt: veryOldFetch)]);
+
+        var results = await db.GetLatestHistoryAsync();
+
+        Assert.DoesNotContain(results, u => string.Equals(u.ProviderId, "antigravity", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task GetLatestHistoryAsync_UnavailableOldRow_IsNotMarkedStaleAsync()
     {
         // IsAvailable=false entries carry their own description; stale suffix would be redundant.

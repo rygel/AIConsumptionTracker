@@ -172,11 +172,10 @@ public sealed class GroupedUsageProjectionServiceTests
     }
 
     [Fact]
-    public void Build_CodexUsageWithFlatCards_ProjectsSparkModelFromCardId()
+    public void Build_CodexAndSpark_ProjectAsOneGroupWithFourFlatCards()
     {
-        // Codex emits flat cards: burst (WindowKind.Burst), weekly (WindowKind.Rolling), spark (codex.spark).
-        // The spark card has CardId="spark" and is the only card with CardId != null for the codex group.
-        // Since cardIds exist, BuildModelsFromFlatCards is used.
+        // codex.spark is a child of codex (FlatWindowCards family mode).
+        // All 4 quota windows are projected as flat model cards within the single "codex" group.
         var usages = new[]
         {
             new ProviderUsage
@@ -206,24 +205,39 @@ public sealed class GroupedUsageProjectionServiceTests
             new ProviderUsage
             {
                 ProviderId = "codex.spark",
-                CardId = "spark",
+                CardId = "spark.burst",
                 GroupId = "codex",
-                Name = "Spark",
+                Name = "Spark 5-hour quota",
+                WindowKind = WindowKind.Burst,
                 IsAvailable = true,
                 IsQuotaBased = true,
                 UsedPercent = 19,
+                FetchedAt = DateTime.UtcNow,
+            },
+            new ProviderUsage
+            {
+                ProviderId = "codex.spark",
+                CardId = "spark.weekly",
+                GroupId = "codex",
+                Name = "Spark weekly quota",
+                WindowKind = WindowKind.Rolling,
+                IsAvailable = true,
+                IsQuotaBased = true,
+                UsedPercent = 5,
                 FetchedAt = DateTime.UtcNow,
             },
         };
 
         var snapshot = GroupedUsageProjectionService.Build(usages);
 
-        var provider = Assert.Single(snapshot.Providers);
-
-        // Provider-level window cards (WindowKind != None) go into ProviderDetails
-        Assert.Equal(2, provider.ProviderDetails.Count);
-        Assert.Contains(provider.ProviderDetails, d => d.WindowKind == WindowKind.Burst);
-        Assert.Contains(provider.ProviderDetails, d => d.WindowKind == WindowKind.Rolling);
+        // One "codex" group containing all 4 flat window cards.
+        var codex = Assert.Single(snapshot.Providers);
+        Assert.Equal("codex", codex.ProviderId);
+        Assert.Equal(4, codex.Models.Count);
+        Assert.Contains(codex.Models, m => m.ModelId == "burst");
+        Assert.Contains(codex.Models, m => m.ModelId == "weekly");
+        Assert.Contains(codex.Models, m => m.ModelId == "spark.burst");
+        Assert.Contains(codex.Models, m => m.ModelId == "spark.weekly");
     }
 
     [Fact]

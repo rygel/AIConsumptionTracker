@@ -95,17 +95,36 @@ public static class GroupedUsageProjectionService
         string canonicalProviderId)
     {
         var usages = group.ToList();
+        var definition = ProviderMetadataCatalog.Find(canonicalProviderId);
 
-        // Flat-card providers: if any non-currency usages have a CardId, project them as models.
-        // Currency/balance cards (e.g. DeepSeek balance-usd) have CardId but must not be projected
-        // as quota model rows — they are balance display cards, not model-level quota windows.
-        var flatModelCards = usages.Where(u => !string.IsNullOrWhiteSpace(u.CardId) && !u.IsCurrencyUsage).ToList();
+        // FlatWindowCards providers: every card is an independent flat card, regardless of
+        // WindowKind. The UI renders each as a separate single-bar row. Dual-bar layout is
+        // not applicable — the user's ShowDualQuotaBars setting only affects providers that
+        // use a single aggregated parent card (Kimi, Copilot, OpenAI, etc.).
+        if (definition?.FamilyMode == ProviderFamilyMode.FlatWindowCards)
+        {
+            var allCards = usages.Where(u =>
+                !string.IsNullOrWhiteSpace(u.CardId) && !u.IsCurrencyUsage).ToList();
+            if (allCards.Count > 0)
+            {
+                return BuildModelsFromFlatCards(allCards, canonicalProviderId);
+            }
+        }
+
+        // Non-flat providers: only WindowKind.None cards are model cards — each gets its own
+        // flat card in the UI. Cards with any other WindowKind are quota-window cards that
+        // flow to ProviderDetails so the UI can render them as dual-bar on a single card
+        // (controlled by the user's ShowDualQuotaBars preference).
+        // Currency/balance cards (e.g. DeepSeek balance-usd) have CardId but must not be
+        // projected as quota model rows.
+        var flatModelCards = usages.Where(u =>
+            !string.IsNullOrWhiteSpace(u.CardId) && !u.IsCurrencyUsage && u.WindowKind == WindowKind.None).ToList();
         if (flatModelCards.Count > 0)
         {
             return BuildModelsFromFlatCards(flatModelCards, canonicalProviderId);
         }
 
-        if ((ProviderMetadataCatalog.Find(canonicalProviderId)?.UseChildProviderRowsForGroupedModels ?? false) &&
+        if ((definition?.UseChildProviderRowsForGroupedModels ?? false) &&
             ShouldBuildModelsFromExplicitChildRows(usages, canonicalProviderId))
         {
             return BuildModelsFromExplicitChildRows(usages, canonicalProviderId);

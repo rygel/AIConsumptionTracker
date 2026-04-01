@@ -32,11 +32,10 @@ public partial class SettingsWindow
         this.ProvidersStack.Children.Clear();
 
         var displayItems = CreateProviderDisplayItems(this._configs, this._usages);
-        var usageByProviderId = this._usages.ToDictionary(usage => usage.ProviderId, StringComparer.OrdinalIgnoreCase);
-
         foreach (var item in displayItems)
         {
-            usageByProviderId.TryGetValue(item.Config.ProviderId, out var usage);
+            var usage = this._usages.FirstOrDefault(u =>
+                string.Equals(u.ProviderId, item.Config.ProviderId, StringComparison.OrdinalIgnoreCase));
             this.AddProviderCard(item.Config, usage, item.IsDerived);
         }
 
@@ -480,6 +479,24 @@ public partial class SettingsWindow
                 trackedConfig.EnableNotifications = isChecked;
                 this.MarkSettingsChanged();
             }));
+
+        var definition = ProviderMetadataCatalog.Find(config.ProviderId);
+        if (!isDerived &&
+            settingsBehavior.InputMode == ProviderInputMode.AutoDetectedStatus &&
+            definition?.FamilyMode == ProviderFamilyMode.FlatWindowCards)
+        {
+            headerPanel.Children.Add(this.CreateProviderHeaderCheckBox(
+                content: "Models offline",
+                isChecked: config.ShowCachedModelsWhenOffline,
+                margin: new Thickness(8, 0, 0, 0),
+                isEnabled: true,
+                onCheckedChanged: isChecked =>
+                {
+                    var trackedConfig = this.GetOrCreateTrackedConfig(config);
+                    trackedConfig.ShowCachedModelsWhenOffline = isChecked;
+                    this.MarkSettingsChanged();
+                }));
+        }
 
         if (settingsBehavior.IsInactive)
         {
