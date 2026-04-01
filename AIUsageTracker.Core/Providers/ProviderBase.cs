@@ -5,6 +5,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using AIUsageTracker.Core.Exceptions;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 
@@ -122,6 +123,27 @@ public abstract class ProviderBase : IProviderService
     {
         var message = DescribeUnavailableException(ex, context);
         return this.CreateUnavailableUsage(message, 0, authSource);
+    }
+
+    protected ProviderUsage CreateUnavailableUsageFromProviderException(
+        ProviderException ex,
+        string? authSource = null)
+    {
+        var description = ex.ErrorType switch
+        {
+            ProviderErrorType.AuthenticationError => $"Authentication failed ({ex.HttpStatusCode})",
+            ProviderErrorType.AuthorizationError => $"Access denied ({ex.HttpStatusCode})",
+            ProviderErrorType.NetworkError => "Connection failed - check network",
+            ProviderErrorType.TimeoutError => "Request timed out",
+            ProviderErrorType.RateLimitError => "Rate limit exceeded - please wait before retrying",
+            ProviderErrorType.ServerError => $"Server error ({ex.HttpStatusCode})",
+            ProviderErrorType.ConfigurationError => "Configuration error",
+            ProviderErrorType.DeserializationError => "Failed to parse response",
+            ProviderErrorType.InvalidResponseError => "Invalid response from provider",
+            _ => ex.Message,
+        };
+
+        return this.CreateUnavailableUsage(description, ex.HttpStatusCode ?? 0, authSource);
     }
 
     protected static string DescribeUnavailableStatus(HttpStatusCode statusCode)
