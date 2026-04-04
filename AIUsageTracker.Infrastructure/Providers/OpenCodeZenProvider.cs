@@ -453,7 +453,18 @@ public class OpenCodeZenProvider : ProviderBase
             return DefaultCliCommand;
         }
 
-        // Strategy 2: Check common fallback installation paths
+        // Strategy 2: Try via login shell (macOS/Linux — picks up paths from .zshrc/.bashrc)
+        if (!OperatingSystem.IsWindows())
+        {
+            var loginShellPath = await this.ResolveViaLoginShellAsync().ConfigureAwait(false);
+            if (loginShellPath != null)
+            {
+                this._logger.LogDebug("Found opencode via login shell: {Path}", loginShellPath);
+                return loginShellPath;
+            }
+        }
+
+        // Strategy 3: Check common fallback installation paths
         foreach (var candidate in FallbackPaths)
         {
             if (File.Exists(candidate))
@@ -597,6 +608,51 @@ public class OpenCodeZenProvider : ProviderBase
             this._logger.LogDebug("IsInPath check failed: {Message}", ex.Message);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Strategy 2 from opencode-bar/scripts/query-opencode.sh: try the user's login shell
+    /// to pick up PATH entries from .zshrc/.bashrc that non-login processes don't inherit.
+    /// </summary>
+    private async Task<string?> ResolveViaLoginShellAsync()
+    {
+        try
+        {
+            var shell = Environment.GetEnvironmentVariable("SHELL") ?? "/bin/zsh";
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = shell,
+                Arguments = "-lc \"which opencode 2>/dev/null\"",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = Process.Start(processStartInfo);
+            if (process == null)
+            {
+                return null;
+            }
+
+            var output = await process.StandardOutput.ReadLineAsync().ConfigureAwait(false);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+
+            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+            {
+                var resolved = output.Trim();
+                if (File.Exists(resolved))
+                {
+                    return resolved;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogDebug("Login shell discovery failed: {Message}", ex.Message);
+        }
+
+        return null;
     }
 
     private async Task<string?> ResolvePathLocationAsync(string command)
