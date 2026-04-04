@@ -277,6 +277,7 @@ public static class ProviderMetadataCatalog
             MinimaxProvider.StaticDefinition,
             MistralProvider.StaticDefinition,
             OpenAIProvider.StaticDefinition,
+            OpenCodeProvider.StaticDefinition,
             OpenCodeZenProvider.StaticDefinition,
             OpenRouterProvider.StaticDefinition,
             SyntheticProvider.StaticDefinition,
