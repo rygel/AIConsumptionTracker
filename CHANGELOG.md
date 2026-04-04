@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [2.3.4-beta.26] - 2026-04-04
+
+### Added
+- **OpenCode Go credits provider**: new HTTP-based provider querying `api.opencode.ai/v1/credits` showing credit usage as a quota bar. Auto-discovers key from opencode `auth.json`. Silently hides when the credits API is not available for the account (detected via `Content-Type` header).
+
+### Fixed
+- **Auth scan no longer creates ghost provider configs**: `ScanForKeysAsync` persisted empty skeleton entries (e.g. DeepSeek, Antigravity) for every known provider even without keys. Now only providers with actual credentials are saved.
+- **OpenCode CLI discovery picks correct binary on Windows**: `where opencode` returns the extensionless bash shim first; now prefers `.cmd`/`.exe` variant.
+- **Settings update check has Download & Install button**: previously showed "New version available" with no way to act. Now confirms, downloads with progress, and restarts.
+- **Update channel no longer silently resets to Stable**: DI singleton used default channel before preferences loaded.
+- **Privacy toggle works in Settings and Info dialogs**: same WeakReference GC bug as MainWindow, now fixed with stored delegate field.
+
+### Changed
+- **OpenCode Zen renamed to OpenCode**: CLI provider now displays as "OpenCode". HTTP provider displays as "OpenCode Go".
+- **Zero actionable linter warnings**: fixed all MA, CA, IDE, and SA warnings across the solution.
+
 ## [2.3.4-beta.21] - 2026-04-02
 
 ### Added
