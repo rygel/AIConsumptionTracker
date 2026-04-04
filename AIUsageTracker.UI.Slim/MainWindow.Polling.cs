@@ -199,6 +199,7 @@ public partial class MainWindow : Window
                     exceptionStatusType = StatusType.Error;
                     switchToStartupInterval = true;
                 }
+
                 this.ShowStatus(exceptionMessage, exceptionStatusType);
 
                 if (switchToStartupInterval &&
@@ -324,5 +325,4 @@ public partial class MainWindow : Window
             this._pollingTimer.Interval = NormalPollingInterval;
         }
     }
-
 }

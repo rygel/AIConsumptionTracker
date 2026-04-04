@@ -76,8 +76,6 @@ public partial class SettingsWindow
         Grid.SetRow(keyPanel, 1);
         grid.Children.Add(keyPanel);
 
-        // Sub-tray sections are not rendered — flat cards replaced ProviderUsageDetail.
-
         card.Child = grid;
         this.ProvidersStack.Children.Add(card);
     }
@@ -276,7 +274,7 @@ public partial class SettingsWindow
             ProviderInputMode.ExternalAuthStatus => CreateExternalAuthStatusPresentation(config, usage, isPrivacyMode),
             ProviderInputMode.SessionAuthStatus => CreateSessionAuthStatusPresentation(config, usage, settingsBehavior, isPrivacyMode),
             _ => throw new ArgumentOutOfRangeException(
-                nameof(settingsBehavior.InputMode),
+                nameof(settingsBehavior),
                 settingsBehavior.InputMode,
                 "Status presentation is only valid for status-based provider modes."),
         };

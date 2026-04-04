@@ -43,7 +43,7 @@ internal sealed class WpfProviderIconService
 
         if (this._cache.TryGetValue(canonicalId, out var cached))
         {
-            return MakeIconElement(cached);
+            return this.MakeIconElement(cached);
         }
 
         var filename = ProviderMetadataCatalog.GetIconAssetName(providerId);
@@ -69,7 +69,7 @@ internal sealed class WpfProviderIconService
                     var imageSource = new DrawingImage(drawing);
                     imageSource.Freeze();
                     this._cache[canonicalId] = imageSource;
-                    return MakeIconElement(imageSource);
+                    return this.MakeIconElement(imageSource);
                 }
             }
             catch (Exception ex)
@@ -167,7 +167,7 @@ internal sealed class WpfProviderIconService
 
     private static bool IsDarkColor(Color c)
     {
-        return (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) < 128;
+        return ((0.299 * c.R) + (0.587 * c.G) + (0.114 * c.B)) < 128;
     }
 
     internal static (Brush Color, string Initial) GetBadge(string providerId, Brush defaultBrush)

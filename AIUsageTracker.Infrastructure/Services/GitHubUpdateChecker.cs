@@ -2,6 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Globalization;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
 using Microsoft.Extensions.Logging;
@@ -194,7 +195,7 @@ public class GitHubUpdateChecker
         {
             coreVersion = version[..betaIndex];
             var betaNumStr = version[(betaIndex + 6)..]; // skip "-beta."
-            preRelease = int.TryParse(betaNumStr, out var n) ? n : 0;
+            preRelease = int.TryParse(betaNumStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
         }
         else
         {
@@ -203,9 +204,9 @@ public class GitHubUpdateChecker
         }
 
         var parts = coreVersion.Split('.');
-        var major = parts.Length > 0 && int.TryParse(parts[0], out var v) ? v : 0;
-        var minor = parts.Length > 1 && int.TryParse(parts[1], out v) ? v : 0;
-        var patch = parts.Length > 2 && int.TryParse(parts[2], out v) ? v : 0;
+        var major = parts.Length > 0 && int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
+        var minor = parts.Length > 1 && int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out v) ? v : 0;
+        var patch = parts.Length > 2 && int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out v) ? v : 0;
 
         return (major, minor, patch, preRelease);
     }
@@ -273,7 +274,7 @@ public class GitHubUpdateChecker
             }
 
             var publishedAt = release.TryGetProperty("published_at", out var pub) &&
-                              DateTime.TryParse(pub.GetString(), out var dt)
+                              DateTime.TryParse(pub.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt)
                 ? dt
                 : DateTime.UtcNow;
 

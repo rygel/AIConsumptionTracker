@@ -1,4 +1,4 @@
-// <copyright file="MainWindowRuntimeLogic.cs" company="AIUsageTracker">
+// <copyright file="MainWindowRuntimeLogic.Presentation.cs" company="AIUsageTracker">
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
