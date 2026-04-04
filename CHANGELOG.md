@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [2.3.4-beta.25] - 2026-04-04
+
+### Fixed
+- **OpenCode Zen CLI discovery on Windows**: `where opencode` returns the extensionless bash shim first, which `Process.Start` can't execute. Now picks the `.cmd`/`.exe` variant.
+
 ## [2.3.4-beta.21] - 2026-04-02
 
 ### Added
