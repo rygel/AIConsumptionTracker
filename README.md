@@ -9,7 +9,7 @@
 
 <img src="docs/screenshot_dashboard_privacy.png" alt="Dashboard" width="50%" />
 
-A streamlined Windows dashboard and tray utility to monitor AI API usage, costs, and quotas across multiple providers.
+A streamlined Windows dashboard and tray utility to monitor AI Quota usage, costs, and quotas across multiple providers.
 
 ## Support
 If you want to support me and are interested in different AI model providers, you can sign up with my referral codes:
