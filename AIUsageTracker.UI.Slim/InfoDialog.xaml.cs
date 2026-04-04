@@ -23,6 +23,7 @@ public partial class InfoDialog : Window
 {
     private readonly ILogger<InfoDialog> _logger;
     private readonly IAppPathProvider _pathProvider;
+    private readonly EventHandler<PrivacyChangedEventArgs> _privacyChangedHandler;
     private bool _isPrivacyMode = false;
     private string? _realUserName;
     private string? _realConfigDir;
@@ -36,6 +37,7 @@ public partial class InfoDialog : Window
         this.InitializeComponent();
         this._logger = logger;
         this._pathProvider = pathProvider;
+        this._privacyChangedHandler = this.OnPrivacyChanged;
 
         // In Slim UI, we rely on App.Preferences or direct theme resources
         // No need for complex theme loading or IConfigLoader here
@@ -63,7 +65,7 @@ public partial class InfoDialog : Window
         // Subscribe to global privacy changes using WeakEventManager to prevent memory leaks
         if (Application.Current is App)
         {
-            PrivacyChangedWeakEventManager.AddHandler(this.OnPrivacyChanged);
+            PrivacyChangedWeakEventManager.AddHandler(this._privacyChangedHandler);
 
             // Set initial privacy state
             this._isPrivacyMode = App.IsPrivacyMode;
