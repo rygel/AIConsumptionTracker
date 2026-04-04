@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [2.3.4-beta.24] - 2026-04-04
+
+### Fixed
+- **Settings update check now has a Download & Install button**: previously showed "New version available" text with no way to act on it. Now shows an accent-colored button that confirms, downloads with a progress window, and restarts the app.
+- **Update channel no longer silently resets to Stable**: the DI singleton `GitHubUpdateChecker` was registered with the default Stable channel before preferences loaded. Now reads the saved channel at resolution time.
+- **Privacy toggle now works in Settings and Info dialogs**: same GC bug as the MainWindow fix — the `PrivacyChangedWeakEventManager` delegate was not stored in a field, so GC collected it silently.
+- **OpenCode Zen/Go provider now parses model and tool usage**: model breakdown (name, messages, tokens, cost) and tool usage (name, invocation count) are extracted from CLI output and shown in the description. Previously this data was silently discarded.
+- **OpenCode Zen CLI discovery works on any machine**: removed hardcoded Windows path. Uses 3-strategy discovery (PATH, login shell, fallback paths) matching the opencode-bar reference script.
+
+### Changed
+- **Zero actionable linter warnings**: fixed all MA, CA, IDE, and SA warnings across UI.Slim, Core, and Infrastructure (22 files).
+
 ## [2.3.4-beta.21] - 2026-04-02
 
 ### Added
