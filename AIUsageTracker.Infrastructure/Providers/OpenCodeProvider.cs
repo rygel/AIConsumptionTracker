@@ -29,8 +29,8 @@ public class OpenCodeProvider : ProviderBase
     }
 
     public static ProviderDefinition StaticDefinition { get; } = new(
-        "opencode",
-        "OpenCode",
+        "opencode-go",
+        "OpenCode Go",
         PlanType.Usage,
         isQuotaBased: true)
     {
@@ -139,7 +139,7 @@ public class OpenCodeProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = "OpenCode",
+                    ProviderName = "OpenCode Go",
                     UsedPercent = usedPercent,
                     RequestsUsed = used,
                     RequestsAvailable = total,

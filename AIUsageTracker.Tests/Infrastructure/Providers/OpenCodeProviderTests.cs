@@ -186,8 +186,8 @@ public class OpenCodeProviderTests : HttpProviderTestBase<OpenCodeProvider>
     {
         var def = OpenCodeProvider.StaticDefinition;
 
-        Assert.Equal("opencode", def.ProviderId);
-        Assert.Equal("OpenCode", def.DisplayName);
+        Assert.Equal("opencode-go", def.ProviderId);
+        Assert.Equal("OpenCode Go", def.DisplayName);
         Assert.Equal(PlanType.Usage, def.PlanType);
         Assert.True(def.IsQuotaBased);
         Assert.Contains("OPENCODE_API_KEY", def.DiscoveryEnvironmentVariables);
