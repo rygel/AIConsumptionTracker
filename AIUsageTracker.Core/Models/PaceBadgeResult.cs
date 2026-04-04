@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Runtime.InteropServices;
+
 namespace AIUsageTracker.Core.Models;
 
 /// <summary>
@@ -22,6 +24,7 @@ public enum PaceTier
 /// <summary>
 /// Result of a pace classification, including the tier, display text, and projected percentage.
 /// </summary>
+[StructLayout(LayoutKind.Auto)]
 public readonly record struct PaceBadgeResult(PaceTier Tier, double ProjectedPercent)
 {
     /// <summary>

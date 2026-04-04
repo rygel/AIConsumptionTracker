@@ -188,7 +188,7 @@ public class MonitorService : IMonitorService
             var usage = await this.GetUsageOnceAsync().ConfigureAwait(false);
             LogDiagnostic($"Successfully fetched usage from {this.AgentUrl}");
             stopwatch.Stop();
-            RecordUsageTelemetry(stopwatch.Elapsed, true);
+            this.RecordUsageTelemetry(stopwatch.Elapsed, true);
             activity?.SetTag("monitor.usage_count", usage?.Count ?? 0);
             activity?.SetStatus(ActivityStatusCode.Ok);
             return usage ?? new List<ProviderUsage>();
@@ -203,7 +203,7 @@ public class MonitorService : IMonitorService
                 var usage = await this.GetUsageOnceAsync().ConfigureAwait(false);
                 LogDiagnostic($"Successfully fetched usage from {this.AgentUrl} after port refresh");
                 stopwatch.Stop();
-                RecordUsageTelemetry(stopwatch.Elapsed, true);
+                this.RecordUsageTelemetry(stopwatch.Elapsed, true);
                 activity?.SetTag("monitor.usage_count", usage?.Count ?? 0);
                 activity?.SetTag("monitor.retry", true);
                 activity?.SetStatus(ActivityStatusCode.Ok);
@@ -212,7 +212,7 @@ public class MonitorService : IMonitorService
             catch (Exception retryEx) when (IsRecoverableUsageFailure(retryEx))
             {
                 stopwatch.Stop();
-                RecordUsageTelemetry(stopwatch.Elapsed, false);
+                this.RecordUsageTelemetry(stopwatch.Elapsed, false);
                 LogDiagnostic($"Failed to fetch usage from {this.AgentUrl} after port refresh: {DescribeUsageFailure(retryEx)}");
                 activity?.SetTag("error.type", retryEx.GetType().Name);
                 activity?.SetStatus(ActivityStatusCode.Error, retryEx.Message);
@@ -222,7 +222,7 @@ public class MonitorService : IMonitorService
         catch (Exception ex)
         {
             stopwatch.Stop();
-            RecordUsageTelemetry(stopwatch.Elapsed, false);
+            this.RecordUsageTelemetry(stopwatch.Elapsed, false);
             LogDiagnostic($"Failed to fetch usage from {this.AgentUrl}: {ex.Message}");
             activity?.SetTag("error.type", ex.GetType().Name);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
@@ -346,13 +346,13 @@ public class MonitorService : IMonitorService
         stopwatch.Stop();
         if (response != null)
         {
-            RecordRefreshTelemetry(stopwatch.Elapsed, response.IsSuccessStatusCode);
+            this.RecordRefreshTelemetry(stopwatch.Elapsed, response.IsSuccessStatusCode);
             activity?.SetTag("http.status_code", (int)response.StatusCode);
             activity?.SetStatus(response.IsSuccessStatusCode ? ActivityStatusCode.Ok : ActivityStatusCode.Error);
             return response.IsSuccessStatusCode;
         }
 
-        RecordRefreshTelemetry(stopwatch.Elapsed, false);
+        this.RecordRefreshTelemetry(stopwatch.Elapsed, false);
         activity?.SetStatus(ActivityStatusCode.Error, "No response");
         return false;
     }

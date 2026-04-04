@@ -50,7 +50,6 @@ public class TokenDiscoveryService
         return discoveredConfigs;
     }
 
-
     private static IReadOnlyList<ProviderSessionTokenResolver> BuildSessionResolvers(
         ILogger<TokenDiscoveryService> logger,
         IAppPathProvider pathProvider)

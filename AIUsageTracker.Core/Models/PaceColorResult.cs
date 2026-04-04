@@ -10,6 +10,7 @@ namespace AIUsageTracker.Core.Models;
 /// callers should use for pace-related decisions.
 /// </summary>
 public readonly record struct PaceColorResult(
+
     /// <summary>Raw used percent (0–100). For non-pace-adjusted cards: compare against yellow/red thresholds. For pace-adjusted cards: tier drives color, this value is ignored.</summary>
     double ColorPercent,
 
