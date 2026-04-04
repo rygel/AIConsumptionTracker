@@ -25,37 +25,50 @@ public class OpenCodeZenProvider : ProviderBase
     };
 
     private static readonly Regex SeparatorRegex = new(
-        @"─{44,}",
+        @"[─━]{10,}",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
         TimeSpan.FromSeconds(1));
 
-    private static readonly Regex ModelUsageRegex = new(
-        @"(?<model>[^\n]+)\s+Messages\s+(?<messages>[0-9,]+)\s+Input Tokens\s+(?<input>[0-9.,KM]+)\s+Output Tokens\s+(?<output>[0-9.,KM]+)",
+    private static readonly Regex ToolUsageLineRegex = new(
+        @"(?<tool>[\w.-]+)\s+[█░▓▒]+\s*(?<count>[0-9]+)\s+\(\s*(?<percentage>[\d.]+)%\)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture | RegexOptions.NonBacktracking,
         TimeSpan.FromSeconds(1));
 
-    private static readonly Regex ToolUsageRegex = new(
-        @"(?<tool>\w+)\s+[█]+(?<count>[0-9]+)\s+\((?<percentage>[\d.]+)%\)",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture | RegexOptions.NonBacktracking,
-        TimeSpan.FromSeconds(1));
+    /// <summary>
+    /// Common installation paths for the opencode CLI, checked when PATH discovery fails.
+    /// Mirrors the fallback strategy from opencode-bar/scripts/query-opencode.sh.
+    /// </summary>
+    private static readonly string[] FallbackPaths = OperatingSystem.IsWindows()
+        ? new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm", "opencode.cmd"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "npm", "opencode.cmd"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".opencode", "bin", "opencode.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin", "opencode.exe"),
+        }
+        : new[]
+        {
+            "/opt/homebrew/bin/opencode",
+            "/usr/local/bin/opencode",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".opencode", "bin", "opencode"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin", "opencode"),
+            "/usr/bin/opencode",
+        };
 
     private readonly ILogger<OpenCodeZenProvider> _logger;
     private readonly TimeSpan _cliTimeout;
-    private string _cliPath;
+    private readonly string? _cliPathOverride;
 
     public OpenCodeZenProvider(ILogger<OpenCodeZenProvider> logger)
     {
         this._logger = logger;
         this._cliTimeout = DefaultCliTimeout;
-        this._cliPath = OperatingSystem.IsWindows()
-            ? @"C:\Users\Alexander\AppData\Roaming\npm\opencode.cmd"
-            : DefaultCliCommand;
     }
 
     public OpenCodeZenProvider(ILogger<OpenCodeZenProvider> logger, string cliPath, TimeSpan? cliTimeout = null)
         : this(logger)
     {
-        this._cliPath = cliPath;
+        this._cliPathOverride = cliPath;
         this._cliTimeout = cliTimeout ?? this._cliTimeout;
     }
 
@@ -86,19 +99,16 @@ public class OpenCodeZenProvider : ProviderBase
         Action<ProviderUsage>? progressCallback = null,
         CancellationToken cancellationToken = default)
     {
-        var pathExists = string.Equals(this._cliPath, DefaultCliCommand, StringComparison.OrdinalIgnoreCase)
-            ? await this.IsInPathAsync(DefaultCliCommand).ConfigureAwait(false)
-            : File.Exists(this._cliPath);
-
-        if (!pathExists)
+        var cliPath = await this.ResolveCliPathAsync().ConfigureAwait(false);
+        if (cliPath == null)
         {
             return new[]
             {
                 CreateUnavailableUsage(
                     this.ProviderId,
-                    "CLI not found at expected path",
+                    "CLI not found — install opencode or add it to PATH",
                     config.AuthSource,
-                    $"CLI not found at path: {this._cliPath}",
+                    "Searched: PATH, fallback paths: " + string.Join(", ", FallbackPaths),
                     404,
                     ProviderUsageState.Missing),
             };
@@ -106,7 +116,7 @@ public class OpenCodeZenProvider : ProviderBase
 
         try
         {
-            var output = await this.RunCliAsync().ConfigureAwait(false);
+            var output = await this.RunCliAsync(cliPath).ConfigureAwait(false);
             return new[] { this.ParseOutput(output, config) };
         }
         catch (Exception ex)
@@ -145,59 +155,6 @@ public class OpenCodeZenProvider : ProviderBase
             RawJson = rawJson,
             HttpStatus = httpStatus,
         };
-    }
-
-    private static ProviderUsage CreateUsage(
-        string providerId,
-        ProviderConfig config,
-        string rawOutput,
-        double totalCost,
-        int sessions,
-        int messages,
-        int days,
-        string metricsDescription)
-    {
-        return new ProviderUsage
-        {
-            ProviderId = providerId,
-            ProviderName = ProviderDisplayName,
-            UsedPercent = 0.0,
-            RequestsUsed = totalCost,
-            RequestsAvailable = 0.0,
-            IsCurrencyUsage = true,
-            IsQuotaBased = false,
-            PlanType = PlanType.Usage,
-            IsAvailable = true,
-            Description = string.Create(CultureInfo.InvariantCulture, $"${totalCost:F2} ({sessions} sessions, {messages} msgs, {days} days){metricsDescription}"),
-            AuthSource = config.AuthSource,
-            RawJson = rawOutput,
-            HttpStatus = 200,
-        };
-    }
-
-    private static string BuildMetricsDescription(string cleaned)
-    {
-        var inputTokens = ExtractTokenCount(cleaned, @"Input\s+([0-9.,KMB]+)");
-        var outputTokens = ExtractTokenCount(cleaned, @"Output\s+([0-9.,KMB]+)");
-        var avgCostPerDay = ParseValue<double>(cleaned, @"Avg Cost/Day\s+\$([0-9.]+)");
-
-        var parts = new List<string>();
-        if (inputTokens > 0)
-        {
-            parts.Add($"In:{FormatTokens(inputTokens)}");
-        }
-
-        if (outputTokens > 0)
-        {
-            parts.Add($"Out:{FormatTokens(outputTokens)}");
-        }
-
-        if (avgCostPerDay > 0)
-        {
-            parts.Add(string.Create(CultureInfo.InvariantCulture, $"Avg/day:${avgCostPerDay:F2}"));
-        }
-
-        return parts.Count > 0 ? " | " + string.Join(" | ", parts) : string.Empty;
     }
 
     private static string CleanAnsiOutput(string output)
@@ -270,54 +227,183 @@ public class OpenCodeZenProvider : ProviderBase
         return tokens.ToString("F0", CultureInfo.InvariantCulture);
     }
 
-    private static List<ModelUsage> ParseModelUsage(string input)
+    private static List<ModelUsageEntry> ParseModelUsage(string cleaned)
     {
-        var modelBlocks = SeparatorRegex.Split(input)
-            .SkipWhile(block => !block.Contains("MODEL USAGE", StringComparison.Ordinal))
-            .Skip(1)
-            .FirstOrDefault();
-        if (string.IsNullOrEmpty(modelBlocks))
+        var results = new List<ModelUsageEntry>();
+        var sections = SeparatorRegex.Split(cleaned);
+
+        // Find MODEL USAGE section — blocks between the header and the next major section
+        var inModelSection = false;
+        foreach (var section in sections)
         {
-            return new List<ModelUsage>();
+            if (section.Contains("MODEL USAGE", StringComparison.Ordinal))
+            {
+                inModelSection = true;
+                continue;
+            }
+
+            if (inModelSection && (section.Contains("TOOL USAGE", StringComparison.Ordinal) ||
+                                   section.Contains("OVERVIEW", StringComparison.Ordinal) ||
+                                   section.Contains("COST & TOKENS", StringComparison.Ordinal)))
+            {
+                break;
+            }
+
+            if (!inModelSection)
+            {
+                continue;
+            }
+
+            // Each block is one model — extract fields line by line
+            var lines = section.Split('\n')
+                .Select(l => StripBoxDrawingChars(l).Trim())
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .ToList();
+
+            if (lines.Count == 0)
+            {
+                continue;
+            }
+
+            // First line is model name (e.g. "opencode-go/kimi-k2.5")
+            var modelName = lines[0].Trim();
+            if (string.IsNullOrWhiteSpace(modelName) ||
+                modelName.Contains("MODEL USAGE", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var entry = new ModelUsageEntry { Name = modelName };
+            foreach (var line in lines.Skip(1))
+            {
+                if (line.StartsWith("Messages", StringComparison.OrdinalIgnoreCase))
+                {
+                    entry.Messages = ParseValue<int>(line, @"Messages\s+([0-9,]+)");
+                }
+                else if (line.StartsWith("Input Tokens", StringComparison.OrdinalIgnoreCase))
+                {
+                    entry.InputTokens = ExtractTokenCount(line, @"Input Tokens\s+([0-9.,KMBT]+)");
+                }
+                else if (line.StartsWith("Output Tokens", StringComparison.OrdinalIgnoreCase))
+                {
+                    entry.OutputTokens = ExtractTokenCount(line, @"Output Tokens\s+([0-9.,KMBT]+)");
+                }
+                else if (line.StartsWith("Cache Read", StringComparison.OrdinalIgnoreCase))
+                {
+                    entry.CacheReadTokens = ExtractTokenCount(line, @"Cache Read\s+([0-9.,KMBT]+)");
+                }
+                else if (line.StartsWith("Cost", StringComparison.OrdinalIgnoreCase))
+                {
+                    entry.Cost = ParseValue<double>(line, @"Cost\s+\$([0-9.]+)");
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(entry.Name))
+            {
+                results.Add(entry);
+            }
         }
 
-        return ModelUsageRegex.Matches(modelBlocks)
-            .Cast<Match>()
-            .Select(match => new ModelUsage
-            {
-                Name = match.Groups["model"].Value.Trim(),
-                Messages = int.Parse(
-                    match.Groups["messages"].Value.Replace(",", string.Empty, StringComparison.Ordinal),
-                    NumberStyles.Any,
-                    CultureInfo.InvariantCulture),
-                Tokens = ParseTokenCount(match.Groups["input"].Value) + ParseTokenCount(match.Groups["output"].Value),
-                Cost = 0.0,
-            })
-            .OrderByDescending(model => model.Cost)
-            .ToList();
+        return results.OrderByDescending(m => m.Cost).ThenByDescending(m => m.Messages).ToList();
     }
 
-    private static List<ToolUsage> ParseToolUsage(string input)
+    private static List<ToolUsageEntry> ParseToolUsage(string cleaned)
     {
-        var toolBlocks = SeparatorRegex.Split(input)
+        var sections = SeparatorRegex.Split(cleaned);
+        var toolSection = sections
             .SkipWhile(block => !block.Contains("TOOL USAGE", StringComparison.Ordinal))
             .Skip(1)
             .FirstOrDefault();
-        if (string.IsNullOrEmpty(toolBlocks))
+
+        if (string.IsNullOrEmpty(toolSection))
         {
-            return new List<ToolUsage>();
+            return new List<ToolUsageEntry>();
         }
 
-        return ToolUsageRegex.Matches(toolBlocks)
-            .Cast<Match>()
-            .Select(match => new ToolUsage
+        // Parse line by line — tool lines contain bar chars followed by count and percentage
+        var results = new List<ToolUsageEntry>();
+        foreach (var rawLine in toolSection.Split('\n'))
+        {
+            var line = StripBoxDrawingChars(rawLine).Trim();
+            var match = ToolUsageLineRegex.Match(line);
+            if (match.Success)
             {
-                Name = match.Groups["tool"].Value,
-                Count = int.Parse(match.Groups["count"].Value, NumberStyles.Any, CultureInfo.InvariantCulture),
-                Percentage = double.Parse(match.Groups["percentage"].Value, NumberStyles.Any, CultureInfo.InvariantCulture),
-            })
-            .OrderByDescending(tool => tool.Count)
-            .ToList();
+                results.Add(new ToolUsageEntry
+                {
+                    Name = match.Groups["tool"].Value,
+                    Count = int.Parse(match.Groups["count"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture),
+                    Percentage = double.Parse(match.Groups["percentage"].Value, NumberStyles.Float, CultureInfo.InvariantCulture),
+                });
+            }
+        }
+
+        return results.OrderByDescending(t => t.Count).ToList();
+    }
+
+    private static string BuildDescription(
+        double totalCost,
+        int sessions,
+        int messages,
+        int days,
+        double inputTokens,
+        double outputTokens,
+        double avgCostPerDay,
+        List<ModelUsageEntry> models,
+        List<ToolUsageEntry> tools)
+    {
+        var parts = new List<string>
+        {
+            string.Create(CultureInfo.InvariantCulture, $"${totalCost:F2} ({sessions} sessions, {messages} msgs, {days} days)"),
+        };
+
+        // Token summary
+        var tokenParts = new List<string>();
+        if (inputTokens > 0)
+        {
+            tokenParts.Add($"In:{FormatTokens(inputTokens)}");
+        }
+
+        if (outputTokens > 0)
+        {
+            tokenParts.Add($"Out:{FormatTokens(outputTokens)}");
+        }
+
+        if (avgCostPerDay > 0)
+        {
+            tokenParts.Add(string.Create(CultureInfo.InvariantCulture, $"Avg/day:${avgCostPerDay:F2}"));
+        }
+
+        if (tokenParts.Count > 0)
+        {
+            parts.Add(string.Join(" | ", tokenParts));
+        }
+
+        // Model breakdown (top 3)
+        if (models.Count > 0)
+        {
+            var modelSummaries = models.Take(3).Select(m =>
+            {
+                var costStr = m.Cost > 0
+                    ? string.Create(CultureInfo.InvariantCulture, $" ${m.Cost:F2}")
+                    : string.Empty;
+                return $"{m.Name} ({m.Messages}msgs{costStr})";
+            });
+            parts.Add("Models: " + string.Join(", ", modelSummaries));
+        }
+
+        // Tool summary (top 5)
+        if (tools.Count > 0)
+        {
+            var toolSummaries = tools.Take(5).Select(t => $"{t.Name}:{t.Count}");
+            parts.Add("Tools: " + string.Join(" ", toolSummaries));
+        }
+
+        return string.Join(" | ", parts);
+    }
+
+    private static string StripBoxDrawingChars(string input)
+    {
+        return new string(input.Where(c => c < '\u2500' || c > '\u257F').ToArray());
     }
 
     private static double ParseTokenCount(string value)
@@ -346,12 +432,57 @@ public class OpenCodeZenProvider : ProviderBase
         return double.Parse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture);
     }
 
-    private async Task<string> RunCliAsync()
+    private async Task<string?> ResolveCliPathAsync()
+    {
+        // If an explicit path was set (e.g. for testing), use it directly
+        if (!string.IsNullOrEmpty(this._cliPathOverride))
+        {
+            return File.Exists(this._cliPathOverride) ? this._cliPathOverride : null;
+        }
+
+        // Strategy 1: Check if opencode is in PATH
+        if (await this.IsInPathAsync(DefaultCliCommand).ConfigureAwait(false))
+        {
+            var resolved = await this.ResolvePathLocationAsync(DefaultCliCommand).ConfigureAwait(false);
+            if (resolved != null)
+            {
+                this._logger.LogDebug("Found opencode via PATH: {Path}", resolved);
+                return resolved;
+            }
+
+            return DefaultCliCommand;
+        }
+
+        // Strategy 2: Try via login shell (macOS/Linux — picks up paths from .zshrc/.bashrc)
+        if (!OperatingSystem.IsWindows())
+        {
+            var loginShellPath = await this.ResolveViaLoginShellAsync().ConfigureAwait(false);
+            if (loginShellPath != null)
+            {
+                this._logger.LogDebug("Found opencode via login shell: {Path}", loginShellPath);
+                return loginShellPath;
+            }
+        }
+
+        // Strategy 3: Check common fallback installation paths
+        foreach (var candidate in FallbackPaths)
+        {
+            if (File.Exists(candidate))
+            {
+                this._logger.LogDebug("Found opencode via fallback path: {Path}", candidate);
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<string> RunCliAsync(string cliPath)
     {
         var processStartInfo = new ProcessStartInfo
         {
-            FileName = this._cliPath,
-            Arguments = "stats --days 7 --models 10",
+            FileName = cliPath,
+            Arguments = "stats --days 7 --models 10 --tools 10",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -401,13 +532,45 @@ public class OpenCodeZenProvider : ProviderBase
     private ProviderUsage ParseOutput(string output, ProviderConfig config)
     {
         var cleaned = CleanAnsiOutput(output);
+
+        // Overview
         var totalCost = ParseValue<double>(cleaned, @"Total Cost\s+\$([0-9.]+)");
         var sessions = ParseValue<int>(cleaned, @"Sessions\s+([0-9,]+)");
         var messages = ParseValue<int>(cleaned, @"Messages\s+([0-9,]+)");
         var days = ParseValue<int>(cleaned, @"Days\s+(\d+)");
-        var metricsDescription = BuildMetricsDescription(cleaned);
 
-        return CreateUsage(this.ProviderId, config, output, totalCost, sessions, messages, days, metricsDescription);
+        // Token summary
+        // Use [0-9.,KMB] without T — "Input Tokens" in model blocks won't match because
+        // 'T' in "Tokens" isn't in the char class, so only the summary "Input 8.4M" matches.
+        var inputTokens = ExtractTokenCount(cleaned, @"Input\s+([0-9.,KMB]+)");
+        var outputTokens = ExtractTokenCount(cleaned, @"Output\s+([0-9.,KMB]+)");
+        var avgCostPerDay = ParseValue<double>(cleaned, @"Avg Cost/Day\s+\$([0-9.]+)");
+
+        // Breakdowns
+        var models = ParseModelUsage(cleaned);
+        var tools = ParseToolUsage(cleaned);
+
+        var description = BuildDescription(
+            totalCost, sessions, messages, days,
+            inputTokens, outputTokens, avgCostPerDay,
+            models, tools);
+
+        return new ProviderUsage
+        {
+            ProviderId = this.ProviderId,
+            ProviderName = ProviderDisplayName,
+            UsedPercent = 0.0,
+            RequestsUsed = totalCost,
+            RequestsAvailable = 0.0,
+            IsCurrencyUsage = true,
+            IsQuotaBased = false,
+            PlanType = PlanType.Usage,
+            IsAvailable = true,
+            Description = description,
+            AuthSource = config.AuthSource,
+            RawJson = output,
+            HttpStatus = 200,
+        };
     }
 
     private async Task<bool> IsInPathAsync(string command)
@@ -447,18 +610,97 @@ public class OpenCodeZenProvider : ProviderBase
         }
     }
 
-    private sealed class ModelUsage
+    /// <summary>
+    /// Strategy 2 from opencode-bar/scripts/query-opencode.sh: try the user's login shell
+    /// to pick up PATH entries from .zshrc/.bashrc that non-login processes don't inherit.
+    /// </summary>
+    private async Task<string?> ResolveViaLoginShellAsync()
+    {
+        try
+        {
+            var shell = Environment.GetEnvironmentVariable("SHELL") ?? "/bin/zsh";
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = shell,
+                Arguments = "-lc \"which opencode 2>/dev/null\"",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = Process.Start(processStartInfo);
+            if (process == null)
+            {
+                return null;
+            }
+
+            var output = await process.StandardOutput.ReadLineAsync().ConfigureAwait(false);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+
+            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+            {
+                var resolved = output.Trim();
+                if (File.Exists(resolved))
+                {
+                    return resolved;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            this._logger.LogDebug("Login shell discovery failed: {Message}", ex.Message);
+        }
+
+        return null;
+    }
+
+    private async Task<string?> ResolvePathLocationAsync(string command)
+    {
+        try
+        {
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = OperatingSystem.IsWindows() ? "where" : "which",
+                Arguments = command,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = Process.Start(processStartInfo);
+            if (process == null)
+            {
+                return null;
+            }
+
+            var output = await process.StandardOutput.ReadLineAsync().ConfigureAwait(false);
+            using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await process.WaitForExitAsync(cancellationTokenSource.Token).ConfigureAwait(false);
+            return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) ? output.Trim() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    internal sealed class ModelUsageEntry
     {
         public string Name { get; set; } = string.Empty;
 
         public int Messages { get; set; }
 
-        public double Tokens { get; set; }
+        public double InputTokens { get; set; }
+
+        public double OutputTokens { get; set; }
+
+        public double CacheReadTokens { get; set; }
 
         public double Cost { get; set; }
     }
 
-    private sealed class ToolUsage
+    internal sealed class ToolUsageEntry
     {
         public string Name { get; set; } = string.Empty;
 

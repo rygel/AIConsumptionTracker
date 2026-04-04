@@ -217,7 +217,11 @@ public partial class SettingsWindow
             Foreground = res["PrimaryText"] as Brush ?? Brushes.White,
             BorderBrush = res["ControlBorder"] as Brush ?? Brushes.Gray,
         };
-        okButton.Click += (_, _) => { dialog.DialogResult = true; dialog.Close(); };
+        okButton.Click += (_, _) =>
+        {
+            dialog.DialogResult = true;
+            dialog.Close();
+        };
 
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock
@@ -293,7 +297,7 @@ public partial class SettingsWindow
 
     private void CardSavePresetBtn_Click(object sender, RoutedEventArgs e)
     {
-        var name = PromptForName("Save Preset", "Preset name:");
+        var name = this.PromptForName("Save Preset", "Preset name:");
         if (string.IsNullOrWhiteSpace(name))
         {
             return;

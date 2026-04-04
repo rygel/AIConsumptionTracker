@@ -84,7 +84,6 @@ public partial class App
                     enablePaceAdjustment);
                 desiredIcons[config.ProviderId] = ($"{providerLabel}: {statusText}", usage.RemainingPercent, paceColor, isQuota);
             }
-
         }
 
         return desiredIcons;
@@ -257,4 +256,3 @@ public partial class App
         this._mainWindow.Activate();
     }
 }
-

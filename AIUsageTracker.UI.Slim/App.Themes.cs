@@ -14,7 +14,7 @@ public partial class App
 #pragma warning disable MA0051 // Theme application is intentionally a single palette table.
     private static readonly Dictionary<AppTheme, Dictionary<string, Color>> ThemePalettes = new()
     {
-        [AppTheme.Light] = new()
+        [AppTheme.Light] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(245, 245, 245),
             ["HeaderBackground"] = Color.FromRgb(229, 229, 229),
@@ -45,7 +45,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(140, 140, 140),
             ["LinkForeground"] = Color.FromRgb(37, 99, 235),
         },
-        [AppTheme.Corporate] = new()
+        [AppTheme.Corporate] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(15, 23, 42),
             ["HeaderBackground"] = Color.FromRgb(30, 41, 59),
@@ -76,7 +76,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(148, 163, 184),
             ["LinkForeground"] = Color.FromRgb(96, 165, 250),
         },
-        [AppTheme.Midnight] = new()
+        [AppTheme.Midnight] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(10, 10, 10),
             ["HeaderBackground"] = Color.FromRgb(20, 20, 20),
@@ -107,7 +107,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(115, 115, 115),
             ["LinkForeground"] = Color.FromRgb(165, 180, 252),
         },
-        [AppTheme.Dracula] = new()
+        [AppTheme.Dracula] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(40, 42, 54),
             ["HeaderBackground"] = Color.FromRgb(33, 34, 44),
@@ -138,7 +138,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(139, 233, 253),
             ["LinkForeground"] = Color.FromRgb(139, 233, 253),
         },
-        [AppTheme.Nord] = new()
+        [AppTheme.Nord] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(46, 52, 64),
             ["HeaderBackground"] = Color.FromRgb(59, 66, 82),
@@ -169,7 +169,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(129, 161, 193),
             ["LinkForeground"] = Color.FromRgb(136, 192, 208),
         },
-        [AppTheme.Monokai] = new()
+        [AppTheme.Monokai] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(39, 40, 34),
             ["HeaderBackground"] = Color.FromRgb(30, 31, 28),
@@ -200,7 +200,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(166, 226, 46),
             ["LinkForeground"] = Color.FromRgb(102, 217, 239),
         },
-        [AppTheme.OneDark] = new()
+        [AppTheme.OneDark] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(40, 44, 52),
             ["HeaderBackground"] = Color.FromRgb(33, 37, 43),
@@ -231,7 +231,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(92, 99, 112),
             ["LinkForeground"] = Color.FromRgb(97, 175, 239),
         },
-        [AppTheme.SolarizedDark] = new()
+        [AppTheme.SolarizedDark] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(0, 43, 54),
             ["HeaderBackground"] = Color.FromRgb(7, 54, 66),
@@ -262,7 +262,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(101, 123, 131),
             ["LinkForeground"] = Color.FromRgb(42, 161, 152),
         },
-        [AppTheme.SolarizedLight] = new()
+        [AppTheme.SolarizedLight] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(253, 246, 227),
             ["HeaderBackground"] = Color.FromRgb(238, 232, 213),
@@ -293,7 +293,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(101, 123, 131),
             ["LinkForeground"] = Color.FromRgb(42, 161, 152),
         },
-        [AppTheme.CatppuccinMocha] = new()
+        [AppTheme.CatppuccinMocha] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(30, 30, 46),
             ["HeaderBackground"] = Color.FromRgb(24, 24, 37),
@@ -324,7 +324,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(127, 132, 156),
             ["LinkForeground"] = Color.FromRgb(137, 180, 250),
         },
-        [AppTheme.CatppuccinFrappe] = new()
+        [AppTheme.CatppuccinFrappe] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(48, 52, 70),
             ["HeaderBackground"] = Color.FromRgb(41, 44, 60),
@@ -355,7 +355,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(148, 156, 187),
             ["LinkForeground"] = Color.FromRgb(140, 170, 238),
         },
-        [AppTheme.CatppuccinMacchiato] = new()
+        [AppTheme.CatppuccinMacchiato] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(36, 39, 58),
             ["HeaderBackground"] = Color.FromRgb(30, 32, 48),
@@ -386,7 +386,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(147, 154, 183),
             ["LinkForeground"] = Color.FromRgb(138, 173, 244),
         },
-        [AppTheme.CatppuccinLatte] = new()
+        [AppTheme.CatppuccinLatte] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(239, 241, 245),
             ["HeaderBackground"] = Color.FromRgb(230, 233, 239),
@@ -417,7 +417,7 @@ public partial class App
             ["ScrollBarHover"] = Color.FromRgb(108, 111, 133),
             ["LinkForeground"] = Color.FromRgb(30, 102, 245),
         },
-        [AppTheme.Dark] = new()
+        [AppTheme.Dark] = new(StringComparer.Ordinal)
         {
             ["Background"] = Color.FromRgb(26, 26, 26),
             ["HeaderBackground"] = Color.FromRgb(36, 36, 36),

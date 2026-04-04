@@ -90,19 +90,21 @@ public class AntigravityProvider : ProviderBase
                             this._logger.LogDebug("Antigravity reset time passed while offline; status is unknown until reconnect");
                             description += " (Status unknown until next Antigravity refresh)";
 
-                            return this.WithOfflineChildren(new ProviderUsage
-                            {
-                                ProviderId = this.ProviderId,
-                                ProviderName = this.Definition.DisplayName,
-                                IsAvailable = true,
-                                UsedPercent = 0,
-                                RequestsUsed = 0,
-                                RequestsAvailable = this._cachedUsage.RequestsAvailable,
-                                AccountName = this._cachedUsage.AccountName,
-                                Description = description,
-                                IsQuotaBased = this.Definition.IsQuotaBased,
-                                PlanType = this.Definition.PlanType,
-                            }, config);
+                            return this.WithOfflineChildren(
+                                new ProviderUsage
+                                {
+                                    ProviderId = this.ProviderId,
+                                    ProviderName = this.Definition.DisplayName,
+                                    IsAvailable = true,
+                                    UsedPercent = 0,
+                                    RequestsUsed = 0,
+                                    RequestsAvailable = this._cachedUsage.RequestsAvailable,
+                                    AccountName = this._cachedUsage.AccountName,
+                                    Description = description,
+                                    IsQuotaBased = this.Definition.IsQuotaBased,
+                                    PlanType = this.Definition.PlanType,
+                                },
+                                config);
                         }
                     }
 
@@ -111,19 +113,21 @@ public class AntigravityProvider : ProviderBase
                         description += " (Usage unknown until next Antigravity refresh)";
                     }
 
-                    return this.WithOfflineChildren(new ProviderUsage
-                    {
-                        ProviderId = this.ProviderId,
-                        ProviderName = this.Definition.DisplayName,
-                        IsAvailable = true,
-                        UsedPercent = 0,
-                        RequestsUsed = 0,
-                        RequestsAvailable = this._cachedUsage.RequestsAvailable,
-                        AccountName = this._cachedUsage.AccountName,
-                        Description = description,
-                        IsQuotaBased = this.Definition.IsQuotaBased,
-                        PlanType = this.Definition.PlanType,
-                    }, config);
+                    return this.WithOfflineChildren(
+                        new ProviderUsage
+                        {
+                            ProviderId = this.ProviderId,
+                            ProviderName = this.Definition.DisplayName,
+                            IsAvailable = true,
+                            UsedPercent = 0,
+                            RequestsUsed = 0,
+                            RequestsAvailable = this._cachedUsage.RequestsAvailable,
+                            AccountName = this._cachedUsage.AccountName,
+                            Description = description,
+                            IsQuotaBased = this.Definition.IsQuotaBased,
+                            PlanType = this.Definition.PlanType,
+                        },
+                        config);
                 }
                 else
                 {

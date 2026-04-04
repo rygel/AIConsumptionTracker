@@ -361,7 +361,6 @@ public class JsonConfigLoader : IConfigLoader
                 existing.BaseUrl = discoveredConfig.BaseUrl;
             }
         }
-
     }
 
     private void EnsureParentDirectoryExists(string path)

@@ -869,7 +869,6 @@ public partial class MainWindow : Window
         }
     }
 
-
     private void OnKeyDown(object sender, KeyEventArgs e)
     {
         if (e.KeyboardDevice.Modifiers == ModifierKeys.Control)
@@ -906,4 +905,3 @@ public partial class MainWindow : Window
         }
     }
 }
-

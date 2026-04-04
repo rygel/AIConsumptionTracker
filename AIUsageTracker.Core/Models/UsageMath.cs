@@ -2,6 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace AIUsageTracker.Core.Models;
@@ -324,7 +325,7 @@ public static class UsageMath
 
         if (local.Date == DateTime.Today)
         {
-            return local.ToString("HH:mm");
+            return local.ToString("HH:mm", CultureInfo.InvariantCulture);
         }
 
         if (local.Date == DateTime.Today.AddDays(1))

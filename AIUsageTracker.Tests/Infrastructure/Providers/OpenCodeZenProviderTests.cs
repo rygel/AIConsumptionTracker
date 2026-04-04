@@ -226,6 +226,30 @@ public class OpenCodeZenProviderTests : HttpProviderTestBase<OpenCodeZenProvider
     }
 
     [Fact]
+    public void ParseOutput_CapturedFixture_ExtractsModelUsage()
+    {
+        var usage = this.InvokeParseOutput(CapturedCliOutput);
+
+        Assert.Contains("Models:", usage.Description, StringComparison.Ordinal);
+        Assert.Contains("opencode-go/kimi-k2.5", usage.Description, StringComparison.Ordinal);
+        Assert.Contains("323msgs", usage.Description, StringComparison.Ordinal);
+        Assert.Contains("$4.77", usage.Description, StringComparison.Ordinal);
+        Assert.Contains("opencode/mimo-v2-pro-free", usage.Description, StringComparison.Ordinal);
+        Assert.Contains("800msgs", usage.Description, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ParseOutput_CapturedFixture_ExtractsToolUsage()
+    {
+        var usage = this.InvokeParseOutput(CapturedCliOutput);
+
+        Assert.Contains("Tools:", usage.Description, StringComparison.Ordinal);
+        Assert.Contains("bash:331", usage.Description, StringComparison.Ordinal);
+        Assert.Contains("read:263", usage.Description, StringComparison.Ordinal);
+        Assert.Contains("edit:254", usage.Description, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ParseOutput_MinimalOutput_ParsesZeroCostCorrectly()
     {
         var usage = this.InvokeParseOutput(MinimalCliOutput);
