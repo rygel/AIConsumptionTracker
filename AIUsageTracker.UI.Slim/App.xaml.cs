@@ -183,6 +183,7 @@ public partial class App : Application
 
         // ViewModels
         services.AddSingleton<MainViewModel>();
+
         // Windows
         services.AddSingleton<MainWindow>();
         services.AddTransient<SettingsWindow>();

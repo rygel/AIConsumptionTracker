@@ -2,6 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Globalization;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
 
@@ -285,8 +286,8 @@ internal static partial class MainWindowRuntimeLogic
             var elapsedDays = UsageMath.GetElapsedDays(usage.NextResetTime, usage.PeriodDuration);
             var expectedAtThisPoint = dailyBudget * elapsedDays;
             tooltipBuilder.AppendLine();
-            tooltipBuilder.AppendLine($"Daily budget: {dailyBudget:F0}%/day");
-            tooltipBuilder.AppendLine($"Expected by now: {expectedAtThisPoint:F0}% | Actual: {usage.UsedPercent:F0}%");
+            tooltipBuilder.AppendLine(CultureInfo.InvariantCulture, $"Daily budget: {dailyBudget:F0}%/day");
+            tooltipBuilder.AppendLine(CultureInfo.InvariantCulture, $"Expected by now: {expectedAtThisPoint:F0}% | Actual: {usage.UsedPercent:F0}%");
         }
 
         if (!string.IsNullOrEmpty(usage.AuthSource))
