@@ -851,6 +851,10 @@ public partial class SettingsWindow : Window
                 }
             }
 
+            // Invalidate the ETag cache so the next GetGroupedUsageAsync call
+            // fetches fresh data reflecting config changes instead of a stale 304.
+            this._monitorService.InvalidateGroupedUsageCache();
+
             if (removedProviderIds.Count > 0)
             {
                 this._configs.RemoveAll(c => removedProviderIds.Contains(c.ProviderId, StringComparer.OrdinalIgnoreCase));

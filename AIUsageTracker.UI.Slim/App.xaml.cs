@@ -120,7 +120,13 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            Host.Services.GetRequiredService<ILogger<App>>().LogWarning(ex, "Failed to load preferences on startup.");
+            var logger = Host.Services.GetRequiredService<ILogger<App>>();
+            logger.LogError(ex, "Failed to load preferences from disk");
+            MessageBox.Show(
+                $"Could not load preferences:\n{ex.Message}\n\nThe application will start with default settings.",
+                "Preferences Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
             Preferences = new AppPreferences();
         }
 
