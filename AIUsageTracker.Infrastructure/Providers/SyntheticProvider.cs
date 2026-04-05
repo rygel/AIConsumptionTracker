@@ -58,8 +58,8 @@ public sealed class SyntheticProvider : ProviderBase
         {
             using var request = CreateBearerRequest(HttpMethod.Get, endpoint, config.ApiKey);
 
-            using var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
-            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            using var response = await this._httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {

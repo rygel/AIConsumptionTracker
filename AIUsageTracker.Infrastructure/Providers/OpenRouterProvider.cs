@@ -68,9 +68,9 @@ public class OpenRouterProvider : ProviderBase
 
             var request = CreateBearerRequest(HttpMethod.Get, "https://openrouter.ai/api/v1/credits", config.ApiKey);
 
-            var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
+            var response = await this._httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             httpStatus = (int)response.StatusCode;
-            creditsResponseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            creditsResponseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
             this._logger.LogDebug("OpenRouter credits API response status: {StatusCode}", response.StatusCode);
             this._logger.LogTrace("OpenRouter credits API response body: {ResponseBody}", creditsResponseBody);
@@ -135,8 +135,8 @@ public class OpenRouterProvider : ProviderBase
 
             var keyRequest = CreateBearerRequest(HttpMethod.Get, "https://openrouter.ai/api/v1/key", config.ApiKey);
 
-            var keyResponse = await this._httpClient.SendAsync(keyRequest).ConfigureAwait(false);
-            var keyResponseBody = await keyResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+            var keyResponse = await this._httpClient.SendAsync(keyRequest, cancellationToken).ConfigureAwait(false);
+            var keyResponseBody = await keyResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
             this._logger.LogDebug("OpenRouter key API response status: {StatusCode}", keyResponse.StatusCode);
             this._logger.LogTrace("OpenRouter key API response body: {ResponseBody}", keyResponseBody);

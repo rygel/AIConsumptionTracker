@@ -137,8 +137,8 @@ public class CodexProvider : ProviderBase
             knownAccountIdentity = ResolveKnownAccountIdentity(email, authIdentity, accountId);
 
             using var request = CreateUsageRequest(resolvedAccessToken, accountId);
-            using var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
-            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            using var response = await this._httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {
