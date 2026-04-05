@@ -43,7 +43,11 @@ public static class SessionIdentityHelper
             using var doc = JsonDocument.Parse(json);
             return doc.RootElement.Clone();
         }
-        catch
+        catch (FormatException)
+        {
+            return null;
+        }
+        catch (System.Text.Json.JsonException)
         {
             return null;
         }
