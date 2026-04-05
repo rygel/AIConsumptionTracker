@@ -60,8 +60,8 @@ public class DeepSeekProvider : ProviderBase
             var request = CreateBearerRequest(HttpMethod.Get, "https://api.deepseek.com/user/balance", config.ApiKey);
             request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 
-            var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
-            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            var response = await this._httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {

@@ -62,10 +62,10 @@ public class XiaomiProvider : ProviderBase
             // Endpoint based on research/best-guess
             var request = CreateBearerRequest(HttpMethod.Get, "https://api.xiaomimimo.com/v1/user/balance", config.ApiKey);
 
-            var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
+            var response = await this._httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
 
-            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             var data = DeserializeJsonOrDefault<XiaomiResponse>(content);
 
             if (data == null || data.Data == null)

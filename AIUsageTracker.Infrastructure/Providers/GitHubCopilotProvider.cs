@@ -98,7 +98,7 @@ public class GitHubCopilotProvider : ProviderBase
         try
         {
             using var request = CreateBearerRequest("https://api.github.com/user", token);
-            using var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
+            using var response = await this._httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             state.HttpStatus = (int)response.StatusCode;
 
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
