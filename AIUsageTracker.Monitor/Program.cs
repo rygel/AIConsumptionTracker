@@ -176,7 +176,7 @@ public class Program
                 options.AddDefaultPolicy(policy =>
                 {
                     policy.WithOrigins("http://localhost:5100", "http://localhost:5000") // Explicit origins for SignalR/CORS safety
-                          .WithMethods("GET", "POST")
+                          .WithMethods("GET", "POST", "DELETE")
                           .WithHeaders("Content-Type", "Authorization", "X-Requested-With")
                           .AllowCredentials(); // Required for SignalR with WebSockets/Long Polling
                 });

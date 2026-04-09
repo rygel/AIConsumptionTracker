@@ -82,7 +82,7 @@ public class Program
             Console.WriteLine("  history      Show usage history");
             Console.WriteLine("    [days]     Number of days to show (default: 7)");
             Console.WriteLine("  list         List configured providers");
-            Console.WriteLine("  set-key      Set an API key: set-key <provider-id> <api-key>");
+            Console.WriteLine("  set-key      Set an API key: set-key <provider-id> [api-key]");
             Console.WriteLine("  remove-key   Remove a provider: remove-key <provider-id>");
             Console.WriteLine("  scan         Scan for API keys from other applications");
             Console.WriteLine("  config       Manage preferences: config [key] [value]");
