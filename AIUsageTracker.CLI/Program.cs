@@ -115,13 +115,30 @@ public class Program
                 await ShowListAsync(agentService, json).ConfigureAwait(false);
                 break;
             case "set-key":
-                if (args.Length < 3)
+                if (args.Length < 2)
                 {
-                    Console.WriteLine("Usage: act set-key <provider-id> <api-key>");
+                    Console.WriteLine("Usage: act set-key <provider-id> [api-key]");
+                    Console.WriteLine("  If api-key is omitted, you will be prompted to enter it.");
                     return;
                 }
 
-                await SetKeyAsync(agentService, args[1], args[2]).ConfigureAwait(false);
+                string apiKeyArg;
+                if (args.Length >= 3)
+                {
+                    apiKeyArg = args[2];
+                }
+                else
+                {
+                    Console.Write($"Enter API key for '{args[1]}': ");
+                    apiKeyArg = Console.ReadLine() ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(apiKeyArg))
+                    {
+                        Console.WriteLine("No key entered. Aborting.");
+                        return;
+                    }
+                }
+
+                await SetKeyAsync(agentService, args[1], apiKeyArg).ConfigureAwait(false);
                 break;
             case "remove-key":
                 if (args.Length < 2)
