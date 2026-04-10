@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -639,9 +641,13 @@ public partial class SettingsWindow
         sourceLine.Inlines.Add(new System.Windows.Documents.Run(sourceLabel));
         panel.Children.Add(sourceLine);
 
-        // File path lines (one per path, selectable for copy)
+        // File path lines (one per path, selectable for copy + open button)
         foreach (var path in paths)
         {
+            var row = new Grid { Margin = new Thickness(0, 0, 0, 1) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
             var pathBox = new TextBox
             {
                 Text = path,
@@ -650,13 +656,30 @@ public partial class SettingsWindow
                 BorderThickness = new Thickness(0),
                 Background = System.Windows.Media.Brushes.Transparent,
                 Padding = new Thickness(0),
-                Margin = new Thickness(0, 0, 0, 1),
+                Margin = new Thickness(0, 0, 4, 0),
                 TextWrapping = TextWrapping.NoWrap,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
                 ToolTip = path,
+                VerticalAlignment = VerticalAlignment.Center,
             };
             pathBox.SetResourceReference(TextBox.ForegroundProperty, "TertiaryText");
-            panel.Children.Add(pathBox);
+            Grid.SetColumn(pathBox, 0);
+            row.Children.Add(pathBox);
+
+            var openButton = new Button
+            {
+                Content = "Open",
+                FontSize = 8,
+                Padding = new Thickness(4, 1, 4, 1),
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = File.Exists(path) ? $"Open {path}" : $"Open folder containing {path}",
+            };
+            var capturedPath = path;
+            openButton.Click += (_, _) => OpenPathInExplorer(capturedPath);
+            Grid.SetColumn(openButton, 1);
+            row.Children.Add(openButton);
+
+            panel.Children.Add(row);
         }
 
         // Removal hint
@@ -675,6 +698,39 @@ public partial class SettingsWindow
         }
 
         return panel;
+    }
+
+    private static void OpenPathInExplorer(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{path}\"",
+                    UseShellExecute = true,
+                });
+            }
+            else
+            {
+                var dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"\"{dir}\"",
+                        UseShellExecute = true,
+                    });
+                }
+            }
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // If shell open fails, silently ignore — the path is still selectable for manual navigation.
+        }
     }
 
     private static (string? SourceLabel, string? RemovalHint, IReadOnlyList<string> Paths) ResolveAuthSourceDisplay(string? authSource)
