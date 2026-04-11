@@ -55,12 +55,12 @@ Download the latest installer or .zip file from the [Release](https://github.com
 
 | Provider                         | Integration         | Status              | Comment                                                      |
 |:---------------------------------|:--------------------|:--------------------|--------------------------------------------------------------|
-| **Antigravity**                  | via Antigravity GUI | ✅ Tested            |                                                              |
-| **Claude Code**                  |                     | ⚠️ partially tested | Testers welcome                                              |
+| **Antigravity**                  | via Antigravity GUI | ✅ Tested           |                                                              |
+| **Claude Code**                  |                     | ✅ Tested           |                                                              |
 | **DeepSeek**                     | API Key¹            | ⚠️ Beta             | Testers welcome                                              |
-| **Gemini**                       | not integrated yet  | 🚧 Planned          | Testers welcome                                              |
-| **GitHub Copilot**               | OAuth Device Flow   | ✅ Tested            |                                                              |
-| **Kimi (Moonshot)**              | API Key¹            | ⚠️ Beta             | Testers welcome                                              |
+| **Gemini**                       | OAuth Device Flow   | ✅ Tested           |                                                              |
+| **GitHub Copilot**               | OAuth Device Flow   | ✅ Tested           |                                                              |
+| **Kimi (Moonshot)**              | API Key¹            | ✅ Tested           |                                                              |
 | **Minimax** (China)              | API Key¹            | ⚠️ Beta             | Testers welcome                                              |
 | **Minimax** (International)      | API Key¹            | ⚠️ Beta             | Testers welcome                                              |
 | **Mistral**                      | API Key¹            | ✅ Tested            | but Mistral does not provide usage information via their API |
