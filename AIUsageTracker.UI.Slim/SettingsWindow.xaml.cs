@@ -36,6 +36,7 @@ public partial class SettingsWindow : Window
     private readonly Func<UpdateChannel, GitHubUpdateChecker> _createUpdateChecker;
     private readonly SemaphoreSlim _autoSaveSemaphore = new(1, 1);
     private readonly DispatcherTimer _autoSaveTimer;
+    private readonly EventHandler<PrivacyChangedEventArgs> _privacyChangedHandler;
 
     private List<ProviderConfig> _configs = new();
     private List<ProviderUsage> _usages = new();
@@ -69,7 +70,8 @@ public partial class SettingsWindow : Window
         this._pathProvider = pathProvider;
         this._preferencesStore = preferencesStore;
         this._createUpdateChecker = createUpdateChecker;
-        PrivacyChangedWeakEventManager.AddHandler(this.OnPrivacyChanged);
+        this._privacyChangedHandler = this.OnPrivacyChanged;
+        PrivacyChangedWeakEventManager.AddHandler(this._privacyChangedHandler);
         this.Closing += this.SettingsWindow_Closing;
         this.Closed += this.SettingsWindow_Closed;
         this.Loaded += this.SettingsWindow_Loaded;
@@ -366,7 +368,7 @@ public partial class SettingsWindow : Window
     private void SettingsWindow_Closed(object? sender, EventArgs e)
     {
         this._autoSaveTimer.Stop();
-        PrivacyChangedWeakEventManager.RemoveHandler(this.OnPrivacyChanged);
+        PrivacyChangedWeakEventManager.RemoveHandler(this._privacyChangedHandler);
     }
 
     private async void AutoSaveTimer_Tick(object? sender, EventArgs e)
