@@ -33,7 +33,6 @@ public class OpenRouterProvider : ProviderBase
         IconAssetName = "openai",
         BadgeColorHex = "#483D8B",
         BadgeInitial = "OR",
-        ShowInSettings = false,
     };
 
     /// <inheritdoc/>

@@ -32,7 +32,6 @@ public class XiaomiProvider : ProviderBase
         IconAssetName = "xiaomi",
         BadgeColorHex = "#FFA500",
         BadgeInitial = "Xi",
-        ShowInSettings = false,
     };
 
     public override ProviderDefinition Definition => StaticDefinition;

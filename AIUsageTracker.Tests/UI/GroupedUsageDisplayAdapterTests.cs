@@ -707,4 +707,33 @@ public class GroupedUsageDisplayAdapterTests
         Assert.Equal(TimeSpan.FromDays(7), sonnet.PeriodDuration);
         Assert.Equal(TimeSpan.FromDays(7), allModels.PeriodDuration);
     }
+
+    [Fact]
+    public void Expand_LegacyPath_PropagatesStateFromSnapshot()
+    {
+        // Verifies that State=Missing survives the AgentGroupedProviderUsage → ProviderUsage
+        // conversion, so PrepareForMainWindow can filter unconfigured StandardApiKey providers.
+        var snapshot = new AgentGroupedUsageSnapshot
+        {
+            Providers = new[]
+            {
+                new AgentGroupedProviderUsage
+                {
+                    ProviderId = "openrouter",
+                    IsAvailable = false,
+                    State = ProviderUsageState.Missing,
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Usage,
+                    Description = "API Key missing",
+                    Models = Array.Empty<AgentGroupedModelUsage>(),
+                },
+            },
+        };
+
+        var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
+
+        var card = Assert.Single(usages);
+        Assert.Equal("openrouter", card.ProviderId);
+        Assert.Equal(ProviderUsageState.Missing, card.State);
+    }
 }

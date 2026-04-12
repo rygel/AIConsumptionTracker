@@ -22,6 +22,7 @@ internal static class LegacyParentCardBuilder
             ProviderName = ProviderMetadataCatalog.GetConfiguredDisplayName(provider.ProviderId),
             AccountName = provider.AccountName,
             IsAvailable = provider.IsAvailable,
+            State = provider.State,
             PlanType = provider.PlanType,
             IsQuotaBased = provider.IsQuotaBased,
             RequestsUsed = provider.RequestsUsed,

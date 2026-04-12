@@ -363,8 +363,8 @@ public class ProviderMetadataCatalogTests
     [InlineData("codex", true)]
     [InlineData("openai", false)]
     [InlineData("deepseek", false)]
-    [InlineData("xiaomi", false)]
-    [InlineData("openrouter", false)]
+    [InlineData("xiaomi", true)]
+    [InlineData("openrouter", true)]
     public void ShouldShowInSettings_UsesProviderDefinitions(string providerId, bool expected)
     {
         Assert.Equal(expected, ProviderMetadataCatalog.Find(providerId)?.ShowInSettings ?? false);
