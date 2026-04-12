@@ -53,9 +53,11 @@ public sealed class CachedGroupedUsageProjectionService
         var activeIds = ProviderMetadataCatalog.ExpandAcceptedUsageProviderIds(
             activeConfigs.Select(c => c.ProviderId));
 
-        // Providers with no API key that are StandardApiKey mode produce only "API Key missing"
-        // records. Exclude their canonical IDs from the snapshot so they don't appear in the
-        // main window. (They remain in Settings where the user can configure a key.)
+        // StandardApiKey providers with no API key configured should not appear in the main
+        // window — they have nothing to show. The config is authoritative here: even if the
+        // database has a stale "API Key missing" history row, the right question is "is this
+        // provider configured?" not "what was its last observed state?".
+        // (They remain in Settings where the user can configure a key.)
         var unconfiguredStandardApiKeyIds = activeConfigs
             .Where(c => string.IsNullOrEmpty(c.ApiKey) &&
                         ProviderMetadataCatalog.Find(c.ProviderId)?.SettingsMode == ProviderSettingsMode.StandardApiKey)

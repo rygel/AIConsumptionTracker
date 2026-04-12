@@ -318,7 +318,8 @@ public class UsageDatabase : IUsageDatabase
                         u.GroupId,
                         (int)u.WindowKind,
                         u.ModelName,
-                        u.Name));
+                        u.Name,
+                        (int)u.State));
                 }
             }
 
@@ -332,7 +333,8 @@ public class UsageDatabase : IUsageDatabase
                         response_latency_ms, http_status,
                         upstream_response_validity, upstream_response_note,
                         parent_provider_id, card_id, group_id,
-                        window_kind, model_name, name
+                        window_kind, model_name, name,
+                        state
                     ) VALUES (
                         @ProviderId,
                         @RequestsUsed, @RequestsAvailable, @RequestsPercentage,
@@ -340,7 +342,8 @@ public class UsageDatabase : IUsageDatabase
                         @ResponseLatencyMs, @HttpStatus,
                         @UpstreamResponseValidity, @UpstreamResponseNote,
                         @ParentProviderId, @CardId, @GroupId,
-                        @WindowKind, @ModelName, @Name
+                        @WindowKind, @ModelName, @Name,
+                        @State
                     )";
 
                 await connection.ExecuteAsync(insertSql, toInsert).ConfigureAwait(false);
@@ -443,7 +446,8 @@ public class UsageDatabase : IUsageDatabase
         string? GroupId,
         int WindowKind,
         string? ModelName,
-        string? Name);
+        string? Name,
+        int State);
 
     private sealed record HistoryTouchParams(long Id, long FetchedAt);
 
@@ -622,7 +626,8 @@ public class UsageDatabase : IUsageDatabase
                        h.group_id AS GroupId,
                        COALESCE(h.window_kind, 0) AS WindowKind,
                        h.model_name AS ModelName,
-                       h.name AS Name
+                       h.name AS Name,
+                       COALESCE(h.state, 0) AS State
                 FROM provider_history h
                 LEFT JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.id IN (
@@ -790,7 +795,8 @@ public class UsageDatabase : IUsageDatabase
                        h.response_latency_ms AS ResponseLatencyMs,
                        h.http_status AS HttpStatus,
                        COALESCE(h.upstream_response_validity, 0) AS UpstreamResponseValidity,
-                       COALESCE(h.upstream_response_note, '') AS UpstreamResponseNote
+                       COALESCE(h.upstream_response_note, '') AS UpstreamResponseNote,
+                       COALESCE(h.state, 0) AS State
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
                 ORDER BY h.fetched_at DESC
@@ -822,7 +828,8 @@ public class UsageDatabase : IUsageDatabase
                        h.response_latency_ms AS ResponseLatencyMs,
                        h.http_status AS HttpStatus,
                        COALESCE(h.upstream_response_validity, 0) AS UpstreamResponseValidity,
-                       COALESCE(h.upstream_response_note, '') AS UpstreamResponseNote
+                       COALESCE(h.upstream_response_note, '') AS UpstreamResponseNote,
+                       COALESCE(h.state, 0) AS State
                 FROM provider_history h
                 JOIN providers p ON h.provider_id = p.provider_id
                 WHERE h.provider_id = @ProviderId
@@ -857,13 +864,15 @@ public class UsageDatabase : IUsageDatabase
                            h.http_status AS HttpStatus,
                            COALESCE(h.upstream_response_validity, 0) AS UpstreamResponseValidity,
                            COALESCE(h.upstream_response_note, '') AS UpstreamResponseNote,
+                           COALESCE(h.state, 0) AS State,
                            ROW_NUMBER() OVER (PARTITION BY h.provider_id ORDER BY h.fetched_at DESC) as pos
                     FROM provider_history h
                     JOIN providers p ON h.provider_id = p.provider_id
                 )
                 SELECT ProviderId, ProviderName, RequestsUsed, RequestsAvailable,
                        UsedPercent, IsAvailable, Description, FetchedAt, NextResetTime,
-                       ResponseLatencyMs, HttpStatus, UpstreamResponseValidity, UpstreamResponseNote
+                       ResponseLatencyMs, HttpStatus, UpstreamResponseValidity, UpstreamResponseNote,
+                       State
                 FROM RankedHistory
                 WHERE pos <= @Count
                 ORDER BY ProviderId, FetchedAt DESC";
