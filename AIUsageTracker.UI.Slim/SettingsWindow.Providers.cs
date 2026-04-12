@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -605,41 +607,234 @@ public partial class SettingsWindow
             };
         }
 
-        var authSourceLabel = BuildAuthSourceLabel(config.AuthSource);
-        if (authSourceLabel == null)
+        var authSourcePanel = BuildAuthSourcePanel(config.AuthSource);
+        if (authSourcePanel == null)
         {
             return keyBox;
         }
 
         var panel = new StackPanel();
         panel.Children.Add(keyBox);
-        panel.Children.Add(authSourceLabel);
+        panel.Children.Add(authSourcePanel);
         return panel;
     }
 
-    private static TextBlock? BuildAuthSourceLabel(string? authSource)
+    private static FrameworkElement? BuildAuthSourcePanel(string? authSource)
     {
-        if (string.IsNullOrWhiteSpace(authSource))
+        var (sourceLabel, removalHint, paths) = ResolveAuthSourceDisplay(authSource);
+        if (sourceLabel == null)
         {
             return null;
         }
 
-        // Only show for external sources where the user needs to know the origin.
-        if (!AuthSource.IsRooOrKilo(authSource) && !AuthSource.IsEnvironment(authSource))
-        {
-            return null;
-        }
+        var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
 
-        var label = new TextBlock
+        // Source line
+        var sourceLine = new TextBlock
         {
-            Text = $"Source: {authSource}",
             FontSize = 9,
-            FontStyle = FontStyles.Italic,
-            Margin = new Thickness(0, 2, 0, 0),
+            Margin = new Thickness(0, 0, 0, 1),
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
-        label.SetResourceReference(TextBlock.ForegroundProperty, "TertiaryText");
-        return label;
+        sourceLine.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
+        sourceLine.Inlines.Add(new System.Windows.Documents.Run("Source: ") { FontWeight = FontWeights.SemiBold });
+        sourceLine.Inlines.Add(new System.Windows.Documents.Run(sourceLabel));
+        if (!string.IsNullOrEmpty(removalHint))
+        {
+            sourceLine.ToolTip = $"To remove: {removalHint}";
+        }
+
+        panel.Children.Add(sourceLine);
+
+        // File path lines (one per path, selectable for copy + edit/folder buttons)
+        foreach (var path in paths)
+        {
+            var row = new Grid { Margin = new Thickness(0, 2, 0, 0) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var pathBox = new TextBox
+            {
+                Text = path,
+                FontSize = 8,
+                IsReadOnly = true,
+                BorderThickness = new Thickness(0),
+                Background = System.Windows.Media.Brushes.Transparent,
+                Padding = new Thickness(0),
+                Margin = new Thickness(0, 0, 6, 0),
+                TextWrapping = TextWrapping.NoWrap,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
+                ToolTip = path,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            pathBox.SetResourceReference(TextBox.ForegroundProperty, "SecondaryText");
+            Grid.SetColumn(pathBox, 0);
+            row.Children.Add(pathBox);
+
+            var capturedPath = path;
+            var fileExists = File.Exists(path);
+
+            var editButton = new Button
+            {
+                Content = "Edit",
+                FontSize = 9,
+                Padding = new Thickness(8, 3, 8, 3),
+                Margin = new Thickness(0, 0, 4, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = fileExists ? $"Open in Notepad: {path}" : "File does not exist yet",
+                IsEnabled = fileExists,
+            };
+            editButton.SetResourceReference(Button.BackgroundProperty, "AccentColor");
+            editButton.SetResourceReference(Button.ForegroundProperty, "AccentForeground");
+            editButton.Click += (_, _) => OpenInNotepad(capturedPath);
+            Grid.SetColumn(editButton, 1);
+            row.Children.Add(editButton);
+
+            var folderButton = new Button
+            {
+                Content = "Folder",
+                FontSize = 9,
+                Padding = new Thickness(8, 3, 8, 3),
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = $"Show in Explorer: {Path.GetDirectoryName(path)}",
+            };
+            folderButton.Click += (_, _) => OpenPathInExplorer(capturedPath);
+            Grid.SetColumn(folderButton, 2);
+            row.Children.Add(folderButton);
+
+            panel.Children.Add(row);
+        }
+
+        return panel;
+    }
+
+    private static void OpenInNotepad(string path)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "notepad.exe",
+                Arguments = $"\"{path}\"",
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+        }
+    }
+
+    private static void OpenPathInExplorer(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{path}\"",
+                    UseShellExecute = true,
+                });
+            }
+            else
+            {
+                var dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"\"{dir}\"",
+                        UseShellExecute = true,
+                    });
+                }
+            }
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // If shell open fails, silently ignore — the path is still selectable for manual navigation.
+        }
+    }
+
+    private static (string? SourceLabel, string? RemovalHint, IReadOnlyList<string> Paths) ResolveAuthSourceDisplay(string? authSource)
+    {
+        if (string.IsNullOrWhiteSpace(authSource) ||
+            string.Equals(authSource, AuthSource.None, StringComparison.OrdinalIgnoreCase))
+        {
+            return (null, null, Array.Empty<string>());
+        }
+
+        // Environment variable
+        if (AuthSource.TryParseEnvironmentVariable(authSource, out var varName))
+        {
+            return (
+                $"Environment variable {varName}",
+                $"Delete the {varName} environment variable from System Properties → Environment Variables, then restart.",
+                Array.Empty<string>());
+        }
+
+        // Roo Code
+        if (AuthSource.TryParseRooPath(authSource, out var rooPath))
+        {
+            return (
+                "Roo Code",
+                "Edit or delete the file below to remove the key from Roo Code.",
+                new[] { rooPath });
+        }
+
+        // Kilo Code
+        if (AuthSource.IsRooOrKilo(authSource))
+        {
+            return (
+                "Kilo Code",
+                "Remove the key from Kilo Code settings.",
+                Array.Empty<string>());
+        }
+
+        // Config file(s) — show full paths
+        var configPaths = AuthSource.ParseConfigFilePaths(authSource);
+        if (configPaths.Count > 0)
+        {
+            // Determine human-readable source application from paths
+            var appName = ResolveConfigSourceAppName(configPaths);
+            return (
+                appName,
+                "Edit or delete the file(s) below, or clear the key field above and save.",
+                configPaths);
+        }
+
+        // Fallback for other known constants (OpenCode Session, Codex Native, etc.)
+        return (authSource, null, Array.Empty<string>());
+    }
+
+    private static string ResolveConfigSourceAppName(IReadOnlyList<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            if (path.Contains("opencode", StringComparison.OrdinalIgnoreCase))
+            {
+                return "OpenCode";
+            }
+
+            if (path.Contains("roo", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Roo Code";
+            }
+
+            if (path.Contains("kilo", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Kilo Code";
+            }
+
+            if (path.Contains("AIUsageTracker", StringComparison.OrdinalIgnoreCase))
+            {
+                return "AI Usage Tracker";
+            }
+        }
+
+        return "Config file";
     }
 
     private static string GetDisplayApiKey(string? apiKey, bool isPrivacyMode)

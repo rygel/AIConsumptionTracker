@@ -107,6 +107,7 @@ public static class ProviderEndpoints
         public const string BaseUrl = "https://api.minimax.io";
         public const string UserUsage = "https://api.minimax.io/v1/user/usage";
         public const string ChatUserUsage = "https://api.minimax.chat/v1/user/usage";
+        public const string CodingPlanRemains = "https://api.minimax.io/v1/api/openplatform/coding_plan/remains";
     }
 
     /// <summary>

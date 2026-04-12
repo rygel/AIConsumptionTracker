@@ -21,6 +21,8 @@ public sealed class AgentGroupedProviderUsage
 
     public bool IsAvailable { get; set; }
 
+    public ProviderUsageState State { get; set; } = ProviderUsageState.Available;
+
     public PlanType PlanType { get; set; } = PlanType.Usage;
 
     public bool IsQuotaBased { get; set; }

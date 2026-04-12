@@ -41,8 +41,9 @@ public class ProviderMetadataCatalogTests
     [InlineData("gemini-cli.hourly", "gemini-cli", "Gemini CLI (Hourly)")]
     [InlineData("gemini-cli.daily", "gemini-cli", "Gemini CLI (Daily)")]
     [InlineData("kimi", "kimi-for-coding", "Kimi for Coding")]
-    [InlineData("minimax-io", "minimax", "Minimax (International)")]
-    [InlineData("minimax-global", "minimax", "Minimax (International)")]
+    [InlineData("minimax-io", "minimax", "MiniMax.io")]
+    [InlineData("minimax-global", "minimax", "MiniMax.io")]
+    [InlineData("minimax-coding-plan", "minimax", "Minimax.io Coding Plan")]
     [InlineData("opencode-go", "opencode-go", "OpenCode Go")]
     [InlineData("zai", "zai-coding-plan", "Z.AI")]
     public void Find_UsesProviderDefinitionsForAliases(string providerId, string expectedDefinitionId, string expectedDisplayName)
@@ -69,6 +70,10 @@ public class ProviderMetadataCatalogTests
     [Theory]
     [InlineData("codex.spark", "OpenAI (GPT-5.3 Codex Spark)")]
     [InlineData("antigravity.gpt-oss", "Google Antigravity")]
+    [InlineData("minimax", "MiniMax.chat")]
+    [InlineData("minimax-io", "MiniMax.io")]
+    [InlineData("minimax-global", "MiniMax.io")]
+    [InlineData("minimax-coding-plan", "Minimax.io Coding Plan")]
     public void GetConfiguredDisplayName_UsesMetadataAuthority(string providerId, string expectedDisplayName)
     {
         Assert.Equal(expectedDisplayName, ProviderMetadataCatalog.GetConfiguredDisplayName(providerId));
@@ -358,6 +363,8 @@ public class ProviderMetadataCatalogTests
     [InlineData("codex", true)]
     [InlineData("openai", false)]
     [InlineData("deepseek", false)]
+    [InlineData("xiaomi", true)]
+    [InlineData("openrouter", true)]
     public void ShouldShowInSettings_UsesProviderDefinitions(string providerId, bool expected)
     {
         Assert.Equal(expected, ProviderMetadataCatalog.Find(providerId)?.ShowInSettings ?? false);

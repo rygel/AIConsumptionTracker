@@ -61,6 +61,7 @@ public static class GroupedUsageProjectionService
             ProviderName = displayName,
             AccountName = accountName,
             IsAvailable = group.Any(usage => usage.IsAvailable),
+            State = primary.State,
             PlanType = primary.PlanType,
             IsQuotaBased = primary.IsQuotaBased,
             RequestsUsed = primary.RequestsUsed,

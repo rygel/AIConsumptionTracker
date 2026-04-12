@@ -210,6 +210,7 @@ public sealed class ProviderUsageDisplayCatalogTests
         // The preferred entry has NextResetTime set
         Assert.NotNull(gemini.NextResetTime);
     }
+
 }
 
 
