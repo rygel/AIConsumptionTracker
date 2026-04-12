@@ -39,7 +39,7 @@ public class MinimaxProvider : ProviderBase
         {
             [InternationalProviderId] = "MiniMax.io",
             [InternationalLegacyProviderId] = "MiniMax.io",
-            [CodingPlanProviderId] = "MiniMax Coding Plan",
+            [CodingPlanProviderId] = "Minimax.io Coding Plan",
         },
         SettingsAdditionalProviderIds = new[] { InternationalProviderId, CodingPlanProviderId },
         DiscoveryEnvironmentVariables = new[] { "MINIMAX_API_KEY" },

@@ -578,7 +578,7 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
         Assert.Equal(30, burst.RequestsUsed);
         Assert.Equal(100, burst.RequestsAvailable);
         Assert.Equal("minimax-coding-plan", burst.ProviderId); // provider-id-guardrail-allow: test assertion
-        Assert.Equal("MiniMax Coding Plan", burst.ProviderName);
+        Assert.Equal("Minimax.io Coding Plan", burst.ProviderName);
 
         // Weekly: 100 used / 500 total = 20%
         Assert.Equal(20, weekly.UsedPercent);
@@ -678,7 +678,7 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
         var result = await this._provider.GetUsageAsync(this.Config);
 
         // Assert
-        Assert.All(result, u => Assert.Equal("MiniMax Coding Plan", u.ProviderName));
+        Assert.All(result, u => Assert.Equal("Minimax.io Coding Plan", u.ProviderName));
     }
 
     [Fact]
@@ -687,7 +687,7 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
         var definition = MinimaxProvider.StaticDefinition;
         Assert.Contains(MinimaxProvider.CodingPlanProviderId, definition.AdditionalHandledProviderIds);
         Assert.Contains(MinimaxProvider.CodingPlanProviderId, definition.SettingsAdditionalProviderIds);
-        Assert.Equal("MiniMax Coding Plan", definition.DisplayNameOverrides[MinimaxProvider.CodingPlanProviderId]);
+        Assert.Equal("Minimax.io Coding Plan", definition.DisplayNameOverrides[MinimaxProvider.CodingPlanProviderId]);
     }
 
     private void SetupResponse(HttpStatusCode statusCode, string content, string? url = null)

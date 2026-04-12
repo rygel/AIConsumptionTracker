@@ -43,7 +43,7 @@ public class ProviderMetadataCatalogTests
     [InlineData("kimi", "kimi-for-coding", "Kimi for Coding")]
     [InlineData("minimax-io", "minimax", "MiniMax.io")]
     [InlineData("minimax-global", "minimax", "MiniMax.io")]
-    [InlineData("minimax-coding-plan", "minimax", "MiniMax Coding Plan")]
+    [InlineData("minimax-coding-plan", "minimax", "Minimax.io Coding Plan")]
     [InlineData("opencode-go", "opencode-go", "OpenCode Go")]
     [InlineData("zai", "zai-coding-plan", "Z.AI")]
     public void Find_UsesProviderDefinitionsForAliases(string providerId, string expectedDefinitionId, string expectedDisplayName)
@@ -73,7 +73,7 @@ public class ProviderMetadataCatalogTests
     [InlineData("minimax", "MiniMax.chat")]
     [InlineData("minimax-io", "MiniMax.io")]
     [InlineData("minimax-global", "MiniMax.io")]
-    [InlineData("minimax-coding-plan", "MiniMax Coding Plan")]
+    [InlineData("minimax-coding-plan", "Minimax.io Coding Plan")]
     public void GetConfiguredDisplayName_UsesMetadataAuthority(string providerId, string expectedDisplayName)
     {
         Assert.Equal(expectedDisplayName, ProviderMetadataCatalog.GetConfiguredDisplayName(providerId));

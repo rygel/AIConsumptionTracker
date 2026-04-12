@@ -52,8 +52,20 @@ public sealed class CachedGroupedUsageProjectionService
         var activeConfigs = await this._configService.GetConfigsAsync().ConfigureAwait(false);
         var activeIds = ProviderMetadataCatalog.ExpandAcceptedUsageProviderIds(
             activeConfigs.Select(c => c.ProviderId));
+
+        // Providers with no API key that are StandardApiKey mode produce only "API Key missing"
+        // records. Exclude their canonical IDs from the snapshot so they don't appear in the
+        // main window. (They remain in Settings where the user can configure a key.)
+        var unconfiguredStandardApiKeyIds = activeConfigs
+            .Where(c => string.IsNullOrEmpty(c.ApiKey) &&
+                        ProviderMetadataCatalog.Find(c.ProviderId)?.SettingsMode == ProviderSettingsMode.StandardApiKey)
+            .Select(c => ProviderMetadataCatalog.GetCanonicalProviderId(c.ProviderId))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var usage = allUsage
-            .Where(u => activeIds.Contains(u.ProviderId ?? string.Empty))
+            .Where(u => activeIds.Contains(u.ProviderId ?? string.Empty) &&
+                        !unconfiguredStandardApiKeyIds.Contains(
+                            ProviderMetadataCatalog.GetCanonicalProviderId(u.ProviderId ?? string.Empty)))
             .ToList();
         var snapshot = GroupedUsageProjectionService.Build(usage);
         var eTag = CreateUsageETag(usage);
