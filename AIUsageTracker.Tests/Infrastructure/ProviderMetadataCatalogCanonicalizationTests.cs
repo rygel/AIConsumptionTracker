@@ -67,6 +67,49 @@ public class ProviderMetadataCatalogCanonicalizationTests
     }
 
     [Fact]
+    public void NormalizeCanonicalConfigurations_KeepsMinimaxCodingPlanAsDedicatedProvider()
+    {
+        // minimax-coding-plan must NOT be merged into the minimax (China) config —
+        // it's a separate visible derived provider with its own API key and endpoint.
+        var configs = new List<ProviderConfig>
+        {
+            new()
+            {
+                ProviderId = "minimax-coding-plan",
+                ApiKey = TestApiKey1,
+                AuthSource = "opencode-auth",
+            },
+        };
+
+        ProviderMetadataCatalog.NormalizeCanonicalConfigurations(configs);
+
+        var codingPlan = Assert.Single(configs);
+        Assert.Equal("minimax-coding-plan", codingPlan.ProviderId); // provider-id-guardrail-allow: test assertion
+        Assert.Equal(TestApiKey1, codingPlan.ApiKey);
+        Assert.Equal("opencode-auth", codingPlan.AuthSource);
+    }
+
+    [Fact]
+    public void NormalizeCanonicalConfigurations_KeepsMinimaxIoAsDedicatedProvider()
+    {
+        // minimax-io must NOT be merged into the minimax (China) config.
+        var configs = new List<ProviderConfig>
+        {
+            new()
+            {
+                ProviderId = "minimax-io",
+                ApiKey = TestApiKey2,
+            },
+        };
+
+        ProviderMetadataCatalog.NormalizeCanonicalConfigurations(configs);
+
+        var international = Assert.Single(configs);
+        Assert.Equal("minimax-io", international.ProviderId); // provider-id-guardrail-allow: test assertion
+        Assert.Equal(TestApiKey2, international.ApiKey);
+    }
+
+    [Fact]
     public void NormalizeCanonicalConfigurations_RemovesOpenAiAlias_WhenCodexExists()
     {
         var configs = new List<ProviderConfig>

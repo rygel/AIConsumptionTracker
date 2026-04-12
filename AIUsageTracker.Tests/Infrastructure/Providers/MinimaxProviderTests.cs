@@ -17,6 +17,7 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
 
     private const string ChinaEndpoint = "https://api.minimax.chat/v1/user/usage";
     private const string InternationalEndpoint = "https://api.minimax.io/v1/user/usage";
+    private const string CodingPlanEndpoint = "https://api.minimax.io/v1/api/openplatform/coding_plan/remains";
 
     private readonly MinimaxProvider _provider;
 
@@ -215,7 +216,7 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
         var definition = MinimaxProvider.StaticDefinition;
 
         Assert.Equal("minimax", definition.ProviderId); // provider-id-guardrail-allow: test assertion
-        Assert.Equal("Minimax (China)", definition.DisplayName);
+        Assert.Equal("MiniMax.chat", definition.DisplayName);
         Assert.True(definition.IsQuotaBased);
         Assert.Contains("MINIMAX_API_KEY", definition.DiscoveryEnvironmentVariables);
     }
@@ -242,7 +243,7 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
         // Assert
         var usage = result.Single();
         Assert.Equal("minimax", usage.ProviderId); // provider-id-guardrail-allow: test assertion
-        Assert.Equal("Minimax (China)", usage.ProviderName);
+        Assert.Equal("MiniMax.chat", usage.ProviderName);
     }
 
     [Fact]
@@ -267,7 +268,7 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
         // Assert
         var usage = result.Single();
         Assert.Equal("minimax-io", usage.ProviderId); // provider-id-guardrail-allow: test assertion
-        Assert.Equal("Minimax (International)", usage.ProviderName);
+        Assert.Equal("MiniMax.io", usage.ProviderName);
     }
 
     [Fact]
@@ -292,7 +293,7 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
         // Assert
         var usage = result.Single();
         Assert.Equal("minimax-global", usage.ProviderId); // provider-id-guardrail-allow: test assertion
-        Assert.Equal("Minimax (International)", usage.ProviderName);
+        Assert.Equal("MiniMax.io", usage.ProviderName);
     }
 
     [Fact]
@@ -538,6 +539,155 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
         // Assert
         var usage = result.Single();
         Assert.Equal(PlanType.Coding, usage.PlanType);
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_WithCodingPlanProviderId_UsesCodingPlanEndpointAsync()
+    {
+        // Arrange
+        this.Config.ProviderId = MinimaxProvider.CodingPlanProviderId;
+        var responseJson = """
+            {
+                "base_resp": { "status_code": 0, "status_msg": "success" },
+                "model_remains": [
+                    {
+                        "model_name": "MiniMax-Text-01",
+                        "current_interval_total_count": 100,
+                        "current_interval_usage_count": 70,
+                        "end_time": 0,
+                        "current_weekly_total_count": 500,
+                        "current_weekly_usage_count": 400,
+                        "weekly_end_time": 0
+                    }
+                ]
+            }
+            """;
+
+        this.SetupResponse(HttpStatusCode.OK, responseJson, CodingPlanEndpoint);
+
+        // Act
+        var result = (await this._provider.GetUsageAsync(this.Config)).ToList();
+
+        // Assert — two cards: burst (5h) and weekly
+        Assert.Equal(2, result.Count);
+        var burst = result.Single(u => u.WindowKind == AIUsageTracker.Core.Models.WindowKind.Burst);
+        var weekly = result.Single(u => u.WindowKind == AIUsageTracker.Core.Models.WindowKind.Rolling);
+
+        // 5h: 30 used / 100 total = 30%
+        Assert.Equal(30, burst.UsedPercent);
+        Assert.Equal(30, burst.RequestsUsed);
+        Assert.Equal(100, burst.RequestsAvailable);
+        Assert.Equal("minimax-coding-plan", burst.ProviderId); // provider-id-guardrail-allow: test assertion
+        Assert.Equal("MiniMax Coding Plan", burst.ProviderName);
+
+        // Weekly: 100 used / 500 total = 20%
+        Assert.Equal(20, weekly.UsedPercent);
+        Assert.Equal(100, weekly.RequestsUsed);
+        Assert.Equal(500, weekly.RequestsAvailable);
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_CodingPlan_ApiError_ReturnsUnavailableAsync()
+    {
+        // Arrange
+        this.Config.ProviderId = MinimaxProvider.CodingPlanProviderId;
+        this.SetupResponse(HttpStatusCode.Unauthorized, """{"error":"invalid_key"}""", CodingPlanEndpoint);
+
+        // Act
+        var result = await this._provider.GetUsageAsync(this.Config);
+
+        // Assert
+        var usage = result.Single();
+        Assert.False(usage.IsAvailable);
+        Assert.Contains("Unauthorized", usage.Description, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_CodingPlan_NonZeroStatusCode_ReturnsUnavailableAsync()
+    {
+        // Arrange
+        this.Config.ProviderId = MinimaxProvider.CodingPlanProviderId;
+        var responseJson = """{"base_resp": {"status_code": 1004, "status_msg": "invalid api key"}}""";
+        this.SetupResponse(HttpStatusCode.OK, responseJson, CodingPlanEndpoint);
+
+        // Act
+        var result = await this._provider.GetUsageAsync(this.Config);
+
+        // Assert
+        var usage = result.Single();
+        Assert.False(usage.IsAvailable);
+        Assert.Contains("invalid api key", usage.Description, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_CodingPlan_AtCapacity_Returns100PercentAsync()
+    {
+        // Arrange — remaining = 0, so 100% used
+        this.Config.ProviderId = MinimaxProvider.CodingPlanProviderId;
+        var responseJson = """
+            {
+                "base_resp": { "status_code": 0, "status_msg": "success" },
+                "model_remains": [
+                    {
+                        "model_name": "MiniMax-Text-01",
+                        "current_interval_total_count": 100,
+                        "current_interval_usage_count": 0,
+                        "end_time": 0,
+                        "current_weekly_total_count": 0,
+                        "current_weekly_usage_count": 0,
+                        "weekly_end_time": 0
+                    }
+                ]
+            }
+            """;
+        this.SetupResponse(HttpStatusCode.OK, responseJson, CodingPlanEndpoint);
+
+        // Act
+        var result = (await this._provider.GetUsageAsync(this.Config)).ToList();
+
+        // Assert — only burst card (weekly total = 0 so skipped)
+        var burst = result.Single();
+        Assert.Equal(100, burst.UsedPercent);
+        Assert.Equal(100, burst.RequestsUsed);
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_CodingPlan_DisplayName_IsMiniMaxCodingPlanAsync()
+    {
+        // Arrange
+        this.Config.ProviderId = MinimaxProvider.CodingPlanProviderId;
+        var responseJson = """
+            {
+                "base_resp": { "status_code": 0, "status_msg": "success" },
+                "model_remains": [
+                    {
+                        "model_name": "MiniMax-Text-01",
+                        "current_interval_total_count": 100,
+                        "current_interval_usage_count": 50,
+                        "end_time": 0,
+                        "current_weekly_total_count": 0,
+                        "current_weekly_usage_count": 0,
+                        "weekly_end_time": 0
+                    }
+                ]
+            }
+            """;
+        this.SetupResponse(HttpStatusCode.OK, responseJson, CodingPlanEndpoint);
+
+        // Act
+        var result = await this._provider.GetUsageAsync(this.Config);
+
+        // Assert
+        Assert.All(result, u => Assert.Equal("MiniMax Coding Plan", u.ProviderName));
+    }
+
+    [Fact]
+    public void StaticDefinition_CodingPlan_IsInAdditionalHandledProviderIds()
+    {
+        var definition = MinimaxProvider.StaticDefinition;
+        Assert.Contains(MinimaxProvider.CodingPlanProviderId, definition.AdditionalHandledProviderIds);
+        Assert.Contains(MinimaxProvider.CodingPlanProviderId, definition.SettingsAdditionalProviderIds);
+        Assert.Equal("MiniMax Coding Plan", definition.DisplayNameOverrides[MinimaxProvider.CodingPlanProviderId]);
     }
 
     private void SetupResponse(HttpStatusCode statusCode, string content, string? url = null)
