@@ -165,4 +165,16 @@ public class AppStartupTests : IDisposable
         Assert.True(saved);
         Assert.Equal(AppTheme.Midnight, loaded.Theme);
     }
+
+    [Fact]
+    public async Task SavePreferencesAsync_ThenLoadAsync_RoundTripsUpdateChannelAsync()
+    {
+        var preferences = new AppPreferences { UpdateChannel = UpdateChannel.Beta };
+
+        var saved = await this._store.SaveAsync(preferences);
+        var loaded = await this._store.LoadAsync();
+
+        Assert.True(saved);
+        Assert.Equal(UpdateChannel.Beta, loaded.UpdateChannel);
+    }
 }

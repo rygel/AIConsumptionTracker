@@ -828,7 +828,6 @@ public partial class SettingsWindow : Window
 
             this._preferences.FontBold = this.FontBoldCheck.IsChecked ?? false;
             this._preferences.FontItalic = this.FontItalicCheck.IsChecked ?? false;
-            this._preferences.IsPrivacyMode = this._isPrivacyMode;
 
             this._preferences.EnableNotifications = this.EnableWindowsNotificationsCheck.IsChecked ?? false;
             if (double.TryParse(this.NotificationThresholdBox.Text, System.Globalization.CultureInfo.InvariantCulture, out var notifyThreshold))
