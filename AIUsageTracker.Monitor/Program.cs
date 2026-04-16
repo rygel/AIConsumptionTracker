@@ -26,7 +26,9 @@ public class Program
 {
     private const string DebugBannerSeparator = "═══════════════════════════════════════════════════════════════";
 
-    protected Program() { }
+    protected Program()
+    {
+    }
 
     public static async Task Main(string[] args)
     {
@@ -304,7 +306,7 @@ public class Program
                 logger.LogInformation(DebugBannerSeparator);
                 logger.LogInformation(string.Empty);
                 logger.LogInformation("  API Endpoints:");
-                logger.LogInformation("    GET  http://localhost:{Port}{Health} | GET  http://localhost:{Port}{Usage} | GET  http://localhost:{Port}{Config}", port, MonitorApiRoutes.Health, port, MonitorApiRoutes.Usage, port, MonitorApiRoutes.Config);
+                logger.LogInformation("    GET  http://localhost:{Port1}{Health} | GET  http://localhost:{Port2}{Usage} | GET  http://localhost:{Port3}{Config}", port, MonitorApiRoutes.Health, port, MonitorApiRoutes.Usage, port, MonitorApiRoutes.Config);
                 logger.LogInformation("    POST http://localhost:{Port}{Refresh}", port, MonitorApiRoutes.Refresh);
                 logger.LogInformation(string.Empty);
                 logger.LogInformation("  Press Ctrl+C to stop");

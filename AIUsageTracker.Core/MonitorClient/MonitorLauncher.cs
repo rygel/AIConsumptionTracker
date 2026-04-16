@@ -593,14 +593,14 @@ public class MonitorLauncher : IMonitorLauncher
             var process = Process.GetProcessById(processId);
             return Task.FromResult(!process.HasExited);
         }
-            catch (ArgumentException ex)
-            {
-                this._logger?.LogDebug(ex, "Monitor process {ProcessId} was not found.", processId);
+        catch (ArgumentException ex)
+        {
+            this._logger?.LogDebug(ex, "Monitor process {ProcessId} was not found.", processId);
             return Task.FromResult(false);
         }
-            catch (InvalidOperationException ex)
-            {
-                this._logger?.LogDebug(ex, "Failed to query monitor process {ProcessId}.", processId);
+        catch (InvalidOperationException ex)
+        {
+            this._logger?.LogDebug(ex, "Failed to query monitor process {ProcessId}.", processId);
             return Task.FromResult(false);
         }
     }

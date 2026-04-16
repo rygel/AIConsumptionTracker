@@ -230,11 +230,13 @@ public static class Program
         int days = 30;
         string output = $"usage_export_{DateTime.Now:yyyyMMdd}.csv";
 
-        for (int i = 1; i < args.Length; i++)
+        int i = 1;
+        while (i < args.Length)
         {
             if (string.Equals(args[i], "--format", StringComparison.Ordinal) && i + 1 < args.Length)
             {
-                format = args[++i];
+                i++;
+                format = args[i];
             }
             else if (string.Equals(args[i], "--days", StringComparison.Ordinal) && i + 1 < args.Length && int.TryParse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture, out int d))
             {
@@ -243,8 +245,11 @@ public static class Program
             }
             else if (string.Equals(args[i], "--output", StringComparison.Ordinal) && i + 1 < args.Length)
             {
-                output = args[++i];
+                i++;
+                output = args[i];
             }
+
+            i++;
         }
 
         // Adjust default extension if format changed but output didn't
@@ -428,7 +433,9 @@ public static class Program
                 Console.WriteLine($"Configuration '{key}' updated to '{value}'.");
             }
         }
+#pragma warning disable CA1031 // Reflection and parsing operations can throw varied exception types
         catch (Exception ex)
+#pragma warning restore CA1031
         {
             Console.WriteLine($"Failed to set value: {ex.Message}");
         }

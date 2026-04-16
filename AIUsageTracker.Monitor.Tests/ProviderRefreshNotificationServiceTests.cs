@@ -51,7 +51,7 @@ public class ProviderRefreshNotificationServiceTests
         {
             await service.NotifyRefreshStartedAsync().ConfigureAwait(false);
             await service.NotifyUsageUpdatedAsync().ConfigureAwait(false);
-        }).ConfigureAwait(false);
+        });
 
         Assert.Null(exception);
     }
