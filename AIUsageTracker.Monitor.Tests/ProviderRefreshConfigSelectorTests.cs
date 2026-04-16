@@ -16,7 +16,6 @@ public class ProviderRefreshConfigSelectorTests
     [Fact]
     public void SelectActiveConfigs_ReturnsAllConfigs_WhenForceAllIsTrue()
     {
-        var selector = new ProviderRefreshConfigSelector();
         var configs = new List<ProviderConfig>
         {
             new() { ProviderId = "codex" },
@@ -30,7 +29,6 @@ public class ProviderRefreshConfigSelectorTests
     [Fact]
     public void SelectActiveConfigs_IncludesOnlyKeyedConfigs_WhenNotForceAll()
     {
-        var selector = new ProviderRefreshConfigSelector();
         var configs = new List<ProviderConfig>
         {
             new() { ProviderId = "openai" },
@@ -46,7 +44,6 @@ public class ProviderRefreshConfigSelectorTests
     [Fact]
     public void SelectActiveConfigs_ExcludesNonPersistedProviders()
     {
-        var selector = new ProviderRefreshConfigSelector();
         var configs = new List<ProviderConfig>
         {
             new() { ProviderId = "codex", ApiKey = TestApiKey1 },
@@ -65,7 +62,6 @@ public class ProviderRefreshConfigSelectorTests
         // forceAll must not bypass the key requirement for StandardApiKey providers.
         // Polling them without a key can only return "API Key missing", which is useless
         // to store and causes stale "missing" rows to appear in the main window snapshot.
-        var selector = new ProviderRefreshConfigSelector();
         var configs = new List<ProviderConfig>
         {
             new() { ProviderId = "mistral" },   // StandardApiKey, no key
@@ -81,7 +77,6 @@ public class ProviderRefreshConfigSelectorTests
     [Fact]
     public void SelectActiveConfigs_StandardApiKeyWithKey_IsIncludedWhenForceAll()
     {
-        var selector = new ProviderRefreshConfigSelector();
         var configs = new List<ProviderConfig>
         {
             new() { ProviderId = "mistral", ApiKey = TestApiKey1 },
@@ -96,7 +91,6 @@ public class ProviderRefreshConfigSelectorTests
     [Fact]
     public void SelectActiveConfigs_FiltersToIncludedProviderIds()
     {
-        var selector = new ProviderRefreshConfigSelector();
         var configs = new List<ProviderConfig>
         {
             new() { ProviderId = "codex", ApiKey = TestApiKey1 },

@@ -35,6 +35,7 @@ public sealed class WebDatabaseServiceTests : IDisposable
     {
         this._cache.Dispose();
         TestTempPaths.CleanupPath(this._tempDir);
+        GC.SuppressFinalize(this);
     }
 
     [Fact]
