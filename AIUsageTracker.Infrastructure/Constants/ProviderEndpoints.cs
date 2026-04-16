@@ -56,7 +56,7 @@ public static class ProviderEndpoints
     /// <summary>
     /// Z.AI API endpoints.
     /// </summary>
-    public static class ZAI
+    public static class Zai
     {
         public const string BaseUrl = "https://api.z.ai";
         public const string QuotaLimit = "https://api.z.ai/api/monitor/usage/quota/limit";

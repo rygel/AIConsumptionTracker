@@ -420,24 +420,24 @@ public class AntigravityProvider : ProviderBase
 
     private static void ApplySummaryRawNumbers(ProviderUsage summary, Dictionary<string, ClientModelConfig> configMap)
     {
-        long totalLimit = 0;
-        long totalUsed = 0;
-        var hasRawNumbers = false;
+        var quotas = configMap.Values
+            .Where(c => c.QuotaInfo?.TotalRequests.HasValue == true)
+            .Select(c => c.QuotaInfo!)
+            .ToList();
 
-        foreach (var cfg in configMap.Values.Where(c => c.QuotaInfo?.TotalRequests.HasValue == true))
+        if (quotas.Count == 0)
         {
-            totalLimit += cfg.QuotaInfo!.TotalRequests!.Value;
-            totalUsed += cfg.QuotaInfo.UsedRequests ?? 0;
-            hasRawNumbers = true;
+            return;
         }
 
-        if (!hasRawNumbers || totalLimit <= 0)
+        var totalLimit = quotas.Sum(qi => qi.TotalRequests!.Value);
+        if (totalLimit <= 0)
         {
             return;
         }
 
         summary.RequestsAvailable = totalLimit;
-        summary.RequestsUsed = totalUsed;
+        summary.RequestsUsed = quotas.Sum(qi => qi.UsedRequests ?? 0);
     }
 
     private static List<string> GetModelLabels(ModelGroup group)
@@ -948,13 +948,13 @@ public class AntigravityProvider : ProviderBase
         return (childId, childName);
     }
 
-    private class AntigravityResponse
+    private sealed class AntigravityResponse
     {
         [JsonPropertyName("userStatus")]
         public UserStatus? UserStatus { get; set; }
     }
 
-    private class UserStatus
+    private sealed class UserStatus
     {
         [JsonPropertyName("planStatus")]
         public PlanStatus? PlanStatus { get; set; }
@@ -966,7 +966,7 @@ public class AntigravityProvider : ProviderBase
         public CascadeModelConfigData? CascadeModelConfigData { get; set; }
     }
 
-    private class PlanStatus
+    private sealed class PlanStatus
     {
         [JsonPropertyName("availablePromptCredits")]
         public int AvailablePromptCredits { get; set; }
@@ -981,7 +981,7 @@ public class AntigravityProvider : ProviderBase
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 
-    private class PlanInfo
+    private sealed class PlanInfo
     {
         [JsonPropertyName("monthlyPromptCredits")]
         public int MonthlyPromptCredits { get; set; }
@@ -990,7 +990,7 @@ public class AntigravityProvider : ProviderBase
         public int MonthlyFlowCredits { get; set; }
     }
 
-    private class CascadeModelConfigData
+    private sealed class CascadeModelConfigData
     {
         [JsonPropertyName("clientModelConfigs")]
         public List<ClientModelConfig>? ClientModelConfigs { get; set; }
@@ -999,7 +999,7 @@ public class AntigravityProvider : ProviderBase
         public List<ClientModelSort>? ClientModelSorts { get; set; }
     }
 
-    private class ClientModelSort
+    private sealed class ClientModelSort
     {
         [JsonPropertyName("name")]
         public string? Name { get; set; }
@@ -1020,7 +1020,7 @@ public class AntigravityProvider : ProviderBase
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 
-    private class ModelGroup
+    private sealed class ModelGroup
     {
         [JsonPropertyName("name")]
         public string? Name { get; set; }
@@ -1044,7 +1044,7 @@ public class AntigravityProvider : ProviderBase
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 
-    private class ClientModelConfig
+    private sealed class ClientModelConfig
     {
         [JsonPropertyName("label")]
         public string? Label { get; set; }
@@ -1059,7 +1059,7 @@ public class AntigravityProvider : ProviderBase
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 
-    private class ModelOrAlias
+    private sealed class ModelOrAlias
     {
         [JsonPropertyName("model")]
         public string? Model { get; set; }
@@ -1074,7 +1074,7 @@ public class AntigravityProvider : ProviderBase
         public Dictionary<string, JsonElement>? ExtensionData { get; set; }
     }
 
-    private class QuotaInfo
+    private sealed class QuotaInfo
     {
         [JsonPropertyName("remainingFraction")]
         public double? RemainingFraction { get; set; }

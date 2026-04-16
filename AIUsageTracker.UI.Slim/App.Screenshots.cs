@@ -164,7 +164,7 @@ public partial class App
             var isThemeSmokeMode = args.Contains("--theme-smoke", StringComparer.OrdinalIgnoreCase);
             var isCardCatalogMode = args.Contains("--card-catalog", StringComparer.OrdinalIgnoreCase);
             this.ConfigureHeadlessScreenshotPreferences(selectedTheme);
-            var screenshotsDir = this.ResolveOutputDirectory(args);
+            var screenshotsDir = ResolveOutputDirectory(args);
             Directory.CreateDirectory(screenshotsDir);
 
             if (isThemeSmokeMode)
@@ -195,7 +195,7 @@ public partial class App
         }
     }
 
-    private string ResolveOutputDirectory(IReadOnlyList<string> args)
+    private static string ResolveOutputDirectory(IReadOnlyList<string> args)
     {
         var outputDirectoryArg = GetArgumentValue(args, "--output-dir");
         return string.IsNullOrWhiteSpace(outputDirectoryArg)
@@ -229,7 +229,7 @@ public partial class App
         try
         {
             await window.PrepareForHeadlessScreenshotAsync(deterministic: true).ConfigureAwait(true);
-            await this.WaitForDispatcherIdleAsync(window).ConfigureAwait(true);
+            await WaitForDispatcherIdleAsync(window).ConfigureAwait(true);
             RenderWindowContent(window, outputPath);
         }
         finally
@@ -251,7 +251,7 @@ public partial class App
         }
     }
 
-    private async Task WaitForDispatcherIdleAsync(Window window)
+    private static async Task WaitForDispatcherIdleAsync(Window window)
     {
 #pragma warning disable VSTHRD001 // WPF screenshot capture needs the window dispatcher to reach idle before rendering.
         await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task.ConfigureAwait(true);
@@ -280,7 +280,7 @@ public partial class App
                 // preferences to defaults, so we must override afterwards.
                 permutation.Apply(Preferences);
                 window.ApplyPreferencesAndRerender();
-                await this.WaitForDispatcherIdleAsync(window).ConfigureAwait(true);
+                await WaitForDispatcherIdleAsync(window).ConfigureAwait(true);
                 RenderWindowContent(window, outputPath);
                 captured.Add((fileName, permutation.Label, permutation.Description));
             }

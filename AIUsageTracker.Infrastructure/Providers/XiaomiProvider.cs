@@ -122,7 +122,7 @@ public class XiaomiProvider : ProviderBase
         }
     }
 
-    private class XiaomiResponse
+    private sealed class XiaomiResponse
     {
         [JsonPropertyName("data")]
         public XiaomiData? Data { get; set; }
@@ -131,7 +131,7 @@ public class XiaomiProvider : ProviderBase
         public int Code { get; set; }
     }
 
-    private class XiaomiData
+    private sealed class XiaomiData
     {
         [JsonPropertyName("balance")]
         public double Balance { get; set; }

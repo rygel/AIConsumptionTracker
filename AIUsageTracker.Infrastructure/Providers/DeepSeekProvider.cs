@@ -153,7 +153,7 @@ public class DeepSeekProvider : ProviderBase
         }
     }
 
-    private class DeepSeekBalanceResponse
+    private sealed class DeepSeekBalanceResponse
     {
         [JsonPropertyName("is_available")]
         public bool IsAvailable { get; set; }
@@ -162,7 +162,7 @@ public class DeepSeekProvider : ProviderBase
         public List<BalanceInfo>? BalanceInfos { get; set; }
     }
 
-    private class BalanceInfo
+    private sealed class BalanceInfo
     {
         [JsonPropertyName("currency")]
         public string? Currency { get; set; }

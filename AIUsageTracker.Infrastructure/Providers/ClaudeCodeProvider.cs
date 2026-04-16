@@ -378,7 +378,7 @@ public class ClaudeCodeProvider : ProviderBase
             var responseBody = await testResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             // Extract rate limit information from headers
-            var rateLimitHeaders = this.ExtractRateLimitInfo(testResponse.Headers);
+            var rateLimitHeaders = ExtractRateLimitInfo(testResponse.Headers);
 
             // Log response for debugging
             this._logger.LogDebug("Claude API test call: Status={StatusCode}, RPM={RequestsRemaining}/{RequestsLimit}", testResponse.StatusCode, rateLimitHeaders.RequestsRemaining, rateLimitHeaders.RequestsLimit);
@@ -434,7 +434,7 @@ public class ClaudeCodeProvider : ProviderBase
         }
     }
 
-    private RateLimitInfo ExtractRateLimitInfo(System.Net.Http.Headers.HttpResponseHeaders headers)
+    private static RateLimitInfo ExtractRateLimitInfo(System.Net.Http.Headers.HttpResponseHeaders headers)
     {
         var info = new RateLimitInfo();
 
@@ -509,9 +509,9 @@ public class ClaudeCodeProvider : ProviderBase
                 {
                     await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException ex)
                 {
-                    this._logger.LogWarning("Claude Code CLI timed out");
+                    this._logger.LogWarning(ex, "Claude Code CLI timed out");
                 }
 
                 var output = await outputTask.ConfigureAwait(false);
@@ -665,7 +665,7 @@ public class ClaudeCodeProvider : ProviderBase
         public bool IsEnabled { get; set; }
     }
 
-    private class RateLimitInfo
+    private sealed class RateLimitInfo
     {
         public int RequestsLimit { get; set; }
 
