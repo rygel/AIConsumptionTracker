@@ -66,14 +66,20 @@ public class GitHubAuthServiceTests : IDisposable
     public void InitializeToken_ResetsUsernameCache_WhenTokenChanges()
     {
         this._service.InitializeToken("token1");
+        Assert.True(this._service.IsAuthenticated);
+
         this._service.InitializeToken("token2");
+        Assert.True(this._service.IsAuthenticated);
     }
 
     [Fact]
     public void InitializeToken_DoesNotResetUsernameCache_WhenSameToken()
     {
         this._service.InitializeToken("same-token");
+        Assert.True(this._service.IsAuthenticated);
+
         this._service.InitializeToken("same-token");
+        Assert.True(this._service.IsAuthenticated);
     }
 
     [Fact]

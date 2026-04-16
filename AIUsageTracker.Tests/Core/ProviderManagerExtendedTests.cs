@@ -182,7 +182,8 @@ public class ProviderManagerExtendedTests
             logger: this._mockLogger.Object);
 
         manager.Dispose();
-        manager.Dispose();
+        var ex = Record.Exception(() => manager.Dispose());
+        Assert.Null(ex);
     }
 
     [Fact]
