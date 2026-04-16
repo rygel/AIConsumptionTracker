@@ -62,28 +62,29 @@ $sonarArgs = @(
     "/d:sonar.userHome=$sonarUserHome"
 )
 if (-not $SkipCoverage) {
-    $sonarArgs += "/d:sonar.cs.vscoveragexml.reportsPaths=TestResults\coverage.coveragexml"
+    $sonarArgs += "/d:sonar.cs.opencover.reportsPaths=TestResults/**/coverage.opencover.xml"
 }
 Invoke-DotNetOrThrow -Args $sonarArgs -Step "SonarScanner begin"
 
 if (-not $SkipBuild) {
     Write-Host "`n--- Building solution ---"
     Invoke-DotNetOrThrow -Args @("build", "AIUsageTracker.sln", "--configuration", "Debug") -Step "dotnet build"
+}
 
-    if (-not $SkipCoverage) {
-        Write-Host "`n--- Collecting coverage ---"
-        & dotnet tool install --global dotnet-coverage 2>$null
-        $ErrorActionPreference = "Continue"
-        $testDll = Join-Path $repoRoot "AIUsageTracker.Tests\bin\Debug\net8.0-windows10.0.17763.0\AIUsageTracker.Tests.dll"
-        dotnet-coverage collect $testDll --output "TestResults\coverage.coverage" --format coverage
-        $ErrorActionPreference = "Stop"
-        if (Test-Path "TestResults\coverage.coverage") {
-            dotnet-coverage convert "TestResults\coverage.coverage" --output "TestResults\coverage.coveragexml" --format coveragexml
-            Write-Host "Coverage file generated"
-        } else {
-            Write-Host "WARNING: No coverage file found"
-        }
+if (-not $SkipCoverage) {
+    Write-Host "`n--- Collecting coverage ---"
+    $coverageArgs = @(
+        "test",
+        "AIUsageTracker.Tests\AIUsageTracker.Tests.csproj",
+        "--configuration", "Debug",
+        "--results-directory", "TestResults",
+        "--collect:XPlat Code Coverage;Format=opencover"
+    )
+    if (-not $SkipBuild) {
+        $coverageArgs += "--no-build"
     }
+
+    Invoke-DotNetOrThrow -Args $coverageArgs -Step "dotnet test coverage collection"
 }
 
 Write-Host "`n--- Ending analysis and uploading ---"

@@ -34,7 +34,7 @@ Run SonarQube scans locally against your self-hosted SonarQube instance without 
 ## Usage
 
 ```powershell
-# Full scan (begin + build + end)
+# Full scan (begin + build + test coverage + end)
 .\scripts\sonar.ps1
 
 # Scan with custom project key
@@ -42,6 +42,9 @@ Run SonarQube scans locally against your self-hosted SonarQube instance without 
 
 # Skip the build step (if already done)
 .\scripts\sonar.ps1 -SkipBuild
+
+# Skip coverage collection
+.\scripts\sonar.ps1 -SkipCoverage
 ```
 
 ## How It Works
@@ -50,7 +53,8 @@ The script:
 1. Loads credentials from `.env` into environment variables
 2. Runs `dotnet sonarscanner begin` with your project key and server URL
 3. Runs `dotnet build` (unless `-SkipBuild`)
-4. Runs `dotnet sonarscanner end` to upload results
+4. Runs `dotnet test` with OpenCover collection (unless `-SkipCoverage`)
+5. Runs `dotnet sonarscanner end` to upload results
 
 Results appear at `http://localhost:9000` in your project dashboard.
 
