@@ -1,0 +1,10 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Ignore generated gitleaks artifacts accidentally committed in PR work"
+paths = [
+    '''^\.gitleaks-bin/''',
+    '''^gitleaks-report\.json$''',
+    '''^gitleaks_.*\.zip$''',
+]
