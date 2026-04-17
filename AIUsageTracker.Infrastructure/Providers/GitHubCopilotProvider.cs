@@ -63,6 +63,8 @@ public class GitHubCopilotProvider : ProviderBase
     {
         ArgumentNullException.ThrowIfNull(config);
 
+        var providerLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId);
+
         var token = this.ResolveToken(config);
         if (string.IsNullOrEmpty(token) && this.DiscoveryService != null)
         {
@@ -82,7 +84,7 @@ public class GitHubCopilotProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = this.Definition.DisplayName,
+                    ProviderName = providerLabel,
                     AccountName = username,
                     IsAvailable = false,
                     State = ProviderUsageState.Missing,
@@ -145,7 +147,7 @@ public class GitHubCopilotProvider : ProviderBase
             state.State = ProviderUsageState.Error;
         }
 
-        return this.BuildUsageResults(state);
+        return this.BuildUsageResults(state, providerLabel);
     }
 
     private static HttpRequestMessage CreateBearerRequest(string url, string token)
@@ -478,7 +480,7 @@ public class GitHubCopilotProvider : ProviderBase
         }
     }
 
-    private IEnumerable<ProviderUsage> BuildUsageResults(CopilotUsageState state)
+    private IEnumerable<ProviderUsage> BuildUsageResults(CopilotUsageState state, string providerLabel)
     {
         var accountName = HasMeaningfulUsername(state.Username) ? state.Username : string.Empty;
         var authSource = string.IsNullOrEmpty(state.PlanName) ? AuthSource.Unknown : state.PlanName;
@@ -486,7 +488,7 @@ public class GitHubCopilotProvider : ProviderBase
         var baseUsage = new ProviderUsage
         {
             ProviderId = this.ProviderId,
-            ProviderName = ProviderDisplayName,
+            ProviderName = providerLabel,
             AccountName = accountName,
             IsAvailable = state.IsAvailable,
             State = state.State,
@@ -517,7 +519,7 @@ public class GitHubCopilotProvider : ProviderBase
             results.Add(new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = ProviderDisplayName,
+                ProviderName = providerLabel,
                 CardId = "weekly",
                 GroupId = this.ProviderId,
                 Name = "Weekly Quota",
@@ -544,7 +546,7 @@ public class GitHubCopilotProvider : ProviderBase
             results.Add(new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = ProviderDisplayName,
+                ProviderName = providerLabel,
                 CardId = "burst",
                 GroupId = this.ProviderId,
                 Name = "5-Hour Window",
