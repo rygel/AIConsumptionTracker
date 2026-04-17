@@ -82,20 +82,7 @@ internal sealed class ProviderCardRenderer
 
         var contentPadding = isCompact ? 4 : 6;
         var contentPanel = new DockPanel { LastChildFill = false, Margin = new Thickness(contentPadding, 0, contentPadding, 0) };
-        if (isChild)
-        {
-            AddDockedElement(contentPanel, this.CreateBulletMarker(), Dock.Left);
-        }
-        else
-        {
-            var iconSize = isCompact ? 12 : 14;
-            var providerIcon = this._createProviderIcon(providerId);
-            providerIcon.Margin = new Thickness(0, 0, isCompact ? 4 : 6, 0);
-            providerIcon.Width = iconSize;
-            providerIcon.Height = iconSize;
-            providerIcon.VerticalAlignment = VerticalAlignment.Center;
-            AddDockedElement(contentPanel, providerIcon, Dock.Left);
-        }
+        this.AddCardIcon(contentPanel, providerId, isChild, isCompact);
 
         // Right-side slots rendered from right to left (rightmost = first added)
         this.RenderSlot(contentPanel, this._preferences.CardResetInfo, usage, presentation, showUsed, cardPaceColor);
@@ -117,6 +104,21 @@ internal sealed class ProviderCardRenderer
                 isChild),
             Dock.Left);
 
+        this.AddStatusBadges(contentPanel, presentation);
+        grid.Children.Add(contentPanel);
+
+        if (presentation.IsStale)
+        {
+            grid.Opacity = 0.55;
+        }
+
+        this.AttachTooltip(grid, usage, friendlyName);
+
+        return grid;
+    }
+
+    private void AddStatusBadges(DockPanel contentPanel, ProviderCardPresentation presentation)
+    {
         if (presentation.IsExpired)
         {
             AddDockedElement(
@@ -132,7 +134,6 @@ internal sealed class ProviderCardRenderer
 
         if (presentation.IsStale)
         {
-            // Add visible "Stale" badge before the provider name
             AddDockedElement(
                 contentPanel,
                 this.CreateDockedTextBlock(
@@ -143,22 +144,33 @@ internal sealed class ProviderCardRenderer
                     margin: new Thickness(6, 0, 0, 0)),
                 Dock.Right);
         }
+    }
 
-        grid.Children.Add(contentPanel);
-
-        if (presentation.IsStale)
-        {
-            grid.Opacity = 0.55;
-        }
-
+    private void AttachTooltip(Grid grid, ProviderUsage usage, string friendlyName)
+    {
         var toolTipContent = MainWindowRuntimeLogic.BuildTooltipContent(usage, friendlyName);
         if (!string.IsNullOrEmpty(toolTipContent))
         {
             grid.ToolTip = this._createToolTip(grid, toolTipContent);
             this._configureToolTip(grid);
         }
+    }
 
-        return grid;
+    private void AddCardIcon(DockPanel contentPanel, string providerId, bool isChild, bool isCompact)
+    {
+        if (isChild)
+        {
+            AddDockedElement(contentPanel, this.CreateBulletMarker(), Dock.Left);
+            return;
+        }
+
+        var iconSize = isCompact ? 12 : 14;
+        var providerIcon = this._createProviderIcon(providerId);
+        providerIcon.Margin = new Thickness(0, 0, isCompact ? 4 : 6, 0);
+        providerIcon.Width = iconSize;
+        providerIcon.Height = iconSize;
+        providerIcon.VerticalAlignment = VerticalAlignment.Center;
+        AddDockedElement(contentPanel, providerIcon, Dock.Left);
     }
 
     private static string ResolveFriendlyName(ProviderUsage usage, ProviderDefinition? definition, string providerId)
@@ -384,66 +396,77 @@ internal sealed class ProviderCardRenderer
             case CardSlotContent.PaceBadge:
                 this.RenderPaceBadgeSlot(panel, paceColor);
                 break;
-
             case CardSlotContent.ProjectedPercent:
-                if (paceColor.IsPaceAdjusted)
-                {
-                    this.AddSlotText(panel, $"Projected: {paceColor.ProjectedPercent.ToString("F0", CultureInfo.InvariantCulture)}%", this._getResourceBrush(ResourceKeyTertiaryText, Brushes.Gray), 9);
-                }
-
+                this.RenderProjectedPercent(panel, paceColor);
                 break;
-
             case CardSlotContent.DailyBudget:
-                if (usage.PeriodDuration.HasValue && usage.PeriodDuration.Value.TotalDays >= 1)
-                {
-                    var dailyBudget = 100.0 / usage.PeriodDuration.Value.TotalDays;
-                    this.AddSlotText(panel, $"{dailyBudget.ToString("F0", CultureInfo.InvariantCulture)}%/day budget", this._getResourceBrush(ResourceKeyTertiaryText, Brushes.Gray), 9);
-                }
-
+                this.RenderDailyBudget(panel, usage);
                 break;
-
             case CardSlotContent.UsageRate:
-                if (this._preferences.ShowUsagePerHour && usage.UsagePerHour.HasValue)
-                {
-                    this.AddSlotText(panel, $"{usage.UsagePerHour.Value:F1}/hr", this._getResourceBrush(ResourceKeyTertiaryText, Brushes.Gray), 9);
-                }
-
+                this.RenderUsageRate(panel, usage);
                 break;
-
             case CardSlotContent.UsedPercent:
                 this.AddSlotText(panel, $"{usage.UsedPercent.ToString("F0", CultureInfo.InvariantCulture)}% used", this._getResourceBrush(ResourceKeySecondaryText, Brushes.Gray), 10);
                 break;
-
             case CardSlotContent.RemainingPercent:
                 this.AddSlotText(panel, $"{Math.Max(0, 100 - usage.UsedPercent).ToString("F0", CultureInfo.InvariantCulture)}% remaining", this._getResourceBrush(ResourceKeySecondaryText, Brushes.Gray), 10);
                 break;
-
             case CardSlotContent.ResetAbsolute:
             case CardSlotContent.ResetAbsoluteDate:
             case CardSlotContent.ResetRelative:
                 this.RenderResetSlot(panel, slot, usage, presentation);
                 break;
-
             case CardSlotContent.StatusText:
                 this.RenderStatusTextSlot(panel, presentation, showUsed);
                 break;
-
             case CardSlotContent.AccountName:
-                if (!string.IsNullOrWhiteSpace(usage.AccountName))
-                {
-                    var name = this._isPrivacyMode ? "****" : usage.AccountName;
-                    this.AddSlotText(panel, name, this._getResourceBrush(ResourceKeyTertiaryText, Brushes.Gray), 9);
-                }
-
+                this.RenderAccountName(panel, usage);
                 break;
-
             case CardSlotContent.AuthSource:
-                if (!string.IsNullOrWhiteSpace(usage.AuthSource))
-                {
-                    this.AddSlotText(panel, usage.AuthSource, this._getResourceBrush(ResourceKeyTertiaryText, Brushes.Gray), 9);
-                }
-
+                this.RenderAuthSource(panel, usage);
                 break;
+        }
+    }
+
+    private void RenderProjectedPercent(DockPanel panel, PaceColorResult paceColor)
+    {
+        if (paceColor.IsPaceAdjusted)
+        {
+            this.AddSlotText(panel, $"Projected: {paceColor.ProjectedPercent.ToString("F0", CultureInfo.InvariantCulture)}%", this._getResourceBrush(ResourceKeyTertiaryText, Brushes.Gray), 9);
+        }
+    }
+
+    private void RenderDailyBudget(DockPanel panel, ProviderUsage usage)
+    {
+        if (usage.PeriodDuration.HasValue && usage.PeriodDuration.Value.TotalDays >= 1)
+        {
+            var dailyBudget = 100.0 / usage.PeriodDuration.Value.TotalDays;
+            this.AddSlotText(panel, $"{dailyBudget.ToString("F0", CultureInfo.InvariantCulture)}%/day budget", this._getResourceBrush(ResourceKeyTertiaryText, Brushes.Gray), 9);
+        }
+    }
+
+    private void RenderUsageRate(DockPanel panel, ProviderUsage usage)
+    {
+        if (this._preferences.ShowUsagePerHour && usage.UsagePerHour.HasValue)
+        {
+            this.AddSlotText(panel, $"{usage.UsagePerHour.Value:F1}/hr", this._getResourceBrush(ResourceKeyTertiaryText, Brushes.Gray), 9);
+        }
+    }
+
+    private void RenderAccountName(DockPanel panel, ProviderUsage usage)
+    {
+        if (!string.IsNullOrWhiteSpace(usage.AccountName))
+        {
+            var name = this._isPrivacyMode ? "****" : usage.AccountName;
+            this.AddSlotText(panel, name, this._getResourceBrush(ResourceKeyTertiaryText, Brushes.Gray), 9);
+        }
+    }
+
+    private void RenderAuthSource(DockPanel panel, ProviderUsage usage)
+    {
+        if (!string.IsNullOrWhiteSpace(usage.AuthSource))
+        {
+            this.AddSlotText(panel, usage.AuthSource, this._getResourceBrush(ResourceKeyTertiaryText, Brushes.Gray), 9);
         }
     }
 
