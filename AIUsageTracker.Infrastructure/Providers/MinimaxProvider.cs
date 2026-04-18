@@ -339,15 +339,34 @@ public class MinimaxProvider : ProviderBase
     private static IReadOnlyList<MinimaxModelRemains> SelectPreferredCodingPlanModels(
         IReadOnlyList<MinimaxModelRemains> modelRemains)
     {
-        var textGenerationModels = modelRemains
-            .Where(model =>
+        var exactTextGeneration = modelRemains
+            .FirstOrDefault(model =>
                 !string.IsNullOrWhiteSpace(model.ModelName) &&
-                (model.ModelName.Contains("text generation", StringComparison.OrdinalIgnoreCase) ||
-                 model.ModelName.Contains("minimax-text", StringComparison.OrdinalIgnoreCase) ||
-                 model.ModelName.Contains("text", StringComparison.OrdinalIgnoreCase)))
-            .ToList();
+                model.ModelName.Contains("text generation", StringComparison.OrdinalIgnoreCase));
+        if (exactTextGeneration != null)
+        {
+            return new[] { exactTextGeneration };
+        }
 
-        return textGenerationModels.Count > 0 ? textGenerationModels : modelRemains;
+        var minimaxText = modelRemains
+            .FirstOrDefault(model =>
+                !string.IsNullOrWhiteSpace(model.ModelName) &&
+                model.ModelName.Contains("minimax-text", StringComparison.OrdinalIgnoreCase));
+        if (minimaxText != null)
+        {
+            return new[] { minimaxText };
+        }
+
+        var genericText = modelRemains
+            .FirstOrDefault(model =>
+                !string.IsNullOrWhiteSpace(model.ModelName) &&
+                model.ModelName.Contains("text", StringComparison.OrdinalIgnoreCase));
+        if (genericText != null)
+        {
+            return new[] { genericText };
+        }
+
+        return modelRemains.Count > 0 ? new[] { modelRemains[0] } : modelRemains;
     }
 
     private static ProviderUsage BuildModelWindowCard(ModelWindowCardSpec spec)

@@ -729,6 +729,62 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
     }
 
     [Fact]
+    public async Task GetUsageAsync_CodingPlan_DoesNotUseSearchModel_WhenTextGenerationExistsAsync()
+    {
+        // Arrange: both text-generation and search-like models exist; text generation must win.
+        this.Config.ProviderId = MinimaxProvider.CodingPlanProviderId;
+        var responseJson = """
+            {
+                "base_resp": { "status_code": 0, "status_msg": "success" },
+                "model_remains": [
+                    {
+                        "model_name": "Text Search",
+                        "current_interval_total_count": 500,
+                        "current_interval_usage_count": 250,
+                        "end_time": 0,
+                        "current_weekly_total_count": 1000,
+                        "current_weekly_usage_count": 900,
+                        "weekly_end_time": 0
+                    },
+                    {
+                        "model_name": "Text Generation",
+                        "current_interval_total_count": 100,
+                        "current_interval_usage_count": 90,
+                        "end_time": 0,
+                        "current_weekly_total_count": 300,
+                        "current_weekly_usage_count": 270,
+                        "weekly_end_time": 0
+                    }
+                ]
+            }
+            """;
+        this.SetupResponse(HttpStatusCode.OK, responseJson, CodingPlanEndpoint);
+
+        // Act
+        var result = (await this._provider.GetUsageAsync(this.Config)).ToList();
+
+        // Assert: exactly one model selected => generic window labels and text-generation math.
+        Assert.Equal(2, result.Count);
+        Assert.All(result, usage => Assert.DoesNotContain("Search", usage.Name ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result, usage => string.Equals(usage.Name, "5h", StringComparison.Ordinal));
+        Assert.Contains(result, usage => string.Equals(usage.Name, "Weekly", StringComparison.Ordinal));
+
+        var burst = result.Single(u => u.WindowKind == WindowKind.Burst);
+        var weekly = result.Single(u => u.WindowKind == WindowKind.Rolling);
+
+        // Text Generation selected:
+        // Burst: 100 total, 90 remaining -> 10 used
+        Assert.Equal(10, burst.RequestsUsed);
+        Assert.Equal(100, burst.RequestsAvailable);
+        Assert.Equal(10, burst.UsedPercent);
+
+        // Weekly: 300 total, 270 remaining -> 30 used
+        Assert.Equal(30, weekly.RequestsUsed);
+        Assert.Equal(300, weekly.RequestsAvailable);
+        Assert.Equal(10, weekly.UsedPercent);
+    }
+
+    [Fact]
     public void StaticDefinition_CodingPlan_IsInAdditionalHandledProviderIds()
     {
         var definition = MinimaxProvider.StaticDefinition;
