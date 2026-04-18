@@ -285,11 +285,12 @@ public class MinimaxProvider : ProviderBase
         string rawJson,
         int httpStatus)
     {
+        var selectedModels = SelectPreferredCodingPlanModels(modelRemains);
         var usages = new List<ProviderUsage>();
 
-        for (var i = 0; i < modelRemains.Count; i++)
+        for (var i = 0; i < selectedModels.Count; i++)
         {
-            var model = modelRemains[i];
+            var model = selectedModels[i];
             var modelName = model.ModelName ?? $"Model {(i + 1).ToString(CultureInfo.InvariantCulture)}";
             var modelSlug = modelName.ToLowerInvariant().Replace(" ", "-", StringComparison.Ordinal);
 
@@ -333,6 +334,20 @@ public class MinimaxProvider : ProviderBase
         }
 
         return usages;
+    }
+
+    private static IReadOnlyList<MinimaxModelRemains> SelectPreferredCodingPlanModels(
+        IReadOnlyList<MinimaxModelRemains> modelRemains)
+    {
+        var textGenerationModels = modelRemains
+            .Where(model =>
+                !string.IsNullOrWhiteSpace(model.ModelName) &&
+                (model.ModelName.Contains("text generation", StringComparison.OrdinalIgnoreCase) ||
+                 model.ModelName.Contains("minimax-text", StringComparison.OrdinalIgnoreCase) ||
+                 model.ModelName.Contains("text", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        return textGenerationModels.Count > 0 ? textGenerationModels : modelRemains;
     }
 
     private static ProviderUsage BuildModelWindowCard(ModelWindowCardSpec spec)

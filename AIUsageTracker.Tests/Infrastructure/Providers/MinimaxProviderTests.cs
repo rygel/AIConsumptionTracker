@@ -679,6 +679,56 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
     }
 
     [Fact]
+    public async Task GetUsageAsync_CodingPlan_PrefersTextGenerationModelAsync()
+    {
+        // Arrange: first model is non-text; second model is text generation and must be selected.
+        this.Config.ProviderId = MinimaxProvider.CodingPlanProviderId;
+        var responseJson = """
+            {
+                "base_resp": { "status_code": 0, "status_msg": "success" },
+                "model_remains": [
+                    {
+                        "model_name": "Image Generation",
+                        "current_interval_total_count": 200,
+                        "current_interval_usage_count": 150,
+                        "end_time": 0,
+                        "current_weekly_total_count": 1000,
+                        "current_weekly_usage_count": 900,
+                        "weekly_end_time": 0
+                    },
+                    {
+                        "model_name": "Text Generation",
+                        "current_interval_total_count": 100,
+                        "current_interval_usage_count": 80,
+                        "end_time": 0,
+                        "current_weekly_total_count": 500,
+                        "current_weekly_usage_count": 450,
+                        "weekly_end_time": 0
+                    }
+                ]
+            }
+            """;
+        this.SetupResponse(HttpStatusCode.OK, responseJson, CodingPlanEndpoint);
+
+        // Act
+        var result = (await this._provider.GetUsageAsync(this.Config)).ToList();
+
+        // Assert: selected window cards must represent text-generation remaining values.
+        var burst = result.Single(u => u.WindowKind == WindowKind.Burst);
+        var weekly = result.Single(u => u.WindowKind == WindowKind.Rolling);
+
+        // 5h: 100 total, 80 remaining -> 20 used
+        Assert.Equal(20, burst.RequestsUsed);
+        Assert.Equal(100, burst.RequestsAvailable);
+        Assert.Equal(20, burst.UsedPercent);
+
+        // Weekly: 500 total, 450 remaining -> 50 used
+        Assert.Equal(50, weekly.RequestsUsed);
+        Assert.Equal(500, weekly.RequestsAvailable);
+        Assert.Equal(10, weekly.UsedPercent);
+    }
+
+    [Fact]
     public void StaticDefinition_CodingPlan_IsInAdditionalHandledProviderIds()
     {
         var definition = MinimaxProvider.StaticDefinition;
