@@ -42,9 +42,6 @@ public static class ProviderMetadataCatalog
         return Find(providerId)?.ProviderId ?? providerId ?? string.Empty;
     }
 
-    [Obsolete("Use GetProviderOwnerId instead.")]
-    public static string GetCanonicalProviderId(string providerId) => GetProviderOwnerId(providerId);
-
     public static string GetConfiguredDisplayName(string providerId)
     {
         var definition = Find(providerId);
@@ -228,14 +225,6 @@ public static class ProviderMetadataCatalog
         config = definition.CreateDefaultConfig(providerId, apiKey, authSource, description);
         return true;
     }
-
-    public static void NormalizeProviderConfigurations(IList<ProviderConfig> configs)
-    {
-        ArgumentNullException.ThrowIfNull(configs);
-    }
-
-    [Obsolete("Use NormalizeProviderConfigurations instead.")]
-    public static void NormalizeCanonicalConfigurations(IList<ProviderConfig> configs) => NormalizeProviderConfigurations(configs);
 
     private static List<ProviderDefinition> LoadDefinitions()
     {

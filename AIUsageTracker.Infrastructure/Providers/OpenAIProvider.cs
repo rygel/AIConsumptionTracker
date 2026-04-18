@@ -45,7 +45,6 @@ public class OpenAIProvider : ProviderBase
         RooConfigPropertyNames = new[] { "openAiApiKey" },
         ExplicitApiKeyPrefixes = new[] { "sk-" },
         SessionAuthOwnerProviderId = "codex",
-        SessionAuthMigrationDescription = "Migrated from OpenAI session config",
         SettingsMode = ProviderSettingsMode.SessionAuthStatus,
         UseSessionAuthStatusWhenQuotaBasedOrSessionToken = true,
         SessionStatusLabel = "OpenAI (API)",

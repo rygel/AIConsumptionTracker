@@ -73,8 +73,6 @@ public sealed class ProviderDefinition
 
     public string? SessionAuthOwnerProviderId { get; init; }
 
-    public string? SessionAuthMigrationDescription { get; init; }
-
     public ProviderSettingsMode SettingsMode { get; init; } = ProviderSettingsMode.StandardApiKey;
 
     public bool UseSessionAuthStatusWhenQuotaBasedOrSessionToken { get; init; }
