@@ -296,6 +296,8 @@ internal static partial class MainWindowRuntimeLogic
             tooltipBuilder.AppendLine($"Description: {usage.Description}");
         }
 
+        AppendWindowLimitLines(tooltipBuilder, usage);
+
         if (usage.IsAvailable && usage.PeriodDuration.HasValue && usage.PeriodDuration.Value.TotalDays >= 1)
         {
             var dailyBudget = 100.0 / usage.PeriodDuration.Value.TotalDays;
@@ -314,5 +316,44 @@ internal static partial class MainWindowRuntimeLogic
 
         var result = tooltipBuilder.ToString().Trim();
         return string.IsNullOrWhiteSpace(result) ? null : result;
+    }
+
+    private static void AppendWindowLimitLines(System.Text.StringBuilder tooltipBuilder, ProviderUsage usage)
+    {
+        if (usage.WindowCards == null || usage.WindowCards.Count == 0)
+        {
+            return;
+        }
+
+        var burstCard = usage.WindowCards.FirstOrDefault(card => card.WindowKind == WindowKind.Burst);
+        var rollingCard = usage.WindowCards.FirstOrDefault(card => card.WindowKind == WindowKind.Rolling);
+        if (burstCard == null && rollingCard == null)
+        {
+            return;
+        }
+
+        tooltipBuilder.AppendLine();
+        AppendWindowLine(tooltipBuilder, burstCard, "5h");
+        AppendWindowLine(tooltipBuilder, rollingCard, "Weekly");
+    }
+
+    private static void AppendWindowLine(
+        System.Text.StringBuilder tooltipBuilder,
+        ProviderUsage? windowCard,
+        string fallbackLabel)
+    {
+        if (windowCard == null)
+        {
+            return;
+        }
+
+        var label = !string.IsNullOrWhiteSpace(windowCard.Name) ? windowCard.Name : fallbackLabel;
+        var remainingPercent = UsageMath.ClampPercent(100.0 - windowCard.UsedPercent);
+        var resetText = windowCard.NextResetTime.HasValue
+            ? UsageMath.FormatAbsoluteDate(windowCard.NextResetTime.Value)
+            : "Unknown";
+
+        tooltipBuilder.AppendLine(CultureInfo.InvariantCulture, $"{label} limit: {remainingPercent:F0}% remaining");
+        tooltipBuilder.AppendLine($"{label} resets: {resetText}");
     }
 }
