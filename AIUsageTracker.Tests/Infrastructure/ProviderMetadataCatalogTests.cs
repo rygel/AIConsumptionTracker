@@ -70,7 +70,7 @@ public class ProviderMetadataCatalogTests
     [Theory]
     [InlineData("codex.spark", "OpenAI (GPT-5.3 Codex Spark)")]
     [InlineData("antigravity.gpt-oss", "Google Antigravity")]
-    [InlineData("minimax", "MiniMax.com")]
+    [InlineData("minimax", "MiniMax.io")]
     [InlineData("minimax-io", "MiniMax.io")]
     [InlineData("minimax-global", "MiniMax.io")]
     [InlineData("minimax-coding-plan", "Minimax.io Coding Plan")]

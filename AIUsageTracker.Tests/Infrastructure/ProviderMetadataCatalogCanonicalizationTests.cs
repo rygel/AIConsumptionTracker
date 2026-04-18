@@ -15,7 +15,7 @@ public class ProviderMetadataCatalogCanonicalizationTests
     private static readonly string TestApiKey4 = Guid.NewGuid().ToString();
 
     [Fact]
-    public void NormalizeCanonicalConfigurations_MigratesOpenAiSessionTokenToCodex()
+    public void NormalizeCanonicalConfigurations_KeepsOpenAiSessionTokenOnOpenAiProvider()
     {
         var configs = new List<ProviderConfig>
         {
@@ -30,11 +30,11 @@ public class ProviderMetadataCatalogCanonicalizationTests
 
         ProviderMetadataCatalog.NormalizeCanonicalConfigurations(configs);
 
-        var codex = Assert.Single(configs);
-        Assert.Equal("codex", codex.ProviderId);
-        Assert.Equal(TestApiKey1, codex.ApiKey);
-        Assert.Equal("OpenCode", codex.AuthSource);
-        Assert.Equal("Migrated from OpenAI session config", codex.Description);
+        var openAi = Assert.Single(configs);
+        Assert.Equal("openai", openAi.ProviderId);
+        Assert.Equal(TestApiKey1, openAi.ApiKey);
+        Assert.Equal("OpenCode", openAi.AuthSource);
+        Assert.Equal("session", openAi.Description);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class ProviderMetadataCatalogCanonicalizationTests
     }
 
     [Fact]
-    public void NormalizeCanonicalConfigurations_RemovesOpenAiAlias_WhenCodexExists()
+    public void NormalizeCanonicalConfigurations_DoesNotMergeOpenAiIntoCodex_WhenBothExist()
     {
         var configs = new List<ProviderConfig>
         {
@@ -120,8 +120,10 @@ public class ProviderMetadataCatalogCanonicalizationTests
 
         ProviderMetadataCatalog.NormalizeCanonicalConfigurations(configs);
 
-        var codex = Assert.Single(configs);
-        Assert.Equal("codex", codex.ProviderId);
+        Assert.Equal(2, configs.Count);
+        var codex = Assert.Single(configs.Where(c => string.Equals(c.ProviderId, "codex", StringComparison.OrdinalIgnoreCase)));
+        var openAi = Assert.Single(configs.Where(c => string.Equals(c.ProviderId, "openai", StringComparison.OrdinalIgnoreCase)));
         Assert.Equal(TestApiKey3, codex.ApiKey);
+        Assert.Equal(TestApiKey4, openAi.ApiKey);
     }
 }

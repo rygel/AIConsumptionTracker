@@ -39,8 +39,6 @@ public class JsonConfigLoader : IConfigLoader
 
         await this.ApplyDiscoveredTokensAsync(result).ConfigureAwait(false);
 
-        ProviderMetadataCatalog.NormalizeCanonicalConfigurations(result);
-
         return result;
     }
 
@@ -103,13 +101,7 @@ public class JsonConfigLoader : IConfigLoader
 
     private static string ResolveConfigProviderId(string providerId)
     {
-        if (ProviderMetadataCatalog.ShouldPersistProviderId(providerId) &&
-            ProviderMetadataCatalog.IsVisibleDerivedProviderId(providerId))
-        {
-            return providerId;
-        }
-
-        return ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
+        return providerId;
     }
 
     private string GetTrackerConfigPath() => this._pathProvider.GetAuthFilePath();

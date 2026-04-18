@@ -30,7 +30,7 @@ public class MinimaxProvider : ProviderBase
 
     public static ProviderDefinition StaticDefinition { get; } = new(
         ChinaProviderId,
-        "MiniMax.com",
+        "MiniMax.io",
         PlanType.Coding,
         isQuotaBased: true)
     {
