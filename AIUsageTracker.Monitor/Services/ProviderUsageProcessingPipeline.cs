@@ -402,7 +402,7 @@ public class ProviderUsageProcessingPipeline : IProviderUsageProcessingPipeline
     private static void NormalizeFamilyAccountIdentity(List<ProviderUsage> usages)
     {
         foreach (var group in usages.GroupBy(
-                     usage => ProviderMetadataCatalog.GetCanonicalProviderId(usage.ProviderId),
+                     usage => ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty)?.ProviderId ?? usage.ProviderId ?? string.Empty,
                      StringComparer.OrdinalIgnoreCase))
         {
             var resolvedAccountName = group
