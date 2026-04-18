@@ -785,6 +785,38 @@ public class MinimaxProviderTests : HttpProviderTestBase<MinimaxProvider>
     }
 
     [Fact]
+    public async Task GetUsageAsync_CodingPlan_WithoutTextGenerationModel_ReturnsUnavailableAsync()
+    {
+        // Arrange: no text-generation model in payload -> do not guess from other models.
+        this.Config.ProviderId = MinimaxProvider.CodingPlanProviderId;
+        var responseJson = """
+            {
+                "base_resp": { "status_code": 0, "status_msg": "success" },
+                "model_remains": [
+                    {
+                        "model_name": "Image Generation",
+                        "current_interval_total_count": 200,
+                        "current_interval_usage_count": 150,
+                        "end_time": 0,
+                        "current_weekly_total_count": 1000,
+                        "current_weekly_usage_count": 900,
+                        "weekly_end_time": 0
+                    }
+                ]
+            }
+            """;
+        this.SetupResponse(HttpStatusCode.OK, responseJson, CodingPlanEndpoint);
+
+        // Act
+        var result = await this._provider.GetUsageAsync(this.Config);
+
+        // Assert
+        var usage = result.Single();
+        Assert.False(usage.IsAvailable);
+        Assert.Contains("Text Generation model missing", usage.Description, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void StaticDefinition_CodingPlan_IsInAdditionalHandledProviderIds()
     {
         var definition = MinimaxProvider.StaticDefinition;
