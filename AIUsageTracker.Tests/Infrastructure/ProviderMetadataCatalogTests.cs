@@ -130,9 +130,9 @@ public class ProviderMetadataCatalogTests
     [InlineData("minimax-io", "minimax")]
     [InlineData("opencode-go", "opencode-go")]
     [InlineData("unknown-provider", "unknown-provider")]
-    public void GetCanonicalProviderId_UsesProviderDefinitions(string providerId, string expectedCanonicalId)
+    public void GetProviderOwnerId_UsesProviderDefinitions(string providerId, string expectedOwnerId)
     {
-        Assert.Equal(expectedCanonicalId, ProviderMetadataCatalog.GetCanonicalProviderId(providerId));
+        Assert.Equal(expectedOwnerId, ProviderMetadataCatalog.GetProviderOwnerId(providerId));
     }
 
     [Theory]
@@ -155,8 +155,8 @@ public class ProviderMetadataCatalogTests
     [InlineData("unknown-provider.child", false)]
     public void IsChildProviderId_UsesProviderDefinitions(string providerId, bool expected)
     {
-        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
-        Assert.Equal(expected, ProviderMetadataCatalog.Find(canonicalProviderId)?.IsChildProviderId(providerId) ?? false);
+        var ownerProviderId = ProviderMetadataCatalog.GetProviderOwnerId(providerId);
+        Assert.Equal(expected, ProviderMetadataCatalog.Find(ownerProviderId)?.IsChildProviderId(providerId) ?? false);
     }
 
     [Theory]

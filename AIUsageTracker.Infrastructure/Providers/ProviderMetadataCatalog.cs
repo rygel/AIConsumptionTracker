@@ -37,10 +37,13 @@ public static class ProviderMetadataCatalog
         return true;
     }
 
-    public static string GetCanonicalProviderId(string providerId)
+    public static string GetProviderOwnerId(string providerId)
     {
         return Find(providerId)?.ProviderId ?? providerId ?? string.Empty;
     }
+
+    [Obsolete("Use GetProviderOwnerId instead.")]
+    public static string GetCanonicalProviderId(string providerId) => GetProviderOwnerId(providerId);
 
     public static string GetConfiguredDisplayName(string providerId)
     {
@@ -133,7 +136,7 @@ public static class ProviderMetadataCatalog
             .Where(definition =>
                 definition.AuthIdentityCandidatePathTemplates.Count > 0 &&
                 definition.SessionAuthFileSchemas.Count > 0 &&
-                string.IsNullOrWhiteSpace(definition.SessionAuthCanonicalProviderId))
+                string.IsNullOrWhiteSpace(definition.SessionAuthOwnerProviderId))
             .Select(definition => definition.ProviderId)
             .OrderBy(providerId => providerId, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -226,10 +229,13 @@ public static class ProviderMetadataCatalog
         return true;
     }
 
-    public static void NormalizeCanonicalConfigurations(IList<ProviderConfig> configs)
+    public static void NormalizeProviderConfigurations(IList<ProviderConfig> configs)
     {
         ArgumentNullException.ThrowIfNull(configs);
     }
+
+    [Obsolete("Use NormalizeProviderConfigurations instead.")]
+    public static void NormalizeCanonicalConfigurations(IList<ProviderConfig> configs) => NormalizeProviderConfigurations(configs);
 
     private static List<ProviderDefinition> LoadDefinitions()
     {

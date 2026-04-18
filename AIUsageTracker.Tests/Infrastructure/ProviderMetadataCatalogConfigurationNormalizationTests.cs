@@ -1,4 +1,4 @@
-// <copyright file="ProviderMetadataCatalogCanonicalizationTests.cs" company="AIUsageTracker">
+// <copyright file="ProviderMetadataCatalogConfigurationNormalizationTests.cs" company="AIUsageTracker">
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
@@ -7,7 +7,7 @@ using AIUsageTracker.Infrastructure.Providers;
 
 namespace AIUsageTracker.Tests.Infrastructure;
 
-public class ProviderMetadataCatalogCanonicalizationTests
+public class ProviderMetadataCatalogConfigurationNormalizationTests
 {
     private static readonly string TestApiKey1 = Guid.NewGuid().ToString();
     private static readonly string TestApiKey2 = Guid.NewGuid().ToString();
@@ -15,7 +15,7 @@ public class ProviderMetadataCatalogCanonicalizationTests
     private static readonly string TestApiKey4 = Guid.NewGuid().ToString();
 
     [Fact]
-    public void NormalizeCanonicalConfigurations_KeepsOpenAiSessionTokenOnOpenAiProvider()
+    public void NormalizeProviderConfigurations_KeepsOpenAiSessionTokenOnOpenAiProvider()
     {
         var configs = new List<ProviderConfig>
         {
@@ -28,7 +28,7 @@ public class ProviderMetadataCatalogCanonicalizationTests
             },
         };
 
-        ProviderMetadataCatalog.NormalizeCanonicalConfigurations(configs);
+        ProviderMetadataCatalog.NormalizeProviderConfigurations(configs);
 
         var openAi = Assert.Single(configs);
         Assert.Equal("openai", openAi.ProviderId);
@@ -38,7 +38,7 @@ public class ProviderMetadataCatalogCanonicalizationTests
     }
 
     [Fact]
-    public void NormalizeCanonicalConfigurations_KeepsCodexSparkAsDedicatedProvider()
+    public void NormalizeProviderConfigurations_KeepsCodexSparkAsDedicatedProvider()
     {
         var configs = new List<ProviderConfig>
         {
@@ -54,7 +54,7 @@ public class ProviderMetadataCatalogCanonicalizationTests
             },
         };
 
-        ProviderMetadataCatalog.NormalizeCanonicalConfigurations(configs);
+        ProviderMetadataCatalog.NormalizeProviderConfigurations(configs);
 
         var spark = Assert.Single(configs);
         Assert.Equal("codex.spark", spark.ProviderId);
@@ -67,7 +67,7 @@ public class ProviderMetadataCatalogCanonicalizationTests
     }
 
     [Fact]
-    public void NormalizeCanonicalConfigurations_KeepsMinimaxCodingPlanAsDedicatedProvider()
+    public void NormalizeProviderConfigurations_KeepsMinimaxCodingPlanAsDedicatedProvider()
     {
         // minimax-coding-plan must NOT be merged into the minimax (China) config —
         // it's a separate visible derived provider with its own API key and endpoint.
@@ -81,7 +81,7 @@ public class ProviderMetadataCatalogCanonicalizationTests
             },
         };
 
-        ProviderMetadataCatalog.NormalizeCanonicalConfigurations(configs);
+        ProviderMetadataCatalog.NormalizeProviderConfigurations(configs);
 
         var codingPlan = Assert.Single(configs);
         Assert.Equal("minimax-coding-plan", codingPlan.ProviderId); // provider-id-guardrail-allow: test assertion
@@ -90,7 +90,7 @@ public class ProviderMetadataCatalogCanonicalizationTests
     }
 
     [Fact]
-    public void NormalizeCanonicalConfigurations_KeepsMinimaxIoAsDedicatedProvider()
+    public void NormalizeProviderConfigurations_KeepsMinimaxIoAsDedicatedProvider()
     {
         // minimax-io must NOT be merged into the minimax (China) config.
         var configs = new List<ProviderConfig>
@@ -102,7 +102,7 @@ public class ProviderMetadataCatalogCanonicalizationTests
             },
         };
 
-        ProviderMetadataCatalog.NormalizeCanonicalConfigurations(configs);
+        ProviderMetadataCatalog.NormalizeProviderConfigurations(configs);
 
         var international = Assert.Single(configs);
         Assert.Equal("minimax-io", international.ProviderId); // provider-id-guardrail-allow: test assertion
@@ -110,7 +110,7 @@ public class ProviderMetadataCatalogCanonicalizationTests
     }
 
     [Fact]
-    public void NormalizeCanonicalConfigurations_DoesNotMergeOpenAiIntoCodex_WhenBothExist()
+    public void NormalizeProviderConfigurations_DoesNotMergeOpenAiIntoCodex_WhenBothExist()
     {
         var configs = new List<ProviderConfig>
         {
@@ -118,7 +118,7 @@ public class ProviderMetadataCatalogCanonicalizationTests
             new() { ProviderId = "openai", ApiKey = TestApiKey4 },
         };
 
-        ProviderMetadataCatalog.NormalizeCanonicalConfigurations(configs);
+        ProviderMetadataCatalog.NormalizeProviderConfigurations(configs);
 
         Assert.Equal(2, configs.Count);
         var codex = Assert.Single(configs.Where(c => string.Equals(c.ProviderId, "codex", StringComparison.OrdinalIgnoreCase)));
