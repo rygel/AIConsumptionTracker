@@ -172,23 +172,15 @@ public class AppStartupTests : IDisposable
     }
 
     [Fact]
-    public async Task LoadPreferencesAsync_WithStringUpdateChannel_ParsesWithoutResettingOtherFieldsAsync()
+    public async Task SavePreferencesAsync_WritesNumericUpdateChannelValueAsync()
     {
-        await File.WriteAllTextAsync(
-            this._testPreferencesPath,
-            """
-            {
-              "UpdateChannel": "Beta",
-              "IsPrivacyMode": true,
-              "PercentageDisplayMode": "Used"
-            }
-            """);
+        var preferences = new AppPreferences { UpdateChannel = UpdateChannel.Beta };
 
-        var loaded = await this._store.LoadAsync();
+        var saved = await this._store.SaveAsync(preferences);
+        var json = await File.ReadAllTextAsync(this._testPreferencesPath);
 
-        Assert.Equal(UpdateChannel.Beta, loaded.UpdateChannel);
-        Assert.True(loaded.IsPrivacyMode);
-        Assert.True(loaded.ShowUsedPercentages);
+        Assert.True(saved);
+        Assert.Contains("\"UpdateChannel\": 1", json, StringComparison.Ordinal);
     }
 
     [Fact]
