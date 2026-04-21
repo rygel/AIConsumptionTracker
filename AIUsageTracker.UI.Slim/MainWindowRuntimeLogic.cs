@@ -286,6 +286,34 @@ internal static partial class MainWindowRuntimeLogic
             : null;
     }
 
+    internal static (DateTime? ResetTime, string? ResetLabel) ResolveCardResetDisplay(
+        ProviderUsage usage,
+        ProviderCardPresentation presentation,
+        bool showDualQuotaBars,
+        DualQuotaSingleBarMode dualQuotaSingleBarMode)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+        ArgumentNullException.ThrowIfNull(presentation);
+
+        if (presentation.DualBar != null)
+        {
+            var bar = showDualQuotaBars
+                ? presentation.DualBar.Primary // Dual-bar layout always surfaces the burst (5h) reset.
+                : dualQuotaSingleBarMode == DualQuotaSingleBarMode.Burst
+                    ? presentation.DualBar.Primary
+                    : presentation.DualBar.Secondary;
+
+            var label = string.IsNullOrWhiteSpace(bar.Label)
+                ? ResolveResetWindowLabel(usage)
+                : bar.Label;
+            return (bar.ResetTime, label);
+        }
+
+        return presentation.SuppressSingleResetTime
+            ? (null, null)
+            : (usage.NextResetTime, ResolveResetWindowLabel(usage));
+    }
+
     /// <summary>
     /// Builds a multi-line tooltip string for a provider card, including daily budget
     /// information for multi-day quota periods.
@@ -355,8 +383,8 @@ internal static partial class MainWindowRuntimeLogic
         }
 
         tooltipBuilder.AppendLine();
-        AppendWindowLine(tooltipBuilder, burstCard, useRelativeResetTime);
-        AppendWindowLine(tooltipBuilder, rollingCard, useRelativeResetTime);
+        AppendWindowLine(tooltipBuilder, usage, burstCard, useRelativeResetTime);
+        AppendWindowLine(tooltipBuilder, usage, rollingCard, useRelativeResetTime);
     }
 
     private static void AppendSingleResetLine(
@@ -369,9 +397,7 @@ internal static partial class MainWindowRuntimeLogic
             return;
         }
 
-        var resetText = useRelativeResetTime
-            ? UsageMath.FormatRelativeTime(usage.NextResetTime.Value)
-            : UsageMath.FormatAbsoluteDate(usage.NextResetTime.Value);
+        var resetText = FormatTooltipResetText(usage, usage.NextResetTime.Value, useRelativeResetTime);
         var label = ResolveResetWindowLabel(usage);
         tooltipBuilder.AppendLine();
         tooltipBuilder.AppendLine(
@@ -382,6 +408,7 @@ internal static partial class MainWindowRuntimeLogic
 
     private static void AppendWindowLine(
         System.Text.StringBuilder tooltipBuilder,
+        ProviderUsage ownerUsage,
         ProviderUsage? windowCard,
         bool useRelativeResetTime)
     {
@@ -396,11 +423,43 @@ internal static partial class MainWindowRuntimeLogic
         tooltipBuilder.AppendLine(CultureInfo.InvariantCulture, $"{label} limit: {remainingPercent:F0}% remaining");
         if (windowCard.NextResetTime.HasValue)
         {
-            var resetText = useRelativeResetTime
-                ? UsageMath.FormatRelativeTime(windowCard.NextResetTime.Value)
-                : UsageMath.FormatAbsoluteDate(windowCard.NextResetTime.Value);
+            var resetText = FormatTooltipResetText(windowCard, windowCard.NextResetTime.Value, useRelativeResetTime, ownerUsage);
             tooltipBuilder.AppendLine($"{label} resets: {resetText}");
         }
+    }
+
+    private static string FormatTooltipResetText(ProviderUsage usage, DateTime resetTime, bool useRelativeResetTime, ProviderUsage? ownerUsage = null)
+    {
+        if (useRelativeResetTime)
+        {
+            return UsageMath.FormatRelativeTime(resetTime);
+        }
+
+        // MiniMax coding-plan responses expose window times in UTC milliseconds.
+        // Show explicit UTC in tooltip to avoid local-time ambiguity for this provider.
+        if (IsMinimaxCodingPlanUsage(usage) || (ownerUsage != null && IsMinimaxCodingPlanUsage(ownerUsage)))
+        {
+            return FormatUtcResetDateTime(resetTime);
+        }
+
+        return UsageMath.FormatAbsoluteDate(resetTime);
+    }
+
+    internal static bool IsMinimaxCodingPlanUsage(ProviderUsage usage)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+
+        if (string.Equals(usage.ProviderId, MinimaxProvider.CodingPlanProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals(usage.ProviderName, "Minimax.io Coding Plan", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static string FormatUtcResetDateTime(DateTime resetTime)
+    {
+        return $"{UsageMath.AsUtc(resetTime).ToString("MMM d, HH:mm", CultureInfo.InvariantCulture)} UTC";
     }
 
     private static string? NormalizeResetWindowLabel(string? value)

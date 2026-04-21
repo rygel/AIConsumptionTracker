@@ -507,19 +507,11 @@ internal sealed class ProviderCardRenderer
         ProviderUsage usage,
         ProviderCardPresentation presentation)
     {
-        if (presentation.DualBar != null && !this._preferences.ShowDualQuotaBars)
-        {
-            var bar = this._preferences.DualQuotaSingleBarMode == DualQuotaSingleBarMode.Burst
-                ? presentation.DualBar.Primary
-                : presentation.DualBar.Secondary;
-            return (
-                bar.ResetTime,
-                string.IsNullOrWhiteSpace(bar.Label) ? MainWindowRuntimeLogic.ResolveResetWindowLabel(usage) : bar.Label);
-        }
-
-        return presentation.SuppressSingleResetTime
-            ? (null, null)
-            : (usage.NextResetTime, MainWindowRuntimeLogic.ResolveResetWindowLabel(usage));
+        return MainWindowRuntimeLogic.ResolveCardResetDisplay(
+            usage,
+            presentation,
+            this._preferences.ShowDualQuotaBars,
+            this._preferences.DualQuotaSingleBarMode);
     }
 
     private static string FormatResetText(DateTime resetTime, string? resetLabel, Func<DateTime, string> formatter)

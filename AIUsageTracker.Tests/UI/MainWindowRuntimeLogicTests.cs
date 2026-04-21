@@ -3,6 +3,7 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
+using AIUsageTracker.Infrastructure.Providers;
 using AIUsageTracker.UI.Slim;
 
 namespace AIUsageTracker.Tests.UI;
@@ -308,6 +309,34 @@ public sealed class MainWindowRuntimeLogicTests
     }
 
     [Fact]
+    public void BuildTooltipContent_MinimaxCodingPlan_UsesUtcResetText()
+    {
+        var burstReset = new DateTime(2026, 4, 21, 20, 0, 0, DateTimeKind.Utc);
+        var usage = new ProviderUsage
+        {
+            ProviderId = MinimaxProvider.CodingPlanProviderId,
+            ProviderName = "Minimax.io Coding Plan",
+            IsAvailable = true,
+            WindowCards = new List<ProviderUsage>
+            {
+                new()
+                {
+                    ProviderId = MinimaxProvider.CodingPlanProviderId,
+                    Name = "5h",
+                    WindowKind = WindowKind.Burst,
+                    UsedPercent = 10,
+                    NextResetTime = burstReset,
+                },
+            },
+        };
+
+        var tooltip = MainWindowRuntimeLogic.BuildTooltipContent(usage, usage.ProviderName!, useRelativeResetTime: false);
+
+        Assert.NotNull(tooltip);
+        Assert.Contains("5h resets: Apr 21, 20:00 UTC", tooltip, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BuildTooltipContent_WithModelName_IncludesModelLine()
     {
         var usage = new ProviderUsage
@@ -324,5 +353,139 @@ public sealed class MainWindowRuntimeLogicTests
         Assert.NotNull(tooltip);
         Assert.Contains("Model provider: google", tooltip, StringComparison.Ordinal);
         Assert.Contains("Model: gemini-2.5-pro", tooltip, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResolveCardResetDisplay_DualBarsVisible_UsesBurstReset()
+    {
+        var burstReset = new DateTime(2026, 4, 21, 20, 0, 0, DateTimeKind.Utc);
+        var weeklyReset = new DateTime(2026, 4, 26, 0, 0, 0, DateTimeKind.Utc);
+        var usage = new ProviderUsage
+        {
+            ProviderId = MinimaxProvider.CodingPlanProviderId,
+            ProviderName = "Minimax.io Coding Plan",
+            IsAvailable = true,
+            IsQuotaBased = true,
+            PlanType = PlanType.Coding,
+            UsedPercent = 20,
+            WindowCards = new List<ProviderUsage>
+            {
+                new()
+                {
+                    ProviderId = MinimaxProvider.CodingPlanProviderId,
+                    Name = "5h",
+                    WindowKind = WindowKind.Burst,
+                    UsedPercent = 25,
+                    NextResetTime = burstReset,
+                },
+                new()
+                {
+                    ProviderId = MinimaxProvider.CodingPlanProviderId,
+                    Name = "Weekly",
+                    WindowKind = WindowKind.Rolling,
+                    UsedPercent = 30,
+                    NextResetTime = weeklyReset,
+                },
+            },
+        };
+
+        var presentation = MainWindowRuntimeLogic.Create(usage, showUsed: true, enablePaceAdjustment: true);
+
+        var (resetTime, resetLabel) = MainWindowRuntimeLogic.ResolveCardResetDisplay(
+            usage,
+            presentation,
+            showDualQuotaBars: true,
+            dualQuotaSingleBarMode: DualQuotaSingleBarMode.Rolling);
+
+        Assert.Equal(burstReset, resetTime);
+        Assert.Equal("5h", resetLabel);
+    }
+
+    [Fact]
+    public void ResolveCardResetDisplay_DualBarsCollapsed_RespectsSelectedWindow()
+    {
+        var burstReset = new DateTime(2026, 4, 21, 20, 0, 0, DateTimeKind.Utc);
+        var weeklyReset = new DateTime(2026, 4, 26, 0, 0, 0, DateTimeKind.Utc);
+        var usage = new ProviderUsage
+        {
+            ProviderId = MinimaxProvider.CodingPlanProviderId,
+            ProviderName = "Minimax.io Coding Plan",
+            IsAvailable = true,
+            IsQuotaBased = true,
+            PlanType = PlanType.Coding,
+            UsedPercent = 20,
+            WindowCards = new List<ProviderUsage>
+            {
+                new()
+                {
+                    ProviderId = MinimaxProvider.CodingPlanProviderId,
+                    Name = "5h",
+                    WindowKind = WindowKind.Burst,
+                    UsedPercent = 25,
+                    NextResetTime = burstReset,
+                },
+                new()
+                {
+                    ProviderId = MinimaxProvider.CodingPlanProviderId,
+                    Name = "Weekly",
+                    WindowKind = WindowKind.Rolling,
+                    UsedPercent = 30,
+                    NextResetTime = weeklyReset,
+                },
+            },
+        };
+
+        var presentation = MainWindowRuntimeLogic.Create(usage, showUsed: true, enablePaceAdjustment: true);
+
+        var (resetTime, resetLabel) = MainWindowRuntimeLogic.ResolveCardResetDisplay(
+            usage,
+            presentation,
+            showDualQuotaBars: false,
+            dualQuotaSingleBarMode: DualQuotaSingleBarMode.Rolling);
+
+        Assert.Equal(weeklyReset, resetTime);
+        Assert.Equal("Weekly", resetLabel);
+    }
+
+    [Fact]
+    public void Create_MinimaxCodingPlanDualBars_ComputesPaceBadges()
+    {
+        var now = DateTime.UtcNow;
+        var usage = new ProviderUsage
+        {
+            ProviderId = MinimaxProvider.CodingPlanProviderId,
+            ProviderName = "Minimax.io Coding Plan",
+            IsAvailable = true,
+            IsQuotaBased = true,
+            PlanType = PlanType.Coding,
+            UsedPercent = 20,
+            WindowCards = new List<ProviderUsage>
+            {
+                new()
+                {
+                    ProviderId = MinimaxProvider.CodingPlanProviderId,
+                    Name = "5h",
+                    WindowKind = WindowKind.Burst,
+                    UsedPercent = 20,
+                    NextResetTime = now.AddHours(2),
+                },
+                new()
+                {
+                    ProviderId = MinimaxProvider.CodingPlanProviderId,
+                    Name = "Weekly",
+                    WindowKind = WindowKind.Rolling,
+                    UsedPercent = 35,
+                    NextResetTime = now.AddDays(4),
+                },
+            },
+        };
+
+        var presentation = MainWindowRuntimeLogic.Create(usage, showUsed: true, enablePaceAdjustment: true);
+
+        Assert.NotNull(presentation.DualBar);
+        Assert.True(presentation.DualBar!.Primary.PaceColor.IsPaceAdjusted);
+        Assert.True(presentation.DualBar.Secondary.PaceColor.IsPaceAdjusted);
+        Assert.False(string.IsNullOrWhiteSpace(presentation.DualBar.Primary.PaceColor.BadgeText));
+        Assert.False(string.IsNullOrWhiteSpace(presentation.DualBar.Secondary.PaceColor.BadgeText));
     }
 }

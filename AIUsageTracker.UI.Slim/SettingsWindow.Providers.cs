@@ -3,6 +3,7 @@
 // </copyright>
 
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -475,9 +476,12 @@ public partial class SettingsWindow
     private static string BuildSettingsResetText(ProviderUsage usage, DateTime nextReset)
     {
         var resetLabel = MainWindowRuntimeLogic.ResolveResetWindowLabel(usage);
+        var resetText = MainWindowRuntimeLogic.IsMinimaxCodingPlanUsage(usage)
+            ? MainWindowRuntimeLogic.FormatUtcResetDateTime(nextReset)
+            : nextReset.ToString("g", CultureInfo.CurrentCulture);
         return string.IsNullOrWhiteSpace(resetLabel)
-            ? $"Next reset: {nextReset:g}"
-            : $"Next {resetLabel} reset: {nextReset:g}";
+            ? $"Next reset: {resetText}"
+            : $"Next {resetLabel} reset: {resetText}";
     }
 
     private StackPanel BuildProviderHeader(ProviderConfig config, ProviderSettingsBehavior settingsBehavior, bool isDerived)
