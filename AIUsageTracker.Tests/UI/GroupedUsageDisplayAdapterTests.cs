@@ -727,7 +727,7 @@ public class GroupedUsageDisplayAdapterTests
     [Fact]
     public void Expand_LegacyPath_PropagatesStateFromSnapshot()
     {
-        // Strict contract: providers without models are omitted.
+        // Providers without models render a legacy parent card.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -750,5 +750,42 @@ public class GroupedUsageDisplayAdapterTests
         var card = Assert.Single(usages);
         Assert.Equal("openrouter", card.ProviderId);
         Assert.Equal(ProviderUsageState.Missing, card.State);
+        Assert.False(card.IsQuotaBased);
+        Assert.Equal(PlanType.Usage, card.PlanType);
+    }
+
+    [Fact]
+    public void Expand_OpenrouterFlatCard_UsesMetadataToStayPayAsYouGo()
+    {
+        var snapshot = new AgentGroupedUsageSnapshot
+        {
+            Providers = new[]
+            {
+                new AgentGroupedProviderUsage
+                {
+                    ProviderId = "openrouter",
+                    ProviderName = "OpenRouter",
+                    IsAvailable = true,
+                    IsQuotaBased = true, // stale/incorrect incoming flag
+                    PlanType = PlanType.Coding, // stale/incorrect incoming flag
+                    Models = new[]
+                    {
+                        new AgentGroupedModelUsage
+                        {
+                            ModelId = "credits",
+                            ModelName = "Credits",
+                            RemainingPercentage = 75,
+                        },
+                    },
+                },
+            },
+        };
+
+        var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
+
+        var card = Assert.Single(usages);
+        Assert.Equal("openrouter", card.ProviderId);
+        Assert.False(card.IsQuotaBased);
+        Assert.Equal(PlanType.Usage, card.PlanType);
     }
 }
