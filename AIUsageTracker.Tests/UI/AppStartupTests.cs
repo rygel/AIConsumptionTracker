@@ -173,6 +173,26 @@ public class AppStartupTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadPreferencesAsync_WithStringUpdateChannel_ParsesWithoutResettingOtherFieldsAsync()
+    {
+        await File.WriteAllTextAsync(
+            this._testPreferencesPath,
+            """
+            {
+              "UpdateChannel": "Beta",
+              "IsPrivacyMode": true,
+              "PercentageDisplayMode": "Used"
+            }
+            """);
+
+        var loaded = await this._store.LoadAsync();
+
+        Assert.Equal(UpdateChannel.Beta, loaded.UpdateChannel);
+        Assert.True(loaded.IsPrivacyMode);
+        Assert.True(loaded.ShowUsedPercentages);
+    }
+
+    [Fact]
     public async Task LoadPreferencesAsync_WhenPrimaryCorrupted_UsesBackupAsync()
     {
         var original = new AppPreferences

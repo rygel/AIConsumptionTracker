@@ -108,6 +108,7 @@ public class AppPreferences
     public IDictionary<string, bool> CollapsedGroupIds { get; set; } = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
     // Update channel (Stable or Beta)
+    [JsonConverter(typeof(JsonStringEnumConverter<UpdateChannel>))]
     public UpdateChannel UpdateChannel { get; set; } = UpdateChannel.Stable;
 
     // Display Options

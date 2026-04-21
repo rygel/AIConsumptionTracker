@@ -334,21 +334,23 @@ public partial class MainWindow : Window
             return;
         }
 
+        var preferences = this.EnsureSharedPreferencesForWrite();
+
         // Only save if position has changed meaningfully
         var positionChanged =
-            Math.Abs(this._preferences.WindowLeft.GetValueOrDefault() - this.Left) > 1 ||
-            Math.Abs(this._preferences.WindowTop.GetValueOrDefault() - this.Top) > 1;
+            Math.Abs(preferences.WindowLeft.GetValueOrDefault() - this.Left) > 1 ||
+            Math.Abs(preferences.WindowTop.GetValueOrDefault() - this.Top) > 1;
 
         var sizeChanged =
-            Math.Abs(this._preferences.WindowWidth - this.Width) > 1 ||
-            Math.Abs(this._preferences.WindowHeight - this.Height) > 1;
+            Math.Abs(preferences.WindowWidth - this.Width) > 1 ||
+            Math.Abs(preferences.WindowHeight - this.Height) > 1;
 
         if (positionChanged || sizeChanged)
         {
-            this._preferences.WindowLeft = this.Left;
-            this._preferences.WindowTop = this.Top;
-            this._preferences.WindowWidth = this.Width;
-            this._preferences.WindowHeight = this.Height;
+            preferences.WindowLeft = this.Left;
+            preferences.WindowTop = this.Top;
+            preferences.WindowWidth = this.Width;
+            preferences.WindowHeight = this.Height;
             await this.SaveUiPreferencesAsync().ConfigureAwait(true);
         }
     }
@@ -485,12 +487,19 @@ public partial class MainWindow : Window
 
     private async Task SaveUiPreferencesAsync()
     {
-        App.Preferences = this._preferences;
-        var saved = await this._preferencesStore.SaveAsync(this._preferences).ConfigureAwait(true);
+        var preferences = this.EnsureSharedPreferencesForWrite();
+        var saved = await this._preferencesStore.SaveAsync(preferences).ConfigureAwait(true);
         if (!saved)
         {
             this._logger.LogWarning("Failed to save Slim UI preferences");
         }
+    }
+
+    private AppPreferences EnsureSharedPreferencesForWrite()
+    {
+        this._preferences = App.Preferences;
+        this._preferencesLoaded = true;
+        return this._preferences;
     }
 
     internal void ShowAndActivate()
@@ -699,8 +708,9 @@ public partial class MainWindow : Window
     {
         try
         {
+            var preferences = this.EnsureSharedPreferencesForWrite();
             var newPrivacyMode = !this._isPrivacyMode;
-            this._preferences.IsPrivacyMode = newPrivacyMode;
+            preferences.IsPrivacyMode = newPrivacyMode;
             App.SetPrivacyMode(newPrivacyMode);
             await this.SaveUiPreferencesAsync().ConfigureAwait(true);
         }
@@ -724,8 +734,9 @@ public partial class MainWindow : Window
                 return;
             }
 
-            this._preferences.AlwaysOnTop = this.AlwaysOnTopCheck.IsChecked ?? true;
-            if (this._preferences.AlwaysOnTop)
+            var preferences = this.EnsureSharedPreferencesForWrite();
+            preferences.AlwaysOnTop = this.AlwaysOnTopCheck.IsChecked ?? true;
+            if (preferences.AlwaysOnTop)
             {
                 this.EnsureAlwaysOnTop();
             }
@@ -751,7 +762,8 @@ public partial class MainWindow : Window
                 return;
             }
 
-            this._preferences.ShowUsedPercentages = this.ShowUsedToggle.IsChecked ?? false;
+            var preferences = this.EnsureSharedPreferencesForWrite();
+            preferences.ShowUsedPercentages = this.ShowUsedToggle.IsChecked ?? false;
             await this.SaveUiPreferencesAsync().ConfigureAwait(true);
 
             // Refresh the display to show used% vs remaining%
