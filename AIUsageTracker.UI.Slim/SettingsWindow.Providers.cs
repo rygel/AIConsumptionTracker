@@ -859,62 +859,7 @@ public partial class SettingsWindow
 
     private FrameworkElement CreateProviderIcon(string providerId)
     {
-        // Map to SVG or create fallback
-        var image = new Image();
-        image.Source = this.GetProviderImageSource(providerId);
-        return image;
-    }
-
-    private ImageSource GetProviderImageSource(string providerId)
-    {
-        try
-        {
-            var filename = ProviderMetadataCatalog.GetIconAssetName(providerId);
-
-            var appDir = AppDomain.CurrentDomain.BaseDirectory;
-
-            // Try SVG first
-            var svgPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.svg");
-            if (System.IO.File.Exists(svgPath))
-            {
-                // Return a simple colored circle as fallback (SVG loading requires SharpVectors)
-                return CreateFallbackIcon(providerId);
-            }
-
-            // Try ICO
-            var icoPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.ico");
-            if (System.IO.File.Exists(icoPath))
-            {
-                var icoImage = new System.Windows.Media.Imaging.BitmapImage();
-                icoImage.BeginInit();
-                icoImage.UriSource = new Uri(icoPath);
-                icoImage.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                icoImage.EndInit();
-                icoImage.Freeze();
-                return icoImage;
-            }
-        }
-        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or NotSupportedException)
-        {
-            this._logger.LogDebug(ex, "Failed to load provider icon for {ProviderId}", providerId);
-        }
-
-        return CreateFallbackIcon(providerId);
-    }
-
-    private static DrawingImage CreateFallbackIcon(string providerId)
-    {
-        // Create a simple colored circle as fallback
-        var (color, _) = global::AIUsageTracker.UI.Slim.Services.WpfProviderIconService.GetBadge(providerId, Brushes.Gray);
-
-        // Return a drawing image with just a colored rectangle (simplified)
-        var drawing = new GeometryDrawing(
-            color,
-            new Pen(Brushes.Transparent, 0),
-            new RectangleGeometry(new Rect(0, 0, 16, 16)));
-        var image = new DrawingImage(drawing);
-        image.Freeze();
-        return image;
+        return this._providerIconService.CreateIcon(providerId);
     }
 
     private ProviderConfig GetOrCreateTrackedConfig(ProviderConfig config)

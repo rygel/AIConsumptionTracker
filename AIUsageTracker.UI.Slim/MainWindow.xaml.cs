@@ -32,7 +32,6 @@ public partial class MainWindow : Window
     private readonly MainViewModel _viewModel;
     private readonly IMonitorService _monitorService;
     private readonly MonitorLifecycleService _monitorLifecycleService;
-    private readonly MonitorStartupOrchestrator _monitorStartupOrchestrator;
     private readonly ILogger<MainWindow> _logger;
     private readonly Func<UpdateChannel, GitHubUpdateChecker> _createUpdateChecker;
     private readonly IDialogService _dialogService;
@@ -68,13 +67,11 @@ public partial class MainWindow : Window
     private bool _isSettingsDialogOpen;
     private bool _isChangelogOpen;
     private bool _isTooltipOpen;
-    private readonly CancellationTokenSource _watchdogCts = new();
 
     public MainWindow(
         MainViewModel viewModel,
         IMonitorService monitorService,
         MonitorLifecycleService monitorLifecycleService,
-        MonitorStartupOrchestrator monitorStartupOrchestrator,
         ILogger<MainWindow> logger,
         Func<UpdateChannel, GitHubUpdateChecker> createUpdateChecker,
         GitHubUpdateChecker updateChecker,
@@ -86,7 +83,6 @@ public partial class MainWindow : Window
             viewModel,
             monitorService,
             monitorLifecycleService,
-            monitorStartupOrchestrator,
             logger,
             createUpdateChecker,
             updateChecker,
@@ -102,7 +98,6 @@ public partial class MainWindow : Window
         MainViewModel viewModel,
         IMonitorService monitorService,
         MonitorLifecycleService monitorLifecycleService,
-        MonitorStartupOrchestrator monitorStartupOrchestrator,
         ILogger<MainWindow> logger,
         Func<UpdateChannel, GitHubUpdateChecker> createUpdateChecker,
         GitHubUpdateChecker updateChecker,
@@ -114,7 +109,6 @@ public partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(viewModel);
         ArgumentNullException.ThrowIfNull(monitorService);
         ArgumentNullException.ThrowIfNull(monitorLifecycleService);
-        ArgumentNullException.ThrowIfNull(monitorStartupOrchestrator);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(createUpdateChecker);
         ArgumentNullException.ThrowIfNull(updateChecker);
@@ -131,7 +125,6 @@ public partial class MainWindow : Window
         this._logger = logger;
         this._monitorService = monitorService;
         this._monitorLifecycleService = monitorLifecycleService;
-        this._monitorStartupOrchestrator = monitorStartupOrchestrator;
         this._createUpdateChecker = createUpdateChecker;
         this._updateChecker = updateChecker;
         this._dialogService = dialogService;
@@ -236,8 +229,6 @@ public partial class MainWindow : Window
     private void OnWindowClosed(object? s, EventArgs e)
     {
         PrivacyChangedWeakEventManager.RemoveHandler(this._privacyChangedHandler);
-        this._watchdogCts.Cancel();
-        this._watchdogCts.Dispose();
         if (OperatingSystem.IsWindows())
         {
             SystemEvents.PowerModeChanged -= this.OnPowerModeChanged;
@@ -387,53 +378,19 @@ public partial class MainWindow : Window
             // By now it should already be done or nearly done. Just await it.
             this.LogDiagnostic("[DIAGNOSTIC] Awaiting monitor warmup task...");
             this.ShowStatus("Loading...", StatusType.Info);
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            try
+            var monitorReady = await App.MonitorWarmupTask.ConfigureAwait(true);
+            this.LogDiagnostic($"[DIAGNOSTIC] Monitor warmup completed, ready={monitorReady}");
+
+            if (!monitorReady)
             {
-                var warmupTask = App.MonitorWarmupTask;
-                var monitorReady = await warmupTask.ConfigureAwait(true);
-                sw.Stop();
-                this.LogDiagnostic($"[DIAGNOSTIC] Monitor warmup completed in {sw.ElapsedMilliseconds}ms, ready={monitorReady}");
-
-                if (!monitorReady)
-                {
-                    // Warmup failed — try the orchestrator as fallback
-                    this.ShowStatus("Starting monitor...", StatusType.Info);
-                    var startupResult = await this._monitorStartupOrchestrator.EnsureMonitorReadyAsync(
-                        async (message, type) =>
-                        {
-                            await this.Dispatcher.InvokeAsync(() => this.ShowStatus(message, type)).Task.ConfigureAwait(true);
-                        },
-                        skipInitialHealthCheck: true).ConfigureAwait(true);
-
-                    if (!startupResult.IsSuccess)
-                    {
-                        if (startupResult.IsLaunchFailure)
-                        {
-                            this.ShowStatus("Monitor failed to start", StatusType.Error);
-                            this.ShowErrorState(
-                                BuildMonitorErrorMessage(
-                                    "Monitor failed to start.",
-                                    "Please ensure AIUsageTracker.Monitor is installed and try again.",
-                                    this._monitorService.LastAgentErrors));
-                        }
-
-                        this._isLoading = false;
-                        return;
-                    }
-                }
-
-                // Monitor is running — refresh port and fetch data
-                await this._monitorService.RefreshPortAsync().ConfigureAwait(true);
-                await this.FetchDataAsync().ConfigureAwait(true);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                this.LogDiagnostic($"[DIAGNOSTIC] Monitor startup failed: {ex.Message}");
-                this.ShowErrorState($"Monitor startup failed: {ex.Message}");
-                this._isLoading = false;
+                this.ShowStatus("Monitor failed to start", StatusType.Error);
+                this.ShowErrorState("Monitor failed to start.");
                 return;
             }
+
+            // Monitor is running — refresh port and fetch data
+            await this._monitorService.RefreshPortAsync().ConfigureAwait(true);
+            await this.FetchDataAsync().ConfigureAwait(true);
 
             // Start background tasks (non-blocking)
             this.StartPollingTimer();
@@ -444,7 +401,6 @@ public partial class MainWindow : Window
                 var handshakeResult = await this._monitorService.CheckApiContractAsync().ConfigureAwait(false); // ui-thread-guardrail-allow: Task.Run thread pool
                 await this.Dispatcher.InvokeAsync(() => this.ApplyMonitorContractStatus(handshakeResult)).Task.ConfigureAwait(true);
             });
-            _ = Task.Run(() => this._monitorStartupOrchestrator.RunWatchdogLoopAsync(this._watchdogCts.Token));
 
             this.ShowStatus("Connected", StatusType.Success);
         }
@@ -600,8 +556,7 @@ public partial class MainWindow : Window
     {
         if (e.Mode == PowerModes.Resume)
         {
-            this._logger.LogInformation("System resumed — triggering immediate watchdog check");
-            this._monitorStartupOrchestrator.NotifyResumed();
+            this._logger.LogInformation("System resumed");
         }
     }
 
@@ -807,23 +762,6 @@ public partial class MainWindow : Window
         {
             this._logger.LogError(ex, "ShowUsedToggle_Checked failed");
         }
-    }
-
-    private static string BuildMonitorErrorMessage(
-        string heading,
-        string fallbackDetails,
-        IReadOnlyCollection<string>? errors)
-    {
-        if (errors == null || errors.Count == 0)
-        {
-            return $"{heading}\n\n{fallbackDetails}";
-        }
-
-        var details = string.Join(
-            Environment.NewLine,
-            errors.Take(3).Select(error => $"- {error}"));
-
-        return $"{heading}\n\nMonitor reported:\n{details}\n\n{fallbackDetails}";
     }
 
     private static string? ParsePrereleaseLabel(string? informationalVersion)

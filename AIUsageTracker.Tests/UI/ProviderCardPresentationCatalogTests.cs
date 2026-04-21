@@ -176,11 +176,9 @@ public sealed class ProviderCardPresentationCatalogTests
     // GroupedUsageDisplayAdapter → ProviderCardPresentationCatalog so that bugs
     // suppressed by a broken intermediate layer cannot be masked.
     [Fact]
-    public void Pipeline_KimiProviderDetails_ProducesDualBarOnParentCard()
+    public void Pipeline_KimiProviderDetailsWithoutModels_ProducesNoCards()
     {
-        // Regression: Kimi has QuotaWindow flat cards in ProviderDetails.
-        // GroupedUsageDisplayAdapter must propagate them to WindowCards on the parent,
-        // so that TryGetDualQuotaBucketPresentation can find and render the dual bars.
+        // Strict contract: adapter renders only provider.Models.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -192,33 +190,18 @@ public sealed class ProviderCardPresentationCatalogTests
                     IsQuotaBased = true,
                     UsedPercent = 25,
                     Models = Array.Empty<AgentGroupedModelUsage>(),
-                    ProviderDetails = new[]
-                    {
-                        new ProviderUsage { ProviderId = "kimi-for-coding", Name = "Weekly Limit", WindowKind = WindowKind.Rolling, UsedPercent = 25.0 },
-                        new ProviderUsage { ProviderId = "kimi-for-coding", Name = "5h Limit",     WindowKind = WindowKind.Burst,   UsedPercent = 0.0 },
-                    },
                 },
             },
         };
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
-        var parent = Assert.Single(usages, u => string.Equals(u.ProviderId, "kimi-for-coding", StringComparison.Ordinal));
-
-        var presentation = MainWindowRuntimeLogic.Create(parent, showUsed: false);
-
-        Assert.True(presentation.HasDualBuckets, "Kimi parent card must render dual progress bars");
-        Assert.True(presentation.ShouldHaveProgress);
-        Assert.Equal(0, presentation.DualBar!.Primary.UsedPercent, precision: 0);    // 5h Limit (Burst) top bar
-        Assert.Equal(25, presentation.DualBar.Secondary.UsedPercent, precision: 0);  // Weekly Limit (Rolling) bottom bar
-        Assert.Contains("Weekly", presentation.StatusText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("5h", presentation.StatusText, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(usages);
     }
 
     [Fact]
-    public void Pipeline_ClaudeCode_ProducesDualBarOnParentCard()
+    public void Pipeline_ClaudeCodeProviderDetailsWithoutModels_ProducesNoCards()
     {
-        // Verifies the full snapshot → Expand → Create() path for claude-code.
-        // The provider emits "Current Session" (Burst) and "All Models" (Rolling) window cards.
+        // Strict contract: adapter renders only provider.Models.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -230,33 +213,18 @@ public sealed class ProviderCardPresentationCatalogTests
                     IsQuotaBased = true,
                     UsedPercent = 51,
                     Models = Array.Empty<AgentGroupedModelUsage>(),
-                    ProviderDetails = new[]
-                    {
-                        new ProviderUsage { ProviderId = "claude-code", Name = "Current Session", WindowKind = WindowKind.Burst,   UsedPercent = 4.0 },
-                        new ProviderUsage { ProviderId = "claude-code", Name = "All Models",      WindowKind = WindowKind.Rolling, UsedPercent = 51.0 },
-                    },
                 },
             },
         };
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
-        var parent = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal));
-
-        var presentation = MainWindowRuntimeLogic.Create(parent, showUsed: false);
-
-        Assert.True(presentation.HasDualBuckets, "claude-code must render dual bars: Current Session (Burst) + All Models (Rolling)");
-        Assert.True(presentation.ShouldHaveProgress);
-        Assert.Equal(4.0, presentation.DualBar!.Primary.UsedPercent, precision: 1);   // Current Session (Burst)
-        Assert.Equal(51.0, presentation.DualBar.Secondary.UsedPercent, precision: 1); // All Models (Rolling)
-        Assert.Equal("Current Session", presentation.DualBar.Primary.Label);
-        Assert.Equal("All Models", presentation.DualBar.Secondary.Label);
+        Assert.Empty(usages);
     }
 
     [Fact]
-    public void Pipeline_ClaudeCode_WithSonnetModel_ShowsDualBars()
+    public void Pipeline_ClaudeCodeProviderDetailsOnly_ProducesNoCards()
     {
-        // Verifies that ProviderDetails carries QuotaWindow entries for dual bars.
-        // Non-window cards (WindowKind.None or ModelSpecific) are not propagated to WindowCards.
+        // Strict contract: adapter renders only provider.Models.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -268,23 +236,12 @@ public sealed class ProviderCardPresentationCatalogTests
                     IsQuotaBased = true,
                     UsedPercent = 84,
                     Models = Array.Empty<AgentGroupedModelUsage>(),
-                    ProviderDetails = new[]
-                    {
-                        new ProviderUsage { ProviderId = "claude-code", Name = "Current Session", WindowKind = WindowKind.Burst,   UsedPercent = 14.0 },
-                        new ProviderUsage { ProviderId = "claude-code", Name = "All Models",      WindowKind = WindowKind.Rolling, UsedPercent = 84.0 },
-                    },
                 },
             },
         };
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
-        var parent = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal));
-
-        // Dual bars come from the two QuotaWindow window cards
-        var presentation = MainWindowRuntimeLogic.Create(parent, showUsed: false);
-        Assert.True(presentation.HasDualBuckets, "Dual bars must render from ProviderDetails QuotaWindow entries");
-        Assert.Equal("Current Session", presentation.DualBar!.Primary.Label);
-        Assert.Equal("All Models", presentation.DualBar.Secondary.Label);
+        Assert.Empty(usages);
     }
 
     [Theory]

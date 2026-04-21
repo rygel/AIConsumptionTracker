@@ -122,9 +122,9 @@ public class GroupedUsageDisplayAdapterTests
     }
 
     [Fact]
-    public void Expand_ClaudeSnapshot_PassesThroughProviderDetails_ToParentCard()
+    public void Expand_ClaudeSnapshot_WithOnlyProviderDetails_ProducesNoCards()
     {
-        // ProviderDetails is the single source of truth: window cards flow through to WindowCards.
+        // Strict contract: adapter renders only provider.Models.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -135,27 +135,12 @@ public class GroupedUsageDisplayAdapterTests
                     IsAvailable = true,
                     IsQuotaBased = true,
                     UsedPercent = 73,
-                    ProviderDetails = new[]
-                    {
-                        new ProviderUsage { ProviderId = "claude-code", Name = "Current Session", WindowKind = WindowKind.Burst,   UsedPercent = 14.0 },
-                        new ProviderUsage { ProviderId = "claude-code", Name = "All Models",      WindowKind = WindowKind.Rolling, UsedPercent = 73.0 },
-                    },
                 },
             },
         };
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
-
-        var parent = Assert.Single(usages, usage => string.Equals(usage.ProviderId, "claude-code", StringComparison.Ordinal));
-        Assert.Equal(TimeSpan.FromDays(7), parent.PeriodDuration);
-        Assert.NotNull(parent.WindowCards);
-        Assert.Equal(2, parent.WindowCards!.Count);
-
-        var session = Assert.Single(parent.WindowCards!, d => string.Equals(d.Name, "Current Session", StringComparison.Ordinal));
-        var allModels = Assert.Single(parent.WindowCards!, d => string.Equals(d.Name, "All Models", StringComparison.Ordinal));
-
-        Assert.Equal(WindowKind.Burst, session.WindowKind);
-        Assert.Equal(WindowKind.Rolling, allModels.WindowKind);
+        Assert.Empty(usages);
     }
 
     [Fact]
@@ -519,11 +504,9 @@ public class GroupedUsageDisplayAdapterTests
     }
 
     [Fact]
-    public void Expand_KimiSnapshot_AttachesProviderDetailsToParent()
+    public void Expand_KimiSnapshot_WithOnlyProviderDetails_ProducesNoCards()
     {
-        // Kimi has no Model-type details; all its details are QuotaWindow (Weekly + 5h).
-        // ProviderDetails window cards must flow through to WindowCards on the parent
-        // so that TryGetDualQuotaBucketPresentation can render two bars.
+        // Strict contract: adapter renders only provider.Models.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -534,26 +517,12 @@ public class GroupedUsageDisplayAdapterTests
                     IsAvailable = true,
                     IsQuotaBased = true,
                     UsedPercent = 25,
-                    ProviderDetails = new[]
-                    {
-                        new ProviderUsage { ProviderId = "kimi-for-coding", Name = "Weekly Limit", WindowKind = WindowKind.Rolling, UsedPercent = 25.0 },
-                        new ProviderUsage { ProviderId = "kimi-for-coding", Name = "5h Limit",     WindowKind = WindowKind.Burst,   UsedPercent = 0.0 },
-                    },
                 },
             },
         };
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
-
-        var parent = Assert.Single(usages, u => string.Equals(u.ProviderId, "kimi-for-coding", StringComparison.Ordinal));
-        Assert.NotNull(parent.WindowCards);
-        Assert.Equal(2, parent.WindowCards!.Count);
-
-        var weekly = Assert.Single(parent.WindowCards, d => d.WindowKind == WindowKind.Rolling);
-        Assert.Equal("Weekly Limit", weekly.Name);
-
-        var burst = Assert.Single(parent.WindowCards, d => d.WindowKind == WindowKind.Burst);
-        Assert.Equal("5h Limit", burst.Name);
+        Assert.Empty(usages);
     }
 
     [Fact]
@@ -617,7 +586,7 @@ public class GroupedUsageDisplayAdapterTests
     public void Expand_CodexSnapshot_ProviderDetailsIgnored_WhenModelsPresent()
     {
         // When Models are present, flat cards are built from Models only.
-        // ProviderDetails are not used; there is no parent aggregate card.
+        // There is no parent aggregate card.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -637,11 +606,6 @@ public class GroupedUsageDisplayAdapterTests
                             RemainingPercentage = 80,
                         },
                     },
-                    ProviderDetails = new[]
-                    {
-                        new ProviderUsage { ProviderId = "codex", Name = "5-hour quota", WindowKind = WindowKind.Burst,   UsedPercent = 20.0 },
-                        new ProviderUsage { ProviderId = "codex", Name = "Weekly quota", WindowKind = WindowKind.Rolling, UsedPercent = 10.0 },
-                    },
                 },
             },
         };
@@ -652,7 +616,7 @@ public class GroupedUsageDisplayAdapterTests
         var spark = usages[0];
         Assert.Equal("codex", spark.ProviderId);
         Assert.Equal("spark", spark.CardId);
-        Assert.Null(spark.WindowCards); // ProviderDetails are not mapped to WindowCards on flat cards
+        Assert.Null(spark.WindowCards);
         Assert.DoesNotContain(usages, u => string.Equals(u.ProviderId, "codex", StringComparison.Ordinal) && u.CardId == null);
     }
 
@@ -708,10 +672,9 @@ public class GroupedUsageDisplayAdapterTests
     }
 
     [Fact]
-    public void Expand_LegacyPath_PropagatesStateFromSnapshot()
+    public void Expand_NoModels_ProducesNoCards()
     {
-        // Verifies that State=Missing survives the AgentGroupedProviderUsage → ProviderUsage
-        // conversion, so PrepareForMainWindow can filter unconfigured StandardApiKey providers.
+        // Strict contract: providers without models are omitted.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -730,9 +693,6 @@ public class GroupedUsageDisplayAdapterTests
         };
 
         var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
-
-        var card = Assert.Single(usages);
-        Assert.Equal("openrouter", card.ProviderId);
-        Assert.Equal(ProviderUsageState.Missing, card.State);
+        Assert.Empty(usages);
     }
 }

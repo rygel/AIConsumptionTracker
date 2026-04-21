@@ -10,9 +10,7 @@ using AIUsageTracker.UI.Slim;
 namespace AIUsageTracker.Tests.UI;
 
 /// <summary>
-/// Verifies that <see cref="ProviderUsage"/> quota-window flat cards survive the
-/// Monitor → UI JSON round-trip intact, so that TryGetDualQuotaBucketPresentation
-/// can read them correctly on the UI side.
+/// Verifies grouped DTO JSON round-trip behavior in the strict models-only contract.
 /// </summary>
 public sealed class DualQuotaSerializationRoundTripTests
 {
@@ -40,7 +38,7 @@ public sealed class DualQuotaSerializationRoundTripTests
     }
 
     [Fact]
-    public void AgentGroupedProviderUsage_WithQuotaWindowCards_SurvivesJsonRoundTrip()
+    public void AgentGroupedProviderUsage_WithModels_SurvivesJsonRoundTrip()
     {
         var provider = new AgentGroupedProviderUsage
         {
@@ -48,10 +46,15 @@ public sealed class DualQuotaSerializationRoundTripTests
             IsAvailable = true,
             IsQuotaBased = true,
             UsedPercent = 51,
-            ProviderDetails = new[]
+            Models = new[]
             {
-                new ProviderUsage { ProviderId = "codex", Name = "5h",     WindowKind = WindowKind.Burst,   UsedPercent = 4.0 },
-                new ProviderUsage { ProviderId = "codex", Name = "Weekly", WindowKind = WindowKind.Rolling, UsedPercent = 51.0 },
+                new AgentGroupedModelUsage
+                {
+                    ModelId = "spark",
+                    ModelName = "Spark",
+                    UsedPercentage = 51,
+                    RemainingPercentage = 49,
+                },
             },
         };
 
@@ -65,19 +68,15 @@ public sealed class DualQuotaSerializationRoundTripTests
 
         Assert.Single(roundTripped.Providers);
         var p = roundTripped.Providers[0];
-        Assert.Equal(2, p.ProviderDetails.Count);
-
-        var burst = p.ProviderDetails.First(d => d.WindowKind == WindowKind.Burst);
-        Assert.Equal("5h", burst.Name);
-        Assert.Equal(4.0, burst.UsedPercent, precision: 1);
-
-        var rolling = p.ProviderDetails.First(d => d.WindowKind == WindowKind.Rolling);
-        Assert.Equal("Weekly", rolling.Name);
-        Assert.Equal(51.0, rolling.UsedPercent, precision: 1);
+        var model = Assert.Single(p.Models);
+        Assert.Equal("spark", model.ModelId);
+        Assert.Equal("Spark", model.ModelName);
+        Assert.Equal(51, model.UsedPercentage);
+        Assert.Equal(49, model.RemainingPercentage);
     }
 
     [Fact]
-    public void FullPipeline_AfterJsonRoundTrip_ProducesDualBucketPresentation()
+    public void FullPipeline_AfterJsonRoundTrip_WithoutModels_ProducesNoCards()
     {
         // Simulate the full path: provider data → JSON (Monitor) → UI client → Create()
         var snapshot = new AgentGroupedUsageSnapshot
@@ -90,11 +89,6 @@ public sealed class DualQuotaSerializationRoundTripTests
                     IsAvailable = true,
                     IsQuotaBased = true,
                     UsedPercent = 4,
-                    ProviderDetails = new[]
-                    {
-                        new ProviderUsage { ProviderId = "codex", Name = "5h",     WindowKind = WindowKind.Burst,   UsedPercent = 4.0 },
-                        new ProviderUsage { ProviderId = "codex", Name = "Weekly", WindowKind = WindowKind.Rolling, UsedPercent = 51.0 },
-                    },
                 },
             },
         };
@@ -105,26 +99,11 @@ public sealed class DualQuotaSerializationRoundTripTests
 
         // UI builds ProviderUsage from snapshot
         var usages = GroupedUsageDisplayAdapter.Expand(deserialized);
-        Assert.Single(usages);
-
-        var usage = usages[0];
-        Assert.NotNull(usage.WindowCards);
-        Assert.Equal(2, usage.WindowCards!.Count);
-
-        // Create() should produce dual buckets
-        var presentation = MainWindowRuntimeLogic.Create(usage, showUsed: false);
-
-        Assert.True(
-            presentation.HasDualBuckets,
-            "HasDualBuckets must be true after JSON round-trip");
-        Assert.Equal("5h", presentation.DualBar!.Primary.Label);
-        Assert.Equal("Weekly", presentation.DualBar.Secondary.Label);
-        Assert.True(presentation.SuppressSingleResetTime);
-        Assert.Contains("|", presentation.StatusText, StringComparison.Ordinal);
+        Assert.Empty(usages);
     }
 
     [Fact]
-    public void FullPipeline_ClaudeCode_AfterJsonRoundTrip_ProducesDualBucketPresentation()
+    public void FullPipeline_ClaudeCode_AfterJsonRoundTrip_WithoutModels_ProducesNoCards()
     {
         // Simulate ClaudeCodeProvider output → GroupedUsageProjectionService → HTTP JSON → UI
         var snapshot = new AgentGroupedUsageSnapshot
@@ -137,11 +116,6 @@ public sealed class DualQuotaSerializationRoundTripTests
                     IsAvailable = true,
                     IsQuotaBased = true,
                     UsedPercent = 51,
-                    ProviderDetails = new[]
-                    {
-                        new ProviderUsage { ProviderId = "claude-code", Name = "Current Session", WindowKind = WindowKind.Burst,   UsedPercent = 4.0 },
-                        new ProviderUsage { ProviderId = "claude-code", Name = "All Models",      WindowKind = WindowKind.Rolling, UsedPercent = 51.0 },
-                    },
                 },
             },
         };
@@ -150,20 +124,6 @@ public sealed class DualQuotaSerializationRoundTripTests
         var deserialized = JsonSerializer.Deserialize<AgentGroupedUsageSnapshot>(json, ClientOptions)!;
 
         var usages = GroupedUsageDisplayAdapter.Expand(deserialized);
-        Assert.Single(usages);
-
-        var usage = usages[0];
-        Assert.NotNull(usage.WindowCards);
-        Assert.Equal(2, usage.WindowCards!.Count);
-
-        var presentation = MainWindowRuntimeLogic.Create(usage, showUsed: false);
-
-        Assert.True(
-            presentation.HasDualBuckets,
-            "claude-code must produce dual bars: Current Session (Burst) + All Models (Rolling)");
-        Assert.Equal("Current Session", presentation.DualBar!.Primary.Label);
-        Assert.Equal("All Models", presentation.DualBar.Secondary.Label);
-        Assert.Equal(4.0, presentation.DualBar.Primary.UsedPercent, precision: 1);
-        Assert.Equal(51.0, presentation.DualBar.Secondary.UsedPercent, precision: 1);
+        Assert.Empty(usages);
     }
 }

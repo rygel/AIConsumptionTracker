@@ -160,7 +160,7 @@ internal static partial class MainWindowRuntimeLogic
                 return true;
             })
             .GroupBy(usage => $"{usage.ProviderId ?? string.Empty}::{usage.CardId ?? string.Empty}", StringComparer.OrdinalIgnoreCase)
-            .Select(SelectPreferredUsage)
+            .Select(group => group.OrderByDescending(usage => usage.FetchedAt).First())
             .OrderByDescending(usage => usage.IsQuotaBased)
             .ToList();
 
@@ -233,48 +233,9 @@ internal static partial class MainWindowRuntimeLogic
         }
     }
 
-    private static ProviderUsage SelectPreferredUsage(IGrouping<string, ProviderUsage> group)
-    {
-        return group
-            .OrderByDescending(GetSelectionScore)
-            .ThenByDescending(usage => usage.FetchedAt)
-            .First();
-    }
-
-    private static int GetSelectionScore(ProviderUsage usage)
-    {
-        var score = 0;
-        if (usage.IsAvailable)
-        {
-            score += 1000;
-        }
-
-        if (usage.HttpStatus is >= 200 and < 300)
-        {
-            score += 100;
-        }
-
-        if (usage.NextResetTime.HasValue)
-        {
-            score += 10;
-        }
-
-        return score;
-    }
-
-    /// <summary>
-    /// Resolves reset times for the provider card, falling back to the parent's
-    /// NextResetTime when no specific window reset is available.
-    /// </summary>
-    /// <returns></returns>
-    internal static IReadOnlyList<DateTime> ResolveResetTimes(ProviderUsage usage, bool suppressSingleResetFallback)
+    internal static IReadOnlyList<DateTime> ResolveResetTimes(ProviderUsage usage)
     {
         ArgumentNullException.ThrowIfNull(usage);
-
-        if (suppressSingleResetFallback)
-        {
-            return Array.Empty<DateTime>();
-        }
 
         return usage.NextResetTime.HasValue
             ? new[] { usage.NextResetTime.Value }
@@ -290,6 +251,19 @@ internal static partial class MainWindowRuntimeLogic
     {
         var tooltipBuilder = new System.Text.StringBuilder();
         tooltipBuilder.AppendLine(friendlyName);
+        var modelProvider = !string.IsNullOrWhiteSpace(usage.ParentProviderId)
+            ? usage.ParentProviderId
+            : usage.ProviderId;
+        if (!string.IsNullOrWhiteSpace(modelProvider))
+        {
+            tooltipBuilder.AppendLine($"Model provider: {modelProvider}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(usage.ModelName))
+        {
+            tooltipBuilder.AppendLine($"Model: {usage.ModelName}");
+        }
+
         tooltipBuilder.AppendLine($"Status: {(usage.IsAvailable ? "Active" : "Inactive")}");
         if (!string.IsNullOrEmpty(usage.Description))
         {
@@ -336,30 +310,30 @@ internal static partial class MainWindowRuntimeLogic
         }
 
         tooltipBuilder.AppendLine();
-        AppendWindowLine(tooltipBuilder, burstCard, "5h", useRelativeResetTime);
-        AppendWindowLine(tooltipBuilder, rollingCard, "Weekly", useRelativeResetTime);
+        AppendWindowLine(tooltipBuilder, burstCard, useRelativeResetTime);
+        AppendWindowLine(tooltipBuilder, rollingCard, useRelativeResetTime);
     }
 
     private static void AppendWindowLine(
         System.Text.StringBuilder tooltipBuilder,
         ProviderUsage? windowCard,
-        string fallbackLabel,
         bool useRelativeResetTime)
     {
-        if (windowCard == null)
+        if (windowCard == null || string.IsNullOrWhiteSpace(windowCard.Name))
         {
             return;
         }
 
-        var label = !string.IsNullOrWhiteSpace(windowCard.Name) ? windowCard.Name : fallbackLabel;
+        var label = windowCard.Name;
         var remainingPercent = UsageMath.ClampPercent(100.0 - windowCard.UsedPercent);
-        var resetText = windowCard.NextResetTime.HasValue
-            ? (useRelativeResetTime
-                ? UsageMath.FormatRelativeTime(windowCard.NextResetTime.Value)
-                : UsageMath.FormatAbsoluteDate(windowCard.NextResetTime.Value))
-            : "Unknown";
 
         tooltipBuilder.AppendLine(CultureInfo.InvariantCulture, $"{label} limit: {remainingPercent:F0}% remaining");
-        tooltipBuilder.AppendLine($"{label} resets: {resetText}");
+        if (windowCard.NextResetTime.HasValue)
+        {
+            var resetText = useRelativeResetTime
+                ? UsageMath.FormatRelativeTime(windowCard.NextResetTime.Value)
+                : UsageMath.FormatAbsoluteDate(windowCard.NextResetTime.Value);
+            tooltipBuilder.AppendLine($"{label} resets: {resetText}");
+        }
     }
 }

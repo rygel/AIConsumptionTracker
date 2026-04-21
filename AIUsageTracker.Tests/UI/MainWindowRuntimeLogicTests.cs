@@ -163,6 +163,7 @@ public sealed class MainWindowRuntimeLogicTests
         var tooltip = MainWindowRuntimeLogic.BuildTooltipContent(usage, usage.ProviderName!, useRelativeResetTime: false);
 
         Assert.NotNull(tooltip);
+        Assert.Contains("Model provider: codex", tooltip, StringComparison.Ordinal);
         Assert.Contains("5h limit: 60% remaining", tooltip, StringComparison.Ordinal);
         Assert.Contains($"5h resets: {UsageMath.FormatAbsoluteDate(burstReset)}", tooltip, StringComparison.Ordinal);
         Assert.Contains("Weekly limit: 75% remaining", tooltip, StringComparison.Ordinal);
@@ -184,6 +185,7 @@ public sealed class MainWindowRuntimeLogicTests
         var tooltip = MainWindowRuntimeLogic.BuildTooltipContent(usage, usage.ProviderName!, useRelativeResetTime: false);
 
         Assert.NotNull(tooltip);
+        Assert.Contains("Model provider: minimax-io", tooltip, StringComparison.Ordinal);
         Assert.DoesNotContain("resets:", tooltip, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("limit:", tooltip, StringComparison.OrdinalIgnoreCase);
     }
@@ -220,7 +222,27 @@ public sealed class MainWindowRuntimeLogicTests
         var tooltip = MainWindowRuntimeLogic.BuildTooltipContent(usage, usage.ProviderName!, useRelativeResetTime: true);
 
         Assert.NotNull(tooltip);
+        Assert.Contains("Model provider: codex", tooltip, StringComparison.Ordinal);
         Assert.Contains($"5h resets: {UsageMath.FormatRelativeTime(burstReset)}", tooltip, StringComparison.Ordinal);
         Assert.Contains($"Weekly resets: {UsageMath.FormatRelativeTime(weeklyReset)}", tooltip, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildTooltipContent_WithModelName_IncludesModelLine()
+    {
+        var usage = new ProviderUsage
+        {
+            ProviderId = "gemini",
+            ParentProviderId = "google",
+            ProviderName = "Gemini",
+            ModelName = "gemini-2.5-pro",
+            IsAvailable = true,
+        };
+
+        var tooltip = MainWindowRuntimeLogic.BuildTooltipContent(usage, usage.ProviderName!, useRelativeResetTime: false);
+
+        Assert.NotNull(tooltip);
+        Assert.Contains("Model provider: google", tooltip, StringComparison.Ordinal);
+        Assert.Contains("Model: gemini-2.5-pro", tooltip, StringComparison.Ordinal);
     }
 }

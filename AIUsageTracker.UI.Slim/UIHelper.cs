@@ -11,19 +11,11 @@ internal static class UIHelper
 {
     public static SolidColorBrush GetResourceBrush(string key, SolidColorBrush? fallback = null)
     {
-        fallback ??= Brushes.Gray;
-        try
+        if (Application.Current?.Resources[key] is SolidColorBrush brush)
         {
-            if (Application.Current?.Resources[key] is SolidColorBrush brush)
-            {
-                return brush;
-            }
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or System.Windows.Markup.XamlParseException)
-        {
-            // Design-time or resource not found
+            return brush;
         }
 
-        return fallback;
+        throw new InvalidOperationException($"Missing SolidColorBrush resource '{key}'.");
     }
 }

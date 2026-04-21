@@ -349,9 +349,9 @@ internal sealed class ProviderCardRenderer
         }
         else
         {
-            resetTimes = MainWindowRuntimeLogic.ResolveResetTimes(
-                usage,
-                presentation.SuppressSingleResetTime);
+            resetTimes = presentation.SuppressSingleResetTime
+                ? Array.Empty<DateTime>()
+                : MainWindowRuntimeLogic.ResolveResetTimes(usage);
         }
 
         if (resetTimes.Count == 0)

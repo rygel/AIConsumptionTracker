@@ -28,7 +28,7 @@ public class OpenRouterProvider : ProviderBase
         "openrouter",
         "OpenRouter",
         PlanType.Usage,
-        isQuotaBased: true)
+        isQuotaBased: false)
     {
         DiscoveryEnvironmentVariables = new[] { "OPENROUTER_API_KEY" },
         RooConfigPropertyNames = new[] { "openrouterApiKey" },
@@ -251,7 +251,7 @@ public class OpenRouterProvider : ProviderBase
             ProviderName = keyInfo.Label,
             CardId = "credits",
             GroupId = config.ProviderId,
-            Name = "Credits",
+            Name = "OpenRouter Credits",
             UsedPercent = 100.0 - remainingPercentage,
             RequestsUsed = used,
             RequestsAvailable = total,
