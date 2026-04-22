@@ -111,6 +111,59 @@ public class AppStartupTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadPreferencesAsync_WithLegacyPercentageDisplayModeUsed_MapsToShowUsedPercentagesAsync()
+    {
+        var legacyJson = /*lang=json,strict*/ """
+            {
+              "PercentageDisplayMode": "Used",
+              "SchemaVersion": 2
+            }
+            """;
+        await File.WriteAllTextAsync(this._testPreferencesPath, legacyJson);
+
+        var loaded = await this._store.LoadAsync();
+
+        Assert.True(loaded.ShowUsedPercentages);
+    }
+
+    [Fact]
+    public async Task LoadPreferencesAsync_WithLegacyPercentageDisplayModeRemaining_MapsToShowUsedPercentagesFalseAsync()
+    {
+        var legacyJson = /*lang=json,strict*/ """
+            {
+              "PercentageDisplayMode": "Remaining",
+              "SchemaVersion": 2
+            }
+            """;
+        await File.WriteAllTextAsync(this._testPreferencesPath, legacyJson);
+
+        var loaded = await this._store.LoadAsync();
+
+        Assert.False(loaded.ShowUsedPercentages);
+    }
+
+    [Fact]
+    public async Task LoadPreferencesAsync_WithLegacyPercentageDisplayMode_SavesShowUsedPercentagesOnNextWriteAsync()
+    {
+        var legacyJson = /*lang=json,strict*/ """
+            {
+              "PercentageDisplayMode": "Used",
+              "SchemaVersion": 2
+            }
+            """;
+        await File.WriteAllTextAsync(this._testPreferencesPath, legacyJson);
+
+        var loaded = await this._store.LoadAsync();
+        Assert.True(loaded.ShowUsedPercentages);
+
+        await this._store.SaveAsync(loaded);
+        var savedJson = await File.ReadAllTextAsync(this._testPreferencesPath);
+
+        Assert.Contains("ShowUsedPercentages", savedJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("PercentageDisplayMode", savedJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task LoadPreferencesAsync_WithLegacyInvertCalculations_MapsToShowUsedPercentagesAsync()
     {
         await File.WriteAllTextAsync(this._testPreferencesPath, "{\"InvertCalculations\":true}");
