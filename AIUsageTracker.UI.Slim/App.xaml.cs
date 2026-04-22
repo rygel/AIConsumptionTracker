@@ -108,6 +108,10 @@ public partial class App : Application
         try
         {
             Preferences = await preferencesStore.LoadAsync().ConfigureAwait(true);
+            if (Preferences.SchemaVersion < AppPreferences.CurrentSchemaVersion)
+            {
+                _ = preferencesStore.SaveAsync(Preferences);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
