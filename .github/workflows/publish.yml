@@ -5,6 +5,12 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'           # Stable releases: v2.2.25
       - 'v[0-9]+.[0-9]+.[0-9]+-beta.*'    # Beta releases: v2.3.0-beta.1
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g., v2.3.4-beta.33)'
+        required: true
+        type: string
 
 jobs:
   publish:
@@ -19,13 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
+          ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Extract Version and Channel
         id: extract
         run: |
-          $version = $env:GITHUB_REF -replace 'refs/tags/v', ''
+          $ref = if ('${{ inputs.tag }}') { '${{ inputs.tag }}' } else { $env:GITHUB_REF }
+          $version = $ref -replace 'refs/tags/v', '' -replace '^v', ''
           $channel = if ($version -match '-beta') { 'beta' } else { 'stable' }
           
           echo "VERSION=$version" >> $env:GITHUB_ENV
