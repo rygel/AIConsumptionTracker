@@ -526,16 +526,12 @@
 
                         <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,12,0,12"/>
 
-                        <!-- Windows Startup -->
-                        <TextBlock Text="Windows Startup" FontWeight="Bold" FontSize="12"
+                        <!-- Startup -->
+                        <TextBlock Text="Startup" FontWeight="Bold" FontSize="12"
                                    Foreground="{DynamicResource PrimaryText}" Margin="0,0,0,10"/>
-                        <CheckBox x:Name="StartMonitorWithWindowsCheck" Content="Start Monitor with Windows"
+                        <CheckBox x:Name="StartUiWithWindowsCheck" Content="Start with Windows"
                                   Margin="0,4" Foreground="{DynamicResource SecondaryText}"
-                                  ToolTip="Automatically start the background Monitor service when Windows starts."
-                                  Checked="LayoutSetting_Changed" Unchecked="LayoutSetting_Changed"/>
-                        <CheckBox x:Name="StartUiWithWindowsCheck" Content="Start UI with Windows"
-                                  Margin="0,4" Foreground="{DynamicResource SecondaryText}"
-                                  ToolTip="Automatically start the UI when Windows starts."
+                                  ToolTip="Automatically start the application when Windows starts. The Monitor will start automatically with the UI."
                                   Checked="LayoutSetting_Changed" Unchecked="LayoutSetting_Changed"/>
 
                         <Grid Margin="0,10,0,0">
@@ -825,9 +821,8 @@
                                         <TextBlock x:Name="MonitorPortText" Text="5000" Grid.Row="1" Grid.Column="1"
                                                    Foreground="{DynamicResource PrimaryText}"/>
                                     </Grid>
-                                    <CheckBox x:Name="AutoStartMonitorCheck" Content="Auto-start Monitor"
-                                              IsChecked="True" Margin="0,8,0,0"
-                                              Foreground="{DynamicResource SecondaryText}"/>
+
+
                                 </StackPanel>
 
                                 <!-- Right: Actions -->

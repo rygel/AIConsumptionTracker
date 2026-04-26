@@ -72,8 +72,6 @@ public class AppPreferences
 
     public string QuietHoursEnd { get; set; } = "07:00";
 
-    public bool StartMonitorWithWindows { get; set; } = false;
-
     public bool StartUiWithWindows { get; set; } = false;
 
     public AppTheme Theme { get; set; } = AppTheme.Dark;
