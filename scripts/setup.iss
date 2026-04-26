@@ -227,7 +227,7 @@ Name: "apps\cli"; Description: "AI Usage Tracker CLI"; Types: full compact custo
 
 [Tasks]
 Name: "desktopicontracker"; Description: "Create AI Usage Tracker UI desktop icon"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; Components: apps\tracker
-Name: "startupmonitor"; Description: "Run AI Usage Tracker Monitor at Windows Startup"; GroupDescription: "Additional options:"; Flags: unchecked; Components: apps\monitor
+
 Name: "startuptracker"; Description: "Run AI Usage Tracker UI at Windows Startup"; GroupDescription: "Additional options:"; Flags: unchecked; Components: apps\tracker
 
 [Files]
@@ -249,7 +249,7 @@ Name: "{group}\{cm:UninstallProgram,AI Usage Tracker}"; Filename: "{uninstallexe
 Name: "{autodesktop}\AI Usage Tracker"; Filename: "{app}\AIUsageTracker.exe"; Tasks: desktopicontracker; Components: apps\tracker
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AI Usage Tracker Monitor"; ValueData: """{app}\AIUsageTracker.Monitor.exe"""; Tasks: startupmonitor; Flags: uninsdeletevalue
+
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AI Usage Tracker"; ValueData: """{app}\AIUsageTracker.exe"""; Tasks: startuptracker; Flags: uninsdeletevalue
 
 [Run]

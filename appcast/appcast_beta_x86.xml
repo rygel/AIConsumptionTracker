@@ -6,14 +6,14 @@
         <description>Beta releases with latest features and improvements for x86 architecture.</description>
         <language>en</language>
         <item>
-            <title>Version 2.3.4-beta.11</title>
-            <sparkle:releaseNotesLink>https://github.com/rygel/AIUsageTracker/releases/tag/v2.3.4-beta.11</sparkle:releaseNotesLink>
-            <pubDate>Mon, 30 Mar 2026 00:14:52 +0000</pubDate>
-            <enclosure url="https://github.com/rygel/AIUsageTracker/releases/download/v2.3.4-beta.11/AIUsageTracker_Setup_v2.3.4-beta.11_win-x86.exe"
-                       sparkle:version="2.3.4.11"
-                       sparkle:shortVersionString="2.3.4-beta.11"
+            <title>Version 2.3.4-beta.33</title>
+            <sparkle:releaseNotesLink>https://github.com/rygel/AIUsageTracker/releases/tag/v2.3.4-beta.33</sparkle:releaseNotesLink>
+            <pubDate>Tue, 22 Apr 2026 05:11:41 +0000</pubDate>
+            <enclosure url="https://github.com/rygel/AIUsageTracker/releases/download/v2.3.4-beta.33/AIUsageTracker_Setup_v2.3.4-beta.33_win-x86.exe"
+                       sparkle:version="2.3.4.33"
+                       sparkle:shortVersionString="2.3.4-beta.33"
                        sparkle:os="windows"
-                       length="18831779"
+                       length="18902383"
                        type="application/octet-stream" />
         </item>
     </channel>

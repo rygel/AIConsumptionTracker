@@ -11,23 +11,15 @@ namespace AIUsageTracker.UI.Slim;
 internal static class WindowsStartupService
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string MonitorValueName = "AI Usage Tracker Monitor";
     private const string UiValueName = "AI Usage Tracker";
 
-    public static (bool MonitorEnabled, bool UiEnabled) Read()
+    public static bool IsUiStartupEnabled()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
-        if (key == null)
-        {
-            return (false, false);
-        }
-
-        return (
-            key.GetValue(MonitorValueName) != null,
-            key.GetValue(UiValueName) != null);
+        return key?.GetValue(UiValueName) != null;
     }
 
-    public static void Apply(bool startMonitor, bool startUi)
+    public static void Apply(bool startUi)
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
         if (key == null)
@@ -35,25 +27,15 @@ internal static class WindowsStartupService
             return;
         }
 
-        ApplyEntry(key, MonitorValueName, startMonitor, GetMonitorExePath());
-        ApplyEntry(key, UiValueName, startUi, GetUiExePath());
-    }
+        var exePath = Path.Combine(AppContext.BaseDirectory, "AIUsageTracker.exe");
 
-    private static void ApplyEntry(RegistryKey key, string valueName, bool enable, string exePath)
-    {
-        if (enable && File.Exists(exePath))
+        if (startUi && File.Exists(exePath))
         {
-            key.SetValue(valueName, $"\"{exePath}\"");
+            key.SetValue(UiValueName, $"\"{exePath}\"");
         }
         else
         {
-            key.DeleteValue(valueName, throwOnMissingValue: false);
+            key.DeleteValue(UiValueName, throwOnMissingValue: false);
         }
     }
-
-    private static string GetMonitorExePath() =>
-        Path.Combine(AppContext.BaseDirectory, "AIUsageTracker.Monitor.exe");
-
-    private static string GetUiExePath() =>
-        Path.Combine(AppContext.BaseDirectory, "AIUsageTracker.exe");
 }

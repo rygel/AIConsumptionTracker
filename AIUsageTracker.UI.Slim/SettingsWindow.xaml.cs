@@ -475,9 +475,7 @@ public partial class SettingsWindow : Window
         this.AlwaysOnTopCheck.IsChecked = this._preferences.AlwaysOnTop;
         this.AggressiveTopmostCheck.IsChecked = this._preferences.AggressiveAlwaysOnTop;
         this.ForceWin32TopmostCheck.IsChecked = this._preferences.ForceWin32Topmost;
-        var (monitorAutoStart, uiAutoStart) = WindowsStartupService.Read();
-        this.StartMonitorWithWindowsCheck.IsChecked = monitorAutoStart;
-        this.StartUiWithWindowsCheck.IsChecked = uiAutoStart;
+        this.StartUiWithWindowsCheck.IsChecked = WindowsStartupService.IsUiStartupEnabled();
         this.PopulateDualQuotaBarWindowCombo();
         this.ApplyDisplayModePreference();
         this.ThemeCombo.DisplayMemberPath = nameof(ThemeOption.Label);
@@ -785,11 +783,9 @@ public partial class SettingsWindow : Window
             this._preferences.AlwaysOnTop = this.AlwaysOnTopCheck.IsChecked ?? true;
             this._preferences.AggressiveAlwaysOnTop = this.AggressiveTopmostCheck.IsChecked ?? false;
             this._preferences.ForceWin32Topmost = this.ForceWin32TopmostCheck.IsChecked ?? false;
-            var startMonitor = this.StartMonitorWithWindowsCheck.IsChecked ?? false;
             var startUi = this.StartUiWithWindowsCheck.IsChecked ?? false;
-            this._preferences.StartMonitorWithWindows = startMonitor;
             this._preferences.StartUiWithWindows = startUi;
-            WindowsStartupService.Apply(startMonitor, startUi);
+            WindowsStartupService.Apply(startUi);
             this.ApplyDisplayPreferencesFromControls();
             if (this.ThemeCombo.SelectedValue is AppTheme appTheme)
             {
