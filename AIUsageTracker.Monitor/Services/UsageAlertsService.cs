@@ -5,7 +5,6 @@
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
-using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Monitor.Services;
 
@@ -203,8 +202,8 @@ public class UsageAlertsService
             return false;
         }
 
-        if (!TimeSpan.TryParse(prefs.QuietHoursStart, out var start) ||
-            !TimeSpan.TryParse(prefs.QuietHoursEnd, out var end))
+        if (!TimeSpan.TryParse(prefs.QuietHoursStart, System.Globalization.CultureInfo.InvariantCulture, out var start) ||
+            !TimeSpan.TryParse(prefs.QuietHoursEnd, System.Globalization.CultureInfo.InvariantCulture, out var end))
         {
             return false;
         }
@@ -244,8 +243,8 @@ public class UsageAlertsService
 
     private void LogInsufficientHistory(ProviderUsage usage)
     {
-        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(usage.ProviderId);
-        if ((ProviderMetadataCatalog.Find(canonicalProviderId)?.IsChildProviderId(usage.ProviderId) ?? false) || usage.NextResetTime != null)
+        var ownerDefinition = ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty);
+        if ((ownerDefinition?.IsChildProviderId(usage.ProviderId ?? string.Empty) ?? false) || usage.NextResetTime != null)
         {
             this._logger.LogTrace("{ProviderId}: Initial record stored, waiting for history", usage.ProviderId);
             return;

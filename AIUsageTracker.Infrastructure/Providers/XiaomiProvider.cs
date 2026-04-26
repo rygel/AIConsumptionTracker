@@ -2,7 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-using System.Net.Http.Json;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Models;
@@ -13,6 +13,8 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class XiaomiProvider : ProviderBase
 {
+    private const string UserBalanceEndpoint = "https://api.xiaomimimo.com/v1/user/balance";
+
     private readonly HttpClient _httpClient;
     private readonly ILogger<XiaomiProvider> _logger;
 
@@ -42,6 +44,8 @@ public class XiaomiProvider : ProviderBase
     {
         ArgumentNullException.ThrowIfNull(config);
 
+        var providerLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId);
+
         if (string.IsNullOrEmpty(config.ApiKey))
         {
             return new[]
@@ -49,7 +53,7 @@ public class XiaomiProvider : ProviderBase
                 new ProviderUsage
             {
                 ProviderId = config.ProviderId,
-                ProviderName = this.Definition.DisplayName,
+                ProviderName = providerLabel,
                 IsAvailable = false,
                 IsQuotaBased = this.Definition.IsQuotaBased,
                 PlanType = this.Definition.PlanType,
@@ -62,7 +66,7 @@ public class XiaomiProvider : ProviderBase
         try
         {
             // Endpoint based on research/best-guess
-            var request = CreateBearerRequest(HttpMethod.Get, "https://api.xiaomimimo.com/v1/user/balance", config.ApiKey);
+            var request = CreateBearerRequest(HttpMethod.Get, UserBalanceEndpoint, config.ApiKey);
 
             var response = await this._httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
@@ -72,7 +76,7 @@ public class XiaomiProvider : ProviderBase
 
             if (data == null || data.Data == null)
             {
-                throw new Exception("Invalid response from Xiaomi API");
+                throw new InvalidOperationException("Invalid response from Xiaomi API");
             }
 
             double balance = data.Data.Balance;
@@ -89,7 +93,7 @@ public class XiaomiProvider : ProviderBase
                 new ProviderUsage
             {
                 ProviderId = config.ProviderId,
-                ProviderName = this.Definition.DisplayName,
+                ProviderName = providerLabel,
                 UsedPercent = usedPercent,
                 RequestsUsed = used,
                 RequestsAvailable = quota > 0 ? quota : balance,
@@ -97,8 +101,8 @@ public class XiaomiProvider : ProviderBase
                 PlanType = this.Definition.PlanType,
                 IsAvailable = true,
                 Description = quota > 0
-                    ? $"{balance} remaining / {quota} total"
-                    : $"Balance: {balance}",
+                    ? $"{balance.ToString(CultureInfo.InvariantCulture)} remaining / {quota.ToString(CultureInfo.InvariantCulture)} total"
+                    : $"Balance: {balance.ToString(CultureInfo.InvariantCulture)}",
                 RawJson = content,
                 HttpStatus = (int)response.StatusCode,
             },
@@ -112,7 +116,7 @@ public class XiaomiProvider : ProviderBase
                 new ProviderUsage
             {
                 ProviderId = config.ProviderId,
-                ProviderName = this.Definition.DisplayName,
+                ProviderName = providerLabel,
                 IsAvailable = false,
                 IsQuotaBased = this.Definition.IsQuotaBased,
                 PlanType = this.Definition.PlanType,
@@ -122,7 +126,7 @@ public class XiaomiProvider : ProviderBase
         }
     }
 
-    private class XiaomiResponse
+    private sealed class XiaomiResponse
     {
         [JsonPropertyName("data")]
         public XiaomiData? Data { get; set; }
@@ -131,7 +135,7 @@ public class XiaomiProvider : ProviderBase
         public int Code { get; set; }
     }
 
-    private class XiaomiData
+    private sealed class XiaomiData
     {
         [JsonPropertyName("balance")]
         public double Balance { get; set; }

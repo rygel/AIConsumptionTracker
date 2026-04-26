@@ -14,8 +14,12 @@ namespace AIUsageTracker.Infrastructure.Configuration;
 
 public class JsonConfigLoader : IConfigLoader
 {
+    private const string AuthConfigFileName = "auth.json";
+    private const string OpenCodeDirectoryName = "opencode";
+    private static readonly JsonSerializerOptions CaseInsensitiveOptions = new() { PropertyNameCaseInsensitive = true };
+
     private readonly ILogger<JsonConfigLoader> _logger;
-    private readonly ILogger<TokenDiscoveryService> _tokenDiscoveryLogger;
+    private readonly ILogger<TokenDiscoveryService> _log;
     private readonly IAppPathProvider _pathProvider;
 
     public JsonConfigLoader(
@@ -24,7 +28,7 @@ public class JsonConfigLoader : IConfigLoader
         IAppPathProvider? pathProvider = null)
     {
         this._logger = logger ?? NullLogger<JsonConfigLoader>.Instance;
-        this._tokenDiscoveryLogger = tokenDiscoveryLogger ?? NullLogger<TokenDiscoveryService>.Instance;
+        this._log = tokenDiscoveryLogger ?? NullLogger<TokenDiscoveryService>.Instance;
         this._pathProvider = pathProvider ?? new DefaultAppPathProvider();
     }
 
@@ -34,8 +38,6 @@ public class JsonConfigLoader : IConfigLoader
         var result = mergedConfigs.Values.ToList();
 
         await this.ApplyDiscoveredTokensAsync(result).ConfigureAwait(false);
-
-        ProviderMetadataCatalog.NormalizeCanonicalConfigurations(result);
 
         return result;
     }
@@ -47,15 +49,13 @@ public class JsonConfigLoader : IConfigLoader
         var authPath = this.GetTrackerConfigPath();
         var providersPath = this.GetProvidersConfigPath();
 
-        this.EnsureParentDirectoryExists(authPath);
-        this.EnsureParentDirectoryExists(providersPath);
+        EnsureParentDirectoryExists(authPath);
+        EnsureParentDirectoryExists(providersPath);
 
         var exportAuth = await this.LoadExportPayloadAsync(
-            authPath,
-            "auth config").ConfigureAwait(false);
+            authPath).ConfigureAwait(false);
         var exportProviders = await this.LoadExportPayloadAsync(
-            providersPath,
-            "provider config").ConfigureAwait(false);
+            providersPath).ConfigureAwait(false);
 
         JsonProviderConfigExportBuilder.RemoveNonPersistedProviders(exportAuth);
         JsonProviderConfigExportBuilder.RemoveNonPersistedProviders(exportProviders);
@@ -65,8 +65,8 @@ public class JsonConfigLoader : IConfigLoader
             JsonProviderConfigExportBuilder.MergeProviderConfig(exportAuth, exportProviders, config);
         }
 
-        await this.WriteExportPayloadAsync(authPath, exportAuth).ConfigureAwait(false);
-        await this.WriteExportPayloadAsync(providersPath, exportProviders).ConfigureAwait(false);
+        await WriteExportPayloadAsync(authPath, exportAuth).ConfigureAwait(false);
+        await WriteExportPayloadAsync(providersPath, exportProviders).ConfigureAwait(false);
     }
 
     public async Task<AppPreferences> LoadPreferencesAsync()
@@ -95,19 +95,8 @@ public class JsonConfigLoader : IConfigLoader
 
         if (File.Exists(path))
         {
-            this._logger.LogDebug("Preferences were written to canonical path {Path}; auth.json remains provider config only.", preferencesPath);
+            this._logger.LogDebug("Preferences were written to settings path {Path}; auth.json remains provider config only.", preferencesPath);
         }
-    }
-
-    private static string ResolveConfigProviderId(string providerId)
-    {
-        if (ProviderMetadataCatalog.ShouldPersistProviderId(providerId) &&
-            ProviderMetadataCatalog.IsVisibleDerivedProviderId(providerId))
-        {
-            return providerId;
-        }
-
-        return ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
     }
 
     private string GetTrackerConfigPath() => this._pathProvider.GetAuthFilePath();
@@ -147,10 +136,10 @@ public class JsonConfigLoader : IConfigLoader
         var appDataRoot = pathProvider.GetAppDataRoot();
         if (!string.IsNullOrWhiteSpace(appDataRoot))
         {
-            entries.Add((Path.Combine(appDataRoot, "auth.json"), true));
+            entries.Add((Path.Combine(appDataRoot, AuthConfigFileName), true));
         }
 
-        // Canonical app auth file is read last so explicit user-entered keys remain authoritative.
+        // App-owned auth file is read last so explicit user-entered keys remain authoritative.
         entries.Add((pathProvider.GetAuthFilePath(), true));
 
         var distinctEntries = new List<(string Path, bool IsAuthFile)>(entries.Count);
@@ -182,11 +171,11 @@ public class JsonConfigLoader : IConfigLoader
         // Ordered least-authoritative to most-authoritative (later entries win).
         // ~/.opencode/ is a legacy path with potentially stale keys.
         // ~/.local/share/opencode/ is the active XDG data directory maintained by OpenCode.
-        yield return Path.Combine(userProfileRoot, ".opencode", "auth.json");
-        yield return Path.Combine(userProfileRoot, ".config", "opencode", "auth.json");
-        yield return Path.Combine(userProfileRoot, "AppData", "Roaming", "opencode", "auth.json");
-        yield return Path.Combine(userProfileRoot, "AppData", "Local", "opencode", "auth.json");
-        yield return Path.Combine(userProfileRoot, ".local", "share", "opencode", "auth.json");
+        yield return Path.Combine(userProfileRoot, ".opencode", AuthConfigFileName);
+        yield return Path.Combine(userProfileRoot, ".config", OpenCodeDirectoryName, AuthConfigFileName);
+        yield return Path.Combine(userProfileRoot, "AppData", "Roaming", OpenCodeDirectoryName, AuthConfigFileName);
+        yield return Path.Combine(userProfileRoot, "AppData", "Local", OpenCodeDirectoryName, AuthConfigFileName);
+        yield return Path.Combine(userProfileRoot, ".local", "share", OpenCodeDirectoryName, AuthConfigFileName);
     }
 
     private async Task MergeConfigFileAsync(Dictionary<string, ProviderConfig> mergedConfigs, string path, bool isAuthFile)
@@ -212,7 +201,7 @@ public class JsonConfigLoader : IConfigLoader
         string path,
         bool isAuthFile)
     {
-        var providerId = ResolveConfigProviderId(entry.Key);
+        var providerId = entry.Key;
         if (providerId.Equals("app_settings", StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -227,12 +216,11 @@ public class JsonConfigLoader : IConfigLoader
             return;
         }
 
-        var config = this.GetOrCreateMergedConfig(mergedConfigs, providerId);
+        var config = GetOrCreateMergedConfig(mergedConfigs, providerId);
         this.ApplyFileConfig(config, entry.Value, providerId, path, isAuthFile);
-        this.AppendConfigSource(config, path);
     }
 
-    private ProviderConfig GetOrCreateMergedConfig(Dictionary<string, ProviderConfig> mergedConfigs, string providerId)
+    private static ProviderConfig GetOrCreateMergedConfig(Dictionary<string, ProviderConfig> mergedConfigs, string providerId)
     {
         if (!mergedConfigs.TryGetValue(providerId, out var config))
         {
@@ -244,6 +232,17 @@ public class JsonConfigLoader : IConfigLoader
     }
 
     private void ApplyFileConfig(
+        ProviderConfig config,
+        JsonElement element,
+        string providerId,
+        string path,
+        bool isAuthFile)
+    {
+        this.ApplyAuthProperties(config, element, providerId, path, isAuthFile);
+        this.ApplyDisplayProperties(config, element, providerId, path);
+    }
+
+    private void ApplyAuthProperties(
         ProviderConfig config,
         JsonElement element,
         string providerId,
@@ -266,6 +265,7 @@ public class JsonConfigLoader : IConfigLoader
                 }
 
                 config.ApiKey = value;
+                config.AuthSource = AuthSource.FromConfigFile(path);
             }
         }
 
@@ -273,7 +273,14 @@ public class JsonConfigLoader : IConfigLoader
         {
             config.BaseUrl = urlProp.GetString() ?? config.BaseUrl;
         }
+    }
 
+    private void ApplyDisplayProperties(
+        ProviderConfig config,
+        JsonElement element,
+        string providerId,
+        string path)
+    {
         if (element.TryGetProperty("show_in_tray", out var showProp))
         {
             config.ShowInTray = showProp.ValueKind == JsonValueKind.True;
@@ -286,7 +293,7 @@ public class JsonConfigLoader : IConfigLoader
 
         if (element.TryGetProperty("enabled_sub_trays", out var subTraysProp) && subTraysProp.ValueKind == JsonValueKind.Array)
         {
-            config.EnabledSubTrays = this.ReadStringList(subTraysProp);
+            config.EnabledSubTrays = ReadStringList(subTraysProp);
         }
 
         if (element.TryGetProperty("models", out var modelsProp) && modelsProp.ValueKind == JsonValueKind.Array)
@@ -301,7 +308,7 @@ public class JsonConfigLoader : IConfigLoader
         {
             return JsonSerializer.Deserialize<List<AIModelConfig>>(
                        modelsProp.GetRawText(),
-                       new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                       CaseInsensitiveOptions)
                    ?? new List<AIModelConfig>();
         }
         catch (Exception ex) when (ex is JsonException)
@@ -311,7 +318,7 @@ public class JsonConfigLoader : IConfigLoader
         }
     }
 
-    private List<string> ReadStringList(JsonElement arrayElement)
+    private static List<string> ReadStringList(JsonElement arrayElement)
     {
         return arrayElement.EnumerateArray()
             .Select(item => item.GetString())
@@ -319,29 +326,18 @@ public class JsonConfigLoader : IConfigLoader
             .ToList();
     }
 
-    private void AppendConfigSource(ProviderConfig config, string path)
-    {
-        if (string.IsNullOrEmpty(config.AuthSource))
-        {
-            config.AuthSource = AuthSource.FromConfigFile(Path.GetFileName(path));
-            return;
-        }
-
-        config.AuthSource += $", {Path.GetFileName(path)}";
-    }
-
     private async Task ApplyDiscoveredTokensAsync(List<ProviderConfig> configs)
     {
-        var discoveryService = new TokenDiscoveryService(this._tokenDiscoveryLogger, this._pathProvider);
+        var discoveryService = new TokenDiscoveryService(this._log, this._pathProvider);
         var discovered = await discoveryService.DiscoverTokensAsync().ConfigureAwait(false);
 
         foreach (var discoveredConfig in discovered)
         {
-            this.MergeDiscoveredConfig(configs, discoveredConfig);
+            MergeDiscoveredConfig(configs, discoveredConfig);
         }
     }
 
-    private void MergeDiscoveredConfig(List<ProviderConfig> configs, ProviderConfig discoveredConfig)
+    private static void MergeDiscoveredConfig(List<ProviderConfig> configs, ProviderConfig discoveredConfig)
     {
         var existing = configs.FirstOrDefault(config =>
             config.ProviderId.Equals(discoveredConfig.ProviderId, StringComparison.OrdinalIgnoreCase));
@@ -364,7 +360,7 @@ public class JsonConfigLoader : IConfigLoader
         }
     }
 
-    private void EnsureParentDirectoryExists(string path)
+    private static void EnsureParentDirectoryExists(string path)
     {
         var directory = Path.GetDirectoryName(path);
         if (directory != null && !Directory.Exists(directory))
@@ -373,7 +369,7 @@ public class JsonConfigLoader : IConfigLoader
         }
     }
 
-    private async Task<Dictionary<string, object>> LoadExportPayloadAsync(string path, string payloadDescription)
+    private async Task<Dictionary<string, object>> LoadExportPayloadAsync(string path)
     {
         return await JsonConfigFileStore.ReadAsync<Dictionary<string, object>>(
                    path,
@@ -382,7 +378,7 @@ public class JsonConfigLoader : IConfigLoader
                ?? new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
-    private async Task WriteExportPayloadAsync(string path, Dictionary<string, object> payload)
+    private static async Task WriteExportPayloadAsync(string path, Dictionary<string, object> payload)
     {
         await JsonConfigFileStore.WriteIndentedAsync(path, payload).ConfigureAwait(false);
     }

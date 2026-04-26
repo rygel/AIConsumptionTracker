@@ -3,9 +3,9 @@
 // </copyright>
 
 using System.Reflection;
-using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
@@ -32,7 +32,6 @@ public class PrivacyButtonBehaviorTests
     {
         return RunInStaAsync(() =>
         {
-            EnsureAppCreated();
             var originalPrivacyMode = App.IsPrivacyMode;
 
             try
@@ -44,12 +43,13 @@ public class PrivacyButtonBehaviorTests
 
                 // Directly invoke OnPrivacyChanged — bypasses PrivacyBtn_Click entirely
                 var args = new PrivacyChangedEventArgs(true);
-                InvokePrivateMethod(mainWindow, "OnPrivacyChanged", new object?[] { null, args });
+                InvokePrivateMethod(mainWindow, "OnPrivacyChanged", new object[] { null!, args });
 
                 // If Dispatcher.CheckAccess() returned false inside OnPrivacyChanged,
                 // _isPrivacyMode won't have updated yet (BeginInvoke deferred it).
                 // This test will catch THAT scenario.
-                Assert.True((bool)GetPrivateField(mainWindow, "_isPrivacyMode")!,
+                Assert.True(
+                    (bool)GetPrivateField(mainWindow, "_isPrivacyMode")!,
                     "OnPrivacyChanged did not synchronously update _isPrivacyMode. " +
                     "Dispatcher.CheckAccess() likely returned false on this thread.");
 
@@ -69,7 +69,6 @@ public class PrivacyButtonBehaviorTests
     {
         return RunInStaAsync(() =>
         {
-            EnsureAppCreated();
             var originalPrivacyMode = App.IsPrivacyMode;
 
             try
@@ -111,7 +110,6 @@ public class PrivacyButtonBehaviorTests
     {
         return RunInStaAsync(() =>
         {
-            EnsureAppCreated();
             var originalPrivacyMode = App.IsPrivacyMode;
 
             try
@@ -153,7 +151,6 @@ public class PrivacyButtonBehaviorTests
     {
         return RunInStaAsync(() =>
         {
-            EnsureAppCreated();
             var originalPrivacyMode = App.IsPrivacyMode;
 
             try
@@ -203,7 +200,6 @@ public class PrivacyButtonBehaviorTests
     {
         return RunInStaAsync(() =>
         {
-            EnsureAppCreated();
             var originalPrivacyMode = App.IsPrivacyMode;
 
             try
@@ -250,6 +246,26 @@ public class PrivacyButtonBehaviorTests
         });
     }
 
+    private static MainWindow CreateMainWindowForTesting()
+    {
+        EnsureAppCreated();
+        var services = App.Host.Services;
+        var window = new MainWindow(
+            skipUiInitialization: true,
+            services.GetRequiredService<MainViewModel>(),
+            services.GetRequiredService<IMonitorService>(),
+            services.GetRequiredService<MonitorLifecycleService>(),
+            services.GetRequiredService<ILogger<MainWindow>>(),
+            services.GetRequiredService<Func<UpdateChannel, GitHubUpdateChecker>>(),
+            services.GetRequiredService<GitHubUpdateChecker>(),
+            services.GetRequiredService<IDialogService>(),
+            services.GetRequiredService<IBrowserService>(),
+            services.GetRequiredService<UiPreferencesStore>());
+
+        EnsureThemeResourcesForTests();
+        return window;
+    }
+
     private static App EnsureAppCreated()
     {
         if (Application.Current is App app)
@@ -258,25 +274,6 @@ public class PrivacyButtonBehaviorTests
         }
 
         return new App();
-    }
-
-    private static MainWindow CreateMainWindowForTesting()
-    {
-        EnsureAppCreated();
-        var services = App.Host.Services;
-
-        return new MainWindow(
-            skipUiInitialization: true,
-            services.GetRequiredService<MainViewModel>(),
-            services.GetRequiredService<IMonitorService>(),
-            services.GetRequiredService<MonitorLifecycleService>(),
-            services.GetRequiredService<MonitorStartupOrchestrator>(),
-            services.GetRequiredService<ILogger<MainWindow>>(),
-            services.GetRequiredService<Func<UpdateChannel, GitHubUpdateChecker>>(),
-            services.GetRequiredService<GitHubUpdateChecker>(),
-            services.GetRequiredService<IDialogService>(),
-            services.GetRequiredService<IBrowserService>(),
-            services.GetRequiredService<UiPreferencesStore>());
     }
 
     /// <summary>
@@ -312,7 +309,7 @@ public class PrivacyButtonBehaviorTests
         method.Invoke(target, parameters);
     }
 
-    private static Task RunInStaAsync(Func<Task> testBody)
+    private static Task<object?> RunInStaAsync(Func<Task> testBody)
     {
         var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -320,6 +317,7 @@ public class PrivacyButtonBehaviorTests
         {
             try
             {
+                EnsureThemeResourcesForTests();
                 testBody().WaitAsync(StaTestTimeout).GetAwaiter().GetResult();
                 tcs.SetResult(null);
             }
@@ -333,5 +331,18 @@ public class PrivacyButtonBehaviorTests
         thread.Start();
 
         return tcs.Task;
+    }
+
+    private static void EnsureThemeResourcesForTests()
+    {
+        if (Application.Current == null)
+        {
+            return;
+        }
+
+        if (Application.Current.Resources["SecondaryText"] is not SolidColorBrush)
+        {
+            Application.Current.Resources["SecondaryText"] = Brushes.Gray;
+        }
     }
 }

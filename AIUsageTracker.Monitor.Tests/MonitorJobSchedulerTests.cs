@@ -7,7 +7,6 @@ using System.Diagnostics;
 using AIUsageTracker.Monitor.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Xunit;
 
 namespace AIUsageTracker.Monitor.Tests;
 
@@ -230,7 +229,7 @@ public class MonitorJobSchedulerTests
             activity => string.Equals(activity.OperationName, "monitor.scheduler.execute_job", StringComparison.Ordinal));
         Assert.Equal("activity-job", jobActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "job.name", StringComparison.Ordinal)).Value);
         Assert.Equal("High", jobActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "job.priority", StringComparison.Ordinal)).Value);
-        Assert.Equal(false, jobActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "job.coalesced", StringComparison.Ordinal)).Value);
+        Assert.False((bool)jobActivity.TagObjects.FirstOrDefault(tag => string.Equals(tag.Key, "job.coalesced", StringComparison.Ordinal)).Value!);
         Assert.Equal(ActivityStatusCode.Ok, jobActivity.Status);
     }
 
@@ -325,6 +324,108 @@ public class MonitorJobSchedulerTests
             Assert.True(snapshot.AverageExecutionDurationMs <= snapshot.LastExecutionDurationMs);
             Assert.True(snapshot.MaxObservedQueueWaitMs >= 30);
             Assert.Equal("Normal", snapshot.LastDequeuedPriority);
+        }
+        finally
+        {
+            await scheduler.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Pause_BlocksNewJobDispatchWhileInFlightCompletesAsync()
+    {
+        var logger = new Mock<ILogger<MonitorJobScheduler>>();
+        var scheduler = new MonitorJobScheduler(logger.Object);
+        var firstJobStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstJobCanFinish = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondJobExecuted = false;
+
+        await scheduler.StartAsync(CancellationToken.None);
+        try
+        {
+            // Enqueue a long-running first job that signals when started
+            _ = scheduler.Enqueue(
+                "in-flight-job",
+                async _ =>
+                {
+                    firstJobStarted.TrySetResult(true);
+                    var finishTask = firstJobCanFinish.Task;
+                    await finishTask.ConfigureAwait(false);
+                },
+                MonitorJobPriority.Normal);
+
+            // Wait for first job to start
+            var started = await Task.WhenAny(firstJobStarted.Task, Task.Delay(TimeSpan.FromSeconds(5))) == firstJobStarted.Task;
+            Assert.True(started, "First job did not start within timeout.");
+
+            // Pause while first job is in-flight
+            scheduler.Pause();
+
+            // Verify snapshot reports paused
+            Assert.True(scheduler.GetSnapshot().IsPaused);
+
+            // Enqueue a second job - it should not execute while paused
+            _ = scheduler.Enqueue(
+                "blocked-job",
+                _ =>
+                {
+                    secondJobExecuted = true;
+                    return Task.CompletedTask;
+                },
+                MonitorJobPriority.Normal);
+
+            // Let the first in-flight job finish
+            firstJobCanFinish.TrySetResult(true);
+
+            // Wait a moment — second job should NOT run while paused
+            await Task.Delay(200);
+
+            Assert.False(secondJobExecuted, "Second job should not execute while scheduler is paused.");
+            Assert.True(scheduler.GetSnapshot().IsPaused);
+        }
+        finally
+        {
+            scheduler.Resume();
+            await scheduler.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Resume_RestoresDispatchAfterPauseAsync()
+    {
+        var logger = new Mock<ILogger<MonitorJobScheduler>>();
+        var scheduler = new MonitorJobScheduler(logger.Object);
+        var jobExecuted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await scheduler.StartAsync(CancellationToken.None);
+        try
+        {
+            // Pause before enqueuing
+            scheduler.Pause();
+            Assert.True(scheduler.GetSnapshot().IsPaused);
+
+            // Enqueue a job while paused — it should not run yet
+            _ = scheduler.Enqueue(
+                "held-job",
+                _ =>
+                {
+                    jobExecuted.TrySetResult(true);
+                    return Task.CompletedTask;
+                },
+                MonitorJobPriority.Normal);
+
+            // Verify job does not run within a short wait
+            var ranBeforeResume = await Task.WhenAny(jobExecuted.Task, Task.Delay(200)) == jobExecuted.Task;
+            Assert.False(ranBeforeResume, "Job should not run while paused.");
+
+            // Resume
+            scheduler.Resume();
+            Assert.False(scheduler.GetSnapshot().IsPaused);
+
+            // Job should now run
+            var ranAfterResume = await Task.WhenAny(jobExecuted.Task, Task.Delay(TimeSpan.FromSeconds(5))) == jobExecuted.Task;
+            Assert.True(ranAfterResume, "Job did not run after resume within timeout.");
+            Assert.False(scheduler.GetSnapshot().IsPaused);
         }
         finally
         {

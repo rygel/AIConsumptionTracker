@@ -5,7 +5,6 @@
 using System.Net;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Providers;
-using Xunit;
 
 namespace AIUsageTracker.Tests.Core;
 
@@ -36,7 +35,6 @@ public class ProviderBaseTests
 
         public string TestDescribeUnavailableException(Exception ex, string context = "Test context")
             => DescribeUnavailableException(ex, context);
-
     }
 
     private readonly TestProvider _provider = new();
@@ -93,5 +91,4 @@ public class ProviderBaseTests
 
         Assert.Contains("Connection failed", description, StringComparison.OrdinalIgnoreCase);
     }
-
 }

@@ -3,7 +3,6 @@
 // </copyright>
 
 using System.Globalization;
-using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Providers;
@@ -13,6 +12,9 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class OpenRouterProvider : ProviderBase
 {
+    private const string CreditsEndpoint = "https://openrouter.ai/api/v1/credits";
+    private const string KeyEndpoint = "https://openrouter.ai/api/v1/key";
+
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenRouterProvider> _logger;
 
@@ -26,8 +28,9 @@ public class OpenRouterProvider : ProviderBase
         "openrouter",
         "OpenRouter",
         PlanType.Usage,
-        isQuotaBased: true)
+        isQuotaBased: false)
     {
+        IsCurrencyUsage = true,
         DiscoveryEnvironmentVariables = new[] { "OPENROUTER_API_KEY" },
         RooConfigPropertyNames = new[] { "openrouterApiKey" },
         IconAssetName = "openai",
@@ -59,16 +62,15 @@ public class OpenRouterProvider : ProviderBase
             };
         }
 
-        // Try to fetch credits first
         OpenRouterCreditsResponse? creditsData = null;
         string? creditsResponseBody = null;
-        int httpStatus = 200;
+        int httpStatus;
 
         try
         {
             this._logger.LogDebug("Calling OpenRouter credits API: https://openrouter.ai/api/v1/credits");
 
-            var request = CreateBearerRequest(HttpMethod.Get, "https://openrouter.ai/api/v1/credits", config.ApiKey);
+            var request = CreateBearerRequest(HttpMethod.Get, CreditsEndpoint, config.ApiKey);
 
             var response = await this._httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             httpStatus = (int)response.StatusCode;
@@ -125,8 +127,13 @@ public class OpenRouterProvider : ProviderBase
             };
         }
 
-        // Try to fetch additional key info (optional - for limits, labels, etc.)
-        string label = "OpenRouter";
+        var keyInfo = await this.FetchKeyInfoAsync(config.ApiKey, cancellationToken).ConfigureAwait(false);
+        return this.BuildUsageCards(config, creditsData!, creditsResponseBody!, httpStatus, keyInfo);
+    }
+
+    private async Task<KeyInfoResult> FetchKeyInfoAsync(string apiKey, CancellationToken cancellationToken)
+    {
+        var label = "OpenRouter";
         double? spendingLimit = null;
         DateTime? spendingLimitResetTime = null;
         bool? isFreeTier = null;
@@ -135,7 +142,7 @@ public class OpenRouterProvider : ProviderBase
         {
             this._logger.LogDebug("Calling OpenRouter key API: https://openrouter.ai/api/v1/key");
 
-            var keyRequest = CreateBearerRequest(HttpMethod.Get, "https://openrouter.ai/api/v1/key", config.ApiKey);
+            var keyRequest = CreateBearerRequest(HttpMethod.Get, KeyEndpoint, apiKey);
 
             var keyResponse = await this._httpClient.SendAsync(keyRequest, cancellationToken).ConfigureAwait(false);
             var keyResponseBody = await keyResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -168,25 +175,7 @@ public class OpenRouterProvider : ProviderBase
                     if (keyData.Data.Limit > 0)
                     {
                         spendingLimit = keyData.Data.Limit;
-
-                        if (!string.IsNullOrEmpty(keyData.Data.LimitReset))
-                        {
-                            this._logger.LogDebug("Parsing limit reset time: {LimitReset}", keyData.Data.LimitReset);
-
-                            if (DateTime.TryParse(keyData.Data.LimitReset, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal, out var dt))
-                            {
-                                var diff = dt - DateTime.UtcNow;
-                                if (diff.TotalSeconds > 0)
-                                {
-                                    spendingLimitResetTime = dt;
-                                    this._logger.LogDebug("Limit reset time parsed successfully: {ResetTime}", spendingLimitResetTime);
-                                }
-                            }
-                            else
-                            {
-                                this._logger.LogWarning("Failed to parse limit reset time: {LimitReset}", keyData.Data.LimitReset);
-                            }
-                        }
+                        spendingLimitResetTime = TryParseLimitResetTime(keyData.Data.LimitReset);
                     }
                     else
                     {
@@ -213,9 +202,32 @@ public class OpenRouterProvider : ProviderBase
             this._logger.LogWarning(ex, "Exception while calling OpenRouter key API - continuing with credits data only");
         }
 
-        // Calculate usage statistics
-        var total = creditsData.Data.TotalCredits;
-        var used = creditsData.Data.TotalUsage;
+        return new KeyInfoResult(label, spendingLimit, spendingLimitResetTime, isFreeTier);
+    }
+
+    private static DateTime? TryParseLimitResetTime(string? limitReset)
+    {
+        if (string.IsNullOrEmpty(limitReset))
+        {
+            return null;
+        }
+
+        if (DateTime.TryParse(limitReset, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal, out var dt))
+        {
+            var diff = dt - DateTime.UtcNow;
+            if (diff.TotalSeconds > 0)
+            {
+                return dt;
+            }
+        }
+
+        return null;
+    }
+
+    private List<ProviderUsage> BuildUsageCards(ProviderConfig config, OpenRouterCreditsResponse creditsData, string creditsResponseBody, int httpStatus, KeyInfoResult keyInfo)
+    {
+        var total = creditsData.Data!.TotalCredits;
+        var used = creditsData.Data!.TotalUsage;
         var remainingPercentage = UsageMath.CalculateRemainingPercent(used, total);
         var remaining = total - used;
 
@@ -227,67 +239,65 @@ public class OpenRouterProvider : ProviderBase
             remainingPercentage);
 
         string mainReset = string.Empty;
-        if (spendingLimitResetTime.HasValue)
+        if (keyInfo.SpendingLimitResetTime.HasValue)
         {
-            mainReset = $" (Resets: ({spendingLimitResetTime.Value.ToLocalTime():MMM dd HH:mm}))";
+            mainReset = $" (Resets: ({keyInfo.SpendingLimitResetTime.Value.ToLocalTime().ToString("MMM dd HH:mm", CultureInfo.InvariantCulture)}))";
         }
 
         var results = new List<ProviderUsage>();
 
-        // Main credits card
         results.Add(new ProviderUsage
         {
             ProviderId = config.ProviderId,
-            ProviderName = label,
+            ProviderName = keyInfo.Label,
             CardId = "credits",
             GroupId = config.ProviderId,
-            Name = "Credits",
+            Name = "Openrouter",
             UsedPercent = 100.0 - remainingPercentage,
             RequestsUsed = used,
             RequestsAvailable = total,
+            IsCurrencyUsage = true,
             PlanType = this.Definition.PlanType,
             IsQuotaBased = this.Definition.IsQuotaBased,
             IsAvailable = true,
-            Description = $"{remaining.ToString("F2", CultureInfo.InvariantCulture)} Credits Remaining{mainReset}",
-            NextResetTime = spendingLimitResetTime,
+            Description = $"${remaining.ToString("F2", CultureInfo.InvariantCulture)} remaining{mainReset}",
+            NextResetTime = keyInfo.SpendingLimitResetTime,
             RawJson = creditsResponseBody,
             HttpStatus = httpStatus,
         });
 
-        // Spending limit flat card (when available)
-        if (spendingLimit.HasValue)
+        if (keyInfo.SpendingLimit.HasValue)
         {
             results.Add(new ProviderUsage
             {
                 ProviderId = config.ProviderId,
-                ProviderName = label,
+                ProviderName = keyInfo.Label,
                 CardId = "spending-limit",
                 GroupId = config.ProviderId,
                 Name = "Spending Limit",
                 IsAvailable = true,
                 PlanType = this.Definition.PlanType,
                 IsQuotaBased = this.Definition.IsQuotaBased,
-                Description = spendingLimit.Value.ToString("F2", CultureInfo.InvariantCulture),
-                NextResetTime = spendingLimitResetTime,
+                Description = keyInfo.SpendingLimit.Value.ToString("F2", CultureInfo.InvariantCulture),
+                NextResetTime = keyInfo.SpendingLimitResetTime,
                 RawJson = creditsResponseBody,
                 HttpStatus = httpStatus,
             });
         }
 
-        // Free tier flat card (when available)
-        if (isFreeTier.HasValue)
+        if (keyInfo.IsFreeTier.HasValue)
         {
             results.Add(new ProviderUsage
             {
                 ProviderId = config.ProviderId,
-                ProviderName = label,
+                ProviderName = keyInfo.Label,
                 CardId = "free-tier",
                 GroupId = config.ProviderId,
                 Name = "Free Tier",
                 IsAvailable = true,
                 PlanType = this.Definition.PlanType,
                 IsQuotaBased = this.Definition.IsQuotaBased,
-                Description = isFreeTier.Value ? "Yes" : "No",
+                Description = keyInfo.IsFreeTier.Value ? "Yes" : "No",
                 RawJson = creditsResponseBody,
                 HttpStatus = httpStatus,
             });
@@ -296,13 +306,15 @@ public class OpenRouterProvider : ProviderBase
         return results;
     }
 
-    private class OpenRouterCreditsResponse
+    private readonly record struct KeyInfoResult(string Label, double? SpendingLimit, DateTime? SpendingLimitResetTime, bool? IsFreeTier);
+
+    private sealed class OpenRouterCreditsResponse
     {
         [JsonPropertyName("data")]
         public CreditsData? Data { get; set; }
     }
 
-    private class CreditsData
+    private sealed class CreditsData
     {
         [JsonPropertyName("total_credits")]
         public double TotalCredits { get; set; }
@@ -311,13 +323,13 @@ public class OpenRouterProvider : ProviderBase
         public double TotalUsage { get; set; }
     }
 
-    private class OpenRouterKeyResponse
+    private sealed class OpenRouterKeyResponse
     {
         [JsonPropertyName("data")]
         public KeyData? Data { get; set; }
     }
 
-    private class KeyData
+    private sealed class KeyData
     {
         [JsonPropertyName("label")]
         public string? Label { get; set; }

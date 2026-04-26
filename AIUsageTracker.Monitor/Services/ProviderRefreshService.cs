@@ -8,8 +8,6 @@ using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Services;
 using AIUsageTracker.Infrastructure.Providers;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Monitor.Services;
 
@@ -28,18 +26,14 @@ public class ProviderRefreshService : BackgroundService
     private readonly ProviderRefreshJobScheduler _refreshJobScheduler;
     private readonly ProviderManagerLifecycleService _providerManagerLifecycle;
     private readonly ProviderRefreshNotificationService _refreshNotificationService;
-    private static bool _debugMode = false;
     private static readonly ActivitySource ActivitySource = MonitorActivitySources.Refresh;
     private readonly StartupSequenceService _startupSequenceService;
     private readonly IProviderUsageProcessingPipeline _usageProcessingPipeline;
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
+    private volatile CancellationTokenSource? _activeRefreshCts;
     private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(5);
 
-    public static void SetDebugMode(bool debug)
-    {
-        _debugMode = debug;
-    }
-
+#pragma warning disable S107
     public ProviderRefreshService(
         ILogger<ProviderRefreshService> logger,
         IUsageDatabase database,
@@ -55,6 +49,7 @@ public class ProviderRefreshService : BackgroundService
         ProviderRefreshNotificationService refreshNotificationService,
         StartupSequenceService startupSequenceService,
         IProviderUsageProcessingPipeline usageProcessingPipeline)
+#pragma warning restore S107
     {
         this._logger = logger;
         this._database = database;
@@ -91,6 +86,16 @@ public class ProviderRefreshService : BackgroundService
             forceAll: forceAll,
             includeProviderIds: includeProviderIds,
             bypassCircuitBreaker: true);
+    }
+
+    public void CancelActiveRefresh()
+    {
+        var cts = this._activeRefreshCts;
+        if (cts != null && !cts.IsCancellationRequested)
+        {
+            this._logger.LogInformation("Cancelling active refresh cycle (power state transition)");
+            cts.Cancel();
+        }
     }
 
     internal static string? BuildManualRefreshCoalesceKey(
@@ -164,6 +169,8 @@ public class ProviderRefreshService : BackgroundService
         bool bypassCircuitBreaker = false,
         CancellationToken cancellationToken = default)
     {
+        using var refreshCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        this._activeRefreshCts = refreshCts;
         using var refreshActivity = ActivitySource.StartActivity("monitor.provider_refresh", ActivityKind.Internal);
         refreshActivity?.SetTag("refresh.force_all", forceAll);
         refreshActivity?.SetTag("refresh.bypass_circuit_breaker", bypassCircuitBreaker);
@@ -176,10 +183,11 @@ public class ProviderRefreshService : BackgroundService
 
         if (this.TryGetProviderManagerForRefresh(refreshStopwatch, refreshActivity) == null)
         {
+            this._activeRefreshCts = null;
             return;
         }
 
-        await this._refreshSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await this._refreshSemaphore.WaitAsync(refreshCts.Token).ConfigureAwait(false);
         try
         {
             await this.EnsureProviderManagerConcurrencyAsync().ConfigureAwait(false);
@@ -226,7 +234,7 @@ public class ProviderRefreshService : BackgroundService
                         configs,
                         refreshableConfigs,
                         circuitSkippedConfigs,
-                        cancellationToken)
+                        refreshCts.Token)
                     .ConfigureAwait(false);
             }
             else
@@ -258,6 +266,7 @@ public class ProviderRefreshService : BackgroundService
             this._refreshTelemetryManager.RecordRefreshTelemetry(refreshStopwatch.Elapsed, refreshSucceeded, refreshError);
             refreshActivity?.SetTag("refresh.duration_ms", refreshStopwatch.Elapsed.TotalMilliseconds);
             this._refreshSemaphore.Release();
+            this._activeRefreshCts = null;
         }
     }
 
@@ -417,7 +426,7 @@ public class ProviderRefreshService : BackgroundService
 
         const string error = "ProviderManager not ready";
         this._logger.LogWarning(error);
-        this._refreshTelemetryManager.RecordRefreshTelemetry(refreshStopwatch.Elapsed, false, error);
+        this._refreshTelemetryManager.RecordRefreshTelemetry(duration: refreshStopwatch.Elapsed, success: false, errorMessage: error);
         refreshActivity?.SetStatus(ActivityStatusCode.Error, error);
         return null;
     }

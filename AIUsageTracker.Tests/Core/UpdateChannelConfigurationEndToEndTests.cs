@@ -3,6 +3,7 @@
 // </copyright>
 
 using System.Diagnostics;
+using System.Globalization;
 using System.Xml.Linq;
 using AIUsageTracker.Infrastructure.Services;
 using AIUsageTracker.Tests.Infrastructure;
@@ -80,10 +81,9 @@ public sealed class UpdateChannelConfigurationEndToEndTests : IDisposable
     // Regression guard: if env vars are provided (as they are in the CI publish pipeline),
     // the generated enclosure length must equal the supplied size for every architecture.
     // length="0" in a committed appcast means the publish pipeline failed to pass sizes.
-
     [Theory]
-    [InlineData("2.2.28",       "stable", 10_000_000L, 9_500_000L,  9_800_000L)]
-    [InlineData("2.2.28-beta.5", "beta",  19_451_188L, 18_831_779L, 18_802_141L)]
+    [InlineData("2.2.28", "stable", 10_000_000L, 9_500_000L, 9_800_000L)]
+    [InlineData("2.2.28-beta.5", "beta", 19_451_188L, 18_831_779L, 18_802_141L)]
     public async Task GenerateAppcastScript_PopulatesInstallerLengthFromEnvVarsAsync(
         string version, string channel, long x64Size, long x86Size, long arm64Size)
     {
@@ -91,9 +91,9 @@ public sealed class UpdateChannelConfigurationEndToEndTests : IDisposable
 
         var envVars = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["INSTALLER_SIZE_X64"] = x64Size.ToString(),
-            ["INSTALLER_SIZE_X86"] = x86Size.ToString(),
-            ["INSTALLER_SIZE_ARM64"] = arm64Size.ToString(),
+            ["INSTALLER_SIZE_X64"] = x64Size.ToString(CultureInfo.InvariantCulture),
+            ["INSTALLER_SIZE_X86"] = x86Size.ToString(CultureInfo.InvariantCulture),
+            ["INSTALLER_SIZE_ARM64"] = arm64Size.ToString(CultureInfo.InvariantCulture),
         };
 
         var generated = await RunGenerateAppcastAsync(workingDirectory, version, channel, envVars);
@@ -102,7 +102,7 @@ public sealed class UpdateChannelConfigurationEndToEndTests : IDisposable
             return;
         }
 
-        var prefix = channel == "beta" ? "appcast_beta" : "appcast";
+        var prefix = string.Equals(channel, "beta", StringComparison.Ordinal) ? "appcast_beta" : "appcast";
         AssertInstallerLength(Path.Combine(workingDirectory, "appcast", $"{prefix}.xml"), x64Size);
         AssertInstallerLength(Path.Combine(workingDirectory, "appcast", $"{prefix}_x64.xml"), x64Size);
         AssertInstallerLength(Path.Combine(workingDirectory, "appcast", $"{prefix}_x86.xml"), x86Size);
@@ -123,7 +123,7 @@ public sealed class UpdateChannelConfigurationEndToEndTests : IDisposable
         Assert.NotNull(enclosure);
         var lengthStr = enclosure!.Attribute("length")?.Value;
         Assert.False(string.IsNullOrEmpty(lengthStr), $"Missing length attribute in {appcastFilePath}.");
-        Assert.True(long.TryParse(lengthStr, out var actualLength), $"Non-numeric length '{lengthStr}' in {appcastFilePath}.");
+        Assert.True(long.TryParse(lengthStr, System.Globalization.CultureInfo.InvariantCulture, out var actualLength), $"Non-numeric length '{lengthStr}' in {appcastFilePath}.");
         Assert.Equal(expectedLength, actualLength);
     }
 
@@ -152,6 +152,7 @@ public sealed class UpdateChannelConfigurationEndToEndTests : IDisposable
             GitHubUpdateChecker.GetReleaseTagUrl(version),
             item.Element(sparkle + "releaseNotesLink")?.Value);
         Assert.Equal(expectedDownloadUrl, enclosure!.Attribute("url")?.Value);
+
         // For beta releases (e.g. "2.2.28-beta.21") the script encodes the pre-release number
         // as a 4th component ("2.2.28.21") so NetSparkle can compare builds numerically.
         const string betaPrefix = "-beta.";

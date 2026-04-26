@@ -3,13 +3,10 @@
 // </copyright>
 
 using System.Net;
-using System.Net.Http;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
-using AIUsageTracker.Tests.Infrastructure;
 using Moq;
 using Moq.Protected;
-using Xunit;
 
 namespace AIUsageTracker.Tests.Infrastructure.Providers;
 
@@ -92,7 +89,6 @@ public class DeepSeekProviderTests : HttpProviderTestBase<DeepSeekProvider>
     }
 
     // --- Phase 4: FailureContext attachment ---
-
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized, HttpFailureClassification.Authentication, false)]
     [InlineData(HttpStatusCode.Forbidden, HttpFailureClassification.Authorization, false)]

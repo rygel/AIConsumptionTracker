@@ -38,12 +38,30 @@ public class PreferencesStore : IPreferencesStore
             return new AppPreferences();
         }
 
-        // Use FileShare.ReadWrite so the read succeeds even when the monitor
-        // or a previous app instance holds the file open for writing.
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        using var reader = new StreamReader(stream);
-        var json = await reader.ReadToEndAsync().ConfigureAwait(false);
-        return AppPreferences.Deserialize(json);
+        try
+        {
+            // Use FileShare.ReadWrite so the read succeeds even when the monitor
+            // or a previous app instance holds the file open for writing.
+#pragma warning disable MA0004
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+#pragma warning restore MA0004
+            using var reader = new StreamReader(stream);
+            var json = await reader.ReadToEndAsync().ConfigureAwait(false);
+            return AppPreferences.Deserialize(json);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            var backupPath = GetBackupPath(path);
+            if (File.Exists(backupPath))
+            {
+                this._logger.LogWarning(ex, "Failed to load preferences from {Path}. Attempting backup from {BackupPath}", path, backupPath);
+                var backupJson = await File.ReadAllTextAsync(backupPath).ConfigureAwait(false);
+                return AppPreferences.Deserialize(backupJson);
+            }
+
+            this._logger.LogWarning(ex, "Failed to load preferences from {Path} and no backup available", path);
+            throw;
+        }
     }
 
     public async Task<bool> SaveAsync(AppPreferences preferences)
@@ -60,7 +78,11 @@ public class PreferencesStore : IPreferencesStore
         {
             Directory.CreateDirectory(directory);
             var json = JsonSerializer.Serialize(preferences, this._jsonOptions);
-            await File.WriteAllTextAsync(path, json).ConfigureAwait(false);
+            await AtomicFileWriter.WriteAllTextAtomicAsync(
+                path,
+                json,
+                this._logger,
+                backupPath: GetBackupPath(path)).ConfigureAwait(false);
             return true;
         }
         catch (IOException ex)
@@ -89,4 +111,6 @@ public class PreferencesStore : IPreferencesStore
 
         return this._pathProvider.GetPreferencesFilePath();
     }
+
+    private static string GetBackupPath(string preferencesPath) => $"{preferencesPath}.bak";
 }

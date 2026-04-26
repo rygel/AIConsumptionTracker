@@ -2,7 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-using System.Net.Http;
+using System.Globalization;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Providers;
@@ -12,6 +12,13 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class GitHubCopilotProvider : ProviderBase
 {
+#pragma warning disable S1075 // URIs are provider API endpoints
+    private const string GitHubUserUrl = "https://api.github.com/user";
+    private const string CopilotUserUrl = "https://api.github.com/copilot_internal/user";
+    private const string CopilotTokenUrl = "https://api.github.com/copilot_internal/v2/token";
+#pragma warning restore S1075
+    private const string ProviderDisplayName = "GitHub Copilot";
+
     private readonly IGitHubAuthService _authService;
     private readonly HttpClient _httpClient;
     private readonly ILogger<GitHubCopilotProvider> _logger;
@@ -26,7 +33,7 @@ public class GitHubCopilotProvider : ProviderBase
 
     public static ProviderDefinition StaticDefinition { get; } = new(
         "github-copilot",
-        "GitHub Copilot",
+        ProviderDisplayName,
         PlanType.Coding,
         isQuotaBased: true)
     {
@@ -42,8 +49,7 @@ public class GitHubCopilotProvider : ProviderBase
         },
         QuotaWindows = new QuotaWindowDefinition[]
         {
-            new(WindowKind.Rolling, "Weekly", PeriodDuration: TimeSpan.FromDays(7)),
-            new(WindowKind.Burst,   "5h",     PeriodDuration: TimeSpan.FromHours(5)),
+            new(WindowKind.Rolling, "Monthly", PeriodDuration: TimeSpan.FromDays(30)),
         },
     };
 
@@ -54,6 +60,8 @@ public class GitHubCopilotProvider : ProviderBase
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(config);
+
+        var providerLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId);
 
         var token = this.ResolveToken(config);
         if (string.IsNullOrEmpty(token) && this.DiscoveryService != null)
@@ -74,7 +82,7 @@ public class GitHubCopilotProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = this.Definition.DisplayName,
+                    ProviderName = providerLabel,
                     AccountName = username,
                     IsAvailable = false,
                     State = ProviderUsageState.Missing,
@@ -99,7 +107,7 @@ public class GitHubCopilotProvider : ProviderBase
 
         try
         {
-            using var request = CreateBearerRequest("https://api.github.com/user", token);
+            using var request = CreateBearerRequest(GitHubUserUrl, token);
             using var response = await this._httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             state.HttpStatus = (int)response.StatusCode;
 
@@ -137,7 +145,7 @@ public class GitHubCopilotProvider : ProviderBase
             state.State = ProviderUsageState.Error;
         }
 
-        return this.BuildUsageResults(state);
+        return this.BuildUsageResults(state, providerLabel);
     }
 
     private static HttpRequestMessage CreateBearerRequest(string url, string token)
@@ -150,7 +158,7 @@ public class GitHubCopilotProvider : ProviderBase
 
     private static HttpRequestMessage CreateQuotaRequest(string token)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/copilot_internal/user");
+        var request = new HttpRequestMessage(HttpMethod.Get, CopilotUserUrl);
         request.Headers.TryAddWithoutValidation("Authorization", $"token {token}");
         request.Headers.TryAddWithoutValidation("Accept", "application/json");
         request.Headers.TryAddWithoutValidation("Editor-Version", "vscode/1.96.2");
@@ -235,11 +243,44 @@ public class GitHubCopilotProvider : ProviderBase
         state.PrimaryQuotaWindowName = windowName;
     }
 
+    private static void ApplyQuotaSnapshots(CopilotUsageState state, System.Text.Json.JsonElement snapshots)
+    {
+        var selectedWindowName = string.Empty;
+        var selectedWindowEntitlement = 0.0;
+        var selectedWindowRemaining = 0.0;
+        var selectedWindowRemainingPercent = 0.0;
+
+        if (snapshots.TryGetProperty("premium_interactions", out var premium) &&
+            TryParseFiniteQuotaSnapshot(premium, out var entitlement, out var remaining, out var remainingPercent))
+        {
+            var normalizedRemaining = Math.Clamp(remaining, 0, entitlement);
+            var usedPercent = Math.Clamp(100.0 - remainingPercent, 0.0, 100.0);
+            selectedWindowName = "Monthly Quota";
+            selectedWindowEntitlement = entitlement;
+            selectedWindowRemaining = normalizedRemaining;
+            selectedWindowRemainingPercent = remainingPercent;
+            state.MonthlyUsedPercent = usedPercent;
+            state.MonthlyDescription = $"{normalizedRemaining.ToString("F0", CultureInfo.InvariantCulture)} / {entitlement.ToString("F0", CultureInfo.InvariantCulture)} remaining";
+            state.MonthlyEntitlement = entitlement;
+            state.MonthlyUsed = entitlement - normalizedRemaining;
+        }
+
+        if (!string.IsNullOrEmpty(selectedWindowName))
+        {
+            ApplyQuotaWindowSnapshot(
+                state,
+                selectedWindowName,
+                selectedWindowEntitlement,
+                selectedWindowRemaining,
+                selectedWindowRemainingPercent);
+        }
+    }
+
     private static string BuildFinalDescription(CopilotUsageState state)
     {
         if (state.HasCopilotQuotaData)
         {
-            var description = $"{state.PrimaryQuotaWindowName}: {state.CostLimit - state.CostUsed:F0}/{state.CostLimit:F0} Remaining";
+            var description = $"{state.PrimaryQuotaWindowName}: {(state.CostLimit - state.CostUsed).ToString("F0", CultureInfo.InvariantCulture)}/{state.CostLimit.ToString("F0", CultureInfo.InvariantCulture)} Remaining";
             if (!string.IsNullOrEmpty(state.PlanName))
             {
                 description += $" ({state.PlanName})";
@@ -328,7 +369,7 @@ public class GitHubCopilotProvider : ProviderBase
     {
         try
         {
-            using var internalRequest = CreateBearerRequest("https://api.github.com/copilot_internal/v2/token", token);
+            using var internalRequest = CreateBearerRequest(CopilotTokenUrl, token);
             using var internalResponse = await this._httpClient.SendAsync(internalRequest).ConfigureAwait(false);
             if (internalResponse.IsSuccessStatusCode)
             {
@@ -345,13 +386,13 @@ public class GitHubCopilotProvider : ProviderBase
             }
             else
             {
-                state.Description = BuildAuthenticatedDescription(state.Username, null);
+                state.Description = BuildAuthenticatedDescription(state.Username, planName: null);
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
         {
             this._logger.LogDebug(ex, "Failed to resolve GitHub Copilot plan name");
-            state.Description = BuildAuthenticatedDescription(state.Username, null);
+            state.Description = BuildAuthenticatedDescription(state.Username, planName: null);
         }
     }
 
@@ -381,6 +422,7 @@ public class GitHubCopilotProvider : ProviderBase
             }
 
             var quotaJson = await quotaResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+            state.RawJson = quotaJson;
             using var quotaDoc = System.Text.Json.JsonDocument.Parse(quotaJson);
             var root = quotaDoc.RootElement;
 
@@ -409,56 +451,7 @@ public class GitHubCopilotProvider : ProviderBase
 
             if (root.TryGetProperty("quota_snapshots", out var snapshots))
             {
-                var selectedWindowName = string.Empty;
-                var selectedWindowEntitlement = 0.0;
-                var selectedWindowRemaining = 0.0;
-                var selectedWindowRemainingPercent = 0.0;
-
-                // 1. Premium/interaction window is the primary top-level signal for Copilot quota.
-                if (snapshots.TryGetProperty("premium_interactions", out var premium) &&
-                    TryParseFiniteQuotaSnapshot(premium, out var entitlement, out var remaining, out var remainingPercent))
-                {
-                    var normalizedRemaining = Math.Clamp(remaining, 0, entitlement);
-                    var usedPercent = Math.Clamp(100.0 - remainingPercent, 0.0, 100.0);
-                    selectedWindowName = "Weekly Quota";
-                    selectedWindowEntitlement = entitlement;
-                    selectedWindowRemaining = normalizedRemaining;
-                    selectedWindowRemainingPercent = remainingPercent;
-                    state.WeeklyUsedPercent = usedPercent;
-                    state.WeeklyDescription = $"{normalizedRemaining:F0} / {entitlement:F0} remaining";
-                    state.WeeklyEntitlement = entitlement;
-                    state.WeeklyUsed = entitlement - normalizedRemaining;
-                }
-
-                // 2. Usage/session window is supplementary when present.
-                if (snapshots.TryGetProperty("usage", out var usageSnapshot) &&
-                    TryParseFiniteQuotaSnapshot(usageSnapshot, out var uEnt, out var uRem, out var uRemainingPercent))
-                {
-                    var normalizedRemaining = Math.Clamp(uRem, 0, uEnt);
-                    var uUsedPercent = Math.Clamp(100.0 - uRemainingPercent, 0.0, 100.0);
-                    if (string.IsNullOrEmpty(selectedWindowName))
-                    {
-                        selectedWindowName = "5-hour Window";
-                        selectedWindowEntitlement = uEnt;
-                        selectedWindowRemaining = normalizedRemaining;
-                        selectedWindowRemainingPercent = uRemainingPercent;
-                    }
-
-                    state.BurstUsedPercent = uUsedPercent;
-                    state.BurstDescription = $"{normalizedRemaining:F0} / {uEnt:F0} remaining";
-                    state.BurstEntitlement = uEnt;
-                    state.BurstUsed = uEnt - normalizedRemaining;
-                }
-
-                if (!string.IsNullOrEmpty(selectedWindowName))
-                {
-                    ApplyQuotaWindowSnapshot(
-                        state,
-                        selectedWindowName,
-                        selectedWindowEntitlement,
-                        selectedWindowRemaining,
-                        selectedWindowRemainingPercent);
-                }
+                ApplyQuotaSnapshots(state, snapshots);
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
@@ -467,7 +460,7 @@ public class GitHubCopilotProvider : ProviderBase
         }
     }
 
-    private IEnumerable<ProviderUsage> BuildUsageResults(CopilotUsageState state)
+    private ProviderUsage[] BuildUsageResults(CopilotUsageState state, string providerLabel)
     {
         var accountName = HasMeaningfulUsername(state.Username) ? state.Username : string.Empty;
         var authSource = string.IsNullOrEmpty(state.PlanName) ? AuthSource.Unknown : state.PlanName;
@@ -475,7 +468,7 @@ public class GitHubCopilotProvider : ProviderBase
         var baseUsage = new ProviderUsage
         {
             ProviderId = this.ProviderId,
-            ProviderName = "GitHub Copilot",
+            ProviderName = providerLabel,
             AccountName = accountName,
             IsAvailable = state.IsAvailable,
             State = state.State,
@@ -491,75 +484,39 @@ public class GitHubCopilotProvider : ProviderBase
             HttpStatus = state.HttpStatus,
         };
 
-        var hasWeekly = state.WeeklyDescription != null;
-        var hasBurst = state.BurstDescription != null;
+        var hasMonthly = state.MonthlyDescription != null;
 
-        if (!hasWeekly && !hasBurst)
+        if (!hasMonthly)
         {
             return new[] { baseUsage };
         }
 
-        var results = new List<ProviderUsage>();
-
-        if (hasWeekly)
+        return new[]
         {
-            results.Add(new ProviderUsage
+            new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = "GitHub Copilot",
-                CardId = "weekly",
+                ProviderName = providerLabel,
+                CardId = "monthly",
                 GroupId = this.ProviderId,
-                Name = "Weekly Quota",
+                Name = "Monthly Quota",
                 AccountName = accountName,
                 IsAvailable = state.IsAvailable,
                 State = state.State,
-                Description = state.WeeklyDescription!,
-                UsedPercent = state.WeeklyUsedPercent,
-                RequestsAvailable = state.WeeklyEntitlement,
-                RequestsUsed = state.WeeklyUsed,
+                Description = state.MonthlyDescription!,
+                UsedPercent = state.MonthlyUsedPercent,
+                RequestsAvailable = state.MonthlyEntitlement,
+                RequestsUsed = state.MonthlyUsed,
                 PlanType = this.Definition.PlanType,
                 IsQuotaBased = this.Definition.IsQuotaBased,
                 AuthSource = authSource,
                 NextResetTime = state.ResetTime,
-                PeriodDuration = TimeSpan.FromDays(7),
+                PeriodDuration = TimeSpan.FromDays(30),
                 WindowKind = WindowKind.Rolling,
                 RawJson = state.RawJson,
                 HttpStatus = state.HttpStatus,
-            });
-        }
-
-        if (hasBurst)
-        {
-            results.Add(new ProviderUsage
-            {
-                ProviderId = this.ProviderId,
-                ProviderName = "GitHub Copilot",
-                CardId = "burst",
-                GroupId = this.ProviderId,
-                Name = "5-Hour Window",
-                AccountName = accountName,
-                IsAvailable = state.IsAvailable,
-                State = state.State,
-                Description = state.BurstDescription!,
-                UsedPercent = state.BurstUsedPercent,
-                RequestsAvailable = state.BurstEntitlement,
-                RequestsUsed = state.BurstUsed,
-                PlanType = this.Definition.PlanType,
-                IsQuotaBased = this.Definition.IsQuotaBased,
-                AuthSource = authSource,
-                PeriodDuration = TimeSpan.FromHours(5),
-                WindowKind = WindowKind.Burst,
-                RawJson = state.RawJson,
-                HttpStatus = state.HttpStatus,
-            });
-        }
-
-        if (results.Count == 0)
-        {
-            return new[] { baseUsage };
-        }
-
-        return results;
+            },
+        };
     }
 
     private sealed class CopilotUsageState
@@ -587,21 +544,13 @@ public class GitHubCopilotProvider : ProviderBase
         public string PrimaryQuotaWindowName { get; set; } = "Quota";
 
         // Flat card state (replaces Details list)
-        public string? WeeklyDescription { get; set; }
+        public string? MonthlyDescription { get; set; }
 
-        public double WeeklyUsedPercent { get; set; }
+        public double MonthlyUsedPercent { get; set; }
 
-        public double WeeklyEntitlement { get; set; }
+        public double MonthlyEntitlement { get; set; }
 
-        public double WeeklyUsed { get; set; }
-
-        public string? BurstDescription { get; set; }
-
-        public double BurstUsedPercent { get; set; }
-
-        public double BurstEntitlement { get; set; }
-
-        public double BurstUsed { get; set; }
+        public double MonthlyUsed { get; set; }
 
         public string? RawJson { get; set; }
 

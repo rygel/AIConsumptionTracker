@@ -4,7 +4,6 @@
 
 using System.Reflection;
 using System.Runtime.Serialization;
-using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using AIUsageTracker.Core.Interfaces;
@@ -28,8 +27,6 @@ public class DialogOpenBehaviorTests
     {
         return RunInStaAsync(async () =>
         {
-            EnsureAppCreated();
-
             var dialogService = new TestDialogService();
             var mainWindow = CreateMainWindowForTesting(dialogService);
             var shown = 0;
@@ -60,7 +57,7 @@ public class DialogOpenBehaviorTests
     {
         return RunInStaAsync(() =>
         {
-            var app = EnsureAppCreated();
+            var app = Application.Current as App ?? new App();
             var mainWindow = CreateMainWindowForTesting();
             var infoDialog = new Window();
             var shown = 0;
@@ -87,8 +84,6 @@ public class DialogOpenBehaviorTests
     {
         return RunInStaAsync(async () =>
         {
-            EnsureAppCreated();
-
             var dialogService = new TestDialogService
             {
                 ShowSettingsAsyncHandler = _ => Task.FromResult<bool?>(false),
@@ -127,11 +122,11 @@ public class DialogOpenBehaviorTests
     {
         return RunInStaAsync(() =>
         {
-            EnsureAppCreated();
-
             var preferences = new AppPreferences { ShowUsedPercentages = true };
             var mainWindow = CreateMainWindowForTesting();
+#pragma warning disable SYSLIB0050
             var settingsWindow = (SettingsWindow)FormatterServices.GetUninitializedObject(typeof(SettingsWindow));
+#pragma warning restore SYSLIB0050
 
             SetPrivateField(mainWindow, "_preferences", preferences);
             SetPrivateField(settingsWindow, "_preferences", preferences);
@@ -155,8 +150,6 @@ public class DialogOpenBehaviorTests
     {
         return RunInStaAsync(() =>
         {
-            EnsureAppCreated();
-
             var preferences = new AppPreferences
             {
                 ShowUsedPercentages = false,
@@ -168,7 +161,9 @@ public class DialogOpenBehaviorTests
                 ColorThresholdYellow = 60,
                 ColorThresholdRed = 80,
             };
+#pragma warning disable SYSLIB0050
             var settingsWindow = (SettingsWindow)FormatterServices.GetUninitializedObject(typeof(SettingsWindow));
+#pragma warning restore SYSLIB0050
             var dualModeCombo = new ComboBox
             {
                 ItemsSource = new[]
@@ -210,8 +205,6 @@ public class DialogOpenBehaviorTests
     {
         return RunInStaAsync(async () =>
         {
-            EnsureAppCreated();
-
             var dialogService = new TestDialogService
             {
                 ShowSettingsAsyncHandler = _ => Task.FromResult<bool?>(true),
@@ -272,19 +265,6 @@ public class DialogOpenBehaviorTests
         });
     }
 
-    private static App EnsureAppCreated()
-    {
-        if (Application.Current is App app)
-        {
-            return app;
-        }
-
-        var newApp = new App();
-
-        // Use reflection to initialize Host if needed, or rely on App.xaml.cs default init
-        return newApp;
-    }
-
     private static MainWindow CreateMainWindowForTesting(IDialogService? dialogService = null, IBrowserService? browserService = null)
     {
         EnsureAppCreated();
@@ -295,13 +275,22 @@ public class DialogOpenBehaviorTests
             services.GetRequiredService<MainViewModel>(),
             services.GetRequiredService<IMonitorService>(),
             services.GetRequiredService<MonitorLifecycleService>(),
-            services.GetRequiredService<MonitorStartupOrchestrator>(),
             services.GetRequiredService<ILogger<MainWindow>>(),
             services.GetRequiredService<Func<UpdateChannel, GitHubUpdateChecker>>(),
             services.GetRequiredService<GitHubUpdateChecker>(),
             dialogService ?? services.GetRequiredService<IDialogService>(),
             browserService ?? services.GetRequiredService<IBrowserService>(),
             services.GetRequiredService<UiPreferencesStore>());
+    }
+
+    private static App EnsureAppCreated()
+    {
+        if (Application.Current is App app)
+        {
+            return app;
+        }
+
+        return new App();
     }
 
     private sealed class TestDialogService : IDialogService
@@ -350,7 +339,7 @@ public class DialogOpenBehaviorTests
         method.Invoke(target, null);
     }
 
-    private static Task RunInStaAsync(Func<Task> testBody)
+    private static Task<object?> RunInStaAsync(Func<Task> testBody)
     {
         var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 

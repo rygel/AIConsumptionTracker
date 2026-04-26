@@ -5,7 +5,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -21,6 +20,11 @@ public class MonitorService : IMonitorService
 
     private const int UsageRequestTimeoutSeconds = 8;
     private const int ConfigRequestTimeoutSeconds = 3;
+#pragma warning disable S1075 // Default agent URL
+    private const string DefaultAgentUrl = "http://localhost:5000";
+#pragma warning restore S1075
+    private const string ActivityTagMonitorAgentUrl = "monitor.agent_url";
+    private const string HttpStatusCodeTag = "http.status_code";
 
     private static readonly List<string> _diagnosticsLog = new();
     private static readonly ActivitySource ActivitySource = new("AIUsageTracker.Core.MonitorService");
@@ -43,7 +47,7 @@ public class MonitorService : IMonitorService
     private readonly IMonitorLauncher _monitorLauncher;
 
     public MonitorService()
-        : this(CreateDefaultHttpClient(), null)
+        : this(CreateDefaultHttpClient(), logger: null)
     {
     }
 
@@ -51,7 +55,7 @@ public class MonitorService : IMonitorService
     {
         this._httpClient = httpClient;
         this._logger = logger;
-        this._monitorLauncher = monitorLauncher ?? new MonitorLauncher(logger: null);
+        this._monitorLauncher = monitorLauncher ?? new MonitorLauncher(logger: null!);
         this._jsonOptions = MonitorJsonSerializer.DefaultOptions;
 
         // Note: Port discovery is now done explicitly via RefreshPortAsync()
@@ -61,7 +65,7 @@ public class MonitorService : IMonitorService
     public static IReadOnlyList<string> DiagnosticsLog => _diagnosticsLog;
 
     /// <inheritdoc/>
-    public string AgentUrl { get; set; } = "http://localhost:5000";
+    public string AgentUrl { get; set; } = DefaultAgentUrl;
 
     /// <inheritdoc/>
     public IReadOnlyList<string> LastAgentErrors { get; private set; } = new List<string>();
@@ -131,8 +135,8 @@ public class MonitorService : IMonitorService
                 var info = metadata.Info;
                 if (info.Port > 0)
                 {
-                    this.AgentUrl = $"http://localhost:{info.Port}";
-                    LogDiagnostic($"Found Monitor running on port {info.Port} from monitor.json");
+                    this.AgentUrl = $"http://localhost:{info.Port.ToString(CultureInfo.InvariantCulture)}";
+                    LogDiagnostic($"Found Monitor running on port {info.Port.ToString(CultureInfo.InvariantCulture)} from monitor.json");
                 }
 
                 this.LastAgentErrors = info.Errors ?? new List<string>();
@@ -141,13 +145,13 @@ public class MonitorService : IMonitorService
 
             var preservedErrors = GetActionableMetadataErrors(metadata.Info?.Errors);
             LogDiagnostic("monitor.json missing, stale, or invalid; using default port 5000");
-            this.AgentUrl = "http://localhost:5000";
+            this.AgentUrl = DefaultAgentUrl;
             this.LastAgentErrors = preservedErrors;
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
             this._logger?.LogWarning(ex, "Error refreshing monitor info");
-            this.AgentUrl = "http://localhost:5000";
+            this.AgentUrl = DefaultAgentUrl;
             this.LastAgentErrors = new List<string>();
         }
     }
@@ -168,7 +172,7 @@ public class MonitorService : IMonitorService
             return;
         }
 
-        this.AgentUrl = $"http://localhost:{status.Port}";
+        this.AgentUrl = $"http://localhost:{status.Port.ToString(CultureInfo.InvariantCulture)}";
         MonitorService.LogDiagnostic($"Using Monitor endpoint {this.AgentUrl}.");
         activity?.SetTag("monitor.agent_url.after", this.AgentUrl);
         activity?.SetStatus(ActivityStatusCode.Ok);
@@ -180,7 +184,7 @@ public class MonitorService : IMonitorService
     public async Task<IReadOnlyList<ProviderUsage>> GetUsageAsync()
     {
         using var activity = ActivitySource.StartActivity("monitor.get_usage", ActivityKind.Client);
-        activity?.SetTag("monitor.agent_url", this.AgentUrl);
+        activity?.SetTag(ActivityTagMonitorAgentUrl, this.AgentUrl);
         var stopwatch = Stopwatch.StartNew();
         try
         {
@@ -188,7 +192,7 @@ public class MonitorService : IMonitorService
             var usage = await this.GetUsageOnceAsync().ConfigureAwait(false);
             LogDiagnostic($"Successfully fetched usage from {this.AgentUrl}");
             stopwatch.Stop();
-            this.RecordUsageTelemetry(stopwatch.Elapsed, true);
+            this.RecordUsageTelemetry(duration: stopwatch.Elapsed, success: true);
             activity?.SetTag("monitor.usage_count", usage?.Count ?? 0);
             activity?.SetStatus(ActivityStatusCode.Ok);
             return usage ?? new List<ProviderUsage>();
@@ -203,7 +207,7 @@ public class MonitorService : IMonitorService
                 var usage = await this.GetUsageOnceAsync().ConfigureAwait(false);
                 LogDiagnostic($"Successfully fetched usage from {this.AgentUrl} after port refresh");
                 stopwatch.Stop();
-                this.RecordUsageTelemetry(stopwatch.Elapsed, true);
+                this.RecordUsageTelemetry(duration: stopwatch.Elapsed, success: true);
                 activity?.SetTag("monitor.usage_count", usage?.Count ?? 0);
                 activity?.SetTag("monitor.retry", true);
                 activity?.SetStatus(ActivityStatusCode.Ok);
@@ -212,7 +216,7 @@ public class MonitorService : IMonitorService
             catch (Exception retryEx) when (IsRecoverableUsageFailure(retryEx))
             {
                 stopwatch.Stop();
-                this.RecordUsageTelemetry(stopwatch.Elapsed, false);
+                this.RecordUsageTelemetry(duration: stopwatch.Elapsed, success: false);
                 LogDiagnostic($"Failed to fetch usage from {this.AgentUrl} after port refresh: {DescribeUsageFailure(retryEx)}");
                 activity?.SetTag("error.type", retryEx.GetType().Name);
                 activity?.SetStatus(ActivityStatusCode.Error, retryEx.Message);
@@ -222,7 +226,7 @@ public class MonitorService : IMonitorService
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
             stopwatch.Stop();
-            this.RecordUsageTelemetry(stopwatch.Elapsed, false);
+            this.RecordUsageTelemetry(duration: stopwatch.Elapsed, success: false);
             LogDiagnostic($"Failed to fetch usage from {this.AgentUrl}: {ex.Message}");
             activity?.SetTag("error.type", ex.GetType().Name);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
@@ -336,23 +340,23 @@ public class MonitorService : IMonitorService
     public async Task<bool> TriggerRefreshAsync()
     {
         using var activity = ActivitySource.StartActivity("monitor.trigger_refresh", ActivityKind.Client);
-        activity?.SetTag("monitor.agent_url", this.AgentUrl);
+        activity?.SetTag(ActivityTagMonitorAgentUrl, this.AgentUrl);
         var stopwatch = Stopwatch.StartNew();
         await this.RefreshPortAsync().ConfigureAwait(false);
         var response = await this.SendMonitorRequestAsync(
-            httpClient => httpClient.PostAsync(this.BuildMonitorUrl(MonitorApiRoutes.Refresh), null),
+            httpClient => httpClient.PostAsync(this.BuildMonitorUrl(MonitorApiRoutes.Refresh), content: null),
             nameof(this.TriggerRefreshAsync)).ConfigureAwait(false);
 
         stopwatch.Stop();
         if (response != null)
         {
             this.RecordRefreshTelemetry(stopwatch.Elapsed, response.IsSuccessStatusCode);
-            activity?.SetTag("http.status_code", (int)response.StatusCode);
+            activity?.SetTag(HttpStatusCodeTag, (int)response.StatusCode);
             activity?.SetStatus(response.IsSuccessStatusCode ? ActivityStatusCode.Ok : ActivityStatusCode.Error);
             return response.IsSuccessStatusCode;
         }
 
-        this.RecordRefreshTelemetry(stopwatch.Elapsed, false);
+        this.RecordRefreshTelemetry(duration: stopwatch.Elapsed, success: false);
         activity?.SetStatus(ActivityStatusCode.Error, "No response");
         return false;
     }
@@ -401,7 +405,7 @@ public class MonitorService : IMonitorService
         try
         {
             await this.RefreshPortAsync().ConfigureAwait(false);
-            using var response = await this._httpClient.PostAsync(this.BuildMonitorUrl(MonitorApiRoutes.NotificationTest), null).ConfigureAwait(false);
+            using var response = await this._httpClient.PostAsync(this.BuildMonitorUrl(MonitorApiRoutes.NotificationTest), content: null).ConfigureAwait(false);
 
             if (response.IsSuccessStatusCode)
             {
@@ -427,7 +431,7 @@ public class MonitorService : IMonitorService
             return new MonitorActionResult
             {
                 Success = false,
-                Message = $"Monitor returned {(int)response.StatusCode} ({response.ReasonPhrase}).",
+                Message = $"Monitor returned {((int)response.StatusCode).ToString(CultureInfo.InvariantCulture)} ({response.ReasonPhrase}).",
             };
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
@@ -447,7 +451,7 @@ public class MonitorService : IMonitorService
     public async Task<AgentScanKeysResult> ScanForKeysAsync()
     {
         using var response = await this.SendMonitorRequestAsync(
-            httpClient => httpClient.PostAsync(this.BuildMonitorUrl(MonitorApiRoutes.ScanKeys), null),
+            httpClient => httpClient.PostAsync(this.BuildMonitorUrl(MonitorApiRoutes.ScanKeys), content: null),
             nameof(this.ScanForKeysAsync)).ConfigureAwait(false);
         if (response?.IsSuccessStatusCode == true)
         {
@@ -485,7 +489,7 @@ public class MonitorService : IMonitorService
     private async Task<bool> CheckHealthCoreAsync(CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("monitor.check_health", ActivityKind.Client);
-        activity?.SetTag("monitor.agent_url", this.AgentUrl);
+        activity?.SetTag(ActivityTagMonitorAgentUrl, this.AgentUrl);
         await this.RefreshPortAsync().ConfigureAwait(false);
         var response = await this.SendMonitorRequestAsync(
             httpClient => httpClient.GetAsync(this.BuildMonitorUrl(MonitorApiRoutes.Health), cancellationToken),
@@ -493,7 +497,7 @@ public class MonitorService : IMonitorService
         var success = response?.IsSuccessStatusCode == true;
         if (response != null)
         {
-            activity?.SetTag("http.status_code", (int)response.StatusCode);
+            activity?.SetTag(HttpStatusCodeTag, (int)response.StatusCode);
         }
 
         activity?.SetStatus(success ? ActivityStatusCode.Ok : ActivityStatusCode.Error);
@@ -504,7 +508,7 @@ public class MonitorService : IMonitorService
     public async Task<MonitorHealthSnapshot?> GetHealthSnapshotAsync()
     {
         using var activity = ActivitySource.StartActivity("monitor.get_health_snapshot", ActivityKind.Client);
-        activity?.SetTag("monitor.agent_url", this.AgentUrl);
+        activity?.SetTag(ActivityTagMonitorAgentUrl, this.AgentUrl);
         await this.RefreshPortAsync().ConfigureAwait(false);
         using var response = await this.SendMonitorRequestAsync(
             httpClient => httpClient.GetAsync(this.BuildMonitorUrl(MonitorApiRoutes.Health)),
@@ -513,7 +517,7 @@ public class MonitorService : IMonitorService
         {
             if (response != null)
             {
-                activity?.SetTag("http.status_code", (int)response.StatusCode);
+                activity?.SetTag(HttpStatusCodeTag, (int)response.StatusCode);
             }
 
             activity?.SetStatus(ActivityStatusCode.Error, "Health endpoint unavailable");
@@ -551,19 +555,19 @@ public class MonitorService : IMonitorService
     public async Task<AgentContractHandshakeResult> CheckApiContractAsync()
     {
         using var activity = ActivitySource.StartActivity("monitor.check_api_contract", ActivityKind.Client);
-        activity?.SetTag("monitor.agent_url", this.AgentUrl);
+        activity?.SetTag(ActivityTagMonitorAgentUrl, this.AgentUrl);
         try
         {
             using var response = await this._httpClient.GetAsync(this.BuildMonitorUrl(MonitorApiRoutes.Health)).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                activity?.SetTag("http.status_code", (int)response.StatusCode);
+                activity?.SetTag(HttpStatusCodeTag, (int)response.StatusCode);
                 activity?.SetStatus(ActivityStatusCode.Error, "Health endpoint returned non-success");
                 return new AgentContractHandshakeResult
                 {
                     IsReachable = false,
                     IsCompatible = false,
-                    Message = $"Agent health check failed ({(int)response.StatusCode}).",
+                    Message = $"Agent health check failed ({((int)response.StatusCode).ToString(CultureInfo.InvariantCulture)}).",
                 };
             }
 
@@ -735,7 +739,7 @@ public class MonitorService : IMonitorService
         };
     }
 
-    private static IReadOnlyList<string> GetActionableMetadataErrors(IReadOnlyList<string>? errors)
+    private static List<string> GetActionableMetadataErrors(IReadOnlyList<string>? errors)
     {
         if (errors == null || errors.Count == 0)
         {
@@ -925,7 +929,7 @@ public class MonitorService : IMonitorService
 
         if (!response.IsSuccessStatusCode)
         {
-            return $"HTTP {(int)response.StatusCode}: {body}";
+            return $"HTTP {((int)response.StatusCode).ToString(CultureInfo.InvariantCulture)}: {body}";
         }
 
         return body;

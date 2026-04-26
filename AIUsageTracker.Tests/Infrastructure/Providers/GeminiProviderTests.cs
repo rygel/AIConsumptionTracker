@@ -8,10 +8,8 @@ using System.Text;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
-using AIUsageTracker.Tests.Infrastructure;
 using Moq;
 using Moq.Protected;
-using Xunit;
 
 namespace AIUsageTracker.Tests.Infrastructure.Providers;
 
@@ -511,7 +509,7 @@ public class GeminiProviderTests : HttpProviderTestBase<GeminiProvider>
             return false;
         }
 
-        var content = await request.Content.ReadAsStringAsync();
+        var content = await request.Content.ReadAsStringAsync().ConfigureAwait(false);
         return content?.Contains(value, StringComparison.Ordinal) == true;
     }
 
@@ -526,7 +524,6 @@ public class GeminiProviderTests : HttpProviderTestBase<GeminiProvider>
     }
 
     // --- Phase 4: FailureContext attachment ---
-
     [Fact]
     public async Task GetUsageAsync_AllAccountsFail_AttachesFailureContextOnUnavailableRowAsync()
     {

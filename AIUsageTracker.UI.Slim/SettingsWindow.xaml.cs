@@ -13,7 +13,6 @@ using System.Windows.Threading;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
-using AIUsageTracker.Infrastructure.Providers;
 using AIUsageTracker.Infrastructure.Services;
 using AIUsageTracker.UI.Slim.Services;
 using Microsoft.Extensions.Logging;
@@ -33,9 +32,11 @@ public partial class SettingsWindow : Window
     private readonly ILogger<SettingsWindow> _logger;
     private readonly IAppPathProvider _pathProvider;
     private readonly UiPreferencesStore _preferencesStore;
+    private readonly WpfProviderIconService _providerIconService;
     private readonly Func<UpdateChannel, GitHubUpdateChecker> _createUpdateChecker;
     private readonly SemaphoreSlim _autoSaveSemaphore = new(1, 1);
     private readonly DispatcherTimer _autoSaveTimer;
+    private readonly EventHandler<PrivacyChangedEventArgs> _privacyChangedHandler;
 
     private List<ProviderConfig> _configs = new();
     private List<ProviderUsage> _usages = new();
@@ -44,6 +45,7 @@ public partial class SettingsWindow : Window
     private bool _isDeterministicScreenshotMode;
     private bool _isLoadingSettings;
     private bool _hasPendingAutoSave;
+    private bool _closingStarted;
     private UpdateInfo? _pendingUpdate;
     private GitHubUpdateChecker? _pendingUpdateChecker;
 
@@ -67,8 +69,10 @@ public partial class SettingsWindow : Window
         this._logger = logger;
         this._pathProvider = pathProvider;
         this._preferencesStore = preferencesStore;
+        this._providerIconService = new WpfProviderIconService(this._logger, UIHelper.GetResourceBrush);
         this._createUpdateChecker = createUpdateChecker;
-        PrivacyChangedWeakEventManager.AddHandler(this.OnPrivacyChanged);
+        this._privacyChangedHandler = this.OnPrivacyChanged;
+        PrivacyChangedWeakEventManager.AddHandler(this._privacyChangedHandler);
         this.Closing += this.SettingsWindow_Closing;
         this.Closed += this.SettingsWindow_Closed;
         this.Loaded += this.SettingsWindow_Loaded;
@@ -195,7 +199,7 @@ public partial class SettingsWindow : Window
             await this.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task.ConfigureAwait(true);
             this.UpdateLayout();
 
-            var tabSlug = this.BuildTabSlug(header, index);
+            var tabSlug = BuildTabSlug(header, index);
             var fileName = $"screenshot_settings_{tabSlug}_privacy.png";
             App.RenderWindowContent(this, Path.Combine(outputDirectory, fileName));
             capturedFiles.Add(fileName);
@@ -291,7 +295,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private string BuildTabSlug(string? header, int index)
+    private static string BuildTabSlug(string? header, int index)
     {
         if (string.IsNullOrWhiteSpace(header))
         {
@@ -319,13 +323,31 @@ public partial class SettingsWindow : Window
 
     private async void SettingsWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        // Flush any pending auto-save so preferences are persisted to disk
-        // regardless of how the window closes (X button, Alt+F4, etc.).
-        this._autoSaveTimer.Stop();
-        if (this._hasPendingAutoSave)
+        // If there is a pending auto-save and the close has not been initiated yet,
+        // cancel the close, flush preferences, then re-close via DialogResult = true.
+        // Without this, ShowDialog() returns null: the async void suspends at the first
+        // await, WPF closes the window before DialogResult is set, and the main window
+        // skips ApplyPreferencesFromSettings() — leaving the display out of sync.
+        if (!this._closingStarted && this._hasPendingAutoSave)
         {
-            await this.PersistAllSettingsAsync(showErrorDialog: false).ConfigureAwait(true);
+            e.Cancel = true;
+            this._closingStarted = true;
+            this._autoSaveTimer.Stop();
+            try
+            {
+                await this.PersistAllSettingsAsync(showErrorDialog: false).ConfigureAwait(true);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                this._logger.LogError(ex, "SettingsWindow_Closing flush failed");
+            }
+
+            // Setting DialogResult fires Closing again; _closingStarted prevents re-entrancy.
+            this.DialogResult = true;
+            return;
         }
+
+        this._autoSaveTimer.Stop();
 
         // Ensure the main window reloads preferences regardless of how the dialog closes
         // (Close button, X button, or Alt+F4). DialogResult can only be set before the
@@ -347,7 +369,7 @@ public partial class SettingsWindow : Window
     private void SettingsWindow_Closed(object? sender, EventArgs e)
     {
         this._autoSaveTimer.Stop();
-        PrivacyChangedWeakEventManager.RemoveHandler(this.OnPrivacyChanged);
+        PrivacyChangedWeakEventManager.RemoveHandler(this._privacyChangedHandler);
     }
 
     private async void AutoSaveTimer_Tick(object? sender, EventArgs e)
@@ -453,9 +475,7 @@ public partial class SettingsWindow : Window
         this.AlwaysOnTopCheck.IsChecked = this._preferences.AlwaysOnTop;
         this.AggressiveTopmostCheck.IsChecked = this._preferences.AggressiveAlwaysOnTop;
         this.ForceWin32TopmostCheck.IsChecked = this._preferences.ForceWin32Topmost;
-        var (monitorAutoStart, uiAutoStart) = WindowsStartupService.Read();
-        this.StartMonitorWithWindowsCheck.IsChecked = monitorAutoStart;
-        this.StartUiWithWindowsCheck.IsChecked = uiAutoStart;
+        this.StartUiWithWindowsCheck.IsChecked = WindowsStartupService.IsUiStartupEnabled();
         this.PopulateDualQuotaBarWindowCombo();
         this.ApplyDisplayModePreference();
         this.ThemeCombo.DisplayMemberPath = nameof(ThemeOption.Label);
@@ -497,7 +517,7 @@ public partial class SettingsWindow : Window
     {
         if (this.ShowUsedPercentagesCheck != null)
         {
-            this.ShowUsedPercentagesCheck.IsChecked = this._preferences.PercentageDisplayMode == PercentageDisplayMode.Used;
+            this.ShowUsedPercentagesCheck.IsChecked = this._preferences.ShowUsedPercentages;
         }
 
         if (this.ShowUsagePerHourCheck != null)
@@ -577,30 +597,15 @@ public partial class SettingsWindow : Window
 
     private void PopulateFontComboBox()
     {
-        // Get all system fonts
-        var fonts = System.Windows.Media.Fonts.GetFontFamilies(new Uri("pack://application:,,,/"))
+        var fontsPath = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+        var fonts = System.Windows.Media.Fonts.GetFontFamilies(fontsPath)
             .Select(ff => ff.FamilyNames.FirstOrDefault().Value ?? ff.Source)
             .OrderBy(f => f, StringComparer.Ordinal)
             .ToList();
 
-        // If no fonts from pack URI, try alternative method
         if (fonts.Count == 0)
         {
-            fonts = System.Windows.Media.Fonts.GetFontFamilies(Environment.GetFolderPath(Environment.SpecialFolder.Fonts))
-                .Select(ff => ff.FamilyNames.FirstOrDefault().Value ?? ff.Source)
-                .OrderBy(f => f, StringComparer.Ordinal)
-                .ToList();
-        }
-
-        // Fallback to common fonts if still empty
-        if (fonts.Count == 0)
-        {
-            fonts = new List<string>
-            {
-                "Arial", "Calibri", "Cambria", "Comic Sans MS", "Consolas", "Courier New",
-                "Georgia", "Helvetica", "Lucida Console", "Segoe UI", "Tahoma", "Times New Roman",
-                "Trebuchet MS", "Verdana",
-            }.OrderBy(f => f, StringComparer.Ordinal).ToList();
+            fonts = new List<string> { "Segoe UI" };
         }
 
         this.FontFamilyCombo.ItemsSource = fonts;
@@ -778,11 +783,9 @@ public partial class SettingsWindow : Window
             this._preferences.AlwaysOnTop = this.AlwaysOnTopCheck.IsChecked ?? true;
             this._preferences.AggressiveAlwaysOnTop = this.AggressiveTopmostCheck.IsChecked ?? false;
             this._preferences.ForceWin32Topmost = this.ForceWin32TopmostCheck.IsChecked ?? false;
-            var startMonitor = this.StartMonitorWithWindowsCheck.IsChecked ?? false;
             var startUi = this.StartUiWithWindowsCheck.IsChecked ?? false;
-            this._preferences.StartMonitorWithWindows = startMonitor;
             this._preferences.StartUiWithWindows = startUi;
-            WindowsStartupService.Apply(startMonitor, startUi);
+            WindowsStartupService.Apply(startUi);
             this.ApplyDisplayPreferencesFromControls();
             if (this.ThemeCombo.SelectedValue is AppTheme appTheme)
             {
@@ -807,7 +810,6 @@ public partial class SettingsWindow : Window
 
             this._preferences.FontBold = this.FontBoldCheck.IsChecked ?? false;
             this._preferences.FontItalic = this.FontItalicCheck.IsChecked ?? false;
-            this._preferences.IsPrivacyMode = this._isPrivacyMode;
 
             this._preferences.EnableNotifications = this.EnableWindowsNotificationsCheck.IsChecked ?? false;
             if (double.TryParse(this.NotificationThresholdBox.Text, System.Globalization.CultureInfo.InvariantCulture, out var notifyThreshold))
@@ -819,8 +821,8 @@ public partial class SettingsWindow : Window
             this._preferences.NotifyOnQuotaExceeded = this.NotifyQuotaExceededCheck.IsChecked ?? true;
             this._preferences.NotifyOnProviderErrors = this.NotifyProviderErrorsCheck.IsChecked ?? false;
             this._preferences.EnableQuietHours = this.EnableQuietHoursCheck.IsChecked ?? false;
-            this._preferences.QuietHoursStart = this.NormalizeQuietHour(this.QuietHoursStartBox.Text, "22:00");
-            this._preferences.QuietHoursEnd = this.NormalizeQuietHour(this.QuietHoursEndBox.Text, "07:00");
+            this._preferences.QuietHoursStart = NormalizeQuietHour(this.QuietHoursStartBox.Text, "22:00");
+            this._preferences.QuietHoursEnd = NormalizeQuietHour(this.QuietHoursEndBox.Text, "07:00");
 
             var prefsSaved = await this.SaveUiPreferencesAsync(showErrorDialog).ConfigureAwait(true);
             if (!prefsSaved)
@@ -828,73 +830,7 @@ public partial class SettingsWindow : Window
                 return;
             }
 
-            var failedConfigs = new List<string>();
-            var removedProviderIds = new List<string>();
-            foreach (var config in this._configs)
-            {
-                var behavior = ResolveProviderSettingsBehavior(
-                    config,
-                    this._usages.FirstOrDefault(u => string.Equals(u.ProviderId, config.ProviderId, StringComparison.OrdinalIgnoreCase)),
-                    isDerived: false);
-
-                if (behavior.InputMode == ProviderInputMode.StandardApiKey && string.IsNullOrWhiteSpace(config.ApiKey))
-                {
-                    // Suppress re-discovery so the scanner won't re-add the key
-                    // from external sources (Roo Code, Kilo Code, env vars).
-                    if (!this._preferences.SuppressedProviderIds.Contains(config.ProviderId, StringComparer.OrdinalIgnoreCase))
-                    {
-                        this._preferences.SuppressedProviderIds.Add(config.ProviderId);
-                    }
-
-                    await this._monitorService.RemoveConfigAsync(config.ProviderId).ConfigureAwait(true);
-                    removedProviderIds.Add(config.ProviderId);
-                    continue;
-                }
-
-                // If the user re-adds a key, un-suppress so future scans can update it.
-                if (this._preferences.SuppressedProviderIds.Contains(config.ProviderId, StringComparer.OrdinalIgnoreCase))
-                {
-                    this._preferences.SuppressedProviderIds.Remove(config.ProviderId);
-                }
-
-                var saved = await this._monitorService.SaveConfigAsync(config).ConfigureAwait(true);
-                if (!saved)
-                {
-                    failedConfigs.Add(config.ProviderId);
-                }
-            }
-
-            // Invalidate the ETag cache so the next GetGroupedUsageAsync call
-            // fetches fresh data reflecting config changes instead of a stale 304.
-            this._monitorService.InvalidateGroupedUsageCache();
-
-            // SuppressedProviderIds was updated in the loop above (after the initial
-            // SaveUiPreferencesAsync call). Re-save preferences so the suppression list
-            // is actually persisted — otherwise re-discovery on next startup re-adds the key.
-            if (removedProviderIds.Count > 0)
-            {
-                await this._preferencesStore.SaveAsync(this._preferences).ConfigureAwait(true);
-            }
-
-            if (removedProviderIds.Count > 0)
-            {
-                this._configs.RemoveAll(c => removedProviderIds.Contains(c.ProviderId, StringComparer.OrdinalIgnoreCase));
-                this.PopulateProviders();
-            }
-
-            if (failedConfigs.Count > 0)
-            {
-                if (showErrorDialog)
-                {
-                    MessageBox.Show(
-                        $"Failed to save provider settings for: {string.Join(", ", failedConfigs)}",
-                        "Save Error",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error);
-                }
-
-                return;
-            }
+            await this.PersistProviderConfigsAsync(showErrorDialog).ConfigureAwait(true);
 
             this.RefreshTrayIcons();
             this.SettingsChanged = true;
@@ -902,6 +838,76 @@ public partial class SettingsWindow : Window
         finally
         {
             this._autoSaveSemaphore.Release();
+        }
+    }
+
+    private async Task PersistProviderConfigsAsync(bool showErrorDialog)
+    {
+        var failedConfigs = new List<string>();
+        var removedProviderIds = new List<string>();
+
+        foreach (var config in this._configs)
+        {
+            await this.ProcessSingleProviderConfigAsync(config, failedConfigs, removedProviderIds).ConfigureAwait(true);
+        }
+
+        this._monitorService.InvalidateGroupedUsageCache();
+
+        if (removedProviderIds.Count > 0)
+        {
+            await this._preferencesStore.SaveAsync(this._preferences).ConfigureAwait(true);
+        }
+
+        if (removedProviderIds.Count > 0)
+        {
+            this._configs.RemoveAll(c => removedProviderIds.Contains(c.ProviderId, StringComparer.OrdinalIgnoreCase));
+            this.PopulateProviders();
+        }
+
+        if (failedConfigs.Count > 0 && showErrorDialog)
+        {
+            MessageBox.Show(
+                $"Failed to save provider settings for: {string.Join(", ", failedConfigs)}",
+                "Save Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private async Task ProcessSingleProviderConfigAsync(ProviderConfig config, List<string> failedConfigs, List<string> removedProviderIds)
+    {
+        var behavior = ResolveProviderSettingsBehavior(
+            config,
+            this._usages.FirstOrDefault(u => string.Equals(u.ProviderId, config.ProviderId, StringComparison.OrdinalIgnoreCase)),
+            isDerived: false);
+
+        if (behavior.InputMode == ProviderInputMode.StandardApiKey && string.IsNullOrWhiteSpace(config.ApiKey))
+        {
+            var removed = await this._monitorService.RemoveConfigAsync(config.ProviderId).ConfigureAwait(true);
+            if (!removed)
+            {
+                failedConfigs.Add(config.ProviderId);
+                return;
+            }
+
+            if (!this._preferences.SuppressedProviderIds.Contains(config.ProviderId, StringComparer.OrdinalIgnoreCase))
+            {
+                this._preferences.SuppressedProviderIds.Add(config.ProviderId);
+            }
+
+            removedProviderIds.Add(config.ProviderId);
+            return;
+        }
+
+        if (this._preferences.SuppressedProviderIds.Contains(config.ProviderId, StringComparer.OrdinalIgnoreCase))
+        {
+            this._preferences.SuppressedProviderIds.Remove(config.ProviderId);
+        }
+
+        var saved = await this._monitorService.SaveConfigAsync(config).ConfigureAwait(true);
+        if (!saved)
+        {
+            failedConfigs.Add(config.ProviderId);
         }
     }
 
@@ -1125,7 +1131,7 @@ public partial class SettingsWindow : Window
 
     /// <summary>
     /// Applies display-related control values to preferences so both preview updates
-    /// and persisted saves use the same canonical settings path.
+    /// and persisted saves use the same settings path.
     /// </summary>
     private void ApplyDisplayPreferencesFromControls()
     {
@@ -1207,9 +1213,9 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private string NormalizeQuietHour(string value, string fallback)
+    private static string NormalizeQuietHour(string value, string fallback)
     {
-        if (TimeSpan.TryParse(value, out var parsed))
+        if (TimeSpan.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
         {
             var normalized = new TimeSpan(parsed.Hours, parsed.Minutes, 0);
             return normalized.ToString("hh\\:mm", System.Globalization.CultureInfo.InvariantCulture);

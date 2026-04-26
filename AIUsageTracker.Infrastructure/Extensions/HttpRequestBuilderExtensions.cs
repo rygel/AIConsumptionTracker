@@ -2,14 +2,11 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-using System;
+using System.Globalization;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using AIUsageTracker.Core.Exceptions;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Mappers;
@@ -229,7 +226,7 @@ public static class HttpRequestBuilderExtensions
                 new ProviderRateLimitException(providerId, GetRetryAfter(response)),
 
             HttpFailureClassification.Server =>
-                new ProviderServerException(providerId, statusCode, $"Server error ({statusCode})"),
+                new ProviderServerException(providerId, statusCode, $"Server error ({statusCode.ToString(CultureInfo.InvariantCulture)})"),
 
             HttpFailureClassification.Client when response.StatusCode == HttpStatusCode.NotFound =>
                 new ProviderException(
@@ -241,7 +238,7 @@ public static class HttpRequestBuilderExtensions
             _ =>
                 new ProviderException(
                     providerId,
-                    $"Request failed ({statusCode})",
+                    $"Request failed ({statusCode.ToString(CultureInfo.InvariantCulture)})",
                     ProviderErrorType.InvalidResponseError,
                     statusCode),
         };

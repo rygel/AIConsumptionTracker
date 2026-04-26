@@ -52,7 +52,7 @@ public sealed class ProviderSettingsDisplayCatalogTests
     {
         var configs = new List<ProviderConfig>
         {
-            new() { ProviderId = "xiaomi" },
+            new() { ProviderId = "minimax" },
             new() { ProviderId = "codex" },
             new() { ProviderId = "opencode-zen" },
         };
@@ -60,8 +60,8 @@ public sealed class ProviderSettingsDisplayCatalogTests
         var items = SettingsWindow.CreateProviderDisplayItems(configs, Array.Empty<ProviderUsage>());
 
         Assert.Equal(
-            new[] { "codex", "opencode-zen", "xiaomi" },
-            items.Where(item => new[] { "codex", "opencode-zen", "xiaomi" }.Contains(item.Config.ProviderId, StringComparer.Ordinal))
+            new[] { "minimax", "codex", "opencode-zen" },
+            items.Where(item => new[] { "codex", "minimax", "opencode-zen" }.Contains(item.Config.ProviderId, StringComparer.Ordinal))
                 .Select(item => item.Config.ProviderId)
                 .ToArray());
     }
@@ -164,5 +164,4 @@ public sealed class ProviderSettingsDisplayCatalogTests
         Assert.Contains(items, item => string.Equals(item.Config.ProviderId, "codex", StringComparison.Ordinal));
         Assert.Contains(items, item => string.Equals(item.Config.ProviderId, "codex.spark", StringComparison.Ordinal));
     }
-
 }

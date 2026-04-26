@@ -4,15 +4,11 @@
 
 using System.Globalization;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Helpers;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.Paths;
 using AIUsageTracker.Core.Providers;
 using AIUsageTracker.Infrastructure.Constants;
 using Microsoft.Extensions.Logging;
@@ -22,6 +18,12 @@ namespace AIUsageTracker.Infrastructure.Providers;
 public class OpenAIProvider : ProviderBase
 {
     private const string WhamUsageEndpoint = "https://chatgpt.com/backend-api/wham/usage";
+    private const string ModelsEndpoint = "https://api.openai.com/v1/models";
+    private const string JsonKeyRateLimit = "rate_limit";
+    private const string JsonKeyPrimaryWindow = "primary_window";
+    private const string JsonKeySecondaryWindow = "secondary_window";
+    private const string JsonKeyUsedPercent = "used_percent";
+    private const string JsonKeyResetAfterSeconds = "reset_after_seconds";
 
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenAIProvider> _logger;
@@ -42,8 +44,7 @@ public class OpenAIProvider : ProviderBase
         DiscoveryEnvironmentVariables = new[] { "OPENAI_API_KEY" },
         RooConfigPropertyNames = new[] { "openAiApiKey" },
         ExplicitApiKeyPrefixes = new[] { "sk-" },
-        SessionAuthCanonicalProviderId = "codex",
-        SessionAuthMigrationDescription = "Migrated from OpenAI session config",
+        NonPersistedProviderIds = new[] { "openai" },
         SettingsMode = ProviderSettingsMode.SessionAuthStatus,
         UseSessionAuthStatusWhenQuotaBasedOrSessionToken = true,
         SessionStatusLabel = "OpenAI (API)",
@@ -87,9 +88,11 @@ public class OpenAIProvider : ProviderBase
     {
         ArgumentNullException.ThrowIfNull(config);
 
+        var providerLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId);
+
         if (!string.IsNullOrWhiteSpace(config.ApiKey) && IsApiKey(config.ApiKey))
         {
-            return await this.GetApiKeyUsageAsync(config.ApiKey).ConfigureAwait(false);
+            return await this.GetApiKeyUsageAsync(config.ApiKey, providerLabel).ConfigureAwait(false);
         }
 
         var accessToken = config.ApiKey;
@@ -112,7 +115,7 @@ public class OpenAIProvider : ProviderBase
 
         try
         {
-            return await this.GetNativeUsageAsync(accessToken, accountId).ConfigureAwait(false);
+            return await this.GetNativeUsageAsync(accessToken, accountId, providerLabel).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
@@ -128,9 +131,9 @@ public class OpenAIProvider : ProviderBase
 
     private static (DateTime? BurstResetTime, double? BurstUsed, string BurstDesc, DateTime? WeeklyResetTime, double? WeeklyUsed, string WeeklyDesc, string? CreditsDesc) ParseOpenAiSessionWindows(JsonElement root)
     {
-        var primaryUsed = root.ReadDouble("rate_limit", "primary_window", "used_percent");
-        var primaryReset = root.ReadDouble("rate_limit", "primary_window", "reset_after_seconds");
-        var primaryResetTime = ResolveWindowResetTime(root, "primary_window");
+        var primaryUsed = root.ReadDouble(JsonKeyRateLimit, JsonKeyPrimaryWindow, JsonKeyUsedPercent);
+        var primaryReset = root.ReadDouble(JsonKeyRateLimit, JsonKeyPrimaryWindow, JsonKeyResetAfterSeconds);
+        var primaryResetTime = ResolveWindowResetTime(root, JsonKeyPrimaryWindow);
 
         DateTime? burstResetTime = null;
         double? burstUsed = null;
@@ -143,9 +146,9 @@ public class OpenAIProvider : ProviderBase
             burstResetTime = primaryResetTime;
         }
 
-        var weeklyUsedVal = root.ReadDouble("rate_limit", "secondary_window", "used_percent");
-        var weeklyReset = root.ReadDouble("rate_limit", "secondary_window", "reset_after_seconds");
-        var weeklyResetTime = ResolveWindowResetTime(root, "secondary_window");
+        var weeklyUsedVal = root.ReadDouble(JsonKeyRateLimit, JsonKeySecondaryWindow, JsonKeyUsedPercent);
+        var weeklyReset = root.ReadDouble(JsonKeyRateLimit, JsonKeySecondaryWindow, JsonKeyResetAfterSeconds);
+        var weeklyResetTime = ResolveWindowResetTime(root, JsonKeySecondaryWindow);
 
         DateTime? weeklyResetTimeParsed = null;
         double? weeklyUsed = null;
@@ -171,19 +174,19 @@ public class OpenAIProvider : ProviderBase
 
     private static DateTime? ResolveResetTime(JsonElement root)
     {
-        var primaryReset = ResolveWindowResetTime(root, "primary_window");
+        var primaryReset = ResolveWindowResetTime(root, JsonKeyPrimaryWindow);
         if (primaryReset.HasValue)
         {
             return primaryReset;
         }
 
-        return ResolveWindowResetTime(root, "secondary_window");
+        return ResolveWindowResetTime(root, JsonKeySecondaryWindow);
     }
 
     private static DateTime? ResolveWindowResetTime(JsonElement root, string windowName)
     {
-        var resetSeconds = root.ReadDouble("rate_limit", windowName, "reset_after_seconds")
-                          ?? root.ReadDouble("rate_limit", windowName, "reset_after");
+        var resetSeconds = root.ReadDouble(JsonKeyRateLimit, windowName, JsonKeyResetAfterSeconds)
+                          ?? root.ReadDouble(JsonKeyRateLimit, windowName, "reset_after");
 
         var resetFromSeconds = ResolveResetTimeFromSeconds(resetSeconds);
         if (resetFromSeconds.HasValue)
@@ -191,8 +194,8 @@ public class OpenAIProvider : ProviderBase
             return resetFromSeconds;
         }
 
-        var resetAtIso = root.ReadString("rate_limit", windowName, "resets_at")
-                         ?? root.ReadString("rate_limit", windowName, "reset_at");
+        var resetAtIso = root.ReadString(JsonKeyRateLimit, windowName, "resets_at")
+                         ?? root.ReadString(JsonKeyRateLimit, windowName, "reset_at");
 
         if (!string.IsNullOrWhiteSpace(resetAtIso) &&
             DateTime.TryParse(resetAtIso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedResetAt))
@@ -200,7 +203,7 @@ public class OpenAIProvider : ProviderBase
             return parsedResetAt.ToLocalTime();
         }
 
-        var resetAtEpoch = root.ReadDouble("rate_limit", windowName, "reset_at_unix");
+        var resetAtEpoch = root.ReadDouble(JsonKeyRateLimit, windowName, "reset_at_unix");
         if (resetAtEpoch.HasValue && resetAtEpoch.Value > 0)
         {
             return DateTimeOffset.FromUnixTimeSeconds((long)resetAtEpoch.Value).LocalDateTime;
@@ -231,7 +234,7 @@ public class OpenAIProvider : ProviderBase
         return null;
     }
 
-    private async Task<IEnumerable<ProviderUsage>> GetApiKeyUsageAsync(string apiKey)
+    private async Task<IEnumerable<ProviderUsage>> GetApiKeyUsageAsync(string apiKey, string providerLabel)
     {
         if (apiKey.StartsWith("sk-proj", StringComparison.OrdinalIgnoreCase))
         {
@@ -240,7 +243,7 @@ public class OpenAIProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = this.Definition.DisplayName,
+                    ProviderName = providerLabel,
                     IsAvailable = false,
                     State = ProviderUsageState.Missing,
                     Description = "Project keys (sk-proj-...) not supported yet. Use a standard user API key.",
@@ -252,7 +255,7 @@ public class OpenAIProvider : ProviderBase
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.openai.com/v1/models");
+            using var request = new HttpRequestMessage(HttpMethod.Get, ModelsEndpoint);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
             var response = await this._httpClient.SendAsync(request).ConfigureAwait(false);
 
@@ -263,7 +266,7 @@ public class OpenAIProvider : ProviderBase
                     new ProviderUsage
                     {
                         ProviderId = this.ProviderId,
-                        ProviderName = this.Definition.DisplayName,
+                        ProviderName = providerLabel,
                         IsAvailable = true,
                         UsedPercent = 0,
                         IsQuotaBased = this.Definition.IsQuotaBased,
@@ -279,7 +282,7 @@ public class OpenAIProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = this.Definition.DisplayName,
+                    ProviderName = providerLabel,
                     IsAvailable = false,
                     State = ProviderUsageState.Error,
                     Description = $"Invalid Key ({response.StatusCode})",
@@ -296,7 +299,7 @@ public class OpenAIProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = this.Definition.DisplayName,
+                    ProviderName = providerLabel,
                     IsAvailable = false,
                     State = ProviderUsageState.Error,
                     Description = "Connection Failed",
@@ -307,7 +310,7 @@ public class OpenAIProvider : ProviderBase
         }
     }
 
-    private async Task<IEnumerable<ProviderUsage>> GetNativeUsageAsync(string accessToken, string? accountId)
+    private async Task<IEnumerable<ProviderUsage>> GetNativeUsageAsync(string accessToken, string? accountId, string providerLabel)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, WhamUsageEndpoint);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -321,12 +324,12 @@ public class OpenAIProvider : ProviderBase
 
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
-            return new[] { this.CreateUnavailableUsage($"Session invalid ({(int)response.StatusCode})", (int)response.StatusCode) };
+            return new[] { this.CreateUnavailableUsage($"Session invalid ({((int)response.StatusCode).ToString(CultureInfo.InvariantCulture)})", (int)response.StatusCode) };
         }
 
         if (!response.IsSuccessStatusCode)
         {
-            return new[] { this.CreateUnavailableUsage($"Session usage request failed ({(int)response.StatusCode})", (int)response.StatusCode) };
+            return new[] { this.CreateUnavailableUsage($"Session usage request failed ({((int)response.StatusCode).ToString(CultureInfo.InvariantCulture)})", (int)response.StatusCode) };
         }
 
         using var doc = JsonDocument.Parse(content);
@@ -352,7 +355,7 @@ public class OpenAIProvider : ProviderBase
             results.Add(new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = this.Definition.DisplayName,
+                ProviderName = providerLabel,
                 CardId = "burst",
                 GroupId = this.ProviderId,
                 Name = "5-hour quota",
@@ -379,7 +382,7 @@ public class OpenAIProvider : ProviderBase
             results.Add(new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = this.Definition.DisplayName,
+                ProviderName = providerLabel,
                 CardId = "weekly",
                 GroupId = this.ProviderId,
                 Name = "Weekly quota",
@@ -402,14 +405,14 @@ public class OpenAIProvider : ProviderBase
 
         if (results.Count == 0)
         {
-            var primaryUsed = doc.RootElement.ReadDouble("rate_limit", "primary_window", "used_percent") ?? 0.0;
-            var secondaryUsed = doc.RootElement.ReadDouble("rate_limit", "secondary_window", "used_percent") ?? 0.0;
+            var primaryUsed = doc.RootElement.ReadDouble(JsonKeyRateLimit, JsonKeyPrimaryWindow, JsonKeyUsedPercent) ?? 0.0;
+            var secondaryUsed = doc.RootElement.ReadDouble(JsonKeyRateLimit, JsonKeySecondaryWindow, JsonKeyUsedPercent) ?? 0.0;
             var used = Math.Max(primaryUsed, secondaryUsed);
             var remaining = Math.Clamp(100.0 - used, 0.0, 100.0);
             results.Add(new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = this.Definition.DisplayName,
+                ProviderName = providerLabel,
                 AccountName = accountIdentity,
                 IsAvailable = true,
                 IsQuotaBased = this.Definition.IsQuotaBased,
@@ -417,7 +420,7 @@ public class OpenAIProvider : ProviderBase
                 UsedPercent = used,
                 RequestsUsed = used,
                 RequestsAvailable = 100,
-                Description = $"{remaining:F0}% remaining ({used:F0}% used) | Plan: {planType}{creditsDesc}",
+                Description = $"{remaining.ToString("F0", CultureInfo.InvariantCulture)}% remaining ({used.ToString("F0", CultureInfo.InvariantCulture)}% used) | Plan: {planType}{creditsDesc}",
                 AuthSource = AuthSource.OpenCodeSession,
                 NextResetTime = ResolveResetTime(doc.RootElement),
                 RawJson = content,

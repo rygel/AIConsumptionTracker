@@ -2,16 +2,11 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Xunit;
 
 namespace AIUsageTracker.Tests.Core;
 
@@ -45,7 +40,7 @@ public class AllProvidersWorkingTests
         mockMinimax.Setup(p => p.ProviderId).Returns("minimax");
         mockMinimax.Setup(p => p.Definition).Returns(new ProviderDefinition(
             "minimax",
-            "Minimax (China)",
+            "MiniMax.com",
             PlanType.Coding,
             isQuotaBased: true)
         {

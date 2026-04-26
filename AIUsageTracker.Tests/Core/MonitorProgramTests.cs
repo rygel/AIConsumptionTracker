@@ -106,7 +106,7 @@ public sealed class MonitorProgramTests : IDisposable
         })!;
     }
 
-    private IEnumerable<string> GetExpectedMonitorInfoPaths()
+    private string[] GetExpectedMonitorInfoPaths()
     {
         return new[] { this._pathProvider.GetMonitorInfoFilePath() };
     }
@@ -171,4 +171,3 @@ public sealed class MonitorProgramTests : IDisposable
         public string GetMonitorInfoFilePath() => Path.Combine(this.GetAppDataRoot(), "monitor.json");
     }
 }
-

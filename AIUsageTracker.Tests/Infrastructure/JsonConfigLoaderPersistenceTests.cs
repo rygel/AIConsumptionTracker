@@ -146,7 +146,6 @@ public sealed class JsonConfigLoaderPersistenceTests : IntegrationTestBase
         var preferences = await loader.LoadPreferencesAsync();
 
         Assert.True(preferences.ShowUsedPercentages);
-        Assert.Equal(PercentageDisplayMode.Used, preferences.PercentageDisplayMode);
         Assert.Equal(AppPreferences.CurrentSchemaVersion, preferences.SchemaVersion);
     }
 
@@ -176,7 +175,8 @@ public sealed class JsonConfigLoaderPersistenceTests : IntegrationTestBase
         var json = await File.ReadAllTextAsync(preferencesPath);
 
         Assert.Contains($"\"SchemaVersion\": {AppPreferences.CurrentSchemaVersion}", json, StringComparison.Ordinal);
-        Assert.Contains("\"PercentageDisplayMode\": \"Used\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"ShowUsedPercentages\": true", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("PercentageDisplayMode", json, StringComparison.Ordinal);
         Assert.DoesNotContain("InvertCalculations", json, StringComparison.Ordinal);
         Assert.DoesNotContain("InvertProgressBar", json, StringComparison.Ordinal);
     }
@@ -231,6 +231,43 @@ public sealed class JsonConfigLoaderPersistenceTests : IntegrationTestBase
         var configs = await loader.LoadConfigAsync();
 
         Assert.DoesNotContain(configs, c => string.Equals(c.BaseUrl, "https://legacy", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SavePreferencesAsync_ConcurrentCalls_ProducesReadablePreferencesFileAsync()
+    {
+        var authPath = this.CreateFile("config/auth.json", "{}");
+        var providersPath = this.CreateFile("config/providers.json", "{}");
+        var preferencesPath = Path.Combine(this.TestRootPath, "config", "preferences.json");
+
+        var mockPathProvider = new Mock<IAppPathProvider>();
+        mockPathProvider.Setup(p => p.GetAuthFilePath()).Returns(authPath);
+        mockPathProvider.Setup(p => p.GetProviderConfigFilePath()).Returns(providersPath);
+        mockPathProvider.Setup(p => p.GetPreferencesFilePath()).Returns(preferencesPath);
+        mockPathProvider.Setup(p => p.GetUserProfileRoot()).Returns(this.TestRootPath);
+        mockPathProvider.Setup(p => p.GetAppDataRoot()).Returns(this.TestRootPath);
+        mockPathProvider.Setup(p => p.GetDatabasePath()).Returns(Path.Combine(this.TestRootPath, "usage.db"));
+        mockPathProvider.Setup(p => p.GetLogDirectory()).Returns(Path.Combine(this.TestRootPath, "logs"));
+
+        var loader = new JsonConfigLoader(
+            logger: NullLogger<JsonConfigLoader>.Instance,
+            tokenDiscoveryLogger: NullLogger<TokenDiscoveryService>.Instance,
+            pathProvider: mockPathProvider.Object);
+
+        var tasks = Enumerable.Range(0, 30)
+            .Select(index => loader.SavePreferencesAsync(new AppPreferences
+            {
+                Theme = (AppTheme)(index % 6),
+                IsPrivacyMode = index % 2 == 0,
+                ShowUsagePerHour = index % 3 == 0,
+            }));
+
+        await Task.WhenAll(tasks);
+
+        var json = await File.ReadAllTextAsync(preferencesPath);
+        var parsed = JsonSerializer.Deserialize<AppPreferences>(json);
+        Assert.NotNull(parsed);
+        Assert.True(Enum.IsDefined(typeof(AppTheme), parsed!.Theme));
     }
 
     [Fact]

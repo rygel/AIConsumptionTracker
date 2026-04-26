@@ -229,7 +229,76 @@ Click **"Scan for Keys"** in Settings or run `act scan` to trigger discovery fro
 
 ---
 
-## 7. Troubleshooting
+## 7. Managing API Keys
+
+### Key states
+
+A provider card's appearance reflects the current state of its API key:
+
+| State | Card appearance | What it means |
+|:---|:---|:---|
+| **Active** | Green/yellow/red progress bar | Key is present and working. |
+| **Expired** | Amber warning, "No active subscription" | Key is valid but your subscription or credits are exhausted. The card remains visible so you can see the state. |
+| **Error** | Red, API error message | Key is present but the provider returned an error (e.g. 429 rate limit, 500 server error). |
+| **Not configured** | Card absent from dashboard | No key is set for this provider. Configure one in Settings to show the card. |
+
+### Where to update a key — upstream source first
+
+**This tracker does not own your API keys.** It reads them from wherever you originally stored them: environment variables, Roo Code, OpenCode, Kilo Code, or other tools (see [section 6](#6-api-key-discovery)). The Settings UI key field only holds a local copy for keys that have no external source.
+
+If your key came from an external source, **always update it there first**, then re-scan:
+
+| Original source | Where to rotate the key | Then |
+|:---|:---|:---|
+| Environment variable (e.g. `OPENROUTER_API_KEY`) | Update the variable in your system or shell profile | Re-open terminal / restart service, then `act scan` |
+| Roo Code / Kilo Code config | Update the key inside that tool's settings | Run `act scan` or click **Scan for Keys** |
+| OpenCode `auth.json` | Update via `opencode auth` or edit the file directly | Run `act scan` or click **Scan for Keys** |
+| GitHub Copilot | Re-authenticate inside Settings (click **Log in**) | Automatic |
+
+Updating the key only in the tracker's Settings field will be overwritten on the next scan — the tracker will re-read the old key from the upstream source.
+
+### Replacing an expired key (no external source)
+
+If the key lives only in this tracker (you entered it manually and it is not discovered from any external source), update it here:
+
+**Via Settings UI:**
+1. Open Settings (⚙️) → **Providers** tab.
+2. Find the provider — its card shows the **Inactive** badge.
+3. Paste the new key into the key field.
+4. The card reappears on the dashboard within one refresh cycle.
+
+**Via CLI:**
+```bash
+act set-key <provider-id> <new-api-key>
+# Example:
+act set-key synthetic sk-syn-...
+```
+
+> **Check the auth source first.** The Settings card shows the source of the current key (e.g. "Env: OPENROUTER_API_KEY" or "Roo Code: …"). If a source is shown, update it there instead of overwriting the field here.
+
+### Removing a key you no longer need
+
+If you want to stop tracking a provider entirely, remove its key. The card disappears from the main dashboard immediately; the configuration slot remains in Settings so you can re-add a key later.
+
+**Via Settings UI:**
+1. Open Settings (⚙️) → **Providers** tab.
+2. Clear the key field for the provider (select all, delete).
+3. Close Settings — the card is removed from the dashboard on the next refresh.
+
+**Via CLI:**
+```bash
+act remove-key <provider-id>
+# Example:
+act remove-key openrouter
+```
+
+> **Note:** Removing a key here does not remove it from the upstream source. If the key still exists in an environment variable or external tool config, a future **Scan for Keys** will rediscover it. To fully stop tracking a provider, also remove or unset the key in the upstream source.
+>
+> Removing a key does not delete historical usage data. Past records are preserved and visible in the **History** tab and via `act history`.
+
+---
+
+## 8. Troubleshooting
 
 - **Monitor not running**: The CLI will attempt to auto-start the monitor. If it fails, run `act monitor start` or start the UI application.
 - **Missing Keys**: Use `act check` to see which providers are failing due to missing or invalid keys.
@@ -237,4 +306,4 @@ Click **"Scan for Keys"** in Settings or run `act scan` to trigger discovery fro
 
 ---
 
-*Version: 2.3.2 beta series | Author: Alexander Brandt*
+*Version: 2.3.2 beta series | Author: Alexander Brandt | Updated: 2026-04-12*

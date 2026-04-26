@@ -55,7 +55,7 @@
                     var successRate = snapshot.IsAvailable
                         ? Math.Clamp(100 - snapshot.FailureRatePercent, 0, 100)
                         : 0;
-                    var failureClass = snapshot.FailureRatePercent >= 20 ? "critical" : (snapshot.FailureRatePercent >= 5 ? "warning" : "success");
+                    var failureClass = GetFailureClass(snapshot.FailureRatePercent);
                     <div class="reliability-card">
                         <div class="reliability-header">
                             <span class="provider-name">@usage.ProviderName</span>
@@ -68,7 +68,7 @@
                             <div class="reliability-metric">
                                 <div class="reliability-row">
                                     <span>Success Rate</span>
-                                    <span>@successRate:F1%</span>
+                                    <span>@successRate.ToString("F1")%</span>
                                 </div>
                                 <div class="reliability-progress">
                                     <div class="reliability-progress-bar success" style="width: @successRate%"></div>
@@ -77,7 +77,7 @@
                             <div class="reliability-metric">
                                 <div class="reliability-row">
                                     <span>Failure Rate</span>
-                                    <span>@snapshot.FailureRatePercent:F1%</span>
+                                    <span>@snapshot.FailureRatePercent.ToString("F1")%</span>
                                 </div>
                                 <div class="reliability-progress">
                                     <div class="reliability-progress-bar @failureClass" style="width: @snapshot.FailureRatePercent%"></div>
@@ -108,8 +108,7 @@
                     </a>
                     <a class="btn btn-secondary btn-sm @(Model.EnableExperimentalAnomalyDetection ? "btn-experimental-on" : "")"
                        href="/?showInactive=@(Model.ShowInactiveProviders.ToString().ToLower())&showUsed=@(Model.ShowUsedPercentage.ToString().ToLower())&expAnomaly=@((!Model.EnableExperimentalAnomalyDetection).ToString().ToLower())"
-                       title="Experimental feature. Disabled by default."
-                       aria-label="Toggle experimental anomaly detection">
+                       title="Experimental feature. Disabled by default.">
                         @(Model.EnableExperimentalAnomalyDetection ? "Disable Anomaly Detection (Exp)" : "Enable Anomaly Detection (Exp)")
                     </a>
                 </div>
@@ -185,7 +184,7 @@
                         </div>
                         
                         @{
-                            bool hasDual = TryGetDualWindowPercentages(usage, out var pUsed, out var sUsed, out var pName, out var sName);
+                            bool hasDual = TryGetDualWindowPercentages(out var pUsed, out var sUsed, out var pName, out var sName);
                         }
 
                         <div class="progress-container">
@@ -302,7 +301,7 @@
             <div class="budget-grid">
                 @foreach (var budget in Model.BudgetStatuses)
                 {
-                    var budgetClass = budget.IsOverBudget ? "over-budget" : (budget.IsWarning ? "warning" : "healthy");
+                    var budgetClass = GetBudgetClass(budget.IsOverBudget, budget.IsWarning);
                     <div class="budget-card @budgetClass">
                         <div class="budget-header">
                             <span class="budget-name">@budget.ProviderName</span>
@@ -344,7 +343,7 @@
             <div class="comparison-grid">
                 @foreach (var comparison in Model.UsageComparisons.Take(12))
                 {
-                    var changeClass = comparison.ChangeAbsolute > 0 ? "increase" : (comparison.ChangeAbsolute < 0 ? "decrease" : "neutral");
+                    var changeClass = GetChangeClass(comparison.ChangeAbsolute);
                     <div class="comparison-card">
                         <div class="comparison-header">
                             <span class="provider-name">@comparison.ProviderName</span>
@@ -436,6 +435,27 @@
 </script>
 
 @functions {
+    static string GetFailureClass(double failureRatePercent)
+    {
+        if (failureRatePercent >= 20) return "critical";
+        if (failureRatePercent >= 5) return "warning";
+        return "success";
+    }
+
+    static string GetBudgetClass(bool isOverBudget, bool isWarning)
+    {
+        if (isOverBudget) return "over-budget";
+        if (isWarning) return "warning";
+        return "healthy";
+    }
+
+    static string GetChangeClass(double changeAbsolute)
+    {
+        if (changeAbsolute > 0) return "increase";
+        if (changeAbsolute < 0) return "decrease";
+        return "neutral";
+    }
+
     string GetUsageClass(double usage) => usage switch
     {
         var u when u >= Model.ColorThresholdRed => "danger",
@@ -454,19 +474,19 @@
         };
     }
 
-    string GetLastUpdateDisplay(string? lastUpdate)
+    static string GetLastUpdateDisplay(string? lastUpdate)
     {
         if (string.IsNullOrWhiteSpace(lastUpdate))
         {
             return "Never";
         }
 
-        if (DateTime.TryParse(lastUpdate, out var parsed))
+        if (DateTime.TryParse(lastUpdate, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))
         {
             return parsed.ToString("g");
         }
 
-        if (long.TryParse(lastUpdate, out var unixValue))
+        if (long.TryParse(lastUpdate, System.Globalization.CultureInfo.InvariantCulture, out var unixValue))
         {
             try
             {
@@ -484,7 +504,7 @@
         return "Never";
     }
 
-    string GetRelativeTimeString(DateTime nextReset)
+    static string GetRelativeTimeString(DateTime nextReset)
     {
         var diff = nextReset - DateTime.Now;
         
@@ -494,7 +514,7 @@
         return $"{Math.Max(1, (int)Math.Ceiling(diff.TotalMinutes))}m";
     }
 
-    string GetForecastText(AIUsageTracker.Core.Models.BurnRateForecast forecast)
+    static string GetForecastText(AIUsageTracker.Core.Models.BurnRateForecast forecast)
     {
         if (!forecast.IsAvailable)
         {
@@ -524,7 +544,7 @@
         return $"~{hours}h left ({burnRateText}/day)";
     }
 
-    string GetReliabilityClass(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
+    static string GetReliabilityClass(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
     {
         if (!snapshot.IsAvailable)
         {
@@ -539,7 +559,7 @@
         };
     }
 
-    string GetReliabilityLabel(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
+    static string GetReliabilityLabel(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
     {
         if (!snapshot.IsAvailable)
         {
@@ -554,7 +574,7 @@
         };
     }
 
-    string GetLatencyText(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
+    static string GetLatencyText(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
     {
         if (!snapshot.IsAvailable || snapshot.AverageLatencyMs <= 0)
         {
@@ -569,7 +589,7 @@
         return $"{snapshot.AverageLatencyMs:F0}ms";
     }
 
-    string GetLastSuccessText(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
+    static string GetLastSuccessText(AIUsageTracker.Core.Models.ProviderReliabilitySnapshot snapshot)
     {
         if (!snapshot.IsAvailable || !snapshot.LastSuccessfulSyncUtc.HasValue)
         {
@@ -580,17 +600,17 @@
         return $"{utc.ToLocalTime():MMM d, HH:mm} ({GetElapsedSinceString(utc)})";
     }
 
-    string GetElapsedSinceString(DateTime timestampUtc)
+    static string GetElapsedSinceString(DateTime timestampUtc)
     {
         var diff = DateTime.UtcNow - timestampUtc.ToUniversalTime();
 
         if (diff.TotalSeconds <= 0) return "just now";
-        if (diff.TotalDays >= 1) return $"{(int)diff.TotalDays}d {(int)diff.Hours}h ago";
-        if (diff.TotalHours >= 1) return $"{(int)diff.TotalHours}h {(int)diff.Minutes}m ago";
+        if (diff.TotalDays >= 1) return $"{(int)diff.TotalDays}d {diff.Hours}h ago";
+        if (diff.TotalHours >= 1) return $"{(int)diff.TotalHours}h {diff.Minutes}m ago";
         return $"{Math.Max(1, (int)Math.Ceiling(diff.TotalMinutes))}m ago";
     }
 
-    string GetAnomalyClass(AIUsageTracker.Core.Models.UsageAnomalySnapshot snapshot)
+    static string GetAnomalyClass(AIUsageTracker.Core.Models.UsageAnomalySnapshot snapshot)
     {
         if (!snapshot.IsAvailable)
         {
@@ -600,7 +620,7 @@
         return snapshot.HasAnomaly ? "detected" : "stable";
     }
 
-    string GetAnomalyText(AIUsageTracker.Core.Models.UsageAnomalySnapshot snapshot)
+    static string GetAnomalyText(AIUsageTracker.Core.Models.UsageAnomalySnapshot snapshot)
     {
         if (!snapshot.IsAvailable)
         {
@@ -624,7 +644,7 @@
         return $"{direction} ({severity}) {latestText}/day vs {baselineText}/day";
     }
 
-    bool TryGetDualWindowPercentages(AIUsageTracker.Core.Models.ProviderUsage usage, out double primaryUsed, out double secondaryUsed, out string primaryName, out string secondaryName)
+    static bool TryGetDualWindowPercentages(out double primaryUsed, out double secondaryUsed, out string primaryName, out string secondaryName)
     {
         // Dual-window data now comes from flat ProviderUsage cards (WindowKind != None).
         // The web page operates on root ProviderUsage objects which no longer carry sub-details.

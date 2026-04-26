@@ -7,8 +7,6 @@ using System.Windows;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
-using AIUsageTracker.Infrastructure.Configuration;
-using AIUsageTracker.Infrastructure.Providers;
 using AIUsageTracker.Infrastructure.Services;
 using AIUsageTracker.UI.Slim.Services;
 using AIUsageTracker.UI.Slim.ViewModels;
@@ -21,7 +19,13 @@ namespace AIUsageTracker.UI.Slim;
 
 public partial class App : Application
 {
-    private static IHost? _host;
+    private static readonly IHost _host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+        .ConfigureServices((context, services) =>
+        {
+            ConfigureServices(services);
+        })
+        .Build();
+
     private readonly Dictionary<string, TaskbarIcon> _providerTrayIcons = new(StringComparer.Ordinal);
     private TaskbarIcon? _trayIcon;
     private MainWindow? _mainWindow;
@@ -35,17 +39,11 @@ public partial class App : Application
 
     public App()
     {
-        _host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
-            .ConfigureServices((context, services) =>
-            {
-                ConfigureServices(services);
-            })
-            .Build();
     }
 
     public static event EventHandler<PrivacyChangedEventArgs>? PrivacyChanged;
 
-    public static IHost Host => _host ?? throw new InvalidOperationException("App host is not initialized.");
+    public static IHost Host => _host;
 
     public static IMonitorService MonitorService => Host.Services.GetRequiredService<IMonitorService>();
 
@@ -58,6 +56,24 @@ public partial class App : Application
     public Func<Window> InfoDialogFactory { get; set; } = () => Host.Services.GetRequiredService<InfoDialog>();
 
     public Action<Window> ShowInfoDialogAction { get; set; } = dialog => dialog.ShowDialog();
+
+    private static void StartMonitorWarmup()
+    {
+        MonitorWarmupTask = Task.Run(async () =>
+        {
+            try
+            {
+                var lifecycle = Host.Services.GetRequiredService<MonitorLifecycleService>();
+                return await lifecycle.EnsureAgentRunningAsync().ConfigureAwait(false); // ui-thread-guardrail-allow: Task.Run thread pool
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Host.Services.GetRequiredService<ILogger<App>>()
+                    .LogWarning(ex, "Background monitor warmup failed");
+                return false;
+            }
+        });
+    }
 
     public static void SetPrivacyMode(bool enabled)
     {
@@ -92,6 +108,10 @@ public partial class App : Application
         try
         {
             Preferences = await preferencesStore.LoadAsync().ConfigureAwait(true);
+            if (Preferences.SchemaVersion < AppPreferences.CurrentSchemaVersion)
+            {
+                _ = preferencesStore.SaveAsync(Preferences);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -119,20 +139,7 @@ public partial class App : Application
         // Fire monitor warmup IMMEDIATELY — runs in parallel with
         // theme apply, tray icon init, and the expensive MainWindow InitializeComponent.
         // By the time the window is shown, the monitor should already be running.
-        MonitorWarmupTask = Task.Run(async () =>
-        {
-            try
-            {
-                var lifecycle = Host.Services.GetRequiredService<MonitorLifecycleService>();
-                return await lifecycle.EnsureAgentRunningAsync().ConfigureAwait(false); // ui-thread-guardrail-allow: Task.Run thread pool
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                Host.Services.GetRequiredService<ILogger<App>>()
-                    .LogWarning(ex, "Background monitor warmup failed");
-                return false;
-            }
-        });
+        StartMonitorWarmup();
 
         ApplyTheme(Preferences.Theme);
         IsPrivacyMode = Preferences.IsPrivacyMode;
@@ -153,7 +160,7 @@ public partial class App : Application
 
         this._providerTrayIcons.Clear();
 
-        using (_host)
+        using (Host)
         {
             await Host.StopAsync().ConfigureAwait(true);
         }
@@ -168,7 +175,6 @@ public partial class App : Application
         // Infrastructure
         services.AddSingleton<IAppPathProvider, AIUsageTracker.Infrastructure.Helpers.DefaultAppPathProvider>();
         services.AddSingleton<UiPreferencesStore>();
-        services.AddSingleton<IUiPreferencesStore>(sp => sp.GetRequiredService<UiPreferencesStore>());
         services.AddSingleton<IMonitorLauncher, MonitorLauncher>();
         services.AddSingleton<MonitorLauncher>();
         services.AddSingleton<IMonitorService, MonitorService>();
@@ -192,7 +198,6 @@ public partial class App : Application
         services.AddSingleton<Func<SettingsWindow>>(sp => () => sp.GetRequiredService<SettingsWindow>());
         services.AddSingleton<Func<InfoDialog>>(sp => () => sp.GetRequiredService<InfoDialog>());
         services.AddSingleton<IDialogService, DialogService>();
-        services.AddSingleton<MonitorStartupOrchestrator>();
         services.AddSingleton<IBrowserService, BrowserService>();
 
         // ViewModels

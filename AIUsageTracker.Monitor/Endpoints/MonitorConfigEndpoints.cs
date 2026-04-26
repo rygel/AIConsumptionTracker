@@ -5,9 +5,7 @@
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Monitor.Services;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Monitor.Endpoints;
 
@@ -29,6 +27,7 @@ internal static class MonitorConfigEndpoints
                 IConfigService configService,
                 ProviderRefreshService refreshService,
                 ProviderRefreshCircuitBreakerService circuitBreakerService,
+                CachedGroupedUsageProjectionService projectionService,
                 ILogger<Program> logger) =>
         {
             if (string.IsNullOrWhiteSpace(config.ProviderId))
@@ -38,6 +37,10 @@ internal static class MonitorConfigEndpoints
 
             logger.LogDebug("POST {Route} ({ProviderId})", MonitorApiRoutes.Config, config.ProviderId);
             await configService.SaveConfigAsync(config).ConfigureAwait(false);
+
+            // Invalidate the snapshot cache so the exclusion filter re-evaluates against the
+            // updated config (e.g. a cleared API key should immediately hide the provider).
+            projectionService.Invalidate();
 
             // Config/auth updates should retry immediately and not wait for a stale backoff window.
             circuitBreakerService.ResetProvider(config.ProviderId, "config update");

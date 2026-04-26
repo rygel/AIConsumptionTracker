@@ -3,7 +3,6 @@
 // </copyright>
 
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using AIUsageTracker.Infrastructure.Configuration;
 using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
@@ -34,21 +33,6 @@ public class CodexAuthService
     }
 
     private static CodexAuth? TryReadAuth(JsonElement root)
-    {
-        var authData = ProviderAuthFileSchemaReader.Read(root, CodexProvider.StaticDefinition.SessionAuthFileSchemas);
-        if (string.IsNullOrWhiteSpace(authData?.AccessToken))
-        {
-            return null;
-        }
-
-        return new CodexAuth
-        {
-            AccessToken = authData.AccessToken,
-            AccountId = authData.AccountId,
-        };
-    }
-
-    private static CodexAuth? TryReadAuthDuplicate(JsonElement root)
     {
         var authData = ProviderAuthFileSchemaReader.Read(root, CodexProvider.StaticDefinition.SessionAuthFileSchemas);
         if (string.IsNullOrWhiteSpace(authData?.AccessToken))

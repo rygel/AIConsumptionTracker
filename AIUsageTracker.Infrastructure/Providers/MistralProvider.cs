@@ -2,10 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-using System.Net.Http;
-using System.Net.Http.Json;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Providers;
@@ -15,6 +12,8 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class MistralProvider : ProviderBase
 {
+    private const string ModelsEndpoint = "https://api.mistral.ai/v1/models";
+
     private readonly HttpClient _httpClient;
     private readonly ILogger<MistralProvider> _logger;
 
@@ -49,6 +48,8 @@ public class MistralProvider : ProviderBase
     {
         ArgumentNullException.ThrowIfNull(config);
 
+        var providerLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId);
+
         var apiKey = config.ApiKey;
 
         if (string.IsNullOrEmpty(apiKey) && this.DiscoveryService != null)
@@ -65,7 +66,7 @@ public class MistralProvider : ProviderBase
         // We verify the key works by calling the models list endpoint
         try
         {
-            var request = CreateBearerRequest(HttpMethod.Get, "https://api.mistral.ai/v1/models", apiKey);
+            var request = CreateBearerRequest(HttpMethod.Get, ModelsEndpoint, apiKey);
 
             var response = await this._httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -76,7 +77,7 @@ public class MistralProvider : ProviderBase
                     new ProviderUsage
                     {
                         ProviderId = this.ProviderId,
-                        ProviderName = this.Definition.DisplayName,
+                        ProviderName = providerLabel,
                         IsAvailable = true,
                         UsedPercent = 0,
                         IsQuotaBased = this.Definition.IsQuotaBased,

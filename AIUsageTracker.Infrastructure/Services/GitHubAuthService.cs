@@ -3,8 +3,8 @@
 // </copyright>
 
 using System.Diagnostics;
-using System.IO;
 using System.Net.Http.Json;
+using System.Security;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AIUsageTracker.Core.Interfaces;
@@ -20,6 +20,7 @@ public class GitHubAuthService : IGitHubAuthService
     private const string AUTHURL = "https://github.com/login/device/code";
     private const string TOKENURL = "https://github.com/login/oauth/access_token";
     private const string SCOPE = "read:user copilot"; // Requesting copilot scope
+    private const string USERURL = "https://api.github.com/user";
 
     private readonly HttpClient _httpClient;
     private readonly ILogger<GitHubAuthService> _logger;
@@ -57,7 +58,7 @@ public class GitHubAuthService : IGitHubAuthService
             var result = await response.Content.ReadFromJsonAsync<DeviceFlowResponse>().ConfigureAwait(false);
             if (result == null)
             {
-                throw new Exception("Failed to parse device flow response.");
+                throw new InvalidOperationException("Failed to parse device flow response.");
             }
 
             return (result.Device_code, result.User_code, result.Verification_uri, result.Expires_in, result.Interval);
@@ -65,7 +66,7 @@ public class GitHubAuthService : IGitHubAuthService
         catch (Exception ex)
         {
             this._logger.LogError(ex, "Error initiating device flow");
-            throw;
+            throw new InvalidOperationException("Error initiating device flow.", ex);
         }
     }
 
@@ -112,12 +113,12 @@ public class GitHubAuthService : IGitHubAuthService
 
                 if (string.Equals(code, "expired_token", StringComparison.Ordinal))
                 {
-                    throw new Exception("Token expired");
+                    throw new SecurityException("Token expired");
                 }
 
                 if (string.Equals(code, "access_denied", StringComparison.Ordinal))
                 {
-                    throw new Exception("Access denied");
+                    throw new SecurityException("Access denied");
                 }
             }
 
@@ -190,7 +191,7 @@ public class GitHubAuthService : IGitHubAuthService
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user");
+            using var request = new HttpRequestMessage(HttpMethod.Get, USERURL);
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", this._currentToken);
             request.Headers.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("AIUsageTracker", "1.0"));
 
@@ -414,7 +415,7 @@ public class GitHubAuthService : IGitHubAuthService
     }
 
     // Helper class for JSON deserialization
-    private class DeviceFlowResponse
+    private sealed class DeviceFlowResponse
     {
         public string Device_code { get; set; } = string.Empty;
 
@@ -422,8 +423,8 @@ public class GitHubAuthService : IGitHubAuthService
 
         public string Verification_uri { get; set; } = string.Empty;
 
-        public int Expires_in { get; set; }
+        public int Expires_in { get; }
 
-        public int Interval { get; set; }
+        public int Interval { get; }
     }
 }

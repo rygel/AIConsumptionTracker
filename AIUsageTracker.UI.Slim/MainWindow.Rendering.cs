@@ -4,11 +4,11 @@
 
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Infrastructure.Providers;
-using AIUsageTracker.UI.Slim.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -165,7 +165,7 @@ public partial class MainWindow : Window
         var titleText = isGroupHeader ? title.ToUpperInvariant() : title;
         var titleForeground = isGroupHeader
             ? accent
-            : this.GetResourceBrush("SecondaryText", Brushes.Gray);
+            : GetResourceBrush("SecondaryText", Brushes.Gray);
 
         var header = this.CreateCollapsibleHeaderGrid(margin);
 
@@ -203,7 +203,28 @@ public partial class MainWindow : Window
 
         // Click handler
         header.Cursor = System.Windows.Input.Cursors.Hand;
-        header.MouseLeftButtonDown += async (s, e) =>
+        header.MouseLeftButtonDown += this.CreateHeaderClickHandler(getCollapsed, setCollapsed, container, toggleText);
+
+        Grid.SetColumn(toggleText, 0);
+        Grid.SetColumn(titleBlock, 1);
+        Grid.SetColumn(line, 2);
+
+        header.Children.Add(toggleText);
+        header.Children.Add(titleBlock);
+        header.Children.Add(line);
+
+        return (header, container);
+    }
+
+    // MA0147: async void is required for MouseButtonEventHandler delegate
+#pragma warning disable MA0147
+    private MouseButtonEventHandler CreateHeaderClickHandler(
+        Func<bool> getCollapsed,
+        Action<bool> setCollapsed,
+        StackPanel container,
+        TextBlock toggleText)
+    {
+        return async (s, e) =>
         {
             try
             {
@@ -218,16 +239,7 @@ public partial class MainWindow : Window
                 this._logger.LogWarning(ex, "Failed to save collapse state");
             }
         };
-
-        Grid.SetColumn(toggleText, 0);
-        Grid.SetColumn(titleBlock, 1);
-        Grid.SetColumn(line, 2);
-
-        header.Children.Add(toggleText);
-        header.Children.Add(titleBlock);
-        header.Children.Add(line);
-
-        return (header, container);
+#pragma warning restore MA0147
     }
 
     private ProviderCardRenderer CreateProviderCardRenderer()
@@ -235,10 +247,10 @@ public partial class MainWindow : Window
         return new ProviderCardRenderer(
             this._preferences,
             this._isPrivacyMode,
-            this.GetResourceBrush,
+            GetResourceBrush,
             this._createProviderIcon,
             this.CreateTopmostAwareToolTip,
-            this.ConfigureCardToolTip,
+            ConfigureCardToolTip,
             UsageMath.FormatRelativeTime);
     }
 
@@ -278,7 +290,7 @@ public partial class MainWindow : Window
             this.AddProviderCard(groupCards[0], container, cardRenderer, isChild: false);
 
             var (groupHeader, groupContainer) = this.CreateCollapsibleHeader(
-                $"{ProviderMetadataCatalog.ResolveDisplayLabel(groupCards[0])} Details",
+                $"{groupCards[0].ProviderName ?? ProviderMetadataCatalog.GetConfiguredDisplayName(groupCards[0].ProviderId ?? string.Empty)} Details",
                 System.Windows.Media.Brushes.DeepSkyBlue,
                 isGroupHeader: false,
                 groupKey: null,
@@ -300,20 +312,23 @@ public partial class MainWindow : Window
 
     private void AddProviderCard(ProviderUsage usage, StackPanel container, ProviderCardRenderer cardRenderer, bool isChild = false)
     {
-        var showUsed = this.ShowUsedToggle?.IsChecked ?? false;
+        // Read from preferences (the authoritative source) rather than the toggle's
+        // visual state, which can lag behind when Settings closes without the main window
+        // applying the updated preferences (e.g. quick close within the debounce window).
+        var showUsed = this._preferences.ShowUsedPercentages;
         var definition = ProviderMetadataCatalog.Find(usage.ProviderId ?? string.Empty);
         var card = cardRenderer.CreateProviderCard(usage, showUsed, isChild, definition);
 
         var contextMenu = new ContextMenu();
         var designerItem = new MenuItem { Header = "Card settings..." };
-        designerItem.Click += (_, _) => this.OpenCardSettings();
+        designerItem.Click += async (_, _) => await this.OpenCardSettingsAsync().ConfigureAwait(true);
         contextMenu.Items.Add(designerItem);
         card.ContextMenu = contextMenu;
 
         container.Children.Add(card);
     }
 
-    private async void OpenCardSettings()
+    private async Task OpenCardSettingsAsync()
     {
         try
         {
@@ -366,7 +381,7 @@ public partial class MainWindow : Window
         return toolTip;
     }
 
-    private void ConfigureCardToolTip(FrameworkElement target)
+    private static void ConfigureCardToolTip(FrameworkElement target)
     {
         ToolTipService.SetInitialShowDelay(target, 100);
         ToolTipService.SetShowDuration(target, 15000);
@@ -412,10 +427,10 @@ public partial class MainWindow : Window
         {
             this.StatusLed.Fill = indicatorKind switch
             {
-                StatusIndicatorKind.Success => this.GetResourceBrush("ProgressBarGreen", Brushes.MediumSeaGreen),
+                StatusIndicatorKind.Success => GetResourceBrush("ProgressBarGreen", Brushes.MediumSeaGreen),
                 StatusIndicatorKind.Warning => Brushes.Gold,
-                StatusIndicatorKind.Error => this.GetResourceBrush("ProgressBarRed", Brushes.Crimson),
-                _ => this.GetResourceBrush("SecondaryText", Brushes.Gray),
+                StatusIndicatorKind.Error => GetResourceBrush("ProgressBarRed", Brushes.Crimson),
+                _ => GetResourceBrush("SecondaryText", Brushes.Gray),
             };
         }
 
@@ -473,7 +488,7 @@ public partial class MainWindow : Window
         return new TextBlock
         {
             Text = text,
-            Foreground = this.GetResourceBrush("TertiaryText", Brushes.Gray),
+            Foreground = GetResourceBrush("TertiaryText", Brushes.Gray),
             HorizontalAlignment = HorizontalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(10),

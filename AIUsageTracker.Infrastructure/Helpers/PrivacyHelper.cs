@@ -62,7 +62,7 @@ public static partial class PrivacyHelper
             return new string('*', input.Length);
         }
 
-        return input.Substring(0, 1) + new string('*', Math.Min(input.Length - 2, 5)) + input.Substring(input.Length - 1);
+        return string.Concat(input.AsSpan(0, 1), new string('*', Math.Min(input.Length - 2, 5)).AsSpan(), input.AsSpan(input.Length - 1));
     }
 
     public static string MaskPath(string path)
@@ -96,6 +96,7 @@ public static partial class PrivacyHelper
     /// Masks an account identifier. If it looks like an email, the local and domain parts
     /// are masked separately (preserving dots in the domain). Otherwise falls back to <see cref="MaskString"/>.
     /// </summary>
+    /// <returns></returns>
     public static string MaskAccountIdentifier(string input)
     {
         if (string.IsNullOrWhiteSpace(input))

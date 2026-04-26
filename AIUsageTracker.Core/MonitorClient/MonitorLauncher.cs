@@ -3,7 +3,7 @@
 // </copyright>
 
 using System.Diagnostics;
-using System.Net.Http;
+using System.Globalization;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Runtime;
@@ -13,12 +13,15 @@ namespace AIUsageTracker.Core.MonitorClient;
 
 public class MonitorLauncher : IMonitorLauncher
 {
+    private static readonly JsonSerializerOptions CaseInsensitiveOptions = new() { PropertyNameCaseInsensitive = true };
     internal const int DefaultPort = 5000;
     internal const int MaxStaleMetadataBackups = 10;
     private const int MaxWaitSeconds = 30;
     private const int StopWaitSeconds = 5;
     private const int LaunchMutexWaitSeconds = 3;
     private const string CanonicalProductFolder = "AIUsageTracker";
+    private const string StatusStarting = "starting";
+    private const string StartupStatusPrefix = "Startup status:";
 
     private readonly SemaphoreSlim _startupSemaphore = new(1, 1);
     private readonly HttpClient _healthCheckHttpClient = new HttpClient { Timeout = TimeSpan.FromMilliseconds(500) };
@@ -30,6 +33,7 @@ public class MonitorLauncher : IMonitorLauncher
     private readonly Func<Task<bool>>? _stopNamedProcessesOverride;
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="MonitorLauncher"/> class.
     /// DI constructor — takes only the logger. Used by the DI container.
     /// </summary>
     public MonitorLauncher(ILogger<MonitorLauncher> logger)
@@ -38,6 +42,7 @@ public class MonitorLauncher : IMonitorLauncher
     }
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="MonitorLauncher"/> class.
     /// Test constructor — accepts optional overrides for health check, process check, etc.
     /// </summary>
     internal MonitorLauncher(
@@ -99,12 +104,12 @@ public class MonitorLauncher : IMonitorLauncher
                 IsRunning = true,
                 Port = metadataState.Info!.Port,
                 HasMetadata = true,
-                Message = $"Healthy on port {metadataState.Info.Port}.",
+                Message = $"Healthy on port {metadataState.Info.Port.ToString(CultureInfo.InvariantCulture)}.",
                 Error = null,
             };
         }
 
-        if (string.Equals(startupStatus, "starting", StringComparison.OrdinalIgnoreCase) && metadataState.ProcessRunning)
+        if (string.Equals(startupStatus, StatusStarting, StringComparison.OrdinalIgnoreCase) && metadataState.ProcessRunning)
         {
             return new MonitorAgentStatus
             {
@@ -135,16 +140,21 @@ public class MonitorLauncher : IMonitorLauncher
         {
             return new MonitorAgentStatus
             {
-                IsRunning = true, Port = port, HasMetadata = hasMetadata,
-                Message = $"Healthy on port {port}.", Error = null,
+                IsRunning = true,
+                Port = port,
+                HasMetadata = hasMetadata,
+                Message = $"Healthy on port {port.ToString(CultureInfo.InvariantCulture)}.",
+                Error = null,
             };
         }
 
         return new MonitorAgentStatus
         {
-            IsRunning = false, Port = port, HasMetadata = hasMetadata,
+            IsRunning = false,
+            Port = port,
+            HasMetadata = hasMetadata,
             Message = hasMetadata
-                ? $"Monitor not reachable on port {port}."
+                ? $"Monitor not reachable on port {port.ToString(CultureInfo.InvariantCulture)}."
                 : "Monitor info file not found. Start Monitor to initialize it.",
             Error = hasMetadata ? "monitor-unreachable" : "agent-info-missing",
         };
@@ -167,10 +177,10 @@ public class MonitorLauncher : IMonitorLauncher
             {
                 holdsLaunchMutex = launchMutex.WaitOne(TimeSpan.FromSeconds(LaunchMutexWaitSeconds));
             }
-            catch (AbandonedMutexException)
+            catch (AbandonedMutexException ex)
             {
                 holdsLaunchMutex = true;
-                this._logger?.LogDebug("Monitor launch lock was abandoned; proceeding.");
+                this._logger?.LogDebug(ex, "Monitor launch lock was abandoned; proceeding.");
             }
 
             if (!holdsLaunchMutex)
@@ -206,7 +216,7 @@ public class MonitorLauncher : IMonitorLauncher
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
         {
-            this._logger?.LogDebug("Failed to start Monitor: {Message}", ex.Message);
+            this._logger?.LogDebug(ex, "Failed to start Monitor: {Message}", ex.Message);
             return false;
         }
         finally
@@ -291,7 +301,7 @@ public class MonitorLauncher : IMonitorLauncher
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            this._logger?.LogDebug("Failed to invalidate monitor metadata: {Message}", ex.Message);
+            this._logger?.LogDebug(ex, "Failed to invalidate monitor metadata: {Message}", ex.Message);
         }
 
         return Task.CompletedTask;
@@ -324,7 +334,7 @@ public class MonitorLauncher : IMonitorLauncher
             return new MonitorReadyState(metadataState.EffectivePort, IsRunning: false, FromMetadata: false, StartupFailure: startupFailure);
         }
 
-        if (string.Equals(startupStatus, "starting", StringComparison.OrdinalIgnoreCase) && metadataState.ProcessRunning)
+        if (string.Equals(startupStatus, StatusStarting, StringComparison.OrdinalIgnoreCase) && metadataState.ProcessRunning)
         {
             return new MonitorReadyState(metadataState.EffectivePort, IsRunning: false, FromMetadata: false, IsStarting: true);
         }
@@ -387,9 +397,9 @@ public class MonitorLauncher : IMonitorLauncher
             {
                 await Task.Delay(200, cancellationToken).ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException ex)
             {
-                this._logger?.LogDebug("Monitor wait cancelled after {Elapsed:F1}s.", stopwatch.Elapsed.TotalSeconds);
+                this._logger?.LogDebug(ex, "Monitor wait cancelled after {Elapsed:F1}s.", stopwatch.Elapsed.TotalSeconds);
                 return null;
             }
         }
@@ -408,10 +418,7 @@ public class MonitorLauncher : IMonitorLauncher
             if (path != null)
             {
                 var json = await File.ReadAllTextAsync(path).ConfigureAwait(false);
-                var info = JsonSerializer.Deserialize<MonitorInfo>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                });
+                var info = JsonSerializer.Deserialize<MonitorInfo>(json, CaseInsensitiveOptions);
 
                 if (info != null)
                 {
@@ -425,7 +432,7 @@ public class MonitorLauncher : IMonitorLauncher
         }
         catch (JsonException ex)
         {
-            this._logger?.LogDebug("Failed to parse monitor metadata: {Message}", ex.Message);
+            this._logger?.LogDebug(ex, "Failed to parse monitor metadata: {Message}", ex.Message);
             if (path != null)
             {
                 this.QuarantineMonitorInfoPath(path);
@@ -435,17 +442,17 @@ public class MonitorLauncher : IMonitorLauncher
         }
         catch (IOException ex)
         {
-            this._logger?.LogDebug("Failed to read monitor metadata: {Message}", ex.Message);
+            this._logger?.LogDebug(ex, "Failed to read monitor metadata: {Message}", ex.Message);
             return (null, path);
         }
         catch (UnauthorizedAccessException ex)
         {
-            this._logger?.LogDebug("Access denied reading monitor metadata: {Message}", ex.Message);
+            this._logger?.LogDebug(ex, "Access denied reading monitor metadata: {Message}", ex.Message);
             return (null, path);
         }
         catch (Exception ex) when (ex is IOException or JsonException)
         {
-            this._logger?.LogDebug("Failed to load monitor metadata: {Message}", ex.Message);
+            this._logger?.LogDebug(ex, "Failed to load monitor metadata: {Message}", ex.Message);
             return (null, path);
         }
     }
@@ -455,7 +462,7 @@ public class MonitorLauncher : IMonitorLauncher
         var (info, path) = await this.ReadAgentInfoAsync().ConfigureAwait(false);
         if (info == null)
         {
-            return new MonitorMetadataState(null, path, HealthOk: false, ProcessRunning: false);
+            return new MonitorMetadataState(Info: null, Path: path, HealthOk: false, ProcessRunning: false);
         }
 
         var healthOk = await this.CheckHealthAsync(info.Port).ConfigureAwait(false);
@@ -467,7 +474,7 @@ public class MonitorLauncher : IMonitorLauncher
             return new MonitorMetadataState(info, path, healthOk, processRunning);
         }
 
-        if (string.Equals(startupStatus, "starting", StringComparison.OrdinalIgnoreCase) && processRunning)
+        if (string.Equals(startupStatus, StatusStarting, StringComparison.OrdinalIgnoreCase) && processRunning)
         {
             this._logger?.LogDebug("Monitor metadata indicates startup is still in progress.");
             return new MonitorMetadataState(info, path, healthOk, processRunning);
@@ -503,7 +510,7 @@ public class MonitorLauncher : IMonitorLauncher
 
     private void InvalidateMonitorInfoPath(string infoPath)
     {
-        var backupPath = infoPath + ".stale." + DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var backupPath = infoPath + ".stale." + DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
         File.Move(infoPath, backupPath, overwrite: true);
         this._logger?.LogDebug("Backed up stale metadata to: {BackupPath}", backupPath);
         CleanupOldStaleMetadataBackups(infoPath);
@@ -549,22 +556,22 @@ public class MonitorLauncher : IMonitorLauncher
 
         try
         {
-            var response = await this._healthCheckHttpClient.GetAsync($"http://localhost:{port}/api/health").ConfigureAwait(false);
+            var response = await this._healthCheckHttpClient.GetAsync($"http://localhost:{port.ToString(CultureInfo.InvariantCulture)}/api/health").ConfigureAwait(false);
             return response.IsSuccessStatusCode;
         }
         catch (HttpRequestException ex)
         {
-            this._logger?.LogDebug("Health check request failed on port {Port}: {Message}", port, ex.Message);
+            this._logger?.LogDebug(ex, "Health check request failed on port {Port}: {Message}", port, ex.Message);
             return false;
         }
         catch (TaskCanceledException ex)
         {
-            this._logger?.LogDebug("Health check timed out on port {Port}: {Message}", port, ex.Message);
+            this._logger?.LogDebug(ex, "Health check timed out on port {Port}: {Message}", port, ex.Message);
             return false;
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
         {
-            this._logger?.LogDebug("Health check failed on port {Port}: {Message}", port, ex.Message);
+            this._logger?.LogDebug(ex, "Health check failed on port {Port}: {Message}", port, ex.Message);
             return false;
         }
     }
@@ -586,14 +593,14 @@ public class MonitorLauncher : IMonitorLauncher
             var process = Process.GetProcessById(processId);
             return Task.FromResult(!process.HasExited);
         }
-        catch (ArgumentException)
+        catch (ArgumentException ex)
         {
-            this._logger?.LogDebug("Monitor process {ProcessId} was not found.", processId);
+            this._logger?.LogDebug(ex, "Monitor process {ProcessId} was not found.", processId);
             return Task.FromResult(false);
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException ex)
         {
-            this._logger?.LogDebug("Failed to query monitor process {ProcessId}.", processId);
+            this._logger?.LogDebug(ex, "Failed to query monitor process {ProcessId}.", processId);
             return Task.FromResult(false);
         }
     }
@@ -618,9 +625,9 @@ public class MonitorLauncher : IMonitorLauncher
     {
         return errors?.FirstOrDefault(error =>
             !string.IsNullOrWhiteSpace(error) &&
-            error.StartsWith("Startup status:", StringComparison.OrdinalIgnoreCase) &&
+            error.StartsWith(StartupStatusPrefix, StringComparison.OrdinalIgnoreCase) &&
             !error.Contains("running", StringComparison.OrdinalIgnoreCase) &&
-            !error.Contains("starting", StringComparison.OrdinalIgnoreCase) &&
+            !error.Contains(StatusStarting, StringComparison.OrdinalIgnoreCase) &&
             !error.Contains("stopped", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -628,13 +635,13 @@ public class MonitorLauncher : IMonitorLauncher
     {
         var startupEntry = errors?.FirstOrDefault(error =>
             !string.IsNullOrWhiteSpace(error) &&
-            error.StartsWith("Startup status:", StringComparison.OrdinalIgnoreCase));
+            error.StartsWith(StartupStatusPrefix, StringComparison.OrdinalIgnoreCase));
         if (string.IsNullOrWhiteSpace(startupEntry))
         {
             return null;
         }
 
-        return startupEntry["Startup status:".Length..].Trim();
+        return startupEntry[StartupStatusPrefix.Length..].Trim();
     }
 
     // --- Types ---

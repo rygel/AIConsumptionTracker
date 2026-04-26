@@ -5,7 +5,6 @@
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Web.Services;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.OutputCaching;
 
@@ -45,7 +44,22 @@ public class ReliabilityModel : PageModel
         }
     }
 
-    public string GetReliabilityClass(ProviderReliabilitySnapshot snapshot)
+    public static string GetFailureClass(double failureRatePercent)
+    {
+        if (failureRatePercent >= 20)
+        {
+            return "critical";
+        }
+
+        if (failureRatePercent >= 5)
+        {
+            return "warning";
+        }
+
+        return "success";
+    }
+
+    public static string GetReliabilityClass(ProviderReliabilitySnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
@@ -67,7 +81,7 @@ public class ReliabilityModel : PageModel
         return "unknown";
     }
 
-    public string GetReliabilityLabel(ProviderReliabilitySnapshot snapshot)
+    public static string GetReliabilityLabel(ProviderReliabilitySnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
@@ -94,7 +108,7 @@ public class ReliabilityModel : PageModel
         return "Critical";
     }
 
-    public string GetLatencyText(ProviderReliabilitySnapshot snapshot)
+    public static string GetLatencyText(ProviderReliabilitySnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
@@ -112,7 +126,7 @@ public class ReliabilityModel : PageModel
         };
     }
 
-    public string GetLastSyncText(ProviderReliabilitySnapshot snapshot)
+    public static string GetLastSyncText(ProviderReliabilitySnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 

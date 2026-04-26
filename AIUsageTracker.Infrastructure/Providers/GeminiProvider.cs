@@ -2,12 +2,13 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable S6418 // OAuth client secrets are public, intentionally shipped with gemini-cli tool
+
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.Providers;
 using AIUsageTracker.Infrastructure.Mappers;
@@ -53,6 +54,12 @@ public class GeminiProvider : ProviderBase
 
     private const string GeminiPluginClientSecret = "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";
 
+#pragma warning disable S1075 // URIs are provider API endpoints
+    private const string OAuthTokenUrl = "https://oauth2.googleapis.com/token";
+    private const string QuotaUrl = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota";
+#pragma warning restore S1075
+    private static readonly JsonSerializerOptions CaseInsensitiveOptions = new() { PropertyNameCaseInsensitive = true };
+
     private readonly HttpClient _httpClient;
     private readonly ILogger<GeminiProvider> _logger;
     private readonly string? _accountsPathOverride;
@@ -85,16 +92,20 @@ public class GeminiProvider : ProviderBase
     /// <inheritdoc/>
     public override async Task<IEnumerable<ProviderUsage>> GetUsageAsync(ProviderConfig config, Action<ProviderUsage>? progressCallback = null, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(config);
+
+        var providerLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId);
+
         // 1. Load Accounts
         var accounts = this.LoadAccounts();
-        if (accounts == null || accounts.Accounts == null || !accounts.Accounts.Any())
+        if (accounts == null || accounts.Accounts == null || accounts.Accounts.Count == 0)
         {
             return new[]
             {
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = this.Definition.DisplayName,
+                    ProviderName = providerLabel,
                     IsAvailable = false,
                     IsQuotaBased = this.Definition.IsQuotaBased,
                     PlanType = this.Definition.PlanType,
@@ -117,7 +128,7 @@ public class GeminiProvider : ProviderBase
                 var accessToken = await this.RefreshTokenAsync(account.RefreshToken).ConfigureAwait(false);
                 var buckets = await this.FetchQuotaAsync(accessToken, account.ProjectId).ConfigureAwait(false);
                 var allBuckets = buckets ?? new List<Bucket>();
-                var modelQuotaCards = BuildModelQuotaCards(this.ProviderId, this.Definition.DisplayName, allBuckets, account.Email);
+                var modelQuotaCards = BuildModelQuotaCards(this.ProviderId, providerLabel, allBuckets, account.Email);
                 this._logger.LogDebug(
                     "Gemini quota received {BucketCount} bucket(s) and resolved {ModelCount} model card(s): {BucketSummary}",
                     allBuckets.Count,
@@ -129,7 +140,7 @@ public class GeminiProvider : ProviderBase
                             var modelId = TryGetModelId(bucket) ?? "unknown-model";
                             var remaining = UsageMath.ClampPercent(bucket.RemainingFraction * 100.0);
                             var reset = bucket.ResetTime ?? "none";
-                            return $"{modelId}:{remaining:F1}%@{reset}";
+                            return $"{modelId}:{remaining.ToString("F1", CultureInfo.InvariantCulture)}%@{reset}";
                         })));
 
                 results.AddRange(modelQuotaCards);
@@ -141,7 +152,7 @@ public class GeminiProvider : ProviderBase
             }
         }
 
-        if (!results.Any())
+        if (results.Count == 0)
         {
             return new[] { this.CreateUnavailableUsage("Failed to fetch quota for any account", failureContext: lastFailureContext) };
         }
@@ -152,7 +163,7 @@ public class GeminiProvider : ProviderBase
     private AntigravityAccounts? LoadAccounts()
     {
         var opencodeAccounts = this.LoadAntigravityAccounts();
-        if (opencodeAccounts?.Accounts?.Any() == true)
+        if (opencodeAccounts?.Accounts?.Count > 0)
         {
             return opencodeAccounts;
         }
@@ -171,7 +182,7 @@ public class GeminiProvider : ProviderBase
         try
         {
             var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<AntigravityAccounts>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            return JsonSerializer.Deserialize<AntigravityAccounts>(json, CaseInsensitiveOptions);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -194,7 +205,7 @@ public class GeminiProvider : ProviderBase
             var oauthJson = File.ReadAllText(oauthPath);
             var oauthCreds = JsonSerializer.Deserialize<GeminiOauthCreds>(
                 oauthJson,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                CaseInsensitiveOptions);
             if (oauthCreds == null || string.IsNullOrWhiteSpace(oauthCreds.RefreshToken))
             {
                 this._logger.LogWarning("Gemini oauth creds did not include refresh_token");
@@ -272,19 +283,19 @@ public class GeminiProvider : ProviderBase
             var json = File.ReadAllText(projectsPath);
             var projects = JsonSerializer.Deserialize<GeminiProjects>(
                 json,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                CaseInsensitiveOptions);
             if (projects?.Projects == null || projects.Projects.Count == 0)
             {
                 return null;
             }
 
             var currentDirectory = this._currentDirectoryOverride ?? Directory.GetCurrentDirectory();
-            var normalizedCurrentDirectory = this.NormalizePath(currentDirectory);
+            var normalizedCurrentDirectory = NormalizePath(currentDirectory);
             var bestMatch = projects.Projects
                 .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
                 .Select(pair => new
                 {
-                    Key = this.NormalizePath(pair.Key),
+                    Key = NormalizePath(pair.Key),
                     Value = pair.Value,
                 })
                 .Where(pair => normalizedCurrentDirectory.StartsWith(pair.Key, StringComparison.OrdinalIgnoreCase))
@@ -331,7 +342,7 @@ public class GeminiProvider : ProviderBase
             var json = File.ReadAllText(accountsPath);
             var accounts = JsonSerializer.Deserialize<GeminiGoogleAccounts>(
                 json,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                CaseInsensitiveOptions);
             return accounts?.Active;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -356,7 +367,7 @@ public class GeminiProvider : ProviderBase
                 return null;
             }
 
-            var payload = this.DecodeBase64Url(parts[1]);
+            var payload = DecodeBase64Url(parts[1]);
             using var payloadDoc = JsonDocument.Parse(payload);
             if (payloadDoc.RootElement.TryGetProperty("email", out var emailElement))
             {
@@ -371,13 +382,13 @@ public class GeminiProvider : ProviderBase
         return null;
     }
 
-    private string NormalizePath(string path)
+    private static string NormalizePath(string path)
     {
         var normalized = path.Replace('/', '\\').Trim();
         return normalized.TrimEnd('\\');
     }
 
-    private string DecodeBase64Url(string base64UrlValue)
+    private static string DecodeBase64Url(string base64UrlValue)
     {
         var normalized = base64UrlValue.Replace('-', '+').Replace('_', '/');
         var padding = (4 - (normalized.Length % 4)) % 4;
@@ -450,7 +461,7 @@ public class GeminiProvider : ProviderBase
                     var parts = token.Split('.');
                     if (parts.Length > 1)
                     {
-                        var payload = this.DecodeBase64Url(parts[1]);
+                        var payload = DecodeBase64Url(parts[1]);
                         using var payloadDoc = JsonDocument.Parse(payload);
                         if (payloadDoc.RootElement.TryGetProperty("aud", out var aud) &&
                             string.Equals(aud.GetString(), GeminiPluginClientId, StringComparison.Ordinal))
@@ -471,7 +482,7 @@ public class GeminiProvider : ProviderBase
 
     private async Task<string> DoRefreshTokenAsync(string refreshToken, string clientId, string clientSecret)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token");
+        using var request = new HttpRequestMessage(HttpMethod.Post, OAuthTokenUrl);
         var content = new FormUrlEncodedContent(new Dictionary<string, string>(StringComparer.Ordinal)
         {
             { "client_id", clientId },
@@ -485,12 +496,12 @@ public class GeminiProvider : ProviderBase
         response.EnsureSuccessStatusCode();
 
         var tokenResponse = await response.Content.ReadFromJsonAsync<GeminiTokenResponse>().ConfigureAwait(false);
-        return tokenResponse?.AccessToken ?? throw new Exception("Failed to retrieve access token");
+        return tokenResponse?.AccessToken ?? throw new InvalidOperationException("Failed to retrieve access token");
     }
 
     private async Task<List<Bucket>?> FetchQuotaAsync(string accessToken, string projectId)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota");
+        using var request = new HttpRequestMessage(HttpMethod.Post, QuotaUrl);
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
         request.Content = JsonContent.Create(new { project = projectId });
 
@@ -546,7 +557,7 @@ public class GeminiProvider : ProviderBase
             var remainingPercent = UsageMath.ClampPercent(representative.RemainingFraction * 100.0);
             var usedPercent = 100.0 - remainingPercent;
             var resetTime = ParseResetTimeUtc(representative.ResetTime);
-            var resetSuffix = resetTime.HasValue ? $" (Resets: ({resetTime.Value:MMM dd HH:mm}))" : string.Empty;
+            var resetSuffix = resetTime.HasValue ? $" (Resets: ({resetTime.Value.ToString("MMM dd HH:mm", CultureInfo.InvariantCulture)}))" : string.Empty;
 
             cards.Add(new ProviderUsage
             {
@@ -557,7 +568,7 @@ public class GeminiProvider : ProviderBase
                 CardId = $"model-{modelGroup.Key.ToLowerInvariant().Replace("/", "-", StringComparison.Ordinal)}",
                 GroupId = providerId,
                 ModelName = modelGroup.Key,
-                Description = $"{remainingPercent:F1}% remaining{resetSuffix}",
+                Description = $"{remainingPercent.ToString("F1", CultureInfo.InvariantCulture)}% remaining{resetSuffix}",
                 NextResetTime = resetTime,
                 UsedPercent = usedPercent,
                 IsQuotaBased = true,
@@ -652,22 +663,6 @@ public class GeminiProvider : ProviderBase
         };
     }
 
-    private static string RedactEmail(string? email)
-    {
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            return "(unknown)";
-        }
-
-        var atIndex = email.IndexOf("@", StringComparison.Ordinal);
-        if (atIndex <= 0)
-        {
-            return "***";
-        }
-
-        return email[0] + "***" + email[atIndex..];
-    }
-
     private static string TruncateForLog(string? value, int maxLength = 600)
     {
         if (string.IsNullOrEmpty(value))
@@ -683,12 +678,12 @@ public class GeminiProvider : ProviderBase
         return value[..maxLength] + "...";
     }
 
-    private class AntigravityAccounts
+    private sealed class AntigravityAccounts
     {
         public List<Account>? Accounts { get; set; }
     }
 
-    private class Account
+    private sealed class Account
     {
         public string Email { get; set; } = string.Empty;
 
@@ -697,13 +692,13 @@ public class GeminiProvider : ProviderBase
         public string ProjectId { get; set; } = string.Empty;
     }
 
-    private class GeminiTokenResponse
+    private sealed class GeminiTokenResponse
     {
         [JsonPropertyName("access_token")]
         public string? AccessToken { get; set; }
     }
 
-    private class GeminiOauthCreds
+    private sealed class GeminiOauthCreds
     {
         [JsonPropertyName("refresh_token")]
         public string? RefreshToken { get; set; }
@@ -712,25 +707,25 @@ public class GeminiProvider : ProviderBase
         public string? IdToken { get; set; }
     }
 
-    private class GeminiGoogleAccounts
+    private sealed class GeminiGoogleAccounts
     {
         [JsonPropertyName("active")]
         public string? Active { get; set; }
     }
 
-    private class GeminiProjects
+    private sealed class GeminiProjects
     {
         [JsonPropertyName("projects")]
         public Dictionary<string, string>? Projects { get; set; }
     }
 
-    private class GeminiQuotaResponse
+    private sealed class GeminiQuotaResponse
     {
         [JsonPropertyName("buckets")]
         public List<Bucket>? Buckets { get; set; }
     }
 
-    private class Bucket
+    private sealed class Bucket
     {
         [JsonPropertyName("remainingFraction")]
         public double RemainingFraction { get; set; }

@@ -2,6 +2,9 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -15,6 +18,11 @@ namespace AIUsageTracker.UI.Slim;
 
 public partial class SettingsWindow
 {
+    private const string ResourceKeyTertiaryText = "TertiaryText";
+    private const string ResourceKeySecondaryText = "SecondaryText";
+    private const string ResourceKeyProgressBarGreen = "ProgressBarGreen";
+    private const string ResourceKeyStatusTextWarning = "StatusTextWarning";
+
     private sealed record StatusPanelPresentation(
         bool UseHorizontalLayout,
         string PrimaryText,
@@ -22,8 +30,9 @@ public partial class SettingsWindow
         bool PrimaryItalic,
         IReadOnlyList<StatusSecondaryLine> SecondaryLines);
 
-    private readonly record struct StatusSecondaryLine(
+    internal readonly record struct StatusSecondaryLine(
         string Text,
+        string? ResourceKey = null,
         bool Wrap = false,
         bool ExtraTopMargin = false);
 
@@ -126,7 +135,7 @@ public partial class SettingsWindow
         displayItems.AddRange(derivedItems);
 
         return displayItems
-            .OrderBy(item => ProviderMetadataCatalog.ResolveDisplayLabel(item.Config.ProviderId), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(item => ProviderMetadataCatalog.GetConfiguredDisplayName(item.Config.ProviderId), StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.Config.ProviderId, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -136,21 +145,19 @@ public partial class SettingsWindow
         ProviderUsage? usage,
         bool isDerived)
     {
-        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(config.ProviderId);
+        var resolvedProviderId = ResolveProviderOwnerId(config.ProviderId);
         var hasSessionToken = IsSessionToken(config.ApiKey);
         var inputMode = isDerived
             ? ProviderInputMode.DerivedReadOnly
-            : ResolveProviderInputMode(canonicalProviderId, usage, hasSessionToken);
-        var isInactive = isDerived
-            ? false
-            : inputMode switch
-            {
-                ProviderInputMode.AutoDetectedStatus => usage == null || !usage.IsAvailable,
-                ProviderInputMode.SessionAuthStatus => string.IsNullOrWhiteSpace(config.ApiKey) && !(usage?.IsAvailable == true),
-                _ => string.IsNullOrWhiteSpace(config.ApiKey),
-            };
+            : ResolveProviderInputMode(resolvedProviderId, usage, hasSessionToken);
+        var isInactive = !isDerived && inputMode switch
+        {
+            ProviderInputMode.AutoDetectedStatus => usage == null || !usage.IsAvailable,
+            ProviderInputMode.SessionAuthStatus => string.IsNullOrWhiteSpace(config.ApiKey) && usage?.IsAvailable != true,
+            _ => string.IsNullOrWhiteSpace(config.ApiKey),
+        };
         var sessionProviderLabel = inputMode == ProviderInputMode.SessionAuthStatus
-            ? ProviderMetadataCatalog.Find(canonicalProviderId)?.SessionStatusLabel
+            ? ProviderMetadataCatalog.Find(resolvedProviderId)?.SessionStatusLabel
             : null;
 
         return new ProviderSettingsBehavior(
@@ -164,6 +171,11 @@ public partial class SettingsWindow
     {
         return !string.IsNullOrWhiteSpace(apiKey) &&
                !apiKey.StartsWith("sk-", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ResolveProviderOwnerId(string providerId)
+    {
+        return ProviderMetadataCatalog.GetProviderOwnerId(providerId);
     }
 
     private static ProviderConfig CreateDefaultDisplayConfig(string providerId)
@@ -187,9 +199,9 @@ public partial class SettingsWindow
         };
     }
 
-    private static ProviderInputMode ResolveProviderInputMode(string canonicalProviderId, ProviderUsage? usage, bool hasSessionToken)
+    private static ProviderInputMode ResolveProviderInputMode(string providerId, ProviderUsage? usage, bool hasSessionToken)
     {
-        var settingsDef = ProviderMetadataCatalog.Find(canonicalProviderId);
+        var settingsDef = ProviderMetadataCatalog.Find(providerId);
         var settingsMode = settingsDef?.SettingsMode ?? ProviderSettingsMode.StandardApiKey;
         if (settingsMode == ProviderSettingsMode.SessionAuthStatus &&
             (settingsDef?.UseSessionAuthStatusWhenQuotaBasedOrSessionToken ?? false) &&
@@ -223,7 +235,7 @@ public partial class SettingsWindow
 
     private StackPanel BuildStatusPanel(ProviderConfig config, ProviderUsage? usage, ProviderSettingsBehavior settingsBehavior)
     {
-        var presentation = this.CreateStatusPresentation(
+        var presentation = CreateStatusPresentation(
             config,
             usage,
             settingsBehavior,
@@ -249,6 +261,7 @@ public partial class SettingsWindow
         foreach (var line in presentation.SecondaryLines)
         {
             var secondaryText = this.CreateSecondaryStatusText(line.Text);
+            secondaryText.SetResourceReference(TextBlock.ForegroundProperty, line.ResourceKey ?? ResourceKeySecondaryText);
             secondaryText.TextWrapping = line.Wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
             if (line.ExtraTopMargin)
             {
@@ -261,7 +274,7 @@ public partial class SettingsWindow
         return panel;
     }
 
-    private StatusPanelPresentation CreateStatusPresentation(
+    private static StatusPanelPresentation CreateStatusPresentation(
         ProviderConfig config,
         ProviderUsage? usage,
         ProviderSettingsBehavior settingsBehavior,
@@ -269,7 +282,7 @@ public partial class SettingsWindow
     {
         return settingsBehavior.InputMode switch
         {
-            ProviderInputMode.DerivedReadOnly => this.CreateDerivedStatusPresentation(config, usage),
+            ProviderInputMode.DerivedReadOnly => CreateDerivedStatusPresentation(config, usage),
             ProviderInputMode.AutoDetectedStatus => CreateAutoDetectedStatusPresentation(usage, isPrivacyMode),
             ProviderInputMode.ExternalAuthStatus => CreateExternalAuthStatusPresentation(config, usage, isPrivacyMode),
             ProviderInputMode.SessionAuthStatus => CreateSessionAuthStatusPresentation(config, usage, settingsBehavior, isPrivacyMode),
@@ -280,35 +293,34 @@ public partial class SettingsWindow
         };
     }
 
-    private StatusPanelPresentation CreateDerivedStatusPresentation(
+    private static StatusPanelPresentation CreateDerivedStatusPresentation(
         ProviderConfig config,
         ProviderUsage? usage)
     {
         var secondaryLines = new List<StatusSecondaryLine>();
-        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(config.ProviderId ?? string.Empty);
-        var sourceLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(canonicalProviderId);
+        var sourceLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId ?? string.Empty);
         string primaryText;
         string primaryResourceKey;
 
         if (usage?.IsAvailable == true)
         {
             primaryText = $"Derived from {sourceLabel} usage (read-only)";
-            primaryResourceKey = "ProgressBarGreen";
+            primaryResourceKey = ResourceKeyProgressBarGreen;
         }
         else if (usage != null && !string.IsNullOrWhiteSpace(usage.Description))
         {
             primaryText = usage.Description;
-            primaryResourceKey = "TertiaryText";
+            primaryResourceKey = ResourceKeyTertiaryText;
         }
         else
         {
             primaryText = "Derived provider (waiting for usage data)";
-            primaryResourceKey = "TertiaryText";
+            primaryResourceKey = ResourceKeyTertiaryText;
         }
 
         if (usage?.NextResetTime is DateTime derivedReset)
         {
-            secondaryLines.Add(new StatusSecondaryLine($"Next reset: {derivedReset:g}"));
+            secondaryLines.Add(new StatusSecondaryLine(BuildSettingsResetText(usage, derivedReset)));
         }
 
         return new StatusPanelPresentation(
@@ -326,15 +338,22 @@ public partial class SettingsWindow
         var isConnected = usage?.IsAvailable == true;
         var accountInfo = usage?.AccountName;
         var hasAccountInfo = !string.IsNullOrWhiteSpace(accountInfo) && accountInfo is not ("Unknown" or "User");
-        var displayAccount = hasAccountInfo
-            ? (isPrivacyMode ? PrivacyHelper.MaskAccountIdentifier(accountInfo!) : accountInfo!)
-            : "No account detected";
+        string displayAccount;
+        if (hasAccountInfo)
+        {
+            displayAccount = isPrivacyMode ? PrivacyHelper.MaskAccountIdentifier(accountInfo!) : accountInfo!;
+        }
+        else
+        {
+            displayAccount = "No account detected";
+        }
+
         var secondaryLines = new List<StatusSecondaryLine>();
 
         return new StatusPanelPresentation(
             UseHorizontalLayout: false,
             PrimaryText: isConnected ? $"Auto-Detected ({displayAccount})" : "Searching for local process...",
-            PrimaryResourceKey: isConnected ? "ProgressBarGreen" : "TertiaryText",
+            PrimaryResourceKey: isConnected ? ResourceKeyProgressBarGreen : ResourceKeyTertiaryText,
             PrimaryItalic: !isConnected,
             SecondaryLines: secondaryLines);
     }
@@ -349,18 +368,28 @@ public partial class SettingsWindow
         var isAuthenticated = !string.IsNullOrWhiteSpace(config.ApiKey) ||
                               usage?.IsAvailable == true ||
                               hasUsername;
-        var displayText = !isAuthenticated
-            ? "Not Authenticated"
-            : !hasUsername
-                ? "Authenticated"
-                : isPrivacyMode
-                    ? $"Authenticated ({PrivacyHelper.MaskAccountIdentifier(username!)})"
-                    : $"Authenticated ({username})";
+        string displayText;
+        if (!isAuthenticated)
+        {
+            displayText = "Not Authenticated";
+        }
+        else if (!hasUsername)
+        {
+            displayText = "Authenticated";
+        }
+        else if (isPrivacyMode)
+        {
+            displayText = $"Authenticated ({PrivacyHelper.MaskAccountIdentifier(username!)})";
+        }
+        else
+        {
+            displayText = $"Authenticated ({username})";
+        }
 
         return new StatusPanelPresentation(
             UseHorizontalLayout: true,
             PrimaryText: displayText,
-            PrimaryResourceKey: isAuthenticated ? "ProgressBarGreen" : "TertiaryText",
+            PrimaryResourceKey: isAuthenticated ? ResourceKeyProgressBarGreen : ResourceKeyTertiaryText,
             PrimaryItalic: false,
             SecondaryLines: Array.Empty<StatusSecondaryLine>());
     }
@@ -373,7 +402,7 @@ public partial class SettingsWindow
     {
         var providerSessionLabel = settingsBehavior.SessionProviderLabel ??
                                    ProviderMetadataCatalog.GetConfiguredDisplayName(
-                                       ProviderMetadataCatalog.GetCanonicalProviderId(config.ProviderId ?? string.Empty));
+                                       config.ProviderId ?? string.Empty);
         var hasSessionToken = IsSessionToken(config.ApiKey);
         var isAuthenticated = hasSessionToken || usage?.IsAvailable == true;
         var accountName = usage?.AccountName;
@@ -390,17 +419,17 @@ public partial class SettingsWindow
         var resolvedReset = usage?.NextResetTime;
         if (resolvedReset is DateTime nextReset)
         {
-            secondaryLines.Add(new StatusSecondaryLine($"Next reset: {nextReset:g}"));
+            secondaryLines.Add(BuildSettingsResetStatusLine(usage!, nextReset));
         }
         else if (isAuthenticated)
         {
-            secondaryLines.Add(new StatusSecondaryLine("Next reset: loading..."));
+            secondaryLines.Add(BuildSettingsResetLoadingStatusLine());
         }
 
         return new StatusPanelPresentation(
             UseHorizontalLayout: false,
             PrimaryText: displayText,
-            PrimaryResourceKey: isAuthenticated ? "ProgressBarGreen" : "TertiaryText",
+            PrimaryResourceKey: isAuthenticated ? ResourceKeyProgressBarGreen : ResourceKeyTertiaryText,
             PrimaryItalic: false,
             SecondaryLines: secondaryLines);
     }
@@ -428,6 +457,31 @@ public partial class SettingsWindow
         return hasSessionToken && isUsageAvailable != true
             ? $"Authenticated via {providerSessionLabel} - refresh to load quota"
             : $"Authenticated via {providerSessionLabel}";
+    }
+
+    internal static StatusSecondaryLine BuildSettingsResetStatusLine(ProviderUsage usage, DateTime nextReset)
+    {
+        return new StatusSecondaryLine(
+            BuildSettingsResetText(usage, nextReset),
+            ResourceKeyStatusTextWarning);
+    }
+
+    internal static StatusSecondaryLine BuildSettingsResetLoadingStatusLine()
+    {
+        return new StatusSecondaryLine(
+            "Next reset: loading...",
+            ResourceKeyStatusTextWarning);
+    }
+
+    private static string BuildSettingsResetText(ProviderUsage usage, DateTime nextReset)
+    {
+        var resetLabel = MainWindowRuntimeLogic.ResolveResetWindowLabel(usage);
+        var resetText = MainWindowRuntimeLogic.IsMinimaxCodingPlanUsage(usage)
+            ? MainWindowRuntimeLogic.FormatUtcResetDateTime(nextReset)
+            : nextReset.ToString("g", CultureInfo.CurrentCulture);
+        return string.IsNullOrWhiteSpace(resetLabel)
+            ? $"Next reset: {resetText}"
+            : $"Next {resetLabel} reset: {resetText}";
     }
 
     private StackPanel BuildProviderHeader(ProviderConfig config, ProviderSettingsBehavior settingsBehavior, bool isDerived)
@@ -521,7 +575,7 @@ public partial class SettingsWindow
             Margin = margin,
             IsEnabled = isEnabled,
         };
-        checkBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
+        checkBox.SetResourceReference(CheckBox.ForegroundProperty, ResourceKeySecondaryText);
         checkBox.Checked += (_, _) => onCheckedChanged(true);
         checkBox.Unchecked += (_, _) => onCheckedChanged(false);
         return checkBox;
@@ -547,43 +601,6 @@ public partial class SettingsWindow
         return status;
     }
 
-    private CheckBox CreateSubTrayCheckBox(ProviderConfig config, string detailName)
-    {
-        var enabledSubTrays = config.EnabledSubTrays ?? new List<string>();
-        var checkBox = new CheckBox
-        {
-            Content = detailName,
-            IsChecked = enabledSubTrays.Contains(detailName, StringComparer.OrdinalIgnoreCase),
-            FontSize = 10,
-            Margin = new Thickness(0, 1, 0, 1),
-            Cursor = Cursors.Hand,
-        };
-        checkBox.SetResourceReference(CheckBox.ForegroundProperty, "SecondaryText");
-        checkBox.Checked += (_, _) =>
-        {
-            var trackedConfig = this.GetOrCreateTrackedConfig(config);
-            trackedConfig.EnabledSubTrays ??= new List<string>();
-            if (!trackedConfig.EnabledSubTrays.Contains(detailName, StringComparer.OrdinalIgnoreCase))
-            {
-                var enabledSubTrays = trackedConfig.EnabledSubTrays.ToList();
-                enabledSubTrays.Add(detailName);
-                trackedConfig.EnabledSubTrays = enabledSubTrays;
-            }
-
-            this.MarkSettingsChanged(refreshTrayIcons: true);
-        };
-        checkBox.Unchecked += (_, _) =>
-        {
-            var trackedConfig = this.GetOrCreateTrackedConfig(config);
-            trackedConfig.EnabledSubTrays ??= new List<string>();
-            var enabledSubTrays = trackedConfig.EnabledSubTrays.ToList();
-            enabledSubTrays.RemoveAll(name => name.Equals(detailName, StringComparison.OrdinalIgnoreCase));
-            trackedConfig.EnabledSubTrays = enabledSubTrays;
-            this.MarkSettingsChanged(refreshTrayIcons: true);
-        };
-        return checkBox;
-    }
-
     private FrameworkElement BuildApiKeyEditor(ProviderConfig config)
     {
         var keyBox = new TextBox
@@ -605,41 +622,235 @@ public partial class SettingsWindow
             };
         }
 
-        var authSourceLabel = BuildAuthSourceLabel(config.AuthSource);
-        if (authSourceLabel == null)
+        var authSourcePanel = BuildAuthSourcePanel(config.AuthSource);
+        if (authSourcePanel == null)
         {
             return keyBox;
         }
 
         var panel = new StackPanel();
         panel.Children.Add(keyBox);
-        panel.Children.Add(authSourceLabel);
+        panel.Children.Add(authSourcePanel);
         return panel;
     }
 
-    private static TextBlock? BuildAuthSourceLabel(string? authSource)
+    private static FrameworkElement? BuildAuthSourcePanel(string? authSource)
     {
-        if (string.IsNullOrWhiteSpace(authSource))
+        var (sourceLabel, removalHint, paths) = ResolveAuthSourceDisplay(authSource);
+        if (sourceLabel == null)
         {
             return null;
         }
 
-        // Only show for external sources where the user needs to know the origin.
-        if (!AuthSource.IsRooOrKilo(authSource) && !AuthSource.IsEnvironment(authSource))
-        {
-            return null;
-        }
+        var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
 
-        var label = new TextBlock
+        // Source line
+        var sourceLine = new TextBlock
         {
-            Text = $"Source: {authSource}",
             FontSize = 9,
-            FontStyle = FontStyles.Italic,
-            Margin = new Thickness(0, 2, 0, 0),
+            Margin = new Thickness(0, 0, 0, 1),
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
-        label.SetResourceReference(TextBlock.ForegroundProperty, "TertiaryText");
-        return label;
+        sourceLine.SetResourceReference(TextBlock.ForegroundProperty, ResourceKeySecondaryText);
+        sourceLine.Inlines.Add(new System.Windows.Documents.Run("Source: ") { FontWeight = FontWeights.SemiBold });
+        sourceLine.Inlines.Add(new System.Windows.Documents.Run(sourceLabel));
+        if (!string.IsNullOrEmpty(removalHint))
+        {
+            sourceLine.ToolTip = $"To remove: {removalHint}";
+        }
+
+        panel.Children.Add(sourceLine);
+
+        // File path lines (one per path, selectable for copy + edit/folder buttons)
+        foreach (var path in paths)
+        {
+            var row = new Grid { Margin = new Thickness(0, 2, 0, 0) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var pathBox = new TextBox
+            {
+                Text = path,
+                FontSize = 8,
+                IsReadOnly = true,
+                BorderThickness = new Thickness(0),
+                Background = System.Windows.Media.Brushes.Transparent,
+                Padding = new Thickness(0),
+                Margin = new Thickness(0, 0, 6, 0),
+                TextWrapping = TextWrapping.NoWrap,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
+                ToolTip = path,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            pathBox.SetResourceReference(TextBox.ForegroundProperty, ResourceKeySecondaryText);
+            Grid.SetColumn(pathBox, 0);
+            row.Children.Add(pathBox);
+
+            var capturedPath = path;
+            var fileExists = File.Exists(path);
+
+            var editButton = new Button
+            {
+                Content = "Edit",
+                FontSize = 9,
+                Padding = new Thickness(8, 3, 8, 3),
+                Margin = new Thickness(0, 0, 4, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = fileExists ? $"Open in Notepad: {path}" : "File does not exist yet",
+                IsEnabled = fileExists,
+            };
+            editButton.SetResourceReference(Button.BackgroundProperty, "AccentColor");
+            editButton.SetResourceReference(Button.ForegroundProperty, "AccentForeground");
+            editButton.Click += (_, _) => OpenInNotepad(capturedPath);
+            Grid.SetColumn(editButton, 1);
+            row.Children.Add(editButton);
+
+            var folderButton = new Button
+            {
+                Content = "Folder",
+                FontSize = 9,
+                Padding = new Thickness(8, 3, 8, 3),
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = $"Show in Explorer: {Path.GetDirectoryName(path)}",
+            };
+            folderButton.Click += (_, _) => OpenPathInExplorer(capturedPath);
+            Grid.SetColumn(folderButton, 2);
+            row.Children.Add(folderButton);
+
+            panel.Children.Add(row);
+        }
+
+        return panel;
+    }
+
+    private static void OpenInNotepad(string path)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "notepad.exe",
+                Arguments = $"\"{path}\"",
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // Intentionally ignored - notepad launch failure is non-critical
+        }
+    }
+
+    private static void OpenPathInExplorer(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{path}\"",
+                    UseShellExecute = true,
+                });
+            }
+            else
+            {
+                var dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"\"{dir}\"",
+                        UseShellExecute = true,
+                    });
+                }
+            }
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // If shell open fails, silently ignore — the path is still selectable for manual navigation.
+        }
+    }
+
+    private static (string? SourceLabel, string? RemovalHint, IReadOnlyList<string> Paths) ResolveAuthSourceDisplay(string? authSource)
+    {
+        if (string.IsNullOrWhiteSpace(authSource) ||
+            string.Equals(authSource, AuthSource.None, StringComparison.OrdinalIgnoreCase))
+        {
+            return (null, null, Array.Empty<string>());
+        }
+
+        // Environment variable
+        if (AuthSource.TryParseEnvironmentVariable(authSource, out var varName))
+        {
+            return (
+                $"Environment variable {varName}",
+                $"Delete the {varName} environment variable from System Properties → Environment Variables, then restart.",
+                Array.Empty<string>());
+        }
+
+        // Roo Code
+        if (AuthSource.TryParseRooPath(authSource, out var rooPath))
+        {
+            return (
+                "Roo Code",
+                "Edit or delete the file below to remove the key from Roo Code.",
+                new[] { rooPath });
+        }
+
+        // Kilo Code
+        if (AuthSource.IsRooOrKilo(authSource))
+        {
+            return (
+                "Kilo Code",
+                "Remove the key from Kilo Code settings.",
+                Array.Empty<string>());
+        }
+
+        // Config file(s) — show full paths
+        var configPaths = AuthSource.ParseConfigFilePaths(authSource);
+        if (configPaths.Count > 0)
+        {
+            // Determine human-readable source application from paths
+            var appName = ResolveConfigSourceAppName(configPaths);
+            return (
+                appName,
+                "Edit or delete the file(s) below, or clear the key field above and save.",
+                configPaths);
+        }
+
+        // Fallback for other known constants (OpenCode Session, Codex Native, etc.)
+        return (authSource, null, Array.Empty<string>());
+    }
+
+    private static string ResolveConfigSourceAppName(IReadOnlyList<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            if (path.Contains("opencode", StringComparison.OrdinalIgnoreCase))
+            {
+                return "OpenCode";
+            }
+
+            if (path.Contains("roo", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Roo Code";
+            }
+
+            if (path.Contains("kilo", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Kilo Code";
+            }
+
+            if (path.Contains("AIUsageTracker", StringComparison.OrdinalIgnoreCase))
+            {
+                return "AI Usage Tracker";
+            }
+        }
+
+        return "Config file";
     }
 
     private static string GetDisplayApiKey(string? apiKey, bool isPrivacyMode)
@@ -671,68 +882,13 @@ public partial class SettingsWindow
             FontSize = 10,
             Margin = new Thickness(0, 3, 0, 0),
         };
-        statusText.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
+        statusText.SetResourceReference(TextBlock.ForegroundProperty, ResourceKeySecondaryText);
         return statusText;
     }
 
     private FrameworkElement CreateProviderIcon(string providerId)
     {
-        // Map to SVG or create fallback
-        var image = new Image();
-        image.Source = this.GetProviderImageSource(providerId);
-        return image;
-    }
-
-    private ImageSource GetProviderImageSource(string providerId)
-    {
-        try
-        {
-            var filename = ProviderMetadataCatalog.GetIconAssetName(providerId);
-
-            var appDir = AppDomain.CurrentDomain.BaseDirectory;
-
-            // Try SVG first
-            var svgPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.svg");
-            if (System.IO.File.Exists(svgPath))
-            {
-                // Return a simple colored circle as fallback (SVG loading requires SharpVectors)
-                return this.CreateFallbackIcon(providerId);
-            }
-
-            // Try ICO
-            var icoPath = System.IO.Path.Combine(appDir, "Assets", "ProviderLogos", $"{filename}.ico");
-            if (System.IO.File.Exists(icoPath))
-            {
-                var icoImage = new System.Windows.Media.Imaging.BitmapImage();
-                icoImage.BeginInit();
-                icoImage.UriSource = new Uri(icoPath);
-                icoImage.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                icoImage.EndInit();
-                icoImage.Freeze();
-                return icoImage;
-            }
-        }
-        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or NotSupportedException)
-        {
-            this._logger.LogDebug(ex, "Failed to load provider icon for {ProviderId}", providerId);
-        }
-
-        return this.CreateFallbackIcon(providerId);
-    }
-
-    private ImageSource CreateFallbackIcon(string providerId)
-    {
-        // Create a simple colored circle as fallback
-        var (color, _) = global::AIUsageTracker.UI.Slim.Services.WpfProviderIconService.GetBadge(providerId, Brushes.Gray);
-
-        // Return a drawing image with just a colored rectangle (simplified)
-        var drawing = new GeometryDrawing(
-            color,
-            new Pen(Brushes.Transparent, 0),
-            new RectangleGeometry(new Rect(0, 0, 16, 16)));
-        var image = new DrawingImage(drawing);
-        image.Freeze();
-        return image;
+        return this._providerIconService.CreateIcon(providerId);
     }
 
     private ProviderConfig GetOrCreateTrackedConfig(ProviderConfig config)
@@ -780,12 +936,12 @@ public partial class SettingsWindow
         var hidden = this._preferences.HiddenProviderItemIds;
 
         // Run the same pipeline as the main window (no hidden filter) to get every card
-        // that could potentially appear, then group by canonical provider.
+        // that could potentially appear, then group by owner provider.
         var allCards = MainWindowRuntimeLogic.BuildMainWindowUsageList(this._usages).ToList();
 
         var groups = allCards
             .GroupBy(
-                u => ProviderMetadataCatalog.GetCanonicalProviderId(u.ProviderId ?? string.Empty),
+                u => ResolveProviderOwnerId(u.ProviderId ?? string.Empty),
                 StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -803,7 +959,7 @@ public partial class SettingsWindow
                     Tag = usage.ProviderId,
                     IsChecked = !hidden.Contains(usage.ProviderId ?? string.Empty, StringComparer.OrdinalIgnoreCase),
                     Margin = new Thickness(0, 2, 0, 6),
-                    Foreground = (Brush)this.FindResource("SecondaryText"),
+                    Foreground = (Brush)this.FindResource(ResourceKeySecondaryText),
                 };
                 checkBox.Checked += this.ProviderVisibility_Changed;
                 checkBox.Unchecked += this.ProviderVisibility_Changed;
@@ -818,7 +974,7 @@ public partial class SettingsWindow
                     Text = definition?.DisplayName ?? group.Key,
                     FontWeight = FontWeights.SemiBold,
                     Margin = new Thickness(0, 4, 0, 4),
-                    Foreground = (Brush)this.FindResource("SecondaryText"),
+                    Foreground = (Brush)this.FindResource(ResourceKeySecondaryText),
                 });
 
                 for (var i = 0; i < cards.Count; i++)
@@ -830,7 +986,7 @@ public partial class SettingsWindow
                         Tag = usage.ProviderId,
                         IsChecked = !hidden.Contains(usage.ProviderId ?? string.Empty, StringComparer.OrdinalIgnoreCase),
                         Margin = new Thickness(15, 2, 0, i == cards.Count - 1 ? 16 : 2),
-                        Foreground = (Brush)this.FindResource("SecondaryText"),
+                        Foreground = (Brush)this.FindResource(ResourceKeySecondaryText),
                     };
                     checkBox.Checked += this.ProviderVisibility_Changed;
                     checkBox.Unchecked += this.ProviderVisibility_Changed;

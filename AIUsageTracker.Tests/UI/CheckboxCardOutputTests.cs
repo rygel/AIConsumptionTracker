@@ -3,7 +3,6 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Infrastructure.Helpers;
 using AIUsageTracker.UI.Slim;
 
 namespace AIUsageTracker.Tests.UI;
@@ -23,7 +22,6 @@ public sealed class CheckboxCardOutputTests
     // Shared fixture: codex provider with 5h burst + Weekly rolling quota windows.
     // Codex has SupportsAccountIdentity = true, so ResolveDisplayAccountName works.
     // ---------------------------------------------------------------------------
-
     private static ProviderUsage BuildCodexDualQuotaUsage(
         double burstUsedPercent = 40.0,
         double rollingUsedPercent = 60.0,
@@ -59,11 +57,10 @@ public sealed class CheckboxCardOutputTests
     }
 
     // ---------------------------------------------------------------------------
-    // "Show used percentages" toggle (Settings → PercentageDisplayMode = Used/Remaining)
+    // "Show used percentages" toggle (Settings → ShowUsedPercentages)
     // When checked: status text says "X% used"
     // When unchecked: status text says "X% remaining"
     // ---------------------------------------------------------------------------
-
     [Fact]
     public void ShowUsedPercentages_Checked_StatusTextContainsUsed()
     {
@@ -91,7 +88,6 @@ public sealed class CheckboxCardOutputTests
     // When ShowDualQuotaBars is false in the WPF layer, BuildSingleDualQuotaStatusText
     // is called to collapse the two bars into one status segment.
     // ---------------------------------------------------------------------------
-
     [Fact]
     public void ShowDualQuotaBars_Checked_HasDualBuckets_LabelsAndStatusTextPopulated()
     {
@@ -154,7 +150,6 @@ public sealed class CheckboxCardOutputTests
     // When a provider has dual buckets, showing a single reset timestamp is
     // misleading, so SuppressSingleResetTime is set to true.
     // ---------------------------------------------------------------------------
-
     [Fact]
     public void DualQuotaBars_Present_SuppressesSingleResetTime()
     {
@@ -162,7 +157,8 @@ public sealed class CheckboxCardOutputTests
         var presentation = MainWindowRuntimeLogic.Create(usage, showUsed: true);
 
         Assert.True(presentation.HasDualBuckets);
-        Assert.True(presentation.SuppressSingleResetTime,
+        Assert.True(
+            presentation.SuppressSingleResetTime,
             "Single reset-time slot must be suppressed when dual quota bars are active");
     }
 
@@ -181,7 +177,6 @@ public sealed class CheckboxCardOutputTests
     // When checked: ComputePaceColor returns IsPaceAdjusted = true and a badge text
     // When unchecked: ComputePaceColor returns IsPaceAdjusted = false and empty badge text
     // ---------------------------------------------------------------------------
-
     [Fact]
     public void EnablePaceAdjustment_Checked_PaceBadgeTextIsNonEmpty()
     {
@@ -196,7 +191,8 @@ public sealed class CheckboxCardOutputTests
             nowUtc: now);
 
         Assert.True(result.IsPaceAdjusted);
-        Assert.False(string.IsNullOrEmpty(result.BadgeText),
+        Assert.False(
+            string.IsNullOrEmpty(result.BadgeText),
             "Pace badge text must be non-empty when pace adjustment is enabled");
     }
 
@@ -218,7 +214,6 @@ public sealed class CheckboxCardOutputTests
     // When checked: account name is masked (e.g. "u***@e***.com")
     // When unchecked: account name is shown as-is
     // ---------------------------------------------------------------------------
-
     [Fact]
     public void IsPrivacyMode_Unchecked_ReturnsRealAccountName()
     {
@@ -239,7 +234,8 @@ public sealed class CheckboxCardOutputTests
             isPrivacyMode: true);
 
         // Masked — must not expose the plain email
-        Assert.False(string.IsNullOrWhiteSpace(name),
+        Assert.False(
+            string.IsNullOrWhiteSpace(name),
             "Masked name must be non-empty (privacy placeholder)");
         Assert.NotEqual("user@example.com", name);
     }
@@ -262,7 +258,6 @@ public sealed class CheckboxCardOutputTests
     // This is a slot configuration preference. Asserting that the preference state
     // round-trips correctly and that the CardSecondaryBadge slot can be set to UsageRate.
     // ---------------------------------------------------------------------------
-
     [Fact]
     public void ShowUsagePerHour_Checked_PreferenceStateIsTrue()
     {
@@ -290,7 +285,6 @@ public sealed class CheckboxCardOutputTests
     // When checked: the ResetAbsolute slot is overridden to show a relative format.
     // The override logic lives in the WPF renderer; here we assert the preference state.
     // ---------------------------------------------------------------------------
-
     [Fact]
     public void UseRelativeResetTime_Checked_PreferenceStateIsTrue()
     {
@@ -310,7 +304,6 @@ public sealed class CheckboxCardOutputTests
     // Controls whether the progress bar background is rendered inside the card.
     // The effect is WPF-only; we assert the preference round-trips.
     // ---------------------------------------------------------------------------
-
     [Fact]
     public void CardBackgroundBar_Checked_DefaultIsTrue()
     {
@@ -329,7 +322,6 @@ public sealed class CheckboxCardOutputTests
     // "Card compact mode" checkbox (Settings → CardCompactMode)
     // Controls row height in the WPF card renderer. We assert the preference state.
     // ---------------------------------------------------------------------------
-
     [Fact]
     public void CardCompactMode_Checked_PreferenceStateIsTrue()
     {
@@ -348,7 +340,6 @@ public sealed class CheckboxCardOutputTests
     // "Bold" / "Italic" font checkboxes (Settings → FontBold / FontItalic)
     // Applied to font rendering in WPF; we assert preference state round-trips.
     // ---------------------------------------------------------------------------
-
     [Fact]
     public void FontBold_Checked_PreferenceStateIsTrue()
     {
@@ -366,7 +357,6 @@ public sealed class CheckboxCardOutputTests
     // ---------------------------------------------------------------------------
     // Dual quota bar tier — high/low usage produces correct PaceTier
     // ---------------------------------------------------------------------------
-
     [Fact]
     public void HighUsage_DualBucketBurst_IsOverPace()
     {

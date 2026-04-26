@@ -2,7 +2,6 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-using System.Linq;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.UI.Slim;
@@ -125,7 +124,7 @@ public class GroupedUsageDisplayAdapterTests
     [Fact]
     public void Expand_ClaudeSnapshot_PassesThroughProviderDetails_ToParentCard()
     {
-        // ProviderDetails is the single source of truth: window cards flow through to WindowCards.
+        // Providers without models render as a legacy parent card with window details.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -138,8 +137,20 @@ public class GroupedUsageDisplayAdapterTests
                     UsedPercent = 73,
                     ProviderDetails = new[]
                     {
-                        new ProviderUsage { ProviderId = "claude-code", Name = "Current Session", WindowKind = WindowKind.Burst,   UsedPercent = 14.0 },
-                        new ProviderUsage { ProviderId = "claude-code", Name = "All Models",      WindowKind = WindowKind.Rolling, UsedPercent = 73.0 },
+                        new ProviderUsage
+                        {
+                            ProviderId = "claude-code",
+                            Name = "Current Session",
+                            WindowKind = WindowKind.Burst,
+                            UsedPercent = 73,
+                        },
+                        new ProviderUsage
+                        {
+                            ProviderId = "claude-code",
+                            Name = "All Models",
+                            WindowKind = WindowKind.Rolling,
+                            UsedPercent = 27,
+                        },
                     },
                 },
             },
@@ -198,6 +209,54 @@ public class GroupedUsageDisplayAdapterTests
     }
 
     [Fact]
+    public void Expand_FlatCardWithoutReset_DoesNotSynthesizeDefaultDate()
+    {
+        var now = DateTime.UtcNow;
+        var snapshot = new AgentGroupedUsageSnapshot
+        {
+            Providers = new[]
+            {
+                new AgentGroupedProviderUsage
+                {
+                    ProviderId = "minimax-coding-plan",
+                    ProviderName = "Minimax.io Coding Plan",
+                    IsAvailable = true,
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Coding,
+                    FetchedAt = now,
+                    Models = new[]
+                    {
+                        new AgentGroupedModelUsage
+                        {
+                            ModelId = "burst",
+                            ModelName = "5h",
+                            RemainingPercentage = 100,
+                            UsedPercentage = 0,
+                            NextResetTime = null,
+                            QuotaBuckets = new[]
+                            {
+                                new AgentGroupedQuotaBucketUsage
+                                {
+                                    BucketId = "effective",
+                                    BucketName = "Effective Quota",
+                                    RemainingPercentage = 100,
+                                    UsedPercentage = 0,
+                                    NextResetTime = null,
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
+
+        var burst = Assert.Single(usages);
+        Assert.Null(burst.NextResetTime);
+    }
+
+    [Fact]
     public void Expand_GithubCopilotWithSingleModel_ProducesSingleFlatCard()
     {
         // Any provider with models uses flat cards — one card per model.
@@ -218,8 +277,8 @@ public class GroupedUsageDisplayAdapterTests
                     {
                         new AgentGroupedModelUsage
                         {
-                            ModelId = "weekly",
-                            ModelName = "Weekly Quota",
+                            ModelId = "monthly",
+                            ModelName = "Monthly Quota",
                             RemainingPercentage = 90,
                         },
                     },
@@ -231,8 +290,8 @@ public class GroupedUsageDisplayAdapterTests
 
         Assert.Single(usages);
         Assert.Equal("github-copilot", usages[0].ProviderId);
-        Assert.Equal("weekly", usages[0].CardId);
-        Assert.Equal("Weekly Quota", usages[0].ProviderName);
+        Assert.Equal("monthly", usages[0].CardId);
+        Assert.Equal("Monthly Quota", usages[0].ProviderName);
     }
 
     [Fact]
@@ -522,9 +581,7 @@ public class GroupedUsageDisplayAdapterTests
     [Fact]
     public void Expand_KimiSnapshot_AttachesProviderDetailsToParent()
     {
-        // Kimi has no Model-type details; all its details are QuotaWindow (Weekly + 5h).
-        // ProviderDetails window cards must flow through to WindowCards on the parent
-        // so that TryGetDualQuotaBucketPresentation can render two bars.
+        // Providers without models render as a parent card with window details.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -537,8 +594,20 @@ public class GroupedUsageDisplayAdapterTests
                     UsedPercent = 25,
                     ProviderDetails = new[]
                     {
-                        new ProviderUsage { ProviderId = "kimi-for-coding", Name = "Weekly Limit", WindowKind = WindowKind.Rolling, UsedPercent = 25.0 },
-                        new ProviderUsage { ProviderId = "kimi-for-coding", Name = "5h Limit",     WindowKind = WindowKind.Burst,   UsedPercent = 0.0  },
+                        new ProviderUsage
+                        {
+                            ProviderId = "kimi-for-coding",
+                            Name = "Weekly Limit",
+                            WindowKind = WindowKind.Rolling,
+                            UsedPercent = 25,
+                        },
+                        new ProviderUsage
+                        {
+                            ProviderId = "kimi-for-coding",
+                            Name = "5h Limit",
+                            WindowKind = WindowKind.Burst,
+                            UsedPercent = 0,
+                        },
                     },
                 },
             },
@@ -618,7 +687,7 @@ public class GroupedUsageDisplayAdapterTests
     public void Expand_CodexSnapshot_ProviderDetailsIgnored_WhenModelsPresent()
     {
         // When Models are present, flat cards are built from Models only.
-        // ProviderDetails are not used; there is no parent aggregate card.
+        // There is no parent aggregate card.
         var snapshot = new AgentGroupedUsageSnapshot
         {
             Providers = new[]
@@ -638,11 +707,6 @@ public class GroupedUsageDisplayAdapterTests
                             RemainingPercentage = 80,
                         },
                     },
-                    ProviderDetails = new[]
-                    {
-                        new ProviderUsage { ProviderId = "codex", Name = "5-hour quota", WindowKind = WindowKind.Burst,   UsedPercent = 20.0 },
-                        new ProviderUsage { ProviderId = "codex", Name = "Weekly quota", WindowKind = WindowKind.Rolling, UsedPercent = 10.0 },
-                    },
                 },
             },
         };
@@ -653,7 +717,7 @@ public class GroupedUsageDisplayAdapterTests
         var spark = usages[0];
         Assert.Equal("codex", spark.ProviderId);
         Assert.Equal("spark", spark.CardId);
-        Assert.Null(spark.WindowCards); // ProviderDetails are not mapped to WindowCards on flat cards
+        Assert.Null(spark.WindowCards);
         Assert.DoesNotContain(usages, u => string.Equals(u.ProviderId, "codex", StringComparison.Ordinal) && u.CardId == null);
     }
 
@@ -691,12 +755,12 @@ public class GroupedUsageDisplayAdapterTests
         Assert.Equal(3, usages.Count(u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal)));
 
         var currentSession = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal) && string.Equals(u.CardId, "current-session", StringComparison.Ordinal));
-        var sonnet         = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal) && string.Equals(u.CardId, "sonnet",          StringComparison.Ordinal));
-        var allModels      = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal) && string.Equals(u.CardId, "all-models",      StringComparison.Ordinal));
+        var sonnet = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal) && string.Equals(u.CardId, "sonnet", StringComparison.Ordinal));
+        var allModels = Assert.Single(usages, u => string.Equals(u.ProviderId, "claude-code", StringComparison.Ordinal) && string.Equals(u.CardId, "all-models", StringComparison.Ordinal));
 
         Assert.Equal("Claude Code (Current Session)", currentSession.ProviderName);
-        Assert.Equal("Claude Code (Sonnet)",          sonnet.ProviderName);
-        Assert.Equal("Claude Code (All Models)",      allModels.ProviderName);
+        Assert.Equal("Claude Code (Sonnet)", sonnet.ProviderName);
+        Assert.Equal("Claude Code (All Models)", allModels.ProviderName);
 
         Assert.Equal(3, currentSession.UsedPercent, 1);
         Assert.Equal(2, sonnet.UsedPercent, 1);
@@ -706,5 +770,71 @@ public class GroupedUsageDisplayAdapterTests
         Assert.Equal(TimeSpan.FromDays(7), currentSession.PeriodDuration);
         Assert.Equal(TimeSpan.FromDays(7), sonnet.PeriodDuration);
         Assert.Equal(TimeSpan.FromDays(7), allModels.PeriodDuration);
+    }
+
+    [Fact]
+    public void Expand_LegacyPath_PropagatesStateFromSnapshot()
+    {
+        // Providers without models render a legacy parent card.
+        var snapshot = new AgentGroupedUsageSnapshot
+        {
+            Providers = new[]
+            {
+                new AgentGroupedProviderUsage
+                {
+                    ProviderId = "openrouter",
+                    IsAvailable = false,
+                    State = ProviderUsageState.Missing,
+                    IsQuotaBased = true,
+                    PlanType = PlanType.Usage,
+                    Description = "API Key missing",
+                    Models = Array.Empty<AgentGroupedModelUsage>(),
+                },
+            },
+        };
+
+        var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
+
+        var card = Assert.Single(usages);
+        Assert.Equal("openrouter", card.ProviderId);
+        Assert.Equal(ProviderUsageState.Missing, card.State);
+        Assert.False(card.IsQuotaBased);
+        Assert.True(card.IsCurrencyUsage);
+        Assert.Equal(PlanType.Usage, card.PlanType);
+    }
+
+    [Fact]
+    public void Expand_OpenrouterFlatCard_UsesMetadataToStayPayAsYouGo()
+    {
+        var snapshot = new AgentGroupedUsageSnapshot
+        {
+            Providers = new[]
+            {
+                new AgentGroupedProviderUsage
+                {
+                    ProviderId = "openrouter",
+                    ProviderName = "OpenRouter",
+                    IsAvailable = true,
+                    IsQuotaBased = true, // stale/incorrect incoming flag
+                    PlanType = PlanType.Coding, // stale/incorrect incoming flag
+                    Models = new[]
+                    {
+                        new AgentGroupedModelUsage
+                        {
+                            ModelId = "credits",
+                            ModelName = "Openrouter",
+                            RemainingPercentage = 75,
+                        },
+                    },
+                },
+            },
+        };
+
+        var usages = GroupedUsageDisplayAdapter.Expand(snapshot);
+
+        var card = Assert.Single(usages);
+        Assert.Equal("openrouter", card.ProviderId);
+        Assert.False(card.IsQuotaBased);
+        Assert.Equal(PlanType.Usage, card.PlanType);
     }
 }

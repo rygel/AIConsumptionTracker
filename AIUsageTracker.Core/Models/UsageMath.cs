@@ -190,27 +190,18 @@ public static class UsageMath
         }
 
         var nowUtc = DateTime.UtcNow;
-        DateTime? bestFuture = null;
-        DateTime? lastKnown = null;
+        var resetTimes = cards
+            .Where(c => c.NextResetTime.HasValue)
+            .Select(c => c.NextResetTime!.Value.ToUniversalTime())
+            .ToList();
 
-        foreach (var card in cards)
+        if (resetTimes.Count == 0)
         {
-            if (!card.NextResetTime.HasValue)
-            {
-                continue;
-            }
-
-            var resetUtc = card.NextResetTime.Value.ToUniversalTime();
-            if (!lastKnown.HasValue || resetUtc > lastKnown.Value)
-            {
-                lastKnown = resetUtc;
-            }
-
-            if (resetUtc > nowUtc && (!bestFuture.HasValue || resetUtc < bestFuture.Value))
-            {
-                bestFuture = resetUtc;
-            }
+            return null;
         }
+
+        var lastKnown = resetTimes.Max();
+        var bestFuture = resetTimes.Where(t => t > nowUtc).Cast<DateTime?>().Min();
 
         return bestFuture ?? lastKnown;
     }
@@ -218,6 +209,7 @@ public static class UsageMath
     /// <summary>
     /// Returns the pace badge result for an already-computed projected percent.
     /// </summary>
+    /// <returns></returns>
     public static PaceBadgeResult ClassifyPace(double projectedPercent)
     {
         var tier = projectedPercent switch
@@ -235,6 +227,7 @@ public static class UsageMath
     /// All UI and alert code should call this instead of the individual methods.
     /// The result guarantees that badge tier and color percent always agree.
     /// </summary>
+    /// <returns></returns>
     public static PaceColorResult ComputePaceColor(
         double usedPercent,
         DateTime? nextResetTime,
@@ -295,6 +288,7 @@ public static class UsageMath
     /// <summary>
     /// Calculates how many days have elapsed in the current period. Returns 0 if data is invalid.
     /// </summary>
+    /// <returns></returns>
     public static double GetElapsedDays(DateTime? nextResetTime, TimeSpan? periodDuration, DateTime? nowUtc = null)
     {
         if (!nextResetTime.HasValue || !periodDuration.HasValue || periodDuration.Value.TotalDays < 1)
@@ -330,16 +324,16 @@ public static class UsageMath
 
         if (local.Date == DateTime.Today.AddDays(1))
         {
-            return $"Tomorrow {local:HH:mm}";
+            return $"Tomorrow {local.ToString("HH:mm", CultureInfo.InvariantCulture)}";
         }
 
-        return diff.TotalDays < 7 ? $"{local:dddd HH:mm}" : $"{local:MMM d HH:mm}";
+        return diff.TotalDays < 7 ? $"{local.ToString("dddd HH:mm", CultureInfo.InvariantCulture)}" : $"{local.ToString("MMM d HH:mm", CultureInfo.InvariantCulture)}";
     }
 
     public static string FormatAbsoluteDate(DateTime nextReset)
     {
         var local = AsUtc(nextReset).ToLocalTime();
-        return $"{local:MMM d, HH:mm}";
+        return $"{local.ToString("MMM d, HH:mm", CultureInfo.InvariantCulture)}";
     }
 
     public static string FormatRelativeTime(DateTime nextReset)
@@ -353,10 +347,10 @@ public static class UsageMath
 
         if (diff.TotalDays >= 1)
         {
-            return $"{diff.Days}d {diff.Hours}h";
+            return $"{diff.Days.ToString(CultureInfo.InvariantCulture)}d {diff.Hours.ToString(CultureInfo.InvariantCulture)}h";
         }
 
-        return diff.TotalHours >= 1 ? $"{diff.Hours}h {diff.Minutes}m" : $"{diff.Minutes}m";
+        return diff.TotalHours >= 1 ? $"{diff.Hours.ToString(CultureInfo.InvariantCulture)}h {diff.Minutes.ToString(CultureInfo.InvariantCulture)}m" : $"{diff.Minutes.ToString(CultureInfo.InvariantCulture)}m";
     }
 
     /// <summary>
@@ -364,6 +358,7 @@ public static class UsageMath
     /// round-trip via Dapper/SQLite) are assumed UTC. Local kinds are converted.
     /// All internal code should use UTC; convert to local only at the display boundary.
     /// </summary>
+    /// <returns></returns>
     public static DateTime AsUtc(DateTime value)
     {
         return value.Kind switch
@@ -386,7 +381,7 @@ public static class UsageMath
 
         // Check for no consumption trend - all samples have same usage (before any trimming or validation)
         var firstUsage = samples[0].RequestsUsed;
-        var allSame = samples.All(x => Math.Abs(x.RequestsUsed - firstUsage) < 0.001);
+        var allSame = samples.TrueForAll(x => Math.Abs(x.RequestsUsed - firstUsage) < 0.001);
         if (allSame)
         {
             return BurnRateForecast.Unavailable("No consumption trend");
@@ -403,13 +398,13 @@ public static class UsageMath
             return forecastResult;
         }
 
-        var burnRatePerDay = CalculateBurnRatePerDay(cycleSamples, out var elapsedDays);
+        var burnRatePerDay = CalculateBurnRatePerDay(cycleSamples, out _);
         if (!ValidateBurnRate(burnRatePerDay, out forecastResult))
         {
             return forecastResult;
         }
 
-        return CreateBurnRateForecast(burnRatePerDay, cycleSamples, elapsedDays);
+        return CreateBurnRateForecast(burnRatePerDay, cycleSamples);
     }
 
     public static ProviderReliabilitySnapshot CalculateReliabilitySnapshot(IEnumerable<ProviderUsage> history)
@@ -599,7 +594,7 @@ public static class UsageMath
         return burnRatePerDay > 0 && !double.IsNaN(burnRatePerDay) && !double.IsInfinity(burnRatePerDay);
     }
 
-    private static BurnRateForecast CreateBurnRateForecast(double burnRatePerDay, List<ProviderUsage> cycleSamples, double elapsedDays)
+    private static BurnRateForecast CreateBurnRateForecast(double burnRatePerDay, List<ProviderUsage> cycleSamples)
     {
         var last = cycleSamples[^1];
         var remaining = Math.Max(0, last.RequestsAvailable - last.RequestsUsed);
@@ -611,7 +606,7 @@ public static class UsageMath
         }
 
         // Check for no consumption trend - all samples have same usage
-        var hasNoTrend = cycleSamples.All(x => Math.Abs(x.RequestsUsed - cycleSamples[0].RequestsUsed) < 0.001);
+        var hasNoTrend = cycleSamples.TrueForAll(x => Math.Abs(x.RequestsUsed - cycleSamples[0].RequestsUsed) < 0.001);
         if (hasNoTrend)
         {
             return BurnRateForecast.Unavailable("No consumption trend");

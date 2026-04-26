@@ -2,6 +2,8 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+#pragma warning disable S1075 // URIs are provider endpoint constants
+
 namespace AIUsageTracker.Infrastructure.Constants;
 
 /// <summary>
@@ -56,7 +58,7 @@ public static class ProviderEndpoints
     /// <summary>
     /// Z.AI API endpoints.
     /// </summary>
-    public static class ZAI
+    public static class Zai
     {
         public const string BaseUrl = "https://api.z.ai";
         public const string QuotaLimit = "https://api.z.ai/api/monitor/usage/quota/limit";
@@ -107,6 +109,7 @@ public static class ProviderEndpoints
         public const string BaseUrl = "https://api.minimax.io";
         public const string UserUsage = "https://api.minimax.io/v1/user/usage";
         public const string ChatUserUsage = "https://api.minimax.chat/v1/user/usage";
+        public const string CodingPlanRemains = "https://api.minimax.io/v1/api/openplatform/coding_plan/remains";
     }
 
     /// <summary>

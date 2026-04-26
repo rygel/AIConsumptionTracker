@@ -3,6 +3,7 @@
 // </copyright>
 
 using System.Diagnostics;
+using System.Globalization;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using Microsoft.Extensions.Logging;
@@ -134,12 +135,12 @@ public class ProviderManager : IDisposable
             throw new ArgumentException($"Provider '{providerId}' not found in configuration.", nameof(providerId));
         }
 
-        return await this.FetchSingleProviderUsageAsync(config, null, cancellationToken).ConfigureAwait(false);
+        return await this.FetchSingleProviderUsageAsync(config, progressCallback: null, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
     public void Dispose()
     {
-        this.Dispose(true);
+        this.Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
 
@@ -197,7 +198,7 @@ public class ProviderManager : IDisposable
         {
             ProviderId = config.ProviderId,
             ProviderName = defaults.DisplayName,
-            Description = $"[Error] Timeout after {ProviderRequestTimeout.TotalSeconds:F0}s",
+            Description = $"[Error] Timeout after {ProviderRequestTimeout.TotalSeconds.ToString("F0", CultureInfo.InvariantCulture)}s",
             State = ProviderUsageState.Error,
             UsedPercent = 0,
             IsAvailable = false,
@@ -336,7 +337,7 @@ public class ProviderManager : IDisposable
         }
         catch (ArgumentException ex)
         {
-            this._logger.LogWarning("Skipping {ProviderId}: {Message}", config.ProviderId, ex.Message);
+            this._logger.LogWarning(ex, "Skipping {ProviderId}: {Message}", config.ProviderId, ex.Message);
             var errorUsage = CreateArgumentErrorUsage(config, defaults, ex.Message, stopwatch);
             return CreateSingleUsageList(errorUsage, progressCallback);
         }
@@ -392,11 +393,12 @@ public class ProviderManager : IDisposable
             // External cancellation (shutdown) — rethrow so callers know to stop.
             throw;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
             // Timeout cancellation — return timeout usage.
             stopwatch.Stop();
             this._logger.LogWarning(
+                ex,
                 "Provider {ProviderId} timed out after {TimeoutSeconds}s",
                 config.ProviderId,
                 ProviderRequestTimeout.TotalSeconds);

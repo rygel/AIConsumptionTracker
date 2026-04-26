@@ -47,6 +47,8 @@ public sealed class SyntheticProvider : ProviderBase
     {
         ArgumentNullException.ThrowIfNull(config);
 
+        var providerLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId);
+
         if (string.IsNullOrWhiteSpace(config.ApiKey))
         {
             return new[] { this.CreateUnavailableUsage("API Key missing", 401, config.AuthSource, state: ProviderUsageState.Missing) };
@@ -86,7 +88,6 @@ public sealed class SyntheticProvider : ProviderBase
                 return new[] { this.CreateUnavailableUsage("Response missing quota fields (total/used/reset)", (int)response.StatusCode, config.AuthSource) };
             }
 
-            var remainingPercent = Math.Clamp(((total - used) / total) * 100.0, 0, 100);
             var resetLabel = BuildResetLabel(resetRaw, out var nextResetTime);
 
             var usedLabel = Math.Abs(used - Math.Truncate(used)) < 0.001
@@ -101,7 +102,7 @@ public sealed class SyntheticProvider : ProviderBase
                 new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = this.Definition.DisplayName,
+                    ProviderName = providerLabel,
                     UsedPercent = Math.Clamp(used / total * 100.0, 0, 100),
                     RequestsUsed = used,
                     RequestsAvailable = total,
@@ -363,13 +364,13 @@ public sealed class SyntheticProvider : ProviderBase
     {
         if (source.ValueKind == JsonValueKind.Object)
         {
-            foreach (var candidate in source.EnumerateObject())
+            var match = source.EnumerateObject()
+                .FirstOrDefault(p => p.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase));
+
+            if (match.Value.ValueKind != JsonValueKind.Undefined)
             {
-                if (candidate.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
-                {
-                    property = candidate.Value;
-                    return true;
-                }
+                property = match.Value;
+                return true;
             }
         }
 
@@ -388,6 +389,6 @@ public sealed class SyntheticProvider : ProviderBase
 
         var localTime = parsed.ToUniversalTime().ToLocalTime();
         nextResetTime = localTime;
-        return $" (Resets: {localTime:MMM dd HH:mm})";
+        return $" (Resets: {localTime.ToString("MMM dd HH:mm", CultureInfo.InvariantCulture)})";
     }
 }

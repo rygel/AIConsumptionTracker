@@ -3,12 +3,9 @@
 // </copyright>
 
 using System.Net;
-using System.Text.Json;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
-using AIUsageTracker.Tests.Infrastructure;
 using Moq.Protected;
-using Xunit;
 
 namespace AIUsageTracker.Tests.Infrastructure.Providers;
 
@@ -58,7 +55,7 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         this.SetupOAuthResponse(HttpStatusCode.OK, responseJson);
 
         // Act
-        var results = await this._provider.GetUsageFromOAuthAsync("test-token");
+        var results = await this._provider.GetUsageFromOAuthAsync("test-token", "Claude Code");
 
         // Assert — flat cards returned
         Assert.NotNull(results);
@@ -74,16 +71,16 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
             Assert.NotNull(card.GroupId);
         }
 
-        var currentSession = cards.First(c => c.CardId == "current-session");
+        var currentSession = cards.First(c => string.Equals(c.CardId, "current-session", StringComparison.Ordinal));
         Assert.Equal(35, currentSession.UsedPercent);
 
-        var allModels = cards.First(c => c.CardId == "all-models");
+        var allModels = cards.First(c => string.Equals(c.CardId, "all-models", StringComparison.Ordinal));
         Assert.Equal(42, allModels.UsedPercent);
 
-        var sonnet = cards.First(c => c.CardId == "sonnet");
+        var sonnet = cards.First(c => string.Equals(c.CardId, "sonnet", StringComparison.Ordinal));
         Assert.Equal(48, sonnet.UsedPercent);
 
-        var opus = cards.First(c => c.CardId == "opus");
+        var opus = cards.First(c => string.Equals(c.CardId, "opus", StringComparison.Ordinal));
         Assert.Equal(22, opus.UsedPercent);
     }
 
@@ -120,16 +117,16 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         this.SetupOAuthResponse(HttpStatusCode.OK, responseJson);
 
         // Act
-        var results = await this._provider.GetUsageFromOAuthAsync("test-token");
+        var results = await this._provider.GetUsageFromOAuthAsync("test-token", "Claude Code");
 
         // Assert
         Assert.NotNull(results);
         var cards = results!.ToList();
         Assert.Equal(4, cards.Count);
 
-        var currentSession = cards.First(c => c.CardId == "current-session");
+        var currentSession = cards.First(c => string.Equals(c.CardId, "current-session", StringComparison.Ordinal));
         Assert.Equal(92, currentSession.UsedPercent);
-        Assert.Contains("Extra usage enabled", cards.First(c => c.CardId == "all-models").Description, StringComparison.Ordinal);
+        Assert.Contains("Extra usage enabled", cards.First(c => string.Equals(c.CardId, "all-models", StringComparison.Ordinal)).Description, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -165,16 +162,16 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         this.SetupOAuthResponse(HttpStatusCode.OK, responseJson);
 
         // Act
-        var results = await this._provider.GetUsageFromOAuthAsync("test-token");
+        var results = await this._provider.GetUsageFromOAuthAsync("test-token", "Claude Code");
 
         // Assert
         Assert.NotNull(results);
         var cards = results!.ToList();
 
-        var sonnet = cards.First(c => c.CardId == "sonnet");
+        var sonnet = cards.First(c => string.Equals(c.CardId, "sonnet", StringComparison.Ordinal));
         Assert.Equal(95, sonnet.UsedPercent);
 
-        var opus = cards.First(c => c.CardId == "opus");
+        var opus = cards.First(c => string.Equals(c.CardId, "opus", StringComparison.Ordinal));
         Assert.Equal(45, opus.UsedPercent);
     }
 
@@ -211,14 +208,14 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         this.SetupOAuthResponse(HttpStatusCode.OK, responseJson);
 
         // Act
-        var results = await this._provider.GetUsageFromOAuthAsync("test-token");
+        var results = await this._provider.GetUsageFromOAuthAsync("test-token", "Claude Code");
 
         // Assert
         Assert.NotNull(results);
         var cards = results!.ToList();
         Assert.True(cards.All(c => c.IsAvailable));
 
-        var allModels = cards.First(c => c.CardId == "all-models");
+        var allModels = cards.First(c => string.Equals(c.CardId, "all-models", StringComparison.Ordinal));
         Assert.Equal(2, allModels.UsedPercent);
     }
 
@@ -255,13 +252,13 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         this.SetupOAuthResponse(HttpStatusCode.OK, responseJson);
 
         // Act
-        var results = await this._provider.GetUsageFromOAuthAsync("test-token");
+        var results = await this._provider.GetUsageFromOAuthAsync("test-token", "Claude Code");
 
         // Assert
         Assert.NotNull(results);
         var cards = results!.ToList();
         Assert.True(cards.All(c => c.UsedPercent == 100));
-        Assert.Contains("Extra usage enabled", cards.First(c => c.CardId == "all-models").Description, StringComparison.Ordinal);
+        Assert.Contains("Extra usage enabled", cards.First(c => string.Equals(c.CardId, "all-models", StringComparison.Ordinal)).Description, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -294,17 +291,17 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         this.SetupOAuthResponse(HttpStatusCode.OK, responseJson);
 
         // Act
-        var results = await this._provider.GetUsageFromOAuthAsync("test-token");
+        var results = await this._provider.GetUsageFromOAuthAsync("test-token", "Claude Code");
 
         // Assert
         Assert.NotNull(results);
         var cards = results!.ToList();
 
-        var currentSession = cards.First(c => c.CardId == "current-session");
+        var currentSession = cards.First(c => string.Equals(c.CardId, "current-session", StringComparison.Ordinal));
         Assert.NotNull(currentSession.NextResetTime);
         Assert.True(currentSession.NextResetTime >= fiveHourReset.AddMinutes(-1) && currentSession.NextResetTime <= fiveHourReset.AddMinutes(1));
 
-        var allModels = cards.First(c => c.CardId == "all-models");
+        var allModels = cards.First(c => string.Equals(c.CardId, "all-models", StringComparison.Ordinal));
         Assert.NotNull(allModels.NextResetTime);
         Assert.True(allModels.NextResetTime >= sevenDayReset.AddMinutes(-1) && allModels.NextResetTime <= sevenDayReset.AddMinutes(1));
     }
@@ -329,7 +326,7 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         this.SetupOAuthResponse(HttpStatusCode.OK, responseJson);
 
         // Act
-        var results = await this._provider.GetUsageFromOAuthAsync("test-token");
+        var results = await this._provider.GetUsageFromOAuthAsync("test-token", "Claude Code");
 
         // Assert
         Assert.NotNull(results);
@@ -346,7 +343,7 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         this.SetupOAuthResponse(HttpStatusCode.Unauthorized, """{"error": "invalid_token"}""");
 
         // Act
-        var result = await this._provider.GetUsageFromOAuthAsync("invalid-token");
+        var result = await this._provider.GetUsageFromOAuthAsync("invalid-token", "Claude Code");
 
         // Assert
         Assert.Null(result);
@@ -359,7 +356,7 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         this.SetupOAuthResponse(HttpStatusCode.InternalServerError, """{"error": "internal_error"}""");
 
         // Act
-        var result = await this._provider.GetUsageFromOAuthAsync("test-token");
+        var result = await this._provider.GetUsageFromOAuthAsync("test-token", "Claude Code");
 
         // Assert
         Assert.Null(result);
@@ -372,7 +369,7 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
         this.SetupOAuthResponse(HttpStatusCode.OK, "not valid json");
 
         // Act
-        var result = await this._provider.GetUsageFromOAuthAsync("test-token");
+        var result = await this._provider.GetUsageFromOAuthAsync("test-token", "Claude Code");
 
         // Assert
         Assert.Null(result);
@@ -393,7 +390,7 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
             }));
 
         // Act
-        var result = await this._provider.GetUsageFromOAuthAsync("test-token");
+        var result = await this._provider.GetUsageFromOAuthAsync("test-token", "Claude Code");
 
         // Assert — returns null after retry
         Assert.Null(result);
@@ -440,10 +437,10 @@ public class ClaudeCodeProviderTests : HttpProviderTestBase<ClaudeCodeProvider>
             Assert.True(usage.IsQuotaBased);
         });
 
-        var currentSession = result.First(u => u.CardId == "current-session");
+        var currentSession = result.First(u => string.Equals(u.CardId, "current-session", StringComparison.Ordinal));
         Assert.Equal(45, currentSession.UsedPercent);
 
-        var allModels = result.First(u => u.CardId == "all-models");
+        var allModels = result.First(u => string.Equals(u.CardId, "all-models", StringComparison.Ordinal));
         Assert.Equal(60, allModels.UsedPercent);
     }
 

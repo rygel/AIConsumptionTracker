@@ -4,7 +4,6 @@
 
 using System.Net;
 using System.Text.RegularExpressions;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace AIUsageTracker.Web.Tests;
 
@@ -13,6 +12,68 @@ namespace AIUsageTracker.Web.Tests;
 public class ViewTests : WebTestBase
 {
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
+
+    // Matches broken Razor format strings like @variable:F1 that render literally in HTML.
+    // Correct syntax in text content is @variable.ToString("F1").
+    private static readonly Regex BrokenRazorFormatString =
+        new(@"@\w[\w.]*:[A-Z]\d", RegexOptions.Compiled, RegexTimeout);
+
+    // Matches unprocessed Razor expressions that leaked into the output, e.g. "@Model.Foo".
+    private static readonly Regex UnprocessedRazorExpression =
+        new(@"@[A-Z]\w*\.", RegexOptions.Compiled, RegexTimeout);
+
+    [TestMethod]
+    [DataRow("/")]
+    [DataRow("/providers")]
+    [DataRow("/charts")]
+    [DataRow("/history")]
+    [DataRow("/reliability")]
+    [DataRow("/provider/openai")]
+    [DataRow("/error")]
+    public async Task Page_IsProperlyRenderedAsync(string path)
+    {
+        using var client = CreateClient();
+        using var response = await client.GetAsync(path);
+        var html = await ReadBodyAsync(response);
+
+        // Must be a complete HTML document.
+        Assert.IsTrue(html.Contains("<html", StringComparison.OrdinalIgnoreCase), $"'{path}': missing <html>");
+        Assert.IsTrue(html.Contains("</html>", StringComparison.OrdinalIgnoreCase), $"'{path}': missing </html>");
+        Assert.IsTrue(html.Contains("<body", StringComparison.OrdinalIgnoreCase), $"'{path}': missing <body>");
+        Assert.IsTrue(html.Contains("</body>", StringComparison.OrdinalIgnoreCase), $"'{path}': missing </body>");
+        Assert.IsTrue(html.Contains("<title>", StringComparison.OrdinalIgnoreCase), $"'{path}': missing <title>");
+
+        // Must not contain a server-side exception dump.
+        Assert.IsFalse(html.Contains("System.Exception", StringComparison.Ordinal), $"'{path}': contains exception dump");
+        Assert.IsFalse(html.Contains("System.NullReferenceException", StringComparison.Ordinal), $"'{path}': contains NullReferenceException");
+        Assert.IsFalse(html.Contains("An unhandled exception occurred", StringComparison.OrdinalIgnoreCase), $"'{path}': contains unhandled exception message");
+
+        // Must not contain unprocessed Razor expressions (Razor failed to evaluate them).
+        var razorLeak = UnprocessedRazorExpression.Match(html);
+        Assert.IsFalse(razorLeak.Success, $"'{path}': unprocessed Razor expression '{razorLeak.Value}' leaked into output");
+
+        // Broken colon-format strings (e.g. @val:F1%) render literally instead of formatting.
+        var brokenFormat = BrokenRazorFormatString.Match(html);
+        Assert.IsFalse(brokenFormat.Success, $"'{path}': broken Razor format string '{brokenFormat.Value}'");
+    }
+
+    [TestMethod]
+    [DataRow("/")]
+    [DataRow("/providers")]
+    [DataRow("/charts")]
+    [DataRow("/history")]
+    [DataRow("/reliability")]
+    public async Task Page_ContainsNoBrokenRazorFormatStringsAsync(string path)
+    {
+        using var client = CreateClient();
+        using var response = await client.GetAsync(path);
+        var html = await ReadBodyAsync(response);
+        var match = BrokenRazorFormatString.Match(html);
+        Assert.IsFalse(
+            match.Success,
+            $"Page '{path}' contains a broken Razor format string '{match.Value}'. " +
+            "Use .ToString(\"F1\") instead of :F1 in text content.");
+    }
 
     [TestMethod]
     [DataRow("/")]

@@ -5,7 +5,6 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
 using System.Windows.Media;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.UI.Slim.Services;
@@ -38,8 +37,8 @@ public partial class MainWindow : Window
             Owner = this,
             Topmost = this.Topmost,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Background = this.GetResourceBrush("CardBackground", Brushes.Black),
-            Foreground = this.GetResourceBrush("PrimaryText", Brushes.White),
+            Background = GetResourceBrush("CardBackground", Brushes.Black),
+            Foreground = GetResourceBrush("PrimaryText", Brushes.White),
         };
 
         var viewer = new FlowDocumentScrollViewer
@@ -152,7 +151,7 @@ public partial class MainWindow : Window
                 Owner = this,
                 Topmost = this.Topmost,
                 ResizeMode = ResizeMode.NoResize,
-                Background = this.GetResourceBrush("Background", Brushes.Black),
+                Background = GetResourceBrush("Background", Brushes.Black),
                 Content = new StackPanel
                 {
                     Margin = new Thickness(20),
@@ -162,7 +161,7 @@ public partial class MainWindow : Window
                         {
                             Text = $"Downloading version {this._latestUpdate.Version}...",
                             Margin = new Thickness(0, 0, 0, 10),
-                            Foreground = this.GetResourceBrush("PrimaryText", Brushes.White),
+                            Foreground = GetResourceBrush("PrimaryText", Brushes.White),
                         },
                         progressBar,
                     },

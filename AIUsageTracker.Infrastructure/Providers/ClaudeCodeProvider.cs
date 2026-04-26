@@ -26,6 +26,8 @@ public class ClaudeCodeProvider : ProviderBase
     /// </summary>
     internal const string OAuthBetaHeader = "oauth-2025-04-20";
 
+    private const string MessagesEndpoint = "https://api.anthropic.com/v1/messages";
+
     private readonly ILogger<ClaudeCodeProvider> _logger;
     private readonly HttpClient _httpClient;
 
@@ -75,6 +77,8 @@ public class ClaudeCodeProvider : ProviderBase
     {
         ArgumentNullException.ThrowIfNull(config);
 
+        var providerLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId);
+
         // Check if API key is configured
         if (string.IsNullOrEmpty(config.ApiKey))
         {
@@ -83,7 +87,7 @@ public class ClaudeCodeProvider : ProviderBase
                 new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = this.Definition.DisplayName,
+                ProviderName = providerLabel,
                 IsAvailable = false,
                 Description = "No API key configured",
                 State = ProviderUsageState.Missing,
@@ -114,7 +118,7 @@ public class ClaudeCodeProvider : ProviderBase
         // Try OAuth usage endpoint first (for subscription users)
         try
         {
-            var oauthUsages = await this.GetUsageFromOAuthAsync(effectiveApiKey).ConfigureAwait(false);
+            var oauthUsages = await this.GetUsageFromOAuthAsync(effectiveApiKey, providerLabel).ConfigureAwait(false);
             if (oauthUsages != null)
             {
                 return oauthUsages;
@@ -131,7 +135,7 @@ public class ClaudeCodeProvider : ProviderBase
         {
             try
             {
-                var apiUsage = await this.GetUsageFromApiAsync(effectiveApiKey).ConfigureAwait(false);
+                var apiUsage = await this.GetUsageFromApiAsync(effectiveApiKey, providerLabel).ConfigureAwait(false);
                 if (apiUsage != null)
                 {
                     return new[] { apiUsage };
@@ -144,7 +148,7 @@ public class ClaudeCodeProvider : ProviderBase
         }
 
         // Fall back to CLI if API fails
-        return await this.GetUsageFromCliAsync(config).ConfigureAwait(false);
+        return await this.GetUsageFromCliAsync(providerLabel).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -152,7 +156,7 @@ public class ClaudeCodeProvider : ProviderBase
     /// </summary>
     /// <param name="accessToken">The OAuth access token from credentials file.</param>
     /// <returns>Provider usages if successful, null otherwise.</returns>
-    internal async Task<IEnumerable<ProviderUsage>?> GetUsageFromOAuthAsync(string accessToken)
+    internal async Task<IEnumerable<ProviderUsage>?> GetUsageFromOAuthAsync(string accessToken, string providerLabel)
     {
         try
         {
@@ -178,7 +182,7 @@ public class ClaudeCodeProvider : ProviderBase
                 return null;
             }
 
-            return this.ParseOAuthUsageResponse(usageResponse, responseBody, (int)statusCode);
+            return this.ParseOAuthUsageResponse(usageResponse, responseBody, (int)statusCode, providerLabel);
         }
         catch (HttpRequestException ex)
         {
@@ -249,17 +253,16 @@ public class ClaudeCodeProvider : ProviderBase
         }
     }
 
-    private IReadOnlyList<ProviderUsage> ParseOAuthUsageResponse(OAuthUsageResponse response, string rawJson, int httpStatus)
+    private List<ProviderUsage> ParseOAuthUsageResponse(OAuthUsageResponse response, string rawJson, int httpStatus, string providerLabel)
     {
         var results = new List<ProviderUsage>();
 
-        // Current session (5-hour burst quota)
         if (response.FiveHour != null)
         {
             results.Add(new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = this.Definition.DisplayName,
+                ProviderName = providerLabel,
                 CardId = "current-session",
                 GroupId = this.ProviderId,
                 Name = "Current Session",
@@ -271,7 +274,7 @@ public class ClaudeCodeProvider : ProviderBase
                 IsAvailable = true,
                 RawJson = rawJson,
                 HttpStatus = httpStatus,
-                Description = $"{response.FiveHour.Utilization:F0}% used",
+                Description = $"{response.FiveHour.Utilization.ToString("F0", CultureInfo.InvariantCulture)}% used",
             });
         }
 
@@ -280,7 +283,7 @@ public class ClaudeCodeProvider : ProviderBase
             results.Add(new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = this.Definition.DisplayName,
+                ProviderName = providerLabel,
                 CardId = "sonnet",
                 GroupId = this.ProviderId,
                 Name = "Sonnet",
@@ -292,7 +295,7 @@ public class ClaudeCodeProvider : ProviderBase
                 IsAvailable = true,
                 RawJson = rawJson,
                 HttpStatus = httpStatus,
-                Description = $"{response.SevenDaySonnet.Utilization:F0}% used",
+                Description = $"{response.SevenDaySonnet.Utilization.ToString("F0", CultureInfo.InvariantCulture)}% used",
             });
         }
 
@@ -301,7 +304,7 @@ public class ClaudeCodeProvider : ProviderBase
             results.Add(new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = this.Definition.DisplayName,
+                ProviderName = providerLabel,
                 CardId = "opus",
                 GroupId = this.ProviderId,
                 Name = "Opus",
@@ -313,14 +316,14 @@ public class ClaudeCodeProvider : ProviderBase
                 IsAvailable = true,
                 RawJson = rawJson,
                 HttpStatus = httpStatus,
-                Description = $"{response.SevenDayOpus.Utilization:F0}% used",
+                Description = $"{response.SevenDayOpus.Utilization.ToString("F0", CultureInfo.InvariantCulture)}% used",
             });
         }
 
         // All-models 7-day rolling quota
         if (response.SevenDay != null)
         {
-            var desc = $"5h: {response.FiveHour?.Utilization ?? 0:F0}% | 7d: {response.SevenDay.Utilization:F0}% used";
+            var desc = $"5h: {(response.FiveHour?.Utilization ?? 0).ToString("F0", CultureInfo.InvariantCulture)}% | 7d: {response.SevenDay.Utilization.ToString("F0", CultureInfo.InvariantCulture)}% used";
             if (response.ExtraUsage?.IsEnabled == true)
             {
                 desc += " | Extra usage enabled";
@@ -329,7 +332,7 @@ public class ClaudeCodeProvider : ProviderBase
             results.Add(new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = this.Definition.DisplayName,
+                ProviderName = providerLabel,
                 CardId = "all-models",
                 GroupId = this.ProviderId,
                 Name = "All Models",
@@ -350,7 +353,7 @@ public class ClaudeCodeProvider : ProviderBase
             results.Add(new ProviderUsage
             {
                 ProviderId = this.ProviderId,
-                ProviderName = this.Definition.DisplayName,
+                ProviderName = providerLabel,
                 IsQuotaBased = true,
                 PlanType = this.Definition.PlanType,
                 IsAvailable = true,
@@ -363,13 +366,13 @@ public class ClaudeCodeProvider : ProviderBase
         return results;
     }
 
-    private async Task<ProviderUsage?> GetUsageFromApiAsync(string apiKey)
+    private async Task<ProviderUsage?> GetUsageFromApiAsync(string apiKey, string providerLabel)
     {
         try
         {
             // Make a test request to get rate limit headers
             // Note: Anthropic API doesn't have a usage endpoint, so we use rate limits from headers
-            using var testRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
+            using var testRequest = new HttpRequestMessage(HttpMethod.Post, MessagesEndpoint);
             testRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
             testRequest.Headers.Add("anthropic-version", "2023-06-01");
             testRequest.Content = new StringContent("{\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}", System.Text.Encoding.UTF8, "application/json");
@@ -378,7 +381,7 @@ public class ClaudeCodeProvider : ProviderBase
             var responseBody = await testResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             // Extract rate limit information from headers
-            var rateLimitHeaders = this.ExtractRateLimitInfo(testResponse.Headers);
+            var rateLimitHeaders = ExtractRateLimitInfo(testResponse.Headers);
 
             // Log response for debugging
             this._logger.LogDebug("Claude API test call: Status={StatusCode}, RPM={RequestsRemaining}/{RequestsLimit}", testResponse.StatusCode, rateLimitHeaders.RequestsRemaining, rateLimitHeaders.RequestsLimit);
@@ -405,12 +408,12 @@ public class ClaudeCodeProvider : ProviderBase
                 }
 
                 // Build description with rate limit info
-                var description = $"Tier: {rateLimitHeaders.GetTierName()} | RPM: {rateLimitHeaders.RequestsRemaining}/{rateLimitHeaders.RequestsLimit} | Tokens/min: {rateLimitHeaders.InputTokensRemaining}/{rateLimitHeaders.InputTokensLimit}";
+                var description = $"Tier: {rateLimitHeaders.GetTierName()} | RPM: {rateLimitHeaders.RequestsRemaining.ToString(CultureInfo.InvariantCulture)}/{rateLimitHeaders.RequestsLimit.ToString(CultureInfo.InvariantCulture)} | Tokens/min: {rateLimitHeaders.InputTokensRemaining.ToString(CultureInfo.InvariantCulture)}/{rateLimitHeaders.InputTokensLimit.ToString(CultureInfo.InvariantCulture)}";
 
                 return new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = this.Definition.DisplayName,
+                    ProviderName = providerLabel,
                     UsedPercent = usagePercentage,
                     RequestsUsed = 0, // Anthropic doesn't provide cost via API
                     RequestsAvailable = 0,
@@ -434,7 +437,7 @@ public class ClaudeCodeProvider : ProviderBase
         }
     }
 
-    private RateLimitInfo ExtractRateLimitInfo(System.Net.Http.Headers.HttpResponseHeaders headers)
+    private static RateLimitInfo ExtractRateLimitInfo(System.Net.Http.Headers.HttpResponseHeaders headers)
     {
         var info = new RateLimitInfo();
 
@@ -465,7 +468,7 @@ public class ClaudeCodeProvider : ProviderBase
         return info;
     }
 
-    private async Task<IEnumerable<ProviderUsage>> GetUsageFromCliAsync(ProviderConfig config)
+    private async Task<IEnumerable<ProviderUsage>> GetUsageFromCliAsync(string providerLabel)
     {
         return await Task.Run(async () =>
         {
@@ -490,7 +493,7 @@ public class ClaudeCodeProvider : ProviderBase
                         new ProviderUsage
                     {
                         ProviderId = this.ProviderId,
-                        ProviderName = this.Definition.DisplayName,
+                        ProviderName = providerLabel,
                         IsAvailable = true,
                         Description = "Connected (API key configured)",
                         IsStatusOnly = true,
@@ -509,9 +512,9 @@ public class ClaudeCodeProvider : ProviderBase
                 {
                     await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException ex)
                 {
-                    this._logger.LogWarning("Claude Code CLI timed out");
+                    this._logger.LogWarning(ex, "Claude Code CLI timed out");
                 }
 
                 var output = await outputTask.ConfigureAwait(false);
@@ -527,7 +530,7 @@ public class ClaudeCodeProvider : ProviderBase
                         new ProviderUsage
                     {
                         ProviderId = this.ProviderId,
-                        ProviderName = this.Definition.DisplayName,
+                        ProviderName = providerLabel,
                         IsAvailable = true,
                         Description = "Connected (API key configured)",
                         IsStatusOnly = true,
@@ -539,7 +542,7 @@ public class ClaudeCodeProvider : ProviderBase
                     };
                 }
 
-                return new[] { this.ParseCliOutput(output) };
+                return new[] { this.ParseCliOutput(output, providerLabel) };
             }
             catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
             {
@@ -551,7 +554,7 @@ public class ClaudeCodeProvider : ProviderBase
                     new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = this.Definition.DisplayName,
+                    ProviderName = providerLabel,
                     IsAvailable = true,
                     Description = "Connected (API key configured)",
                     IsStatusOnly = true,
@@ -565,7 +568,7 @@ public class ClaudeCodeProvider : ProviderBase
         }).ConfigureAwait(false);
     }
 
-    private ProviderUsage ParseCliOutput(string output)
+    private ProviderUsage ParseCliOutput(string output, string providerLabel)
     {
         // Parse Claude Code usage output
         double currentUsage = 0;
@@ -598,7 +601,7 @@ public class ClaudeCodeProvider : ProviderBase
         return new ProviderUsage
         {
             ProviderId = this.ProviderId,
-            ProviderName = this.Definition.DisplayName,
+            ProviderName = providerLabel,
             UsedPercent = Math.Min(usagePercentage, 100),
             RequestsUsed = currentUsage,
             RequestsAvailable = budgetLimit,
@@ -617,7 +620,7 @@ public class ClaudeCodeProvider : ProviderBase
     /// <summary>
     /// Response model for the OAuth usage endpoint.
     /// </summary>
-    internal class OAuthUsageResponse
+    internal sealed class OAuthUsageResponse
     {
         [JsonPropertyName("five_hour")]
         public OAuthQuotaBucket? FiveHour { get; set; }
@@ -638,7 +641,7 @@ public class ClaudeCodeProvider : ProviderBase
     /// <summary>
     /// Quota bucket with utilization percentage and reset time.
     /// </summary>
-    internal class OAuthQuotaBucket
+    internal sealed class OAuthQuotaBucket
     {
         [JsonPropertyName("utilization")]
         public double Utilization { get; set; }
@@ -650,7 +653,7 @@ public class ClaudeCodeProvider : ProviderBase
     /// <summary>
     /// Model-specific quota information.
     /// </summary>
-    internal class OAuthModelQuota
+    internal sealed class OAuthModelQuota
     {
         [JsonPropertyName("utilization")]
         public double Utilization { get; set; }
@@ -659,13 +662,13 @@ public class ClaudeCodeProvider : ProviderBase
     /// <summary>
     /// Extra usage (overage) information.
     /// </summary>
-    internal class OAuthExtraUsage
+    internal sealed class OAuthExtraUsage
     {
         [JsonPropertyName("is_enabled")]
         public bool IsEnabled { get; set; }
     }
 
-    private class RateLimitInfo
+    private sealed class RateLimitInfo
     {
         public int RequestsLimit { get; set; }
 

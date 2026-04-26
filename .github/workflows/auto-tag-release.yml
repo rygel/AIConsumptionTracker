@@ -1,0 +1,119 @@
+name: Auto Tag Release
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - Directory.Build.props
+      - CHANGELOG.md
+      - README.md
+      - scripts/setup.iss
+      - scripts/publish-app.ps1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-tag-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve Version and Channel
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(grep -oP '(?<=<TrackerVersion>)[^<]+' Directory.Build.props | head -n1)"
+          if [[ -z "$version" ]]; then
+            echo "TrackerVersion not found in Directory.Build.props"
+            exit 1
+          fi
+
+          branch="${GITHUB_REF#refs/heads/}"
+          is_beta="false"
+          if [[ "$version" == *"-beta."* ]]; then
+            is_beta="true"
+          fi
+
+          should_release="false"
+          channel="unknown"
+
+          if [[ "$branch" == "develop" && "$is_beta" == "true" ]]; then
+            should_release="true"
+            channel="beta"
+          elif [[ "$branch" == "main" && "$is_beta" == "false" ]]; then
+            should_release="true"
+            channel="stable"
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "should_release=$should_release" >> "$GITHUB_OUTPUT"
+
+          echo "Resolved version: $version"
+          echo "Resolved branch: $branch"
+          echo "Resolved channel: $channel"
+          echo "Should release: $should_release"
+
+      - name: Validate Changelog Entry
+        if: steps.resolve.outputs.should_release == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          if ! grep -Fq "## [$VERSION]" CHANGELOG.md; then
+            echo "CHANGELOG.md is missing section for $VERSION"
+            exit 1
+          fi
+
+      - name: Check Existing Tag
+        if: steps.resolve.outputs.should_release == 'true'
+        id: tag-check
+        shell: bash
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --tags origin "refs/tags/v$VERSION" | grep -q "refs/tags/v$VERSION$"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag v$VERSION already exists. Skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag v$VERSION does not exist. Will create."
+          fi
+
+      - name: Create and Push Tag
+        if: steps.resolve.outputs.should_release == 'true' && steps.tag-check.outputs.exists == 'false'
+        shell: bash
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+          CHANNEL: ${{ steps.resolve.outputs.channel }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "v$VERSION" -m "Release $VERSION ($CHANNEL)"
+          git push origin "v$VERSION"
+
+      - name: Skip Summary
+        if: steps.resolve.outputs.should_release != 'true' || steps.tag-check.outputs.exists == 'true'
+        shell: bash
+        run: |
+          echo "Auto tag skipped due to branch/version policy or existing tag."

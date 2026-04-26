@@ -4,7 +4,6 @@
 
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
-using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Monitor.Services;
 
@@ -143,6 +142,7 @@ internal static class AuthDiagnosticsSnapshotBuilder
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             logger?.LogDebug(
+                ex,
                 "Auth diagnostics token age calculation failed for provider {ProviderId} and source {AuthSource}.",
                 providerId,
                 authSource);

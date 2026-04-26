@@ -3,7 +3,6 @@
 // </copyright>
 
 using System.Globalization;
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AIUsageTracker.Core.Models;
@@ -15,6 +14,8 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public class DeepSeekProvider : ProviderBase
 {
+    private const string UserBalanceEndpoint = "https://api.deepseek.com/user/balance";
+
     private readonly HttpClient _httpClient;
     private readonly ILogger<DeepSeekProvider> _logger;
 
@@ -57,9 +58,11 @@ public class DeepSeekProvider : ProviderBase
             };
         }
 
+        var providerLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId);
+
         try
         {
-            var request = CreateBearerRequest(HttpMethod.Get, "https://api.deepseek.com/user/balance", config.ApiKey);
+            var request = CreateBearerRequest(HttpMethod.Get, UserBalanceEndpoint, config.ApiKey);
             request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 
             var response = await this._httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
@@ -74,7 +77,7 @@ public class DeepSeekProvider : ProviderBase
                     new ProviderUsage
                     {
                         ProviderId = this.ProviderId,
-                        ProviderName = this.Definition.DisplayName ?? this.ProviderId,
+                        ProviderName = providerLabel ?? this.ProviderId,
                         IsAvailable = true, // Key exists, just failed request
                         Description = $"API Error ({response.StatusCode})",
                         PlanType = this.Definition.PlanType,
@@ -100,14 +103,14 @@ public class DeepSeekProvider : ProviderBase
                 };
             }
 
-            if (result.BalanceInfos == null || !result.BalanceInfos.Any())
+            if (result.BalanceInfos == null || result.BalanceInfos.Count == 0)
             {
                 return new[]
                 {
                     new ProviderUsage
                     {
                         ProviderId = this.ProviderId,
-                        ProviderName = this.Definition.DisplayName,
+                        ProviderName = providerLabel,
                         IsAvailable = true,
                         UsedPercent = 0,
                         RequestsUsed = 0,
@@ -129,7 +132,7 @@ public class DeepSeekProvider : ProviderBase
                 flatCards.Add(new ProviderUsage
                 {
                     ProviderId = this.ProviderId,
-                    ProviderName = this.Definition.DisplayName,
+                    ProviderName = providerLabel,
                     Name = $"Balance ({currencyCode})",
                     CardId = $"balance-{currencyCode.ToLowerInvariant()}",
                     GroupId = this.ProviderId,
@@ -153,7 +156,7 @@ public class DeepSeekProvider : ProviderBase
         }
     }
 
-    private class DeepSeekBalanceResponse
+    private sealed class DeepSeekBalanceResponse
     {
         [JsonPropertyName("is_available")]
         public bool IsAvailable { get; set; }
@@ -162,7 +165,7 @@ public class DeepSeekProvider : ProviderBase
         public List<BalanceInfo>? BalanceInfos { get; set; }
     }
 
-    private class BalanceInfo
+    private sealed class BalanceInfo
     {
         [JsonPropertyName("currency")]
         public string? Currency { get; set; }

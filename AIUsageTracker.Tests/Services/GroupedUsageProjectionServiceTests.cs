@@ -75,17 +75,16 @@ public sealed class GroupedUsageProjectionServiceTests
         var snapshot = GroupedUsageProjectionService.Build(usages);
 
         var provider = Assert.Single(snapshot.Providers);
+
         // Description must come from the most recent entry, not the stale successful one.
         Assert.Equal("HTTP 401: Unauthorized", provider.Description);
     }
 
     [Fact]
-    public void Build_KimiWithWindowKindCards_ProjectsAsProviderDetailsNotModels()
+    public void Build_KimiWithWindowKindCards_ProjectsNoModels()
     {
-        // Kimi emits flat cards with CardId + WindowKind (Rolling/Burst).
-        // Because WindowKind != None, they must NOT be projected as Models (which would
-        // produce separate flat cards). They must flow through as ProviderDetails so the
-        // UI renders them as dual quota bars on a single parent card.
+        // Kimi emits WindowKind cards only. In the strict models-only grouped contract,
+        // WindowKind != None rows are not projected as grouped models.
         var usages = new[]
         {
             new ProviderUsage
@@ -123,10 +122,7 @@ public sealed class GroupedUsageProjectionServiceTests
         var snapshot = GroupedUsageProjectionService.Build(usages);
 
         var provider = Assert.Single(snapshot.Providers);
-        Assert.Empty(provider.Models); // not flat model cards
-        Assert.Equal(2, provider.ProviderDetails.Count); // both appear as quota-window details
-        Assert.Contains(provider.ProviderDetails, d => d.WindowKind == WindowKind.Rolling);
-        Assert.Contains(provider.ProviderDetails, d => d.WindowKind == WindowKind.Burst);
+        Assert.Empty(provider.Models);
     }
 
     [Fact]
@@ -174,17 +170,16 @@ public sealed class GroupedUsageProjectionServiceTests
 
         var provider = Assert.Single(snapshot.Providers);
         Assert.Equal(3, provider.Models.Count); // all three become flat model cards
-        Assert.Contains(provider.Models, m => m.ModelId == "current-session");
-        Assert.Contains(provider.Models, m => m.ModelId == "sonnet");
-        Assert.Contains(provider.Models, m => m.ModelId == "all-models");
+        Assert.Contains(provider.Models, m => string.Equals(m.ModelId, "current-session", StringComparison.Ordinal));
+        Assert.Contains(provider.Models, m => string.Equals(m.ModelId, "sonnet", StringComparison.Ordinal));
+        Assert.Contains(provider.Models, m => string.Equals(m.ModelId, "all-models", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void Build_CodexAndSpark_ProjectAsTwoSeparateGroupsWithDualBarCards()
+    public void Build_CodexAndSpark_WindowKindRows_ProjectAsTwoSeparateGroupsWithoutModels()
     {
-        // codex and codex.spark are now standalone canonical providers (FamilyMode = Standalone).
-        // Each emits a Burst + Rolling pair, resulting in two separate groups.
-        // Neither group produces flat model cards — the window-kind cards populate ProviderDetails instead.
+        // codex and codex.spark are standalone owner providers (FamilyMode = Standalone).
+        // Each emits a Burst + Rolling pair, resulting in two separate groups with no grouped models.
         var usages = new[]
         {
             new ProviderUsage
@@ -243,19 +238,70 @@ public sealed class GroupedUsageProjectionServiceTests
 
         var snapshot = GroupedUsageProjectionService.Build(usages);
 
-        // Two separate groups — each with no flat model cards and a pair of ProviderDetails entries.
+        // Two separate groups — each with no grouped models.
         Assert.Equal(2, snapshot.Providers.Count);
 
         var codex = Assert.Single(snapshot.Providers, p => string.Equals(p.ProviderId, "codex", StringComparison.Ordinal));
-        Assert.Equal(0, codex.Models.Count);
-        Assert.Equal(2, codex.ProviderDetails.Count);
-        Assert.Contains(codex.ProviderDetails, d => d.CardId == "burst" && d.WindowKind == WindowKind.Burst);
-        Assert.Contains(codex.ProviderDetails, d => d.CardId == "weekly" && d.WindowKind == WindowKind.Rolling);
+        Assert.Empty(codex.Models);
 
         var spark = Assert.Single(snapshot.Providers, p => string.Equals(p.ProviderId, "codex.spark", StringComparison.Ordinal));
-        Assert.Equal(0, spark.Models.Count);
-        Assert.Equal(2, spark.ProviderDetails.Count);
-        Assert.Contains(spark.ProviderDetails, d => d.CardId == "spark.burst" && d.WindowKind == WindowKind.Burst);
-        Assert.Contains(spark.ProviderDetails, d => d.CardId == "spark.weekly" && d.WindowKind == WindowKind.Rolling);
+        Assert.Empty(spark.Models);
+    }
+
+    [Fact]
+    public void Build_MinimaxIoAndCodingPlan_ProjectAsSeparateProviders()
+    {
+        var usages = new[]
+        {
+            new ProviderUsage
+            {
+                ProviderId = "minimax-io",
+                ProviderName = "MiniMax.io",
+                IsAvailable = true,
+                UsedPercent = 25,
+                RequestsUsed = 250,
+                RequestsAvailable = 1000,
+            },
+            new ProviderUsage
+            {
+                ProviderId = "minimax-coding-plan",
+                ProviderName = "Minimax.io Coding Plan",
+                CardId = "burst",
+                Name = "5h",
+                WindowKind = WindowKind.Burst,
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                UsedPercent = 40,
+                RequestsUsed = 40,
+                RequestsAvailable = 100,
+                PeriodDuration = TimeSpan.FromHours(5),
+            },
+            new ProviderUsage
+            {
+                ProviderId = "minimax-coding-plan",
+                ProviderName = "Minimax.io Coding Plan",
+                CardId = "weekly",
+                Name = "Weekly",
+                WindowKind = WindowKind.Rolling,
+                IsAvailable = true,
+                IsQuotaBased = true,
+                PlanType = PlanType.Coding,
+                UsedPercent = 30,
+                RequestsUsed = 150,
+                RequestsAvailable = 500,
+                PeriodDuration = TimeSpan.FromDays(7),
+            },
+        };
+
+        var snapshot = GroupedUsageProjectionService.Build(usages);
+
+        var minimaxIo = Assert.Single(snapshot.Providers, p => string.Equals(p.ProviderId, "minimax-io", StringComparison.Ordinal));
+        var minimaxCoding = Assert.Single(snapshot.Providers, p => string.Equals(p.ProviderId, "minimax-coding-plan", StringComparison.Ordinal));
+
+        Assert.Equal("MiniMax.io", minimaxIo.ProviderName);
+        Assert.Equal("Minimax.io Coding Plan", minimaxCoding.ProviderName);
+        Assert.Empty(minimaxIo.Models);
+        Assert.Empty(minimaxCoding.Models);
     }
 }

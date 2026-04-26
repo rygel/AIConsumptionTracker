@@ -5,6 +5,12 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'           # Stable releases: v2.2.25
       - 'v[0-9]+.[0-9]+.[0-9]+-beta.*'    # Beta releases: v2.3.0-beta.1
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g., v2.3.4-beta.33)'
+        required: true
+        type: string
 
 jobs:
   publish:
@@ -19,13 +25,17 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
+          ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Extract Version and Channel
         id: extract
+        env:
+          INPUT_TAG: ${{ inputs.tag || '' }}
         run: |
-          $version = $env:GITHUB_REF -replace 'refs/tags/v', ''
+          $ref = if ($env:INPUT_TAG) { $env:INPUT_TAG } else { $env:GITHUB_REF }
+          $version = $ref -replace 'refs/tags/v', '' -replace '^v', ''
           $channel = if ($version -match '-beta') { 'beta' } else { 'stable' }
           
           echo "VERSION=$version" >> $env:GITHUB_ENV
@@ -53,7 +63,7 @@ jobs:
         shell: pwsh
 
       - name: Upload Build Artifacts
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: AIUsageTracker-v${{ env.VERSION }}-${{ matrix.runtime }}
           path: |
@@ -108,7 +118,7 @@ jobs:
           bash scripts/generate-appcast.sh "$VERSION" "$CHANNEL"
 
       - name: Upload Appcast Artifacts
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: appcast-files-${{ steps.extract.outputs.channel }}
           path: appcast/*.xml
@@ -167,7 +177,7 @@ jobs:
             -AppcastDir "appcast"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe  # v2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v2
         with:
           files: |
             artifacts/**/*

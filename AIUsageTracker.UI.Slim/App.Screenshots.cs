@@ -75,7 +75,7 @@ public partial class App
         return (width, height);
     }
 
-    private static BitmapSource ComposeOpaqueBitmap(
+    private static FormatConvertedBitmap ComposeOpaqueBitmap(
         Window window,
         FrameworkElement root,
         double width,
@@ -91,7 +91,7 @@ public partial class App
         var composedVisual = new DrawingVisual();
         using (var dc = composedVisual.RenderOpen())
         {
-            dc.DrawRectangle(backgroundBrush, null, new Rect(0, 0, width, height));
+            dc.DrawRectangle(brush: backgroundBrush, pen: null, rectangle: new Rect(0, 0, width, height));
             dc.DrawImage(contentBitmap, new Rect(0, 0, width, height));
         }
 
@@ -99,12 +99,12 @@ public partial class App
         bitmap.Render(composedVisual);
         bitmap.Freeze();
 
-        var opaqueBitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgr24, null, 0);
+        var opaqueBitmap = new FormatConvertedBitmap(source: bitmap, destinationFormat: PixelFormats.Bgr24, destinationPalette: null, alphaThreshold: 0);
         opaqueBitmap.Freeze();
         return opaqueBitmap;
     }
 
-    private static Brush CreateBackgroundBrush(Window window)
+    private static SolidColorBrush CreateBackgroundBrush(Window window)
     {
         var backgroundBrush = window.Background is SolidColorBrush solidBackground
             ? new SolidColorBrush(Color.FromRgb(solidBackground.Color.R, solidBackground.Color.G, solidBackground.Color.B))
@@ -164,13 +164,13 @@ public partial class App
             var isThemeSmokeMode = args.Contains("--theme-smoke", StringComparer.OrdinalIgnoreCase);
             var isCardCatalogMode = args.Contains("--card-catalog", StringComparer.OrdinalIgnoreCase);
             this.ConfigureHeadlessScreenshotPreferences(selectedTheme);
-            var screenshotsDir = this.ResolveOutputDirectory(args);
+            var screenshotsDir = ResolveOutputDirectory(args);
             Directory.CreateDirectory(screenshotsDir);
 
             if (isThemeSmokeMode)
             {
                 var smokeFileName = $"theme_smoke_{selectedTheme.ToString().ToLowerInvariant()}.png";
-                await this.CaptureMainWindowScreenshotAsync(Path.Combine(screenshotsDir, smokeFileName)).ConfigureAwait(true);
+                await CaptureMainWindowScreenshotAsync(Path.Combine(screenshotsDir, smokeFileName)).ConfigureAwait(true);
                 return;
             }
 
@@ -180,8 +180,8 @@ public partial class App
                 return;
             }
 
-            await this.CaptureMainWindowScreenshotAsync(Path.Combine(screenshotsDir, "screenshot_dashboard_privacy.png")).ConfigureAwait(true);
-            await this.CaptureSettingsScreenshotsAsync(screenshotsDir).ConfigureAwait(true);
+            await CaptureMainWindowScreenshotAsync(Path.Combine(screenshotsDir, "screenshot_dashboard_privacy.png")).ConfigureAwait(true);
+            await CaptureSettingsScreenshotsAsync(screenshotsDir).ConfigureAwait(true);
             this.CaptureInfoScreenshot(Path.Combine(screenshotsDir, "screenshot_info_privacy.png"));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -195,7 +195,7 @@ public partial class App
         }
     }
 
-    private string ResolveOutputDirectory(IReadOnlyList<string> args)
+    private static string ResolveOutputDirectory(IReadOnlyList<string> args)
     {
         var outputDirectoryArg = GetArgumentValue(args, "--output-dir");
         return string.IsNullOrWhiteSpace(outputDirectoryArg)
@@ -223,13 +223,13 @@ public partial class App
         SetPrivacyMode(true);
     }
 
-    private async Task CaptureMainWindowScreenshotAsync(string outputPath)
+    private static async Task CaptureMainWindowScreenshotAsync(string outputPath)
     {
         var window = Host.Services.GetRequiredService<MainWindow>();
         try
         {
             await window.PrepareForHeadlessScreenshotAsync(deterministic: true).ConfigureAwait(true);
-            await this.WaitForDispatcherIdleAsync(window).ConfigureAwait(true);
+            await WaitForDispatcherIdleAsync(window).ConfigureAwait(true);
             RenderWindowContent(window, outputPath);
         }
         finally
@@ -238,7 +238,7 @@ public partial class App
         }
     }
 
-    private async Task CaptureSettingsScreenshotsAsync(string outputDirectory)
+    private static async Task CaptureSettingsScreenshotsAsync(string outputDirectory)
     {
         var window = Host.Services.GetRequiredService<SettingsWindow>();
         try
@@ -251,7 +251,7 @@ public partial class App
         }
     }
 
-    private async Task WaitForDispatcherIdleAsync(Window window)
+    private static async Task WaitForDispatcherIdleAsync(Window window)
     {
 #pragma warning disable VSTHRD001 // WPF screenshot capture needs the window dispatcher to reach idle before rendering.
         await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task.ConfigureAwait(true);
@@ -280,7 +280,7 @@ public partial class App
                 // preferences to defaults, so we must override afterwards.
                 permutation.Apply(Preferences);
                 window.ApplyPreferencesAndRerender();
-                await this.WaitForDispatcherIdleAsync(window).ConfigureAwait(true);
+                await WaitForDispatcherIdleAsync(window).ConfigureAwait(true);
                 RenderWindowContent(window, outputPath);
                 captured.Add((fileName, permutation.Label, permutation.Description));
             }

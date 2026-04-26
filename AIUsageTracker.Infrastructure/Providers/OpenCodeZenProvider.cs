@@ -96,6 +96,8 @@ public class OpenCodeZenProvider : ProviderBase
     {
         ArgumentNullException.ThrowIfNull(config);
 
+        var providerLabel = ProviderMetadataCatalog.GetConfiguredDisplayName(config.ProviderId);
+
         var cliPath = await this.ResolveCliPathAsync().ConfigureAwait(false);
         if (cliPath == null)
         {
@@ -107,18 +109,19 @@ public class OpenCodeZenProvider : ProviderBase
                     config.AuthSource,
                     "Searched: PATH, fallback paths: " + string.Join(", ", FallbackPaths),
                     404,
-                    ProviderUsageState.Missing),
+                    ProviderUsageState.Missing,
+                    providerLabel),
             };
         }
 
         try
         {
             var output = await this.RunCliAsync(cliPath).ConfigureAwait(false);
-            return new[] { this.ParseOutput(output, config) };
+            return new[] { this.ParseOutput(output, config, providerLabel) };
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException or TimeoutException)
         {
-            this._logger.LogWarning("OpenCode CLI failed: {Message}", ex.Message);
+            this._logger.LogWarning(ex, "OpenCode CLI failed: {Message}", ex.Message);
             return new[]
             {
                 CreateUnavailableUsage(
@@ -126,7 +129,9 @@ public class OpenCodeZenProvider : ProviderBase
                     $"CLI Error: {ex.Message} (Check log or clear storage if JSON error)",
                     config.AuthSource,
                     ex.ToString(),
-                    500),
+                    500,
+                    ProviderUsageState.Error,
+                    providerLabel),
             };
         }
     }
@@ -137,12 +142,13 @@ public class OpenCodeZenProvider : ProviderBase
         string? authSource,
         string rawJson,
         int httpStatus,
-        ProviderUsageState state = ProviderUsageState.Error)
+        ProviderUsageState state,
+        string? providerLabel = null)
     {
         return new ProviderUsage
         {
             ProviderId = providerId,
-            ProviderName = ProviderDisplayName,
+            ProviderName = providerLabel ?? ProviderDisplayName,
             IsAvailable = false,
             Description = description,
             State = state,
@@ -229,7 +235,6 @@ public class OpenCodeZenProvider : ProviderBase
         var results = new List<ModelUsageEntry>();
         var sections = SeparatorRegex.Split(cleaned);
 
-        // Find MODEL USAGE section — blocks between the header and the next major section
         var inModelSection = false;
         foreach (var section in sections)
         {
@@ -239,9 +244,7 @@ public class OpenCodeZenProvider : ProviderBase
                 continue;
             }
 
-            if (inModelSection && (section.Contains("TOOL USAGE", StringComparison.Ordinal) ||
-                                   section.Contains("OVERVIEW", StringComparison.Ordinal) ||
-                                   section.Contains("COST & TOKENS", StringComparison.Ordinal)))
+            if (inModelSection && IsSectionTerminator(section))
             {
                 break;
             }
@@ -251,57 +254,68 @@ public class OpenCodeZenProvider : ProviderBase
                 continue;
             }
 
-            // Each block is one model — extract fields line by line
-            var lines = section.Split('\n')
-                .Select(l => StripBoxDrawingChars(l).Trim())
-                .Where(l => !string.IsNullOrWhiteSpace(l))
-                .ToList();
-
-            if (lines.Count == 0)
-            {
-                continue;
-            }
-
-            // First line is model name (e.g. "opencode-go/kimi-k2.5")
-            var modelName = lines[0].Trim();
-            if (string.IsNullOrWhiteSpace(modelName) ||
-                modelName.Contains("MODEL USAGE", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var entry = new ModelUsageEntry { Name = modelName };
-            foreach (var line in lines.Skip(1))
-            {
-                if (line.StartsWith("Messages", StringComparison.OrdinalIgnoreCase))
-                {
-                    entry.Messages = ParseValue<int>(line, @"Messages\s+([0-9,]+)");
-                }
-                else if (line.StartsWith("Input Tokens", StringComparison.OrdinalIgnoreCase))
-                {
-                    entry.InputTokens = ExtractTokenCount(line, @"Input Tokens\s+([0-9.,KMBT]+)");
-                }
-                else if (line.StartsWith("Output Tokens", StringComparison.OrdinalIgnoreCase))
-                {
-                    entry.OutputTokens = ExtractTokenCount(line, @"Output Tokens\s+([0-9.,KMBT]+)");
-                }
-                else if (line.StartsWith("Cache Read", StringComparison.OrdinalIgnoreCase))
-                {
-                    entry.CacheReadTokens = ExtractTokenCount(line, @"Cache Read\s+([0-9.,KMBT]+)");
-                }
-                else if (line.StartsWith("Cost", StringComparison.OrdinalIgnoreCase))
-                {
-                    entry.Cost = ParseValue<double>(line, @"Cost\s+\$([0-9.]+)");
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(entry.Name))
+            var entry = ParseModelSection(section);
+            if (entry != null)
             {
                 results.Add(entry);
             }
         }
 
         return results.OrderByDescending(m => m.Cost).ThenByDescending(m => m.Messages).ToList();
+    }
+
+    private static bool IsSectionTerminator(string section)
+    {
+        return section.Contains("TOOL USAGE", StringComparison.Ordinal) ||
+               section.Contains("OVERVIEW", StringComparison.Ordinal) ||
+               section.Contains("COST & TOKENS", StringComparison.Ordinal);
+    }
+
+    private static ModelUsageEntry? ParseModelSection(string section)
+    {
+        var lines = section.Split('\n')
+            .Select(l => StripBoxDrawingChars(l).Trim())
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .ToList();
+
+        if (lines.Count == 0)
+        {
+            return null;
+        }
+
+        var modelName = lines[0].Trim();
+        if (string.IsNullOrWhiteSpace(modelName) ||
+            modelName.Contains("MODEL USAGE", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var entry = new ModelUsageEntry { Name = modelName };
+        foreach (var line in lines.Skip(1))
+        {
+            if (line.StartsWith("Messages", StringComparison.OrdinalIgnoreCase))
+            {
+                entry.Messages = ParseValue<int>(line, @"Messages\s+([0-9,]+)");
+            }
+            else if (line.StartsWith("Input Tokens", StringComparison.OrdinalIgnoreCase))
+            {
+                entry.InputTokens = ExtractTokenCount(line, @"Input Tokens\s+([0-9.,KMBT]+)");
+            }
+            else if (line.StartsWith("Output Tokens", StringComparison.OrdinalIgnoreCase))
+            {
+                entry.OutputTokens = ExtractTokenCount(line, @"Output Tokens\s+([0-9.,KMBT]+)");
+            }
+            else if (line.StartsWith("Cache Read", StringComparison.OrdinalIgnoreCase))
+            {
+                entry.CacheReadTokens = ExtractTokenCount(line, @"Cache Read\s+([0-9.,KMBT]+)");
+            }
+            else if (line.StartsWith("Cost", StringComparison.OrdinalIgnoreCase))
+            {
+                entry.Cost = ParseValue<double>(line, @"Cost\s+\$([0-9.]+)");
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(entry.Name) ? null : entry;
     }
 
     private static List<ToolUsageEntry> ParseToolUsage(string cleaned)
@@ -337,6 +351,7 @@ public class OpenCodeZenProvider : ProviderBase
         return results.OrderByDescending(t => t.Count).ToList();
     }
 
+#pragma warning disable S107
     private static string BuildDescription(
         double totalCost,
         int sessions,
@@ -347,6 +362,7 @@ public class OpenCodeZenProvider : ProviderBase
         double avgCostPerDay,
         List<ModelUsageEntry> models,
         List<ToolUsageEntry> tools)
+#pragma warning restore S107
     {
         var parts = new List<string>
         {
@@ -383,7 +399,7 @@ public class OpenCodeZenProvider : ProviderBase
                 var costStr = m.Cost > 0
                     ? string.Create(CultureInfo.InvariantCulture, $" ${m.Cost:F2}")
                     : string.Empty;
-                return $"{m.Name} ({m.Messages}msgs{costStr})";
+                return $"{m.Name} ({m.Messages.ToString(CultureInfo.InvariantCulture)}msgs{costStr})";
             });
             parts.Add("Models: " + string.Join(", ", modelSummaries));
         }
@@ -440,7 +456,7 @@ public class OpenCodeZenProvider : ProviderBase
         // Strategy 1: Check if opencode is in PATH
         if (await this.IsInPathAsync(DefaultCliCommand).ConfigureAwait(false))
         {
-            var resolved = await this.ResolvePathLocationAsync(DefaultCliCommand).ConfigureAwait(false);
+            var resolved = await ResolvePathLocationAsync(DefaultCliCommand).ConfigureAwait(false);
             if (resolved != null)
             {
                 this._logger.LogDebug("Found opencode via PATH: {Path}", resolved);
@@ -462,13 +478,11 @@ public class OpenCodeZenProvider : ProviderBase
         }
 
         // Strategy 3: Check common fallback installation paths
-        foreach (var candidate in FallbackPaths)
+        var found = FallbackPaths.FirstOrDefault(File.Exists);
+        if (found != null)
         {
-            if (File.Exists(candidate))
-            {
-                this._logger.LogDebug("Found opencode via fallback path: {Path}", candidate);
-                return candidate;
-            }
+            this._logger.LogDebug("Found opencode via fallback path: {Path}", found);
+            return found;
         }
 
         return null;
@@ -514,19 +528,19 @@ public class OpenCodeZenProvider : ProviderBase
                 this._logger.LogDebug(ex, "Failed to kill timed-out OpenCode CLI process");
             }
 
-            throw new TimeoutException($"OpenCode CLI timed out after {this._cliTimeout.TotalSeconds:F0}s");
+            throw new TimeoutException($"OpenCode CLI timed out after {this._cliTimeout.TotalSeconds.ToString("F0", CultureInfo.InvariantCulture)}s");
         }
 
         var standardError = await standardErrorTask.ConfigureAwait(false);
         if (process.ExitCode != 0)
         {
-            throw new InvalidOperationException($"CLI Error: {process.ExitCode} - {standardError}");
+            throw new InvalidOperationException($"CLI Error: {process.ExitCode.ToString(CultureInfo.InvariantCulture)} - {standardError}");
         }
 
         return await standardOutputTask.ConfigureAwait(false);
     }
 
-    private ProviderUsage ParseOutput(string output, ProviderConfig config)
+    private ProviderUsage ParseOutput(string output, ProviderConfig config, string providerLabel)
     {
         var cleaned = CleanAnsiOutput(output);
 
@@ -555,7 +569,7 @@ public class OpenCodeZenProvider : ProviderBase
         return new ProviderUsage
         {
             ProviderId = this.ProviderId,
-            ProviderName = ProviderDisplayName,
+            ProviderName = providerLabel ?? ProviderDisplayName,
             UsedPercent = 0.0,
             RequestsUsed = totalCost,
             RequestsAvailable = 0.0,
@@ -602,7 +616,7 @@ public class OpenCodeZenProvider : ProviderBase
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
         {
-            this._logger.LogDebug("IsInPath check failed: {Message}", ex.Message);
+            this._logger.LogDebug(ex, "IsInPath check failed: {Message}", ex.Message);
             return false;
         }
     }
@@ -646,13 +660,13 @@ public class OpenCodeZenProvider : ProviderBase
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
         {
-            this._logger.LogDebug("Login shell discovery failed: {Message}", ex.Message);
+            this._logger.LogDebug(ex, "Login shell discovery failed: {Message}", ex.Message);
         }
 
         return null;
     }
 
-    private async Task<string?> ResolvePathLocationAsync(string command)
+    private static async Task<string?> ResolvePathLocationAsync(string command)
     {
         try
         {

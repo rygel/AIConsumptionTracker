@@ -8,7 +8,6 @@ namespace AIUsageTracker.Infrastructure.Providers;
 
 public static class ProviderMetadataCatalog
 {
-    private const string LegacyOpenAiProviderId = "openai";
     private static readonly Lazy<IReadOnlyList<ProviderDefinition>> DefinitionsValue = new(LoadDefinitions);
 
     public static IReadOnlyList<ProviderDefinition> Definitions => DefinitionsValue.Value;
@@ -37,8 +36,13 @@ public static class ProviderMetadataCatalog
         return true;
     }
 
-    public static string GetCanonicalProviderId(string providerId)
+    public static string GetProviderOwnerId(string providerId)
     {
+        if (IsVisibleDerivedProviderId(providerId))
+        {
+            return providerId;
+        }
+
         return Find(providerId)?.ProviderId ?? providerId ?? string.Empty;
     }
 
@@ -48,30 +52,6 @@ public static class ProviderMetadataCatalog
         if (definition == null)
         {
             return providerId ?? string.Empty;
-        }
-
-        var mapped = definition.ResolveDisplayName(providerId);
-        return !string.IsNullOrWhiteSpace(mapped) ? mapped : definition.DisplayName;
-    }
-
-    public static string ResolveDisplayLabel(ProviderUsage usage)
-    {
-        ArgumentNullException.ThrowIfNull(usage);
-        return ResolveDisplayLabel(usage.ProviderId ?? string.Empty, usage.ProviderName);
-    }
-
-    public static string ResolveDisplayLabel(string providerId, string? runtimeLabel = null)
-    {
-        var definition = Find(providerId);
-        if (definition == null)
-        {
-            return !string.IsNullOrWhiteSpace(runtimeLabel) ? runtimeLabel : (providerId ?? string.Empty);
-        }
-
-        var isDerived = !string.Equals(providerId, definition.ProviderId, StringComparison.OrdinalIgnoreCase);
-        if (isDerived && !string.IsNullOrWhiteSpace(runtimeLabel))
-        {
-            return runtimeLabel;
         }
 
         var mapped = definition.ResolveDisplayName(providerId);
@@ -96,11 +76,10 @@ public static class ProviderMetadataCatalog
 
     public static string GetIconAssetName(string providerId)
     {
-        var canonicalProviderId = GetCanonicalProviderId(providerId);
-        var definition = Find(canonicalProviderId);
+        var definition = Find(providerId);
         return definition != null && !string.IsNullOrWhiteSpace(definition.IconAssetName)
             ? definition.IconAssetName
-            : canonicalProviderId;
+            : providerId ?? string.Empty;
     }
 
     public static bool TryGetBadgeDefinition(string providerId, out string colorHex, out string initial)
@@ -108,7 +87,7 @@ public static class ProviderMetadataCatalog
         colorHex = string.Empty;
         initial = string.Empty;
 
-        var definition = Find(GetCanonicalProviderId(providerId));
+        var definition = Find(providerId);
         if (definition == null ||
             string.IsNullOrWhiteSpace(definition.BadgeColorHex) ||
             string.IsNullOrWhiteSpace(definition.BadgeInitial))
@@ -158,7 +137,7 @@ public static class ProviderMetadataCatalog
             .Where(definition =>
                 definition.AuthIdentityCandidatePathTemplates.Count > 0 &&
                 definition.SessionAuthFileSchemas.Count > 0 &&
-                string.IsNullOrWhiteSpace(definition.SessionAuthCanonicalProviderId))
+                ShouldPersistProviderId(definition.ProviderId))
             .Select(definition => definition.ProviderId)
             .OrderBy(providerId => providerId, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -195,13 +174,7 @@ public static class ProviderMetadataCatalog
                 continue;
             }
 
-            foreach (var coReportedProviderId in definition.CoReportedProviderIds)
-            {
-                if (!string.IsNullOrWhiteSpace(coReportedProviderId))
-                {
-                    expanded.Add(coReportedProviderId);
-                }
-            }
+            expanded.UnionWith(definition.CoReportedProviderIds.Where(id => !string.IsNullOrWhiteSpace(id)));
         }
 
         return expanded;
@@ -210,11 +183,6 @@ public static class ProviderMetadataCatalog
     public static bool ShouldPersistProviderId(string providerId)
     {
         if (string.IsNullOrWhiteSpace(providerId))
-        {
-            return false;
-        }
-
-        if (string.Equals(providerId, LegacyOpenAiProviderId, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -257,14 +225,7 @@ public static class ProviderMetadataCatalog
         return true;
     }
 
-    public static void NormalizeCanonicalConfigurations(IList<ProviderConfig> configs)
-    {
-        ArgumentNullException.ThrowIfNull(configs);
-
-        NormalizeConfigOwnership(configs);
-    }
-
-    private static IReadOnlyList<ProviderDefinition> LoadDefinitions()
+    private static List<ProviderDefinition> LoadDefinitions()
     {
         var definitions = new List<ProviderDefinition>
         {
@@ -297,134 +258,11 @@ public static class ProviderMetadataCatalog
         return definitions;
     }
 
-    private static void NormalizeConfigOwnership(IList<ProviderConfig> configs)
-    {
-        var nonCanonicalConfigs = configs
-            .Where(config =>
-            {
-                var ownerProviderId = GetCanonicalConfigOwnerId(config);
-                return !string.Equals(ownerProviderId, config.ProviderId, StringComparison.OrdinalIgnoreCase);
-            })
-            .ToList();
-        if (nonCanonicalConfigs.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var sourceConfig in nonCanonicalConfigs)
-        {
-            var ownerProviderId = GetCanonicalConfigOwnerId(sourceConfig);
-            var canonicalConfig = GetOrCreateConfig(configs, ownerProviderId);
-            if (canonicalConfig == null)
-            {
-                continue;
-            }
-
-            MergeConfigIntoCanonical(sourceConfig, canonicalConfig);
-        }
-
-        foreach (var config in nonCanonicalConfigs)
-        {
-            configs.Remove(config);
-        }
-    }
-
-    private static ProviderConfig? GetOrCreateConfig(IList<ProviderConfig> configs, string providerId)
-    {
-        var existingConfig = configs.FirstOrDefault(config =>
-            string.Equals(config.ProviderId, providerId, StringComparison.OrdinalIgnoreCase));
-        if (existingConfig != null)
-        {
-            return existingConfig;
-        }
-
-        if (!TryCreateDefaultConfig(providerId, out var defaultConfig))
-        {
-            return null;
-        }
-
-        configs.Add(defaultConfig);
-        return defaultConfig;
-    }
-
-    private static string GetCanonicalConfigOwnerId(ProviderConfig config)
-    {
-        if (ShouldPersistProviderId(config.ProviderId) && IsVisibleDerivedProviderId(config.ProviderId))
-        {
-            return config.ProviderId;
-        }
-
-        if (TryGet(config.ProviderId, out var definition) && IsSessionAuthConfig(config, definition))
-        {
-            return definition.SessionAuthCanonicalProviderId!;
-        }
-
-        return GetCanonicalProviderId(config.ProviderId);
-    }
-
-    private static bool IsSessionAuthConfig(ProviderConfig config, ProviderDefinition definition)
-    {
-        if (string.IsNullOrWhiteSpace(definition.SessionAuthCanonicalProviderId) ||
-            string.IsNullOrWhiteSpace(config.ApiKey))
-        {
-            return false;
-        }
-
-        if (definition.ExplicitApiKeyPrefixes.Count == 0)
-        {
-            return true;
-        }
-
-        return !definition.ExplicitApiKeyPrefixes.Any(prefix =>
-            config.ApiKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static void MergeConfigIntoCanonical(ProviderConfig sourceConfig, ProviderConfig canonicalConfig)
-    {
-        if (string.IsNullOrWhiteSpace(canonicalConfig.ApiKey) && !string.IsNullOrWhiteSpace(sourceConfig.ApiKey))
-        {
-            canonicalConfig.ApiKey = sourceConfig.ApiKey;
-        }
-
-        if ((string.IsNullOrWhiteSpace(canonicalConfig.AuthSource) ||
-             string.Equals(canonicalConfig.AuthSource, AuthSource.Unknown, StringComparison.OrdinalIgnoreCase)) &&
-            !string.IsNullOrWhiteSpace(sourceConfig.AuthSource))
-        {
-            canonicalConfig.AuthSource = sourceConfig.AuthSource;
-        }
-
-        var sourceDescription = GetPreferredMigrationDescription(sourceConfig);
-        if (string.IsNullOrWhiteSpace(canonicalConfig.Description) && !string.IsNullOrWhiteSpace(sourceDescription))
-        {
-            canonicalConfig.Description = sourceDescription;
-        }
-
-        if (string.IsNullOrWhiteSpace(canonicalConfig.BaseUrl) && !string.IsNullOrWhiteSpace(sourceConfig.BaseUrl))
-        {
-            canonicalConfig.BaseUrl = sourceConfig.BaseUrl;
-        }
-
-        canonicalConfig.ShowInTray |= sourceConfig.ShowInTray;
-        canonicalConfig.EnableNotifications |= sourceConfig.EnableNotifications;
-    }
-
-    private static string? GetPreferredMigrationDescription(ProviderConfig sourceConfig)
-    {
-        if (TryGet(sourceConfig.ProviderId, out var definition) &&
-            IsSessionAuthConfig(sourceConfig, definition) &&
-            !string.IsNullOrWhiteSpace(definition.SessionAuthMigrationDescription))
-        {
-            return definition.SessionAuthMigrationDescription;
-        }
-
-        return sourceConfig.Description;
-    }
-
     private static void ValidateNoDuplicateProviderIds(IReadOnlyCollection<ProviderDefinition> definitions)
     {
         var duplicateProviderIds = definitions
             .GroupBy(definition => definition.ProviderId, StringComparer.OrdinalIgnoreCase)
-            .Where(group => group.Count() > 1)
+            .Where(group => group.Skip(1).Any())
             .Select(group => group.Key)
             .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -445,7 +283,7 @@ public static class ProviderMetadataCatalog
                 definition.ProviderId,
             }))
             .GroupBy(item => item.HandledId, StringComparer.OrdinalIgnoreCase)
-            .Where(group => group.Select(item => item.ProviderId).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+            .Where(group => group.Select(item => item.ProviderId).Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any())
             .Select(group => group.Key)
             .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
             .ToList();

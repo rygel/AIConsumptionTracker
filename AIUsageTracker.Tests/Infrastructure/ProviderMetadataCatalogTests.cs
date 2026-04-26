@@ -41,8 +41,9 @@ public class ProviderMetadataCatalogTests
     [InlineData("gemini-cli.hourly", "gemini-cli", "Gemini CLI (Hourly)")]
     [InlineData("gemini-cli.daily", "gemini-cli", "Gemini CLI (Daily)")]
     [InlineData("kimi", "kimi-for-coding", "Kimi for Coding")]
-    [InlineData("minimax-io", "minimax", "Minimax (International)")]
-    [InlineData("minimax-global", "minimax", "Minimax (International)")]
+    [InlineData("minimax-io", "minimax", "MiniMax.io")]
+    [InlineData("minimax-global", "minimax", "MiniMax.io")]
+    [InlineData("minimax-coding-plan", "minimax", "Minimax.io Coding Plan")]
     [InlineData("opencode-go", "opencode-go", "OpenCode Go")]
     [InlineData("zai", "zai-coding-plan", "Z.AI")]
     public void Find_UsesProviderDefinitionsForAliases(string providerId, string expectedDefinitionId, string expectedDisplayName)
@@ -51,7 +52,7 @@ public class ProviderMetadataCatalogTests
 
         Assert.NotNull(definition);
         Assert.Equal(expectedDefinitionId, definition!.ProviderId);
-        Assert.Equal(expectedDisplayName, ProviderMetadataCatalog.ResolveDisplayLabel(providerId));
+        Assert.Equal(expectedDisplayName, ProviderMetadataCatalog.GetConfiguredDisplayName(providerId));
     }
 
     [Theory]
@@ -62,27 +63,30 @@ public class ProviderMetadataCatalogTests
         string expectedDisplayName,
         string expectedSessionLabel)
     {
-        Assert.Equal(expectedDisplayName, ProviderMetadataCatalog.ResolveDisplayLabel(providerId));
+        Assert.Equal(expectedDisplayName, ProviderMetadataCatalog.GetConfiguredDisplayName(providerId));
         Assert.Equal(expectedSessionLabel, ProviderMetadataCatalog.Find(providerId)?.SessionStatusLabel);
     }
 
     [Theory]
     [InlineData("codex.spark", "OpenAI (GPT-5.3 Codex Spark)")]
     [InlineData("antigravity.gpt-oss", "Google Antigravity")]
+    [InlineData("minimax", "MiniMax.io")]
+    [InlineData("minimax-io", "MiniMax.io")]
+    [InlineData("minimax-global", "MiniMax.io")]
+    [InlineData("minimax-coding-plan", "Minimax.io Coding Plan")]
     public void GetConfiguredDisplayName_UsesMetadataAuthority(string providerId, string expectedDisplayName)
     {
         Assert.Equal(expectedDisplayName, ProviderMetadataCatalog.GetConfiguredDisplayName(providerId));
     }
 
     [Theory]
-    [InlineData("antigravity.gpt-oss", "GPT OSS (Anti-Gravity)", "GPT OSS (Anti-Gravity)")]
-    [InlineData("gemini-cli.minute", "Gemini 2.5 Flash Lite [Gemini CLI]", "Gemini 2.5 Flash Lite [Gemini CLI]")]
-    public void ResolveDisplayLabel_PreservesIntentionalRuntimeLabels_ForDynamicChildren(
+    [InlineData("antigravity.gpt-oss", "Google Antigravity")]
+    [InlineData("gemini-cli.minute", "Gemini CLI (Minute)")]
+    public void GetConfiguredDisplayName_ResolvesDerivedProviderIds(
         string providerId,
-        string runtimeLabel,
         string expectedDisplayLabel)
     {
-        Assert.Equal(expectedDisplayLabel, ProviderMetadataCatalog.ResolveDisplayLabel(providerId, runtimeLabel));
+        Assert.Equal(expectedDisplayLabel, ProviderMetadataCatalog.GetConfiguredDisplayName(providerId));
     }
 
     [Fact]
@@ -123,12 +127,14 @@ public class ProviderMetadataCatalogTests
     [InlineData("codex.spark", "codex.spark")]
     [InlineData("antigravity.claude-opus", "antigravity")]
     [InlineData("kimi", "kimi-for-coding")]
-    [InlineData("minimax-io", "minimax")]
+    [InlineData("minimax-io", "minimax-io")]
+    [InlineData("minimax-coding-plan", "minimax-coding-plan")]
+    [InlineData("minimax-global", "minimax")]
     [InlineData("opencode-go", "opencode-go")]
     [InlineData("unknown-provider", "unknown-provider")]
-    public void GetCanonicalProviderId_UsesProviderDefinitions(string providerId, string expectedCanonicalId)
+    public void GetProviderOwnerId_UsesProviderDefinitions(string providerId, string expectedOwnerId)
     {
-        Assert.Equal(expectedCanonicalId, ProviderMetadataCatalog.GetCanonicalProviderId(providerId));
+        Assert.Equal(expectedOwnerId, ProviderMetadataCatalog.GetProviderOwnerId(providerId));
     }
 
     [Theory]
@@ -151,8 +157,8 @@ public class ProviderMetadataCatalogTests
     [InlineData("unknown-provider.child", false)]
     public void IsChildProviderId_UsesProviderDefinitions(string providerId, bool expected)
     {
-        var canonicalProviderId = ProviderMetadataCatalog.GetCanonicalProviderId(providerId);
-        Assert.Equal(expected, ProviderMetadataCatalog.Find(canonicalProviderId)?.IsChildProviderId(providerId) ?? false);
+        var ownerProviderId = ProviderMetadataCatalog.GetProviderOwnerId(providerId);
+        Assert.Equal(expected, ProviderMetadataCatalog.Find(ownerProviderId)?.IsChildProviderId(providerId) ?? false);
     }
 
     [Theory]
@@ -358,6 +364,8 @@ public class ProviderMetadataCatalogTests
     [InlineData("codex", true)]
     [InlineData("openai", false)]
     [InlineData("deepseek", false)]
+    [InlineData("xiaomi", true)]
+    [InlineData("openrouter", true)]
     public void ShouldShowInSettings_UsesProviderDefinitions(string providerId, bool expected)
     {
         Assert.Equal(expected, ProviderMetadataCatalog.Find(providerId)?.ShowInSettings ?? false);
@@ -546,7 +554,7 @@ string.Equals(schema.AccessTokenProperty, "accessToken", StringComparison.Ordina
         Assert.Equal("codex", visible[0].ProviderId);
     }
 
-    private static IReadOnlyList<string> GetMissingDerivedModelSelectorProviderIds(string providerId)
+    private static List<string> GetMissingDerivedModelSelectorProviderIds(string providerId)
     {
         var def = ProviderMetadataCatalog.Find(providerId);
         var visibleDerivedProviderIds = def?.VisibleDerivedProviderIds ?? (IReadOnlyCollection<string>)Array.Empty<string>();
@@ -560,7 +568,7 @@ string.Equals(schema.AccessTokenProperty, "accessToken", StringComparison.Ordina
             .ToList();
     }
 
-    private static IReadOnlyList<string> GetUnknownDerivedModelSelectorProviderIds(string providerId)
+    private static List<string> GetUnknownDerivedModelSelectorProviderIds(string providerId)
     {
         var def = ProviderMetadataCatalog.Find(providerId);
         var visibleDerivedProviderIds = (def?.VisibleDerivedProviderIds ?? (IReadOnlyCollection<string>)Array.Empty<string>())

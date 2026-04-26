@@ -336,7 +336,6 @@ public class UsageMathTests
     }
 
     // ── ComputePaceColor (unified pace/color/tier computation) ──────────────
-
     [Fact]
     public void ComputePaceColor_OnPace_ColorBelowRedThreshold()
     {
@@ -409,7 +408,7 @@ public class UsageMathTests
     [Fact]
     public void ComputePaceColor_MissingResetTime_ReturnsRawPercent()
     {
-        var result = UsageMath.ComputePaceColor(70.0, null, TimeSpan.FromDays(7));
+        var result = UsageMath.ComputePaceColor(70.0, nextResetTime: null, TimeSpan.FromDays(7));
 
         Assert.False(result.IsPaceAdjusted);
         Assert.Equal(70.0, result.ColorPercent, precision: 1);
@@ -438,12 +437,12 @@ public class UsageMathTests
         var result = UsageMath.ComputePaceColor(usedPercent, now.AddDays(3.5), TimeSpan.FromDays(7), nowUtc: now);
 
         Assert.Equal(expectedTier, result.PaceTier);
+
         // ColorPercent is always raw usedPercent — tier drives bar color, not ColorPercent.
         Assert.Equal(usedPercent, result.ColorPercent, precision: 1);
     }
 
     // ── ComputePaceColor projected percent ─────────────────────────────────
-
     [Fact]
     public void ComputePaceColor_ProjectedPercent_UnderPace()
     {

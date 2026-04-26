@@ -3,11 +3,10 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Monitor.Services;
 using AIUsageTracker.Infrastructure.Providers;
+using AIUsageTracker.Monitor.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Xunit;
 
 namespace AIUsageTracker.Monitor.Tests;
 

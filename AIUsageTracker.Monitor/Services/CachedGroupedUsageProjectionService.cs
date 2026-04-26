@@ -5,8 +5,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-
-using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Infrastructure.Providers;
@@ -48,13 +46,24 @@ public sealed class CachedGroupedUsageProjectionService
             }
         }
 
-        var allUsage = await this._database.GetLatestHistoryAsync().ConfigureAwait(false);
         var activeConfigs = await this._configService.GetConfigsAsync().ConfigureAwait(false);
-        var activeIds = ProviderMetadataCatalog.ExpandAcceptedUsageProviderIds(
-            activeConfigs.Select(c => c.ProviderId));
-        var usage = allUsage
-            .Where(u => activeIds.Contains(u.ProviderId ?? string.Empty))
-            .ToList();
+
+        // Build the set of provider IDs that should appear in the snapshot.
+        // StandardApiKey providers require a key to be visible — without one there is nothing
+        // to show (the monitor never polls them, so the only DB rows would be stale zeroes).
+        // Non-StandardApiKey providers (SessionAuth, AutoDetected, ExternalAuth) are always
+        // included because their presence and state are determined by runtime detection, not
+        // by an API key in the config.
+        var visibleIds = ProviderMetadataCatalog.ExpandAcceptedUsageProviderIds(
+            activeConfigs
+                .Where(c => !string.IsNullOrEmpty(c.ApiKey) ||
+                            ProviderMetadataCatalog.Find(c.ProviderId)?.SettingsMode != ProviderSettingsMode.StandardApiKey)
+                .Select(c => c.ProviderId));
+
+        // Pass visibleIds directly to the DB so filtering happens in SQL rather than in
+        // application code. Stale history rows for unconfigured providers are excluded at
+        // the query level; the result set is already the snapshot — no further filtering needed.
+        var usage = await this._database.GetLatestHistoryAsync(visibleIds).ConfigureAwait(false);
         var snapshot = GroupedUsageProjectionService.Build(usage);
         var eTag = CreateUsageETag(usage);
 

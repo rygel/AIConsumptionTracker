@@ -6,7 +6,6 @@ using System.Net;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace AIUsageTracker.Tests.Integration;
 
@@ -26,6 +25,7 @@ public class ProviderResponseDeserializationTests
     /// an additional_rate_limits entry for Spark. Verifies the flat-card output
     /// including burst, weekly, and spark cards.
     /// </summary>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous unit test.</placeholder></returns>
     [Fact]
     public async Task CodexProvider_ParsesRealisticResponse_WithAllWindows()
     {
@@ -89,22 +89,22 @@ public class ProviderResponseDeserializationTests
         Assert.All(usages, u => Assert.Equal(200, u.HttpStatus));
 
         // Burst card (primary_window, 5h)
-        var burstCard = usages.First(u => u.CardId == "burst");
+        var burstCard = usages.First(u => string.Equals(u.CardId, "burst", StringComparison.Ordinal));
         Assert.Equal("codex", burstCard.ProviderId);
         Assert.Equal(42.5, burstCard.UsedPercent, precision: 1);
         Assert.NotNull(burstCard.NextResetTime);
 
         // Weekly card (secondary_window, 7d)
-        var weeklyCard = usages.First(u => u.CardId == "weekly");
+        var weeklyCard = usages.First(u => string.Equals(u.CardId, "weekly", StringComparison.Ordinal));
         Assert.Equal("codex", weeklyCard.ProviderId);
         Assert.Equal(28.0, weeklyCard.UsedPercent, precision: 1);
         Assert.NotNull(weeklyCard.NextResetTime);
 
         // Spark cards (additional_rate_limits) — independent provider with burst+rolling
-        var sparkBurst = usages.First(u => u.CardId == "spark.burst");
+        var sparkBurst = usages.First(u => string.Equals(u.CardId, "spark.burst", StringComparison.Ordinal));
         Assert.Equal("codex.spark", sparkBurst.ProviderId);
         Assert.Contains("Spark", sparkBurst.ProviderName, StringComparison.OrdinalIgnoreCase);
-        var sparkWeekly = usages.First(u => u.CardId == "spark.weekly");
+        var sparkWeekly = usages.First(u => string.Equals(u.CardId, "spark.weekly", StringComparison.Ordinal));
         Assert.Equal("codex.spark", sparkWeekly.ProviderId);
 
         // All cards share the same GroupId for visual grouping
@@ -115,6 +115,7 @@ public class ProviderResponseDeserializationTests
     /// Codex provider: response with ONLY primary_window (no secondary, no spark).
     /// Verifies graceful handling of missing windows.
     /// </summary>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous unit test.</placeholder></returns>
     [Fact]
     public async Task CodexProvider_ParsesMinimalResponse_PrimaryWindowOnly()
     {
@@ -144,7 +145,7 @@ public class ProviderResponseDeserializationTests
         Assert.Equal(85.0, burstCard.UsedPercent, precision: 1);
 
         // No weekly card
-        Assert.DoesNotContain(usages, u => u.CardId == "weekly");
+        Assert.DoesNotContain(usages, u => string.Equals(u.CardId, "weekly", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -153,6 +154,7 @@ public class ProviderResponseDeserializationTests
     /// Verifies that burst and weekly cards have null reset time (no cross-window fallbacks),
     /// while the additional card's own windows carry their reset times.
     /// </summary>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous unit test.</placeholder></returns>
     [Fact]
     public async Task CodexProvider_NoFallback_MainWindowCardsHaveNullResetTime_WhenMainWindowLacksIt()
     {
@@ -183,17 +185,17 @@ public class ProviderResponseDeserializationTests
         var usages = (await provider.GetUsageAsync(config)).ToList();
 
         // Main window cards must use only their own reset_after_seconds — no cross-window fallback.
-        var burstCard = usages.First(u => u.CardId == "burst");
+        var burstCard = usages.First(u => string.Equals(u.CardId, "burst", StringComparison.Ordinal));
         Assert.Null(burstCard.NextResetTime);
 
-        var weeklyCard = usages.First(u => u.CardId == "weekly");
+        var weeklyCard = usages.First(u => string.Equals(u.CardId, "weekly", StringComparison.Ordinal));
         Assert.Null(weeklyCard.NextResetTime);
 
         // Spark cards carry their own reset times from additional_rate_limits.
-        var sparkBurst = usages.First(u => u.CardId == "spark.burst");
+        var sparkBurst = usages.First(u => string.Equals(u.CardId, "spark.burst", StringComparison.Ordinal));
         Assert.NotNull(sparkBurst.NextResetTime);
 
-        var sparkWeekly = usages.First(u => u.CardId == "spark.weekly");
+        var sparkWeekly = usages.First(u => string.Equals(u.CardId, "spark.weekly", StringComparison.Ordinal));
         Assert.NotNull(sparkWeekly.NextResetTime);
     }
 
@@ -201,6 +203,7 @@ public class ProviderResponseDeserializationTests
     /// Claude Code provider: realistic OAuth usage response with five_hour, seven_day,
     /// seven_day_sonnet, and seven_day_opus windows. Verifies flat-card output.
     /// </summary>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous unit test.</placeholder></returns>
     [Fact]
     public async Task ClaudeCodeProvider_ParsesOAuthUsageResponse_WithAllWindows()
     {
@@ -234,7 +237,7 @@ public class ProviderResponseDeserializationTests
         var provider = new ClaudeCodeProvider(NullLogger<ClaudeCodeProvider>.Instance, httpClient);
 
         // Act — GetUsageFromOAuthAsync returns IEnumerable<ProviderUsage>?
-        var results = await provider.GetUsageFromOAuthAsync("test-oauth-token");
+        var results = await provider.GetUsageFromOAuthAsync("test-oauth-token", "Claude Code");
 
         // Assert — flat cards: current-session, sonnet, opus, all-models
         Assert.NotNull(results);
@@ -244,20 +247,20 @@ public class ProviderResponseDeserializationTests
         Assert.All(cards, c => Assert.True(c.IsAvailable));
 
         // Current Session card (5-hour burst)
-        var currentSession = cards.First(c => c.CardId == "current-session");
+        var currentSession = cards.First(c => string.Equals(c.CardId, "current-session", StringComparison.Ordinal));
         Assert.Equal(35.0, currentSession.UsedPercent, precision: 1);
         Assert.NotNull(currentSession.NextResetTime);
 
         // Sonnet card (7-day model-specific)
-        var sonnetCard = cards.First(c => c.CardId == "sonnet");
+        var sonnetCard = cards.First(c => string.Equals(c.CardId, "sonnet", StringComparison.Ordinal));
         Assert.Equal(52.0, sonnetCard.UsedPercent, precision: 1);
 
         // Opus card (7-day model-specific)
-        var opusCard = cards.First(c => c.CardId == "opus");
+        var opusCard = cards.First(c => string.Equals(c.CardId, "opus", StringComparison.Ordinal));
         Assert.Equal(10.0, opusCard.UsedPercent, precision: 1);
 
         // All Models card (7-day rolling)
-        var allModelsCard = cards.First(c => c.CardId == "all-models");
+        var allModelsCard = cards.First(c => string.Equals(c.CardId, "all-models", StringComparison.Ordinal));
         Assert.Equal(48.0, allModelsCard.UsedPercent, precision: 1);
         Assert.NotNull(allModelsCard.NextResetTime);
 
@@ -269,6 +272,7 @@ public class ProviderResponseDeserializationTests
     /// Claude Code provider: OAuth response with only five_hour window (no 7-day data).
     /// Verifies graceful handling of partial responses.
     /// </summary>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous unit test.</placeholder></returns>
     [Fact]
     public async Task ClaudeCodeProvider_ParsesPartialResponse_OnlyFiveHour()
     {
@@ -285,7 +289,7 @@ public class ProviderResponseDeserializationTests
         var httpClient = CreateMockHttpClient(responseJson, HttpStatusCode.OK);
         var provider = new ClaudeCodeProvider(NullLogger<ClaudeCodeProvider>.Instance, httpClient);
 
-        var results = await provider.GetUsageFromOAuthAsync("test-token");
+        var results = await provider.GetUsageFromOAuthAsync("test-token", "Claude Code");
 
         Assert.NotNull(results);
         var cards = results!.ToList();
@@ -297,12 +301,13 @@ public class ProviderResponseDeserializationTests
         Assert.Equal(90.0, currentSession.UsedPercent, precision: 1);
 
         // No all-models card since seven_day is absent
-        Assert.DoesNotContain(cards, c => c.CardId == "all-models");
+        Assert.DoesNotContain(cards, c => string.Equals(c.CardId, "all-models", StringComparison.Ordinal));
     }
 
     /// <summary>
     /// Codex provider: error response with detail message should return unavailable usage.
     /// </summary>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous unit test.</placeholder></returns>
     [Fact]
     public async Task CodexProvider_ErrorResponse_ReturnsUnavailableUsage()
     {
@@ -326,13 +331,14 @@ public class ProviderResponseDeserializationTests
     /// <summary>
     /// Claude Code provider: non-success HTTP response returns null (falls through to next strategy).
     /// </summary>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous unit test.</placeholder></returns>
     [Fact]
     public async Task ClaudeCodeProvider_NonSuccessHttpStatus_ReturnsNull()
     {
         var httpClient = CreateMockHttpClient("{\"error\": \"unauthorized\"}", HttpStatusCode.Unauthorized);
         var provider = new ClaudeCodeProvider(NullLogger<ClaudeCodeProvider>.Instance, httpClient);
 
-        var usage = await provider.GetUsageFromOAuthAsync("bad-token");
+        var usage = await provider.GetUsageFromOAuthAsync("bad-token", "Claude Code");
 
         Assert.Null(usage);
     }

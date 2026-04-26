@@ -38,12 +38,12 @@ public partial class MainWindow
 
     private void LogWindowFocusTransition(string eventName)
     {
-        var foregroundSummary = this.GetForegroundWindowSummary();
+        var foregroundSummary = GetForegroundWindowSummary();
         var message = $"[WINDOW] evt={eventName} fg={foregroundSummary} vis={this.IsVisible} state={this.WindowState} top={this.Topmost}";
         this._logger.LogDebug("{WindowMessage}", message);
     }
 
-    private string GetForegroundWindowSummary()
+    private static string GetForegroundWindowSummary()
     {
         var hwnd = Win32Interop.GetForegroundWindow();
         if (hwnd == IntPtr.Zero)
@@ -106,11 +106,7 @@ public partial class MainWindow
     private void ApplyTopmostState(bool alwaysOnTop)
     {
         this.Topmost = alwaysOnTop;
-
-        if (this._preferences.ForceWin32Topmost)
-        {
-            this.ApplyWin32Topmost(noActivate: true, alwaysOnTop);
-        }
+        this.ApplyWin32Topmost(noActivate: true, alwaysOnTop);
     }
 
     private void ScheduleTopmostRecovery(int generation, TimeSpan delay)

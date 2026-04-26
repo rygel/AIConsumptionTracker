@@ -6,10 +6,6 @@ using System.Net;
 using System.Text.Json;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
-using AIUsageTracker.Tests.Infrastructure;
-using Moq;
-using Moq.Protected;
-using Xunit;
 
 namespace AIUsageTracker.Tests.Infrastructure.Providers;
 
@@ -165,6 +161,7 @@ public class KimiProviderTests : HttpProviderTestBase<KimiProvider>
 
         // Assert — provider now emits flat cards: one per quota window
         var usages = result.ToList();
+
         // Should have 2 flat cards: 5h limit + 7d limit (Weekly-from-usage is skipped when a 7d entry exists in data.Limits)
         Assert.Equal(2, usages.Count);
         Assert.All(usages, u => Assert.Equal("kimi-for-coding", u.ProviderId)); // provider-id-guardrail-allow: test assertion

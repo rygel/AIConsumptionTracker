@@ -3,21 +3,18 @@
 // </copyright>
 
 using System.Data;
+using System.Globalization;
 using System.Text.Json;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
-using AIUsageTracker.Core.MonitorClient;
 using AIUsageTracker.Infrastructure.Providers;
 using Dapper;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Monitor.Services;
 
 public class UsageDatabase : IUsageDatabase
 {
-    private static readonly TimeSpan DetailFadeWindow = TimeSpan.FromDays(7);
-
     /// <summary>
     /// Rows older than this are flagged as stale so the UI can warn the user
     /// that the data may not reflect the current provider state.
@@ -37,16 +34,16 @@ public class UsageDatabase : IUsageDatabase
     private readonly string _dbPath;
     private readonly string _connectionString;
     private readonly ILogger<UsageDatabase> _logger;
-    private readonly IAppPathProvider _pathProvider;
+
     // Serialize writes/maintenance only. Read operations use independent connections so
     // SQLite WAL can serve them concurrently with refresh writes.
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
     public UsageDatabase(ILogger<UsageDatabase> logger, IAppPathProvider pathProvider)
     {
+        ArgumentNullException.ThrowIfNull(pathProvider);
         this._logger = logger;
-        this._pathProvider = pathProvider;
-        this._dbPath = this._pathProvider.GetDatabasePath();
+        this._dbPath = pathProvider.GetDatabasePath();
 
         var dbDir = Path.GetDirectoryName(this._dbPath);
         if (!string.IsNullOrEmpty(dbDir))
@@ -72,6 +69,7 @@ public class UsageDatabase : IUsageDatabase
     }
 
     /// <summary>
+    /// Initializes static members of the <see cref="UsageDatabase"/> class.
     /// Registers Dapper type handlers once per process. All DateTime values read from
     /// the database are tagged Kind=Utc, matching the storage convention.
     /// </summary>
@@ -144,6 +142,12 @@ public class UsageDatabase : IUsageDatabase
         public ILogger CreateLogger(string categoryName) => this._logger;
 
         public void Dispose()
+        {
+            this.Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
         {
         }
     }
@@ -272,55 +276,13 @@ public class UsageDatabase : IUsageDatabase
             // something meaningful has changed. When data is unchanged, we UPDATE the
             // existing row's fetched_at so the stale-data detector keeps seeing a fresh
             // timestamp even though no new row was written.
-            var providerIds = validUsages.Select(u => u.ProviderId!).Distinct().ToList();
+            var providerIds = validUsages.Select(u => u.ProviderId!).Distinct(StringComparer.Ordinal).ToList();
             var lastRows = await LoadLastHistoryRowsAsync(connection, providerIds).ConfigureAwait(false);
 
             var toInsert = new List<HistoryInsertParams>();
             var toTouch = new List<HistoryTouchParams>();
 
-            foreach (var u in validUsages)
-            {
-                var fetchedAt = ToUnixEpoch(u.FetchedAt == default ? DateTime.UtcNow : u.FetchedAt);
-                var nextResetTime = u.NextResetTime?.ToString("O");
-                var statusMessage = u.Description ?? string.Empty;
-                var validityEval = u.EvaluateUpstreamResponseValidity();
-                var validityInt = (int)(u.UpstreamResponseValidity == UpstreamResponseValidity.Unknown
-                    ? validityEval.Validity
-                    : u.UpstreamResponseValidity);
-                var validityNote = string.IsNullOrWhiteSpace(u.UpstreamResponseNote)
-                    ? validityEval.Note
-                    : u.UpstreamResponseNote;
-
-                // Composite dedup key: provider_id + card_id (null card_id = legacy single-card provider)
-                var dedupKey = $"{u.ProviderId!}::{u.CardId ?? string.Empty}";
-                if (lastRows.TryGetValue(dedupKey, out var last)
-                    && IsHistoryUnchanged(u, last, nextResetTime, statusMessage))
-                {
-                    toTouch.Add(new HistoryTouchParams(last.Id, fetchedAt));
-                }
-                else
-                {
-                    toInsert.Add(new HistoryInsertParams(
-                        u.ProviderId!,
-                        u.RequestsUsed,
-                        u.RequestsAvailable,
-                        u.UsedPercent,
-                        u.IsAvailable ? 1 : 0,
-                        statusMessage,
-                        nextResetTime,
-                        fetchedAt,
-                        u.ResponseLatencyMs,
-                        u.HttpStatus,
-                        validityInt,
-                        validityNote,
-                        u.ParentProviderId,
-                        u.CardId,
-                        u.GroupId,
-                        (int)u.WindowKind,
-                        u.ModelName,
-                        u.Name));
-                }
-            }
+            ClassifyHistoryEntries(validUsages, lastRows, toInsert, toTouch);
 
             if (toInsert.Count > 0)
             {
@@ -378,7 +340,58 @@ public class UsageDatabase : IUsageDatabase
             && (usage.IsAvailable ? 1L : 0L) == last.IsAvailable
             && (long)usage.HttpStatus == last.HttpStatus
             && string.Equals(newStatusMessage, last.StatusMessage ?? string.Empty, StringComparison.Ordinal)
-            && string.Equals(newNextResetTime, last.NextResetTime, StringComparison.Ordinal);
+            && string.Equals(newNextResetTime, last.NextResetTime, StringComparison.Ordinal)
+            && string.Equals(usage.Name, last.Name, StringComparison.Ordinal);
+    }
+
+    private static void ClassifyHistoryEntries(
+        List<ProviderUsage> validUsages,
+        Dictionary<string, LastHistoryRow> lastRows,
+        List<HistoryInsertParams> toInsert,
+        List<HistoryTouchParams> toTouch)
+    {
+        foreach (var u in validUsages)
+        {
+            var fetchedAt = ToUnixEpoch(u.FetchedAt == default ? DateTime.UtcNow : u.FetchedAt);
+            var nextResetTime = u.NextResetTime?.ToString("O");
+            var statusMessage = u.Description ?? string.Empty;
+            var validityEval = u.EvaluateUpstreamResponseValidity();
+            var validityInt = (int)(u.UpstreamResponseValidity == UpstreamResponseValidity.Unknown
+                ? validityEval.Validity
+                : u.UpstreamResponseValidity);
+            var validityNote = string.IsNullOrWhiteSpace(u.UpstreamResponseNote)
+                ? validityEval.Note
+                : u.UpstreamResponseNote;
+
+            var dedupKey = $"{u.ProviderId!}::{u.CardId ?? string.Empty}";
+            if (lastRows.TryGetValue(dedupKey, out var last)
+                && IsHistoryUnchanged(u, last, nextResetTime, statusMessage))
+            {
+                toTouch.Add(new HistoryTouchParams(last.Id, fetchedAt));
+            }
+            else
+            {
+                toInsert.Add(new HistoryInsertParams(
+                    u.ProviderId!,
+                    u.RequestsUsed,
+                    u.RequestsAvailable,
+                    u.UsedPercent,
+                    u.IsAvailable ? 1 : 0,
+                    statusMessage,
+                    nextResetTime,
+                    fetchedAt,
+                    u.ResponseLatencyMs,
+                    u.HttpStatus,
+                    validityInt,
+                    validityNote,
+                    u.ParentProviderId,
+                    u.CardId,
+                    u.GroupId,
+                    (int)u.WindowKind,
+                    u.ModelName,
+                    u.Name));
+            }
+        }
     }
 
     private static async Task<Dictionary<string, LastHistoryRow>> LoadLastHistoryRowsAsync(
@@ -399,7 +412,8 @@ public class UsageDatabase : IUsageDatabase
                    h.is_available AS IsAvailable,
                    h.status_message AS StatusMessage,
                    h.next_reset_time AS NextResetTime,
-                   h.http_status AS HttpStatus
+                   h.http_status AS HttpStatus,
+                   h.name AS Name
             FROM provider_history h
             WHERE h.id IN (
                 SELECT MAX(id)
@@ -423,7 +437,8 @@ public class UsageDatabase : IUsageDatabase
         long IsAvailable,
         string? StatusMessage,
         string? NextResetTime,
-        long HttpStatus);
+        long HttpStatus,
+        string? Name);
 
     private sealed record HistoryInsertParams(
         string ProviderId,
@@ -600,11 +615,21 @@ public class UsageDatabase : IUsageDatabase
         }
     }
 
-    public async Task<IReadOnlyList<ProviderUsage>> GetLatestHistoryAsync()
+    public async Task<IReadOnlyList<ProviderUsage>> GetLatestHistoryAsync(IReadOnlyCollection<string>? providerIds = null)
     {
+        if (providerIds != null && providerIds.Count == 0)
+        {
+            return Array.Empty<ProviderUsage>();
+        }
+
         using var connection = await this.OpenReadConnectionAsync().ConfigureAwait(false);
 
-        const string sql = @"
+        // When a provider-ID set is supplied, restrict the subquery to those IDs so that
+        // stale history rows for removed/unconfigured providers are excluded at the SQL level
+        // rather than filtered in application code.
+        var providerClause = providerIds != null ? "AND provider_id IN @providerIds" : string.Empty;
+
+        var sql = $@"
                 SELECT h.provider_id AS ProviderId,
                        COALESCE(NULLIF(p.provider_name, ''), h.provider_id) AS ProviderName,
                        h.requests_used AS RequestsUsed, h.requests_available AS RequestsAvailable,
@@ -628,11 +653,13 @@ public class UsageDatabase : IUsageDatabase
                 WHERE h.id IN (
                     SELECT MAX(id) FROM provider_history
                     WHERE fetched_at >= (strftime('%s', 'now') - 86400)
+                    {providerClause}
                     GROUP BY provider_id, card_id
                 )
                 ORDER BY h.provider_id, h.card_id";
 
-        var results = (await connection.QueryAsync<ProviderUsage>(sql).ConfigureAwait(false)).ToList();
+        object? param = providerIds != null ? new { providerIds = providerIds.ToArray() } : null;
+        var results = (await connection.QueryAsync<ProviderUsage>(sql, param).ConfigureAwait(false)).ToList();
 
         await StampUsageRatesAsync(connection, results).ConfigureAwait(false);
 
@@ -662,8 +689,6 @@ public class UsageDatabase : IUsageDatabase
                     usage.WindowKind = windowMatch.Kind;
                 }
             }
-
-            usage.ProviderName = ProviderMetadataCatalog.ResolveDisplayLabel(usage.ProviderId ?? string.Empty, usage.ProviderName);
 
             ApplyUpstreamResponseValidity(usage);
             MarkStaleIfOutdated(usage, now);
@@ -763,11 +788,20 @@ public class UsageDatabase : IUsageDatabase
 
         usage.IsStale = true;
         var age = now - fetchedAt;
-        var ageLabel = age.TotalDays >= 1
-            ? $"{(int)age.TotalDays}d ago"
-            : age.TotalHours >= 1
-                ? $"{(int)age.TotalHours}h ago"
-                : $"{(int)age.TotalMinutes}m ago";
+        string ageLabel;
+        if (age.TotalDays >= 1)
+        {
+            ageLabel = $"{((int)age.TotalDays).ToString(CultureInfo.InvariantCulture)}d ago";
+        }
+        else if (age.TotalHours >= 1)
+        {
+            ageLabel = $"{((int)age.TotalHours).ToString(CultureInfo.InvariantCulture)}h ago";
+        }
+        else
+        {
+            ageLabel = $"{((int)age.TotalMinutes).ToString(CultureInfo.InvariantCulture)}m ago";
+        }
+
         var suffix = $"(last refreshed {ageLabel} — data may be outdated)";
         usage.Description = string.IsNullOrWhiteSpace(usage.Description)
             ? suffix

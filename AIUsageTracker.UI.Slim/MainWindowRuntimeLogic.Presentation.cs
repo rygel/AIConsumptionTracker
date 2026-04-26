@@ -105,13 +105,7 @@ internal static partial class MainWindowRuntimeLogic
 
         var dualBar = TryBuildDualBarData(usage, enablePaceAdjustment);
 
-        var (statusText, suppressSingleResetTime) = ResolveStatusText(
-            usage,
-            showUsed,
-            description,
-            isUnknown,
-            isStatusOnlyProvider,
-            dualBar);
+        var (statusText, suppressSingleResetTime) = ResolveStatusText(usage, showUsed, dualBar);
 
         return new ProviderCardPresentation(
             IsMissing: isMissing,
@@ -128,6 +122,7 @@ internal static partial class MainWindowRuntimeLogic
             IsStale: isStale);
     }
 
+#pragma warning disable S107
     private static bool TryCreateSpecialPresentation(
         bool isMissing,
         bool isUnknown,
@@ -141,6 +136,7 @@ internal static partial class MainWindowRuntimeLogic
         PaceColorResult paceColor,
         bool isStale,
         out ProviderCardPresentation presentation)
+#pragma warning restore S107
     {
         if (isMissing)
         {
@@ -222,11 +218,10 @@ internal static partial class MainWindowRuntimeLogic
     private static (string StatusText, bool SuppressSingleResetTime) ResolveStatusText(
         ProviderUsage usage,
         bool showUsed,
-        string description,
-        bool isUnknown,
-        bool isStatusOnlyProvider,
         DualBarData? dualBar)
     {
+        var description = usage.Description ?? string.Empty;
+
         if (usage.IsTooltipOnly)
         {
             return (GetTooltipOnlyCompactStatus(usage, description), false);
@@ -237,7 +232,12 @@ internal static partial class MainWindowRuntimeLogic
             return (BuildDualQuotaBucketStatusText(dualBar, showUsed), true);
         }
 
-        if (!isUnknown && !isStatusOnlyProvider && usage.IsQuotaBased)
+        if (usage.State == ProviderUsageState.Unknown || usage.IsStatusOnly)
+        {
+            return (description, false);
+        }
+
+        if (usage.IsQuotaBased)
         {
             return (
                 usage.DisplayAsFraction
@@ -246,14 +246,9 @@ internal static partial class MainWindowRuntimeLogic
                 false);
         }
 
-        if (!isUnknown && !isStatusOnlyProvider && usage.PlanType == PlanType.Usage && usage.RequestsAvailable > 0)
+        if (usage.PlanType == PlanType.Usage)
         {
-            var clampedUsedPercent = UsageMath.ClampPercent(usage.UsedPercent);
-            return (
-                showUsed
-                    ? $"{clampedUsedPercent:F0}% used"
-                    : $"{100.0 - clampedUsedPercent:F0}% remaining",
-                false);
+            return (description, false);
         }
 
         return (description, false);
@@ -388,51 +383,12 @@ internal static partial class MainWindowRuntimeLogic
     {
         ArgumentNullException.ThrowIfNull(preferences);
 
-        return ShouldUseSharedCollapsePreference(providerId) && preferences.IsAntigravityCollapsed;
+        return false;
     }
 
     public static void SetIsCollapsed(AppPreferences preferences, string providerId, bool isCollapsed)
     {
         ArgumentNullException.ThrowIfNull(preferences);
-
-        if (!ShouldUseSharedCollapsePreference(providerId))
-        {
-            return;
-        }
-
-        preferences.IsAntigravityCollapsed = isCollapsed;
-    }
-
-    private static bool ShouldUseSharedCollapsePreference(string providerId) => false;
-
-    private static string FormatPercentage(
-        double percentage,
-        PercentageValueSemantic semantic,
-        int decimalPlaces,
-        bool includeComplement)
-    {
-        var format = $"F{Math.Max(0, decimalPlaces)}";
-        var value = UsageMath.ClampPercent(percentage).ToString(format, CultureInfo.InvariantCulture);
-        var semanticLabel = semantic switch
-        {
-            PercentageValueSemantic.Used => "used",
-            PercentageValueSemantic.Remaining => "remaining",
-            _ => string.Empty,
-        };
-
-        if (string.IsNullOrWhiteSpace(semanticLabel))
-        {
-            return $"{value}%";
-        }
-
-        if (!includeComplement)
-        {
-            return $"{value}% {semanticLabel}";
-        }
-
-        var complementValue = UsageMath.ClampPercent(100.0 - percentage).ToString(format, CultureInfo.InvariantCulture);
-        var complementLabel = semantic == PercentageValueSemantic.Used ? "remaining" : "used";
-        return $"{value}% {semanticLabel} ({complementValue}% {complementLabel})";
     }
 
     private static string NormalizeIdentity(string? value)

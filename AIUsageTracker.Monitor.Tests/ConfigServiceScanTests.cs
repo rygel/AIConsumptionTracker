@@ -2,14 +2,12 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Globalization;
 using System.Text.Json;
 using AIUsageTracker.Core.Interfaces;
-using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
 using AIUsageTracker.Monitor.Services;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace AIUsageTracker.Monitor.Tests;
 
@@ -44,6 +42,8 @@ public class ConfigServiceScanTests : IDisposable
         {
             // Best-effort cleanup.
         }
+
+        GC.SuppressFinalize(this);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class ConfigServiceScanTests : IDisposable
     public async Task ScanForKeysAsync_DoesNotGrowConfigFileWithKeylessProvidersAsync()
     {
         // Seed with one existing provider (keys are discovered at runtime, not stored in JSON)
-        var seed = new Dictionary<string, object>
+        var seed = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["claude-code"] = new { type = "quota-based", show_in_tray = true },
         };
@@ -94,8 +94,8 @@ public class ConfigServiceScanTests : IDisposable
         var providerCount = doc.RootElement.EnumerateObject().Count();
         Assert.True(
             providerCount <= 5,
-            $"providers.json has {providerCount} entries after scan — expected only seeded + " +
-            "actually-discovered providers, not skeleton entries for all {ProviderMetadataCatalog.Definitions.Count} known providers.");
+            $"providers.json has {providerCount.ToString(CultureInfo.InvariantCulture)} entries after scan — expected only seeded + " +
+            $"actually-discovered providers, not skeleton entries for all {ProviderMetadataCatalog.Definitions.Count.ToString(CultureInfo.InvariantCulture)} known providers.");
     }
 
     [Fact]

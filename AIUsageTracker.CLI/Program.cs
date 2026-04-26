@@ -2,6 +2,7 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
+using System.Globalization;
 using System.Text.Json;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
@@ -14,41 +15,46 @@ using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.CLI;
 
-public class Program
+public static class Program
 {
+    private static readonly JsonSerializerOptions WriteIndentedOptions = new() { WriteIndented = true };
+    private static readonly string[] DescriptionSplitSeparators = ["\r\n", "\r", "\n"];
+
     public static async Task Main(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
 
-        using var serviceProvider = CreateServiceProvider();
-
-        // Ensure Agent is running
-        var lifecycleService = serviceProvider.GetRequiredService<MonitorLifecycleService>();
-        if (!await lifecycleService.IsAgentRunningAsync().ConfigureAwait(false))
+        var serviceProvider = CreateServiceProvider();
+        await using (serviceProvider.ConfigureAwait(false))
         {
-            Console.WriteLine("Agent is not running. Attempting to start...");
-            if (await lifecycleService.StartAgentAsync().ConfigureAwait(false))
+            // Ensure Agent is running
+            var lifecycleService = serviceProvider.GetRequiredService<MonitorLifecycleService>();
+            if (!await lifecycleService.IsAgentRunningAsync().ConfigureAwait(false))
             {
-                Console.Write("Waiting for Agent to initialize...");
-                if (await lifecycleService.WaitForAgentAsync().ConfigureAwait(false))
+                Console.WriteLine("Agent is not running. Attempting to start...");
+                if (await lifecycleService.StartAgentAsync().ConfigureAwait(false))
                 {
-                    Console.WriteLine(" Done.");
+                    Console.Write("Waiting for Agent to initialize...");
+                    if (await lifecycleService.WaitForAgentAsync().ConfigureAwait(false))
+                    {
+                        Console.WriteLine(" Done.");
+                    }
+                    else
+                    {
+                        Console.WriteLine(" Failed.");
+                        Console.WriteLine("Could not start the Agent service. Please start it manually.");
+                        return;
+                    }
                 }
                 else
                 {
-                    Console.WriteLine(" Failed.");
-                    Console.WriteLine("Could not start the Agent service. Please start it manually.");
+                    Console.WriteLine("Failed to launch Agent process.");
                     return;
                 }
             }
-            else
-            {
-                Console.WriteLine("Failed to launch Agent process.");
-                return;
-            }
-        }
 
-        await RunAsync(args, serviceProvider).ConfigureAwait(false);
+            await RunAsync(args, serviceProvider).ConfigureAwait(false);
+        }
     }
 
     private static ServiceProvider CreateServiceProvider()
@@ -103,42 +109,13 @@ public class Program
                 await ShowStatusAsync(agentService, json, showAll).ConfigureAwait(false);
                 break;
             case "history":
-                int days = 7;
-                if (args.Length > 1 && int.TryParse(args[1], System.Globalization.CultureInfo.InvariantCulture, out int d))
-                {
-                    days = d;
-                }
-
-                await ShowHistoryAsync(agentService, days, json).ConfigureAwait(false);
+                await ShowHistoryAsync(agentService, ParseDays(args), json).ConfigureAwait(false);
                 break;
             case "list":
                 await ShowListAsync(agentService, json).ConfigureAwait(false);
                 break;
             case "set-key":
-                if (args.Length < 2)
-                {
-                    Console.WriteLine("Usage: act set-key <provider-id> [api-key]");
-                    Console.WriteLine("  If api-key is omitted, you will be prompted to enter it.");
-                    return;
-                }
-
-                string apiKeyArg;
-                if (args.Length >= 3)
-                {
-                    apiKeyArg = args[2];
-                }
-                else
-                {
-                    Console.Write($"Enter API key for '{args[1]}': ");
-                    apiKeyArg = Console.ReadLine() ?? string.Empty;
-                    if (string.IsNullOrWhiteSpace(apiKeyArg))
-                    {
-                        Console.WriteLine("No key entered. Aborting.");
-                        return;
-                    }
-                }
-
-                await SetKeyAsync(agentService, args[1], apiKeyArg).ConfigureAwait(false);
+                await HandleSetKeyAsync(agentService, args).ConfigureAwait(false);
                 break;
             case "remove-key":
                 if (args.Length < 2)
@@ -153,19 +130,7 @@ public class Program
                 await ScanKeysAsync(agentService).ConfigureAwait(false);
                 break;
             case "config":
-                if (args.Length == 1)
-                {
-                    await ShowConfigAsync().ConfigureAwait(false);
-                }
-                else if (args.Length >= 3)
-                {
-                    await SetConfigAsync(args[1], args[2]).ConfigureAwait(false);
-                }
-                else
-                {
-                    Console.WriteLine("Usage: act config [key] [value]");
-                }
-
+                await HandleConfigCommandAsync(args).ConfigureAwait(false);
                 break;
             case "agent":
                 if (args.Length < 2)
@@ -186,6 +151,60 @@ public class Program
             default:
                 Console.WriteLine($"Unknown command: {command}");
                 break;
+        }
+    }
+
+    private static int ParseDays(string[] args)
+    {
+        if (args.Length > 1 && int.TryParse(args[1], System.Globalization.CultureInfo.InvariantCulture, out int d))
+        {
+            return d;
+        }
+
+        return 7;
+    }
+
+    private static async Task HandleSetKeyAsync(IMonitorService service, string[] args)
+    {
+        if (args.Length < 2)
+        {
+            Console.WriteLine("Usage: act set-key <provider-id> [api-key]");
+            Console.WriteLine("  If api-key is omitted, you will be prompted to enter it.");
+            return;
+        }
+
+        string apiKeyArg;
+        if (args.Length >= 3)
+        {
+            apiKeyArg = args[2];
+        }
+        else
+        {
+            Console.Write($"Enter API key for '{args[1]}': ");
+            apiKeyArg = Console.ReadLine() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(apiKeyArg))
+            {
+                Console.WriteLine("No key entered. Aborting.");
+                return;
+            }
+        }
+
+        await SetKeyAsync(service, args[1], apiKeyArg).ConfigureAwait(false);
+    }
+
+    private static async Task HandleConfigCommandAsync(string[] args)
+    {
+        if (args.Length == 1)
+        {
+            await ShowConfigAsync().ConfigureAwait(false);
+        }
+        else if (args.Length >= 3)
+        {
+            await SetConfigAsync(args[1], args[2]).ConfigureAwait(false);
+        }
+        else
+        {
+            Console.WriteLine("Usage: act config [key] [value]");
         }
     }
 
@@ -228,13 +247,15 @@ public class Program
     {
         string format = "csv";
         int days = 30;
-        string output = $"usage_export_{DateTime.Now:yyyyMMdd}.csv";
+        string output = $"usage_export_{DateTime.Now.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}.csv";
 
-        for (int i = 1; i < args.Length; i++)
+        int i = 1;
+        while (i < args.Length)
         {
             if (string.Equals(args[i], "--format", StringComparison.Ordinal) && i + 1 < args.Length)
             {
-                format = args[++i];
+                i++;
+                format = args[i];
             }
             else if (string.Equals(args[i], "--days", StringComparison.Ordinal) && i + 1 < args.Length && int.TryParse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture, out int d))
             {
@@ -243,8 +264,11 @@ public class Program
             }
             else if (string.Equals(args[i], "--output", StringComparison.Ordinal) && i + 1 < args.Length)
             {
-                output = args[++i];
+                i++;
+                output = args[i];
             }
+
+            i++;
         }
 
         // Adjust default extension if format changed but output didn't
@@ -253,7 +277,7 @@ public class Program
             output = Path.ChangeExtension(output, ".json");
         }
 
-        Console.WriteLine($"Exporting {days} days of history to {output} ({format})...");
+        Console.WriteLine($"Exporting {days.ToString(CultureInfo.InvariantCulture)} days of history to {output} ({format})...");
 
         var stream = await service.ExportDataAsync(format, days).ConfigureAwait(false);
         if (stream != null)
@@ -279,7 +303,7 @@ public class Program
 
         if (json)
         {
-            Console.WriteLine(JsonSerializer.Serialize(history, new JsonSerializerOptions { WriteIndented = true }));
+            Console.WriteLine(JsonSerializer.Serialize(history, WriteIndentedOptions));
             return;
         }
 
@@ -296,9 +320,9 @@ public class Program
         foreach (var item in history)
         {
             var used = item.IsCurrencyUsage
-                ? $"${item.RequestsUsed:F2}"
+                ? $"${item.RequestsUsed.ToString("F2", CultureInfo.InvariantCulture)}"
                 : item.RequestsUsed.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            var providerDisplayName = ProviderMetadataCatalog.ResolveDisplayLabel(item.ProviderId, item.ProviderName);
+            var providerDisplayName = item.ProviderName ?? ProviderMetadataCatalog.GetConfiguredDisplayName(item.ProviderId ?? string.Empty);
             Console.WriteLine($"{item.FetchedAt.ToShortDateString(),-12} | {providerDisplayName,-20} | {"(Total)",-25} | {used,-15}");
         }
     }
@@ -384,7 +408,7 @@ public class Program
         var loader = new JsonConfigLoader();
         var prefs = await loader.LoadPreferencesAsync().ConfigureAwait(false);
         Console.WriteLine("Current Configuration:");
-        Console.WriteLine(JsonSerializer.Serialize(prefs, new JsonSerializerOptions { WriteIndented = true }));
+        Console.WriteLine(JsonSerializer.Serialize(prefs, WriteIndentedOptions));
     }
 
     private static async Task SetConfigAsync(string key, string value)
@@ -418,7 +442,7 @@ public class Program
             }
             else if (prop.PropertyType.IsEnum)
             {
-                typedValue = Enum.Parse(prop.PropertyType, value, true);
+                typedValue = Enum.Parse(prop.PropertyType, value, ignoreCase: true);
             }
 
             if (typedValue != null)
@@ -428,7 +452,9 @@ public class Program
                 Console.WriteLine($"Configuration '{key}' updated to '{value}'.");
             }
         }
+#pragma warning disable CA1031 // Reflection and parsing operations can throw varied exception types
         catch (Exception ex)
+#pragma warning restore CA1031
         {
             Console.WriteLine($"Failed to set value: {ex.Message}");
         }
@@ -442,7 +468,7 @@ public class Program
                 var port = await lifecycleService.GetAgentPortAsync().ConfigureAwait(false);
                 var running = await lifecycleService.IsAgentRunningAsync().ConfigureAwait(false);
                 Console.WriteLine($"Agent Status: {(running ? "Running" : "Stopped")}");
-                Console.WriteLine($"Port: {port}");
+                Console.WriteLine($"Port: {port.ToString(CultureInfo.InvariantCulture)}");
                 break;
             case "stop":
                 Console.WriteLine("Stopping Agent...");
@@ -517,37 +543,38 @@ public class Program
 
             foreach (var u in usage)
             {
-                var usedPct = u.UsedPercent;
-                var pct = u.IsAvailable ? $"{usedPct:F0}%" : "-";
-
-                // Handle missing PlanType or IsQuotaBased if relying on serialized data
-                var type = u.IsQuotaBased ? "Quota" : "Pay-As-You-Go";
-                var accountInfo = !string.IsNullOrWhiteSpace(u.AccountName) ? $" [{u.AccountName}]" : string.Empty;
-                var providerDisplayName = ProviderMetadataCatalog.ResolveDisplayLabel(u.ProviderId, u.ProviderName);
-
-                var description = u.Description;
-
-                // Append account to description (first line)
-                if (string.IsNullOrEmpty(description))
-                {
-                    description = accountInfo.Trim();
-                }
-                else
-                {
-                    // If existing desc, append
-                    description += accountInfo;
-                }
-
-                var lines = description.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-
-                Console.WriteLine($"{providerDisplayName,-36} | {type,-14} | {pct,-10} | {lines[0]}");
-
-                for (int i = 1; i < lines.Length; i++)
-                {
-                    Console.WriteLine($"{string.Empty,-36} | {string.Empty,-14} | {string.Empty,-10} | {lines[i]}");
-                }
-
+                WriteProviderStatusLine(u);
             }
+        }
+    }
+
+    private static void WriteProviderStatusLine(ProviderUsage u)
+    {
+        var usedPct = u.UsedPercent;
+        var pct = u.IsAvailable ? $"{usedPct.ToString("F0", CultureInfo.InvariantCulture)}%" : "-";
+
+        var type = u.IsQuotaBased ? "Quota" : "Pay-As-You-Go";
+        var accountInfo = !string.IsNullOrWhiteSpace(u.AccountName) ? $" [{u.AccountName}]" : string.Empty;
+        var providerDisplayName = u.ProviderName ?? ProviderMetadataCatalog.GetConfiguredDisplayName(u.ProviderId ?? string.Empty);
+
+        var description = u.Description;
+
+        if (string.IsNullOrEmpty(description))
+        {
+            description = accountInfo.Trim();
+        }
+        else
+        {
+            description += accountInfo;
+        }
+
+        var lines = description.Split(DescriptionSplitSeparators, StringSplitOptions.None);
+
+        Console.WriteLine($"{providerDisplayName,-36} | {type,-14} | {pct,-10} | {lines[0]}");
+
+        for (int i = 1; i < lines.Length; i++)
+        {
+            Console.WriteLine($"{string.Empty,-36} | {string.Empty,-14} | {string.Empty,-10} | {lines[i]}");
         }
     }
 
@@ -560,10 +587,7 @@ public class Program
         }
         else
         {
-            foreach (var c in configs)
-            {
-                Console.WriteLine($"ID: {c.ProviderId}, Name: {ProviderMetadataCatalog.ResolveDisplayLabel(c.ProviderId)}");
-            }
+            Console.WriteLine(string.Join(Environment.NewLine, configs.Select(c => $"ID: {c.ProviderId}, Name: {ProviderMetadataCatalog.GetConfiguredDisplayName(c.ProviderId)}")));
         }
     }
 }

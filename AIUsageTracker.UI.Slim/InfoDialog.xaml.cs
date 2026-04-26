@@ -2,19 +2,16 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
 using AIUsageTracker.Core.Interfaces;
-using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Helpers;
 using AIUsageTracker.UI.Slim.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.UI.Slim;
@@ -23,6 +20,7 @@ public partial class InfoDialog : Window
 {
     private readonly ILogger<InfoDialog> _logger;
     private readonly IAppPathProvider _pathProvider;
+    private readonly EventHandler<PrivacyChangedEventArgs> _privacyChangedHandler;
     private bool _isPrivacyMode = false;
     private string? _realUserName;
     private string? _realConfigDir;
@@ -36,6 +34,7 @@ public partial class InfoDialog : Window
         this.InitializeComponent();
         this._logger = logger;
         this._pathProvider = pathProvider;
+        this._privacyChangedHandler = this.OnPrivacyChanged;
 
         // In Slim UI, we rely on App.Preferences or direct theme resources
         // No need for complex theme loading or IConfigLoader here
@@ -63,7 +62,7 @@ public partial class InfoDialog : Window
         // Subscribe to global privacy changes using WeakEventManager to prevent memory leaks
         if (Application.Current is App)
         {
-            PrivacyChangedWeakEventManager.AddHandler(this.OnPrivacyChanged);
+            PrivacyChangedWeakEventManager.AddHandler(this._privacyChangedHandler);
 
             // Set initial privacy state
             this._isPrivacyMode = App.IsPrivacyMode;
@@ -203,15 +202,20 @@ public partial class InfoDialog : Window
         return suffix.Replace('.', ' ');
     }
 
-    private async Task PrivacyBtn_ClickAsync(object sender, RoutedEventArgs e)
+    private async Task PrivacyBtn_ClickAsync()
     {
         try
         {
             this._isPrivacyMode = !this._isPrivacyMode;
             App.SetPrivacyMode(this._isPrivacyMode);
 
-            // App.PrivacyChanged event will handle UI update
-            await Task.CompletedTask.ConfigureAwait(true);
+            // Persist privacy preference regardless of which window toggled it.
+            var preferencesStore = App.Host.Services.GetRequiredService<UiPreferencesStore>();
+            var saved = await preferencesStore.SaveAsync(App.Preferences).ConfigureAwait(true);
+            if (!saved)
+            {
+                this._logger.LogWarning("Failed to persist privacy mode from Info dialog.");
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -220,7 +224,7 @@ public partial class InfoDialog : Window
     }
 
 #pragma warning disable VSTHRD100 // XAML click handlers must be async void wrappers.
-    private async void PrivacyBtn_Click(object sender, RoutedEventArgs e) => await this.PrivacyBtn_ClickAsync(sender, e).ConfigureAwait(true);
+    private async void PrivacyBtn_Click(object sender, RoutedEventArgs e) => await this.PrivacyBtn_ClickAsync().ConfigureAwait(true);
 #pragma warning restore VSTHRD100
 
     private void ConfigDir_Click(object sender, RoutedEventArgs e)

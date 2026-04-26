@@ -3,7 +3,6 @@
 // </copyright>
 
 using AIUsageTracker.Core.Models;
-using Microsoft.Extensions.Logging;
 
 namespace AIUsageTracker.Monitor.Services;
 
@@ -11,18 +10,15 @@ public sealed class ProviderRefreshConfigLoadingService
 {
     private readonly IConfigService _configService;
     private readonly IUsageDatabase _database;
-    private readonly ProviderRefreshConfigSelector _configSelector;
     private readonly ILogger<ProviderRefreshConfigLoadingService> _logger;
 
     public ProviderRefreshConfigLoadingService(
         IConfigService configService,
         IUsageDatabase database,
-        ProviderRefreshConfigSelector configSelector,
         ILogger<ProviderRefreshConfigLoadingService> logger)
     {
         this._configService = configService;
         this._database = database;
-        this._configSelector = configSelector;
         this._logger = logger;
     }
 
@@ -30,10 +26,9 @@ public sealed class ProviderRefreshConfigLoadingService
         bool forceAll,
         IReadOnlyCollection<string>? includeProviderIds)
     {
-        this._logger.LogInformation("Loading provider configurations...");
         var configsReadOnly = await this._configService.GetConfigsAsync().ConfigureAwait(false);
         var configs = configsReadOnly.ToList();
-        this._logger.LogInformation("Found {Count} total configurations", configs.Count);
+        this._logger.LogInformation("Loading {Count} provider configurations...", configs.Count);
 
         foreach (var config in configs)
         {
@@ -44,7 +39,7 @@ public sealed class ProviderRefreshConfigLoadingService
                 hasKey ? $"Has API key ({config.ApiKey?.Length ?? 0} chars)" : "NO API KEY");
         }
 
-        var selection = this._configSelector.SelectActiveConfigs(configs, forceAll, includeProviderIds);
+        var selection = ProviderRefreshConfigSelector.SelectActiveConfigs(configs, forceAll, includeProviderIds);
         var activeConfigs = selection.ActiveConfigs;
 
         this._logger.LogInformation("Refreshing {Count} configured providers", activeConfigs.Count);

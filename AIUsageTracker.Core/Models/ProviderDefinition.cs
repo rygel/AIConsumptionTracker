@@ -64,16 +64,12 @@ public sealed class ProviderDefinition
     public IReadOnlyCollection<ProviderDerivedModelSelector> DerivedModelSelectors { get; init; } = Array.Empty<ProviderDerivedModelSelector>();
 
     /// <summary>
-    /// Model IDs that are consumed by the parent card (e.g. progress bars) and must not
+    /// Gets model IDs that are consumed by the parent card (e.g. progress bars) and must not
     /// appear as dynamic child rows even when other VisibleDerivedProviderIds are declared.
     /// </summary>
     public IReadOnlyCollection<string> ExcludedDerivedModelIds { get; init; } = Array.Empty<string>();
 
     public IReadOnlyCollection<string> ExplicitApiKeyPrefixes { get; init; } = Array.Empty<string>();
-
-    public string? SessionAuthCanonicalProviderId { get; init; }
-
-    public string? SessionAuthMigrationDescription { get; init; }
 
     public ProviderSettingsMode SettingsMode { get; init; } = ProviderSettingsMode.StandardApiKey;
 
@@ -128,28 +124,6 @@ public sealed class ProviderDefinition
     public bool FlatCardShowProviderPrefix { get; init; }
 
     public IReadOnlyList<QuotaWindowDefinition> QuotaWindows { get; init; } = Array.Empty<QuotaWindowDefinition>();
-
-    /// <summary>
-    /// Gets the main-window visibility items.
-    /// For VisibleDerivedProviders: one item per declared derived child ID (labels from DisplayNameOverrides).
-    /// For standalone providers with ShowInMainWindow=true: single self-referential entry.
-    /// DynamicChildProviderRows children are runtime-only and must be appended from live usage data.
-    /// </summary>
-    public IReadOnlyList<(string ItemId, string Label)> MainWindowVisibilityItems =>
-        this.MainWindowVisibilityItemsOverride
-        ?? (this.FamilyMode == ProviderFamilyMode.VisibleDerivedProviders && this.VisibleDerivedProviderIds.Count > 0
-            ? this.VisibleDerivedProviderIds
-                .Select(id => (id, this.ResolveDisplayName(id) ?? id))
-                .ToArray()
-            : this.ShowInMainWindow
-                ? new[] { (this.ProviderId, this.DisplayName) }
-                : Array.Empty<(string, string)>());
-
-    /// <summary>
-    /// Gets or inits an explicit override for MainWindowVisibilityItems.
-    /// Leave null to use auto-derivation from QuotaWindows.
-    /// </summary>
-    public IReadOnlyList<(string ItemId, string Label)>? MainWindowVisibilityItemsOverride { get; init; }
 
     // Computed lazily: ProviderId + AdditionalHandledProviderIds
     private HashSet<string> HandledProviderIdsSet => this._handledProviderIdsSet ??=

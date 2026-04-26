@@ -11,7 +11,6 @@ using AIUsageTracker.Monitor.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace AIUsageTracker.Tests.Integration;
 
@@ -66,7 +65,6 @@ public class MonitorDiResolutionTests
         services.AddSingleton<IMonitorJobScheduler>(sp => sp.GetRequiredService<MonitorJobScheduler>());
 
         // Refresh sub-services (previously created by factory, now DI-registered)
-        services.AddSingleton<ProviderRefreshConfigSelector>();
         services.AddSingleton<ProviderRefreshConfigLoadingService>();
         services.AddSingleton<ProviderUsagePersistenceService>();
         services.AddSingleton<ProviderConnectivityCheckService>();
@@ -157,17 +155,17 @@ public class MonitorDiResolutionTests
     {
         private readonly string _root = Path.Combine(Path.GetTempPath(), "aitracker-test-" + Guid.NewGuid().ToString("N").Substring(0, 8));
 
-        public string GetAppDataRoot() => _root;
+        public string GetAppDataRoot() => this._root;
 
-        public string GetDatabasePath() => Path.Combine(_root, "test.db");
+        public string GetDatabasePath() => Path.Combine(this._root, "test.db");
 
-        public string GetLogDirectory() => Path.Combine(_root, "logs");
+        public string GetLogDirectory() => Path.Combine(this._root, "logs");
 
-        public string GetAuthFilePath() => Path.Combine(_root, "auth.json");
+        public string GetAuthFilePath() => Path.Combine(this._root, "auth.json");
 
-        public string GetPreferencesFilePath() => Path.Combine(_root, "preferences.json");
+        public string GetPreferencesFilePath() => Path.Combine(this._root, "preferences.json");
 
-        public string GetProviderConfigFilePath() => Path.Combine(_root, "providers.json");
+        public string GetProviderConfigFilePath() => Path.Combine(this._root, "providers.json");
 
         public string GetUserProfileRoot() => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 

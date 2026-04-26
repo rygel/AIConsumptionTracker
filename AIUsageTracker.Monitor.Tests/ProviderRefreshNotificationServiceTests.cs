@@ -47,8 +47,15 @@ public class ProviderRefreshNotificationServiceTests
     {
         var service = CreateService();
 
-        await service.NotifyRefreshStartedAsync();
-        await service.NotifyUsageUpdatedAsync();
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+#pragma warning disable MA0004
+            await service.NotifyRefreshStartedAsync();
+            await service.NotifyUsageUpdatedAsync();
+#pragma warning restore MA0004
+        });
+
+        Assert.Null(exception);
     }
 
     [Fact]

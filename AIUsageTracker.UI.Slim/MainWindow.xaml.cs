@@ -2,16 +2,12 @@
 // Copyright (c) AIUsageTracker. All rights reserved.
 // </copyright>
 
-using System.Diagnostics;
-using System.Net.Http;
 using System.Reflection;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using AIUsageTracker.Core.Interfaces;
 using AIUsageTracker.Core.Models;
@@ -36,7 +32,6 @@ public partial class MainWindow : Window
     private readonly MainViewModel _viewModel;
     private readonly IMonitorService _monitorService;
     private readonly MonitorLifecycleService _monitorLifecycleService;
-    private readonly MonitorStartupOrchestrator _monitorStartupOrchestrator;
     private readonly ILogger<MainWindow> _logger;
     private readonly Func<UpdateChannel, GitHubUpdateChecker> _createUpdateChecker;
     private readonly IDialogService _dialogService;
@@ -55,6 +50,7 @@ public partial class MainWindow : Window
     private bool _isPrivacyMode = App.IsPrivacyMode;
     private readonly EventHandler<PrivacyChangedEventArgs> _privacyChangedHandler;
     private bool _isLoading;
+    private bool _isApplyingPreferences;
     private DateTime _lastMonitorUpdate = DateTime.MinValue;
     private DateTime _lastRefreshTrigger = DateTime.MinValue;
     private bool _isPollingInProgress;
@@ -76,7 +72,6 @@ public partial class MainWindow : Window
         MainViewModel viewModel,
         IMonitorService monitorService,
         MonitorLifecycleService monitorLifecycleService,
-        MonitorStartupOrchestrator monitorStartupOrchestrator,
         ILogger<MainWindow> logger,
         Func<UpdateChannel, GitHubUpdateChecker> createUpdateChecker,
         GitHubUpdateChecker updateChecker,
@@ -88,7 +83,6 @@ public partial class MainWindow : Window
             viewModel,
             monitorService,
             monitorLifecycleService,
-            monitorStartupOrchestrator,
             logger,
             createUpdateChecker,
             updateChecker,
@@ -98,23 +92,23 @@ public partial class MainWindow : Window
     {
     }
 
+#pragma warning disable S107
     internal MainWindow(
         bool skipUiInitialization,
         MainViewModel viewModel,
         IMonitorService monitorService,
         MonitorLifecycleService monitorLifecycleService,
-        MonitorStartupOrchestrator monitorStartupOrchestrator,
         ILogger<MainWindow> logger,
         Func<UpdateChannel, GitHubUpdateChecker> createUpdateChecker,
         GitHubUpdateChecker updateChecker,
         IDialogService dialogService,
         IBrowserService browserService,
         UiPreferencesStore preferencesStore)
+#pragma warning restore S107
     {
         ArgumentNullException.ThrowIfNull(viewModel);
         ArgumentNullException.ThrowIfNull(monitorService);
         ArgumentNullException.ThrowIfNull(monitorLifecycleService);
-        ArgumentNullException.ThrowIfNull(monitorStartupOrchestrator);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(createUpdateChecker);
         ArgumentNullException.ThrowIfNull(updateChecker);
@@ -131,14 +125,13 @@ public partial class MainWindow : Window
         this._logger = logger;
         this._monitorService = monitorService;
         this._monitorLifecycleService = monitorLifecycleService;
-        this._monitorStartupOrchestrator = monitorStartupOrchestrator;
         this._createUpdateChecker = createUpdateChecker;
         this._updateChecker = updateChecker;
         this._dialogService = dialogService;
         this._browserService = browserService;
-        var providerIconService = new WpfProviderIconService(this._logger, this.GetResourceBrush);
+        var providerIconService = new WpfProviderIconService(this._logger, GetResourceBrush);
         this._createProviderIcon = providerIconService.CreateIcon;
-        var markdownRenderer = new ChangelogMarkdownRenderer(this.GetResourceBrush);
+        var markdownRenderer = new ChangelogMarkdownRenderer(GetResourceBrush);
         this._buildChangelogDocument = markdownRenderer.BuildDocument;
         this._preferencesStore = preferencesStore;
         this._viewModel = viewModel;
@@ -159,7 +152,13 @@ public partial class MainWindow : Window
             return;
         }
 
-#pragma warning disable VSTHRD101 // WPF event subscriptions intentionally use async lambdas for UI event handlers.
+        this.WireUpEventHandlers();
+        this.UpdatePrivacyButtonState();
+    }
+
+    private void WireUpEventHandlers()
+    {
+#pragma warning disable VSTHRD101
         this._updateCheckTimer.Tick += async (s, e) =>
         {
             try
@@ -176,68 +175,16 @@ public partial class MainWindow : Window
         this._alwaysOnTopTimer.Start();
 
         this.SourceInitialized += this.OnSourceInitialized;
+        if (OperatingSystem.IsWindows())
+        {
+            SystemEvents.PowerModeChanged += this.OnPowerModeChanged;
+        }
+
         PrivacyChangedWeakEventManager.AddHandler(this._privacyChangedHandler);
-        this.Closed += (s, e) =>
-        {
-            PrivacyChangedWeakEventManager.RemoveHandler(this._privacyChangedHandler);
-            this._updateCheckTimer.Stop();
-            this._alwaysOnTopTimer.Stop();
-            this.SourceInitialized -= this.OnSourceInitialized;
-
-            if (this._hubConnection != null)
-            {
-                _ = this._hubConnection.DisposeAsync();
-                this._hubConnection = null;
-            }
-
-            if (this._windowSource is not null)
-            {
-                this._windowSource.RemoveHook(this.WndProc);
-                this._windowSource = null;
-            }
-        };
-        this.UpdatePrivacyButtonState();
-
-        this.Loaded += async (s, e) =>
-        {
-            try
-            {
-                await this.InitializeAsync().ConfigureAwait(true);
-                _ = this.CheckForUpdatesAsync().ContinueWith(
-                    t => this._logger.LogError(t.Exception, "CheckForUpdatesAsync failed unhandled"),
-                    CancellationToken.None,
-                    TaskContinuationOptions.OnlyOnFaulted,
-                    TaskScheduler.Default);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                this._logger.LogError(ex, "Window_Loaded failed");
-            }
-        };
-
-        // Track window position changes
-        this.LocationChanged += async (s, e) =>
-        {
-            try
-            {
-                await this.SaveWindowPositionAsync().ConfigureAwait(true);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                this._logger.LogError(ex, "LocationChanged handler failed");
-            }
-        };
-        this.SizeChanged += async (s, e) =>
-        {
-            try
-            {
-                await this.SaveWindowPositionAsync().ConfigureAwait(true);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                this._logger.LogError(ex, "SizeChanged handler failed");
-            }
-        };
+        this.Closed += this.OnWindowClosed;
+        this.Loaded += this.OnWindowLoaded;
+        this.LocationChanged += this.OnWindowLocationChanged;
+        this.SizeChanged += this.OnWindowSizeChanged;
 #pragma warning restore VSTHRD101
         this.Activated += (s, e) =>
         {
@@ -277,6 +224,74 @@ public partial class MainWindow : Window
             this.LogWindowFocusTransition($"IsVisibleChanged -> {this.IsVisible}");
         };
     }
+
+#pragma warning disable VSTHRD100
+    private void OnWindowClosed(object? s, EventArgs e)
+    {
+        PrivacyChangedWeakEventManager.RemoveHandler(this._privacyChangedHandler);
+        if (OperatingSystem.IsWindows())
+        {
+            SystemEvents.PowerModeChanged -= this.OnPowerModeChanged;
+        }
+
+        this._updateCheckTimer.Stop();
+        this._alwaysOnTopTimer.Stop();
+        this.SourceInitialized -= this.OnSourceInitialized;
+
+        if (this._hubConnection != null)
+        {
+            _ = this._hubConnection.DisposeAsync();
+            this._hubConnection = null;
+        }
+
+        if (this._windowSource is not null)
+        {
+            this._windowSource.RemoveHook(this.WndProc);
+            this._windowSource = null;
+        }
+    }
+
+    private async void OnWindowLoaded(object s, RoutedEventArgs e)
+    {
+        try
+        {
+            await this.InitializeAsync().ConfigureAwait(true);
+            _ = this.CheckForUpdatesAsync().ContinueWith(
+                t => this._logger.LogError(t.Exception, "CheckForUpdatesAsync failed unhandled"),
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            this._logger.LogError(ex, "Window_Loaded failed");
+        }
+    }
+
+    private async void OnWindowLocationChanged(object? s, EventArgs e)
+    {
+        try
+        {
+            await this.SaveWindowPositionAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            this._logger.LogError(ex, "LocationChanged handler failed");
+        }
+    }
+
+    private async void OnWindowSizeChanged(object? s, SizeChangedEventArgs e)
+    {
+        try
+        {
+            await this.SaveWindowPositionAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            this._logger.LogError(ex, "SizeChanged handler failed");
+        }
+    }
+#pragma warning restore VSTHRD100
 
     private void ApplyVersionDisplay()
     {
@@ -319,21 +334,23 @@ public partial class MainWindow : Window
             return;
         }
 
+        var preferences = this.EnsureSharedPreferencesForWrite();
+
         // Only save if position has changed meaningfully
         var positionChanged =
-            Math.Abs(this._preferences.WindowLeft.GetValueOrDefault() - this.Left) > 1 ||
-            Math.Abs(this._preferences.WindowTop.GetValueOrDefault() - this.Top) > 1;
+            Math.Abs(preferences.WindowLeft.GetValueOrDefault() - this.Left) > 1 ||
+            Math.Abs(preferences.WindowTop.GetValueOrDefault() - this.Top) > 1;
 
         var sizeChanged =
-            Math.Abs(this._preferences.WindowWidth - this.Width) > 1 ||
-            Math.Abs(this._preferences.WindowHeight - this.Height) > 1;
+            Math.Abs(preferences.WindowWidth - this.Width) > 1 ||
+            Math.Abs(preferences.WindowHeight - this.Height) > 1;
 
         if (positionChanged || sizeChanged)
         {
-            this._preferences.WindowLeft = this.Left;
-            this._preferences.WindowTop = this.Top;
-            this._preferences.WindowWidth = this.Width;
-            this._preferences.WindowHeight = this.Height;
+            preferences.WindowLeft = this.Left;
+            preferences.WindowTop = this.Top;
+            preferences.WindowWidth = this.Width;
+            preferences.WindowHeight = this.Height;
             await this.SaveUiPreferencesAsync().ConfigureAwait(true);
         }
     }
@@ -363,52 +380,19 @@ public partial class MainWindow : Window
             // By now it should already be done or nearly done. Just await it.
             this.LogDiagnostic("[DIAGNOSTIC] Awaiting monitor warmup task...");
             this.ShowStatus("Loading...", StatusType.Info);
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            try
+            var monitorReady = await App.MonitorWarmupTask.ConfigureAwait(true);
+            this.LogDiagnostic($"[DIAGNOSTIC] Monitor warmup completed, ready={monitorReady}");
+
+            if (!monitorReady)
             {
-                var monitorReady = await App.MonitorWarmupTask.ConfigureAwait(true);
-                sw.Stop();
-                this.LogDiagnostic($"[DIAGNOSTIC] Monitor warmup completed in {sw.ElapsedMilliseconds}ms, ready={monitorReady}");
-
-                if (!monitorReady)
-                {
-                    // Warmup failed — try the orchestrator as fallback
-                    this.ShowStatus("Starting monitor...", StatusType.Info);
-                    var startupResult = await this._monitorStartupOrchestrator.EnsureMonitorReadyAsync(
-                        async (message, type) =>
-                        {
-                            await this.Dispatcher.InvokeAsync(() => this.ShowStatus(message, type)).Task.ConfigureAwait(true);
-                        },
-                        skipInitialHealthCheck: true).ConfigureAwait(true);
-
-                    if (!startupResult.IsSuccess)
-                    {
-                        if (startupResult.IsLaunchFailure)
-                        {
-                            this.ShowStatus("Monitor failed to start", StatusType.Error);
-                            this.ShowErrorState(
-                                BuildMonitorErrorMessage(
-                                    "Monitor failed to start.",
-                                    "Please ensure AIUsageTracker.Monitor is installed and try again.",
-                                    this._monitorService.LastAgentErrors));
-                        }
-
-                        this._isLoading = false;
-                        return;
-                    }
-                }
-
-                // Monitor is running — refresh port and fetch data
-                await this._monitorService.RefreshPortAsync().ConfigureAwait(true);
-                await this.FetchDataAsync().ConfigureAwait(true);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                this.LogDiagnostic($"[DIAGNOSTIC] Monitor startup failed: {ex.Message}");
-                this.ShowErrorState($"Monitor startup failed: {ex.Message}");
-                this._isLoading = false;
+                this.ShowStatus("Monitor failed to start", StatusType.Error);
+                this.ShowErrorState("Monitor failed to start.");
                 return;
             }
+
+            // Monitor is running — refresh port and fetch data
+            await this._monitorService.RefreshPortAsync().ConfigureAwait(true);
+            await this.FetchDataAsync().ConfigureAwait(true);
 
             // Start background tasks (non-blocking)
             this.StartPollingTimer();
@@ -454,8 +438,17 @@ public partial class MainWindow : Window
         this.FontStyle = this._preferences.FontItalic ? FontStyles.Italic : FontStyles.Normal;
 
         // Apply UI controls
-        this.AlwaysOnTopCheck.IsChecked = this._preferences.AlwaysOnTop;
-        this.ApplyDisplayModePreference();
+        this._isApplyingPreferences = true;
+        try
+        {
+            this.AlwaysOnTopCheck.IsChecked = this._preferences.AlwaysOnTop;
+            this.ApplyDisplayModePreference();
+        }
+        finally
+        {
+            this._isApplyingPreferences = false;
+        }
+
         this.UpdatePrivacyButtonState();
         this.EnsureAlwaysOnTop();
 
@@ -477,7 +470,7 @@ public partial class MainWindow : Window
     {
         if (this.ShowUsedToggle != null)
         {
-            this.ShowUsedToggle.IsChecked = this._preferences.PercentageDisplayMode == PercentageDisplayMode.Used;
+            this.ShowUsedToggle.IsChecked = this._preferences.ShowUsedPercentages;
         }
     }
 
@@ -494,12 +487,19 @@ public partial class MainWindow : Window
 
     private async Task SaveUiPreferencesAsync()
     {
-        App.Preferences = this._preferences;
-        var saved = await this._preferencesStore.SaveAsync(this._preferences).ConfigureAwait(true);
+        var preferences = this.EnsureSharedPreferencesForWrite();
+        var saved = await this._preferencesStore.SaveAsync(preferences).ConfigureAwait(true);
         if (!saved)
         {
             this._logger.LogWarning("Failed to save Slim UI preferences");
         }
+    }
+
+    private AppPreferences EnsureSharedPreferencesForWrite()
+    {
+        this._preferences = App.Preferences;
+        this._preferencesLoaded = true;
+        return this._preferences;
     }
 
     internal void ShowAndActivate()
@@ -560,6 +560,15 @@ public partial class MainWindow : Window
         }
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == PowerModes.Resume)
+        {
+            this._logger.LogInformation("System resumed");
+        }
+    }
+
     private void UpdatePrivacyButtonState()
     {
         if (this.PrivacyBtn == null)
@@ -570,10 +579,10 @@ public partial class MainWindow : Window
         this.PrivacyBtn.Content = this._isPrivacyMode ? "\uE72E" : "\uE785";
         this.PrivacyBtn.Foreground = this._isPrivacyMode
             ? Brushes.Gold
-            : this.GetResourceBrush("SecondaryText", Brushes.Gray);
+            : GetResourceBrush("SecondaryText", Brushes.Gray);
     }
 
-    private SolidColorBrush GetResourceBrush(string key, SolidColorBrush fallback) =>
+    private static SolidColorBrush GetResourceBrush(string key, SolidColorBrush fallback) =>
         UIHelper.GetResourceBrush(key, fallback);
 
     private void LogDiagnostic(string message)
@@ -617,8 +626,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var owner = this.IsVisible ? this : null;
-            settingsResult = await this._dialogService.ShowSettingsAsync(owner).ConfigureAwait(true);
+            settingsResult = await this._dialogService.ShowSettingsAsync(this).ConfigureAwait(true);
         }
         finally
         {
@@ -700,8 +708,9 @@ public partial class MainWindow : Window
     {
         try
         {
+            var preferences = this.EnsureSharedPreferencesForWrite();
             var newPrivacyMode = !this._isPrivacyMode;
-            this._preferences.IsPrivacyMode = newPrivacyMode;
+            preferences.IsPrivacyMode = newPrivacyMode;
             App.SetPrivacyMode(newPrivacyMode);
             await this.SaveUiPreferencesAsync().ConfigureAwait(true);
         }
@@ -720,13 +729,14 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (!this.IsLoaded)
+            if (!this.IsLoaded || this._isApplyingPreferences)
             {
                 return;
             }
 
-            this._preferences.AlwaysOnTop = this.AlwaysOnTopCheck.IsChecked ?? true;
-            if (this._preferences.AlwaysOnTop)
+            var preferences = this.EnsureSharedPreferencesForWrite();
+            preferences.AlwaysOnTop = this.AlwaysOnTopCheck.IsChecked ?? true;
+            if (preferences.AlwaysOnTop)
             {
                 this.EnsureAlwaysOnTop();
             }
@@ -747,12 +757,13 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (!this.IsLoaded)
+            if (!this.IsLoaded || this._isApplyingPreferences)
             {
                 return;
             }
 
-            this._preferences.ShowUsedPercentages = this.ShowUsedToggle.IsChecked ?? false;
+            var preferences = this.EnsureSharedPreferencesForWrite();
+            preferences.ShowUsedPercentages = this.ShowUsedToggle.IsChecked ?? false;
             await this.SaveUiPreferencesAsync().ConfigureAwait(true);
 
             // Refresh the display to show used% vs remaining%
@@ -762,23 +773,6 @@ public partial class MainWindow : Window
         {
             this._logger.LogError(ex, "ShowUsedToggle_Checked failed");
         }
-    }
-
-    private static string BuildMonitorErrorMessage(
-        string heading,
-        string fallbackDetails,
-        IReadOnlyCollection<string>? errors)
-    {
-        if (errors == null || errors.Count == 0)
-        {
-            return $"{heading}\n\n{fallbackDetails}";
-        }
-
-        var details = string.Join(
-            Environment.NewLine,
-            errors.Take(3).Select(error => $"- {error}"));
-
-        return $"{heading}\n\nMonitor reported:\n{details}\n\n{fallbackDetails}";
     }
 
     private static string? ParsePrereleaseLabel(string? informationalVersion)

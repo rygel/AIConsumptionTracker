@@ -6,10 +6,6 @@ using System.Net;
 using System.Reflection;
 using AIUsageTracker.Core.Models;
 using AIUsageTracker.Infrastructure.Providers;
-using AIUsageTracker.Tests.Infrastructure;
-using Moq;
-using Moq.Protected;
-using Xunit;
 
 namespace AIUsageTracker.Tests.Infrastructure.Providers;
 
@@ -20,19 +16,6 @@ public class AntigravityProviderTests : HttpProviderTestBase<AntigravityProvider
     public AntigravityProviderTests()
     {
         this._provider = new AntigravityProvider(this.HttpClient, this.Logger.Object);
-    }
-
-    [Fact]
-    public void CreateLocalhostClient_HasShorterTimeout()
-    {
-        // Act
-        var method = typeof(AntigravityProvider).GetMethod("CreateLocalhostClient", BindingFlags.Static | BindingFlags.NonPublic);
-        Assert.NotNull(method);
-
-        using var client = (HttpClient)method.Invoke(null, null)!;
-
-        // Assert
-        Assert.Equal(TimeSpan.FromSeconds(1.5), client.Timeout);
     }
 
     [Fact]
@@ -164,7 +147,8 @@ public class AntigravityProviderTests : HttpProviderTestBase<AntigravityProvider
         var method = typeof(AntigravityProvider).GetMethod("FetchUsageAsync", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(method);
 
-        var task = (Task<List<ProviderUsage>>)method!.Invoke(provider, new object[] { port, csrfToken, config })!;
+        var providerLabel = ProviderMetadataCatalog.GetConfiguredDisplayName("antigravity");
+        var task = (Task<List<ProviderUsage>>)method!.Invoke(provider, new object[] { port, csrfToken, config, providerLabel })!;
         return await task.ConfigureAwait(false);
     }
 }
