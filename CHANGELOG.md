@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [2.3.4-beta.34] - 2026-04-26
+
+### Fixed
+- **Always-on-top leaking when disabled**: window no longer stays topmost after unchecking "Always On Top". Root cause was hardcoded `Topmost="True"` in XAML and asymmetric Win32 flag management.
+- **Stale beta appcast files**: beta appcast now points to v2.3.4-beta.33 instead of v2.3.4-beta.11.
+- **Copilot raw snapshot**: stored quota API response instead of profile response.
+
+### Changed
+- **Consolidated auto-start settings**: removed redundant "Start Monitor with Windows" checkbox (Monitor always auto-starts with the UI). Single "Start with Windows" checkbox controls startup behavior.
+- **Removed Monitor startup task from installer**: the installer no longer offers a separate Monitor startup option.
+
 ## [2.3.4-beta.32] - 2026-04-21
 
 ### Fixed
