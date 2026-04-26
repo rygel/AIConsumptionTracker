@@ -98,23 +98,23 @@ public class GitHubUpdateChecker
             if (updateInfo?.Updates?.Count > 0)
             {
                 var latest = updateInfo.Updates[0];
-                var currentVersion = System.Reflection.Assembly.GetEntryAssembly()?.GetName()?.Version ?? new Version(1, 0, 0);
 
                 var latestVersionStr = latest.Version?.TrimStart('v') ?? "0.0.0";
+                var currentVersionStr = GetCurrentInformationalVersion();
 
-                if (Version.TryParse(latestVersionStr, out var latestVersion) && latestVersion > currentVersion)
+                if (IsNewerVersion(latestVersionStr, currentVersionStr))
                 {
                     this._logger.LogInformation(
                         "New version available: {LatestVersion} (Current: {CurrentVersion})",
-                        latestVersion,
-                        currentVersion);
+                        latestVersionStr,
+                        currentVersionStr);
 
                     var releaseNotes = await this.FetchReleaseNotesFromGitHubAsync(latestVersionStr).ConfigureAwait(false);
 
                     return new AIUsageTracker.Core.Interfaces.UpdateInfo
                     {
-                        Version = latest.Version ?? latestVersion.ToString(),
-                        ReleaseUrl = latest.ReleaseNotesLink ?? GetReleaseTagUrl(latestVersion.ToString()),
+                        Version = latest.Version ?? latestVersionStr,
+                        ReleaseUrl = latest.ReleaseNotesLink ?? GetReleaseTagUrl(latestVersionStr),
                         DownloadUrl = latest.DownloadLink ?? string.Empty,
                         ReleaseNotes = releaseNotes,
                         PublishedAt = latest.PublicationDate,
