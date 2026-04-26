@@ -245,7 +245,7 @@ public class GitHubUpdateChecker
 
     private async Task<AIUsageTracker.Core.Interfaces.UpdateInfo?> CheckForBetaUpdatesAsync()
     {
-        this._logger.LogDebug("Checking for beta updates via GitHub Releases API");
+        this._logger.LogDebug("Checking for beta/stable updates via GitHub Releases API");
 
         var releasesUrl = $"{RepositoryApiBaseUrl}/releases?per_page=10";
         using var response = await this._httpClient.GetAsync(releasesUrl).ConfigureAwait(false);
@@ -260,40 +260,46 @@ public class GitHubUpdateChecker
 
         var currentVersionStr = GetCurrentInformationalVersion();
 
+        AIUsageTracker.Core.Interfaces.UpdateInfo? bestUpdate = null;
+        var bestVersionStr = currentVersionStr;
+
         foreach (var release in doc.RootElement.EnumerateArray())
         {
-            var update = this.TryParseBetaRelease(release, currentVersionStr);
+            var tagName = release.TryGetProperty("tag_name", out var tag) ? tag.GetString() : null;
+            if (string.IsNullOrWhiteSpace(tagName))
+            {
+                continue;
+            }
+
+            var versionStr = tagName.TrimStart('v');
+
+            if (!IsNewerVersion(versionStr, bestVersionStr))
+            {
+                continue;
+            }
+
+            var update = this.TryParseRelease(release, versionStr);
             if (update != null)
             {
-                return update;
+                bestUpdate = update;
+                bestVersionStr = versionStr;
             }
         }
 
-        this._logger.LogDebug("No beta updates available");
-        return null;
+        if (bestUpdate != null)
+        {
+            this._logger.LogInformation("Update available for beta channel: {Version}", bestVersionStr);
+        }
+        else
+        {
+            this._logger.LogDebug("No updates available for beta channel");
+        }
+
+        return bestUpdate;
     }
 
-    private AIUsageTracker.Core.Interfaces.UpdateInfo? TryParseBetaRelease(JsonElement release, string currentVersionStr)
+    private AIUsageTracker.Core.Interfaces.UpdateInfo? TryParseRelease(JsonElement release, string versionStr)
     {
-        var isPrerelease = release.TryGetProperty("prerelease", out var pre) && pre.GetBoolean();
-        if (!isPrerelease)
-        {
-            return null;
-        }
-
-        var tagName = release.TryGetProperty("tag_name", out var tag) ? tag.GetString() : null;
-        if (string.IsNullOrWhiteSpace(tagName))
-        {
-            return null;
-        }
-
-        var latestVersionStr = tagName.TrimStart('v');
-
-        if (!IsNewerVersion(latestVersionStr, currentVersionStr))
-        {
-            return null;
-        }
-
         var publishedAt = release.TryGetProperty("published_at", out var pub) &&
                           DateTime.TryParse(pub.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt)
             ? dt
@@ -303,15 +309,15 @@ public class GitHubUpdateChecker
             ? body.GetString() ?? string.Empty
             : string.Empty;
 
-        var arch = GetCurrentArchitectureName();
-        var downloadUrl = $"{RepositoryBaseUrl}/releases/download/{tagName}/AIUsageTracker_Setup_v{latestVersionStr}_win-{arch}.exe";
+        var tagName = release.TryGetProperty("tag_name", out var tag) ? tag.GetString() : $"v{versionStr}";
 
-        this._logger.LogInformation("Beta update available: {Version}", latestVersionStr);
+        var arch = GetCurrentArchitectureName();
+        var downloadUrl = $"{RepositoryBaseUrl}/releases/download/{tagName}/AIUsageTracker_Setup_v{versionStr}_win-{arch}.exe";
 
         return new AIUsageTracker.Core.Interfaces.UpdateInfo
         {
-            Version = latestVersionStr,
-            ReleaseUrl = GetReleaseTagUrl(latestVersionStr),
+            Version = versionStr,
+            ReleaseUrl = GetReleaseTagUrl(versionStr),
             DownloadUrl = downloadUrl,
             ReleaseNotes = releaseBody,
             PublishedAt = publishedAt,
