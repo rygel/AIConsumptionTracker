@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [2.3.5-beta.2] - 2026-05-04
+
+### Fixed
+- **Unavailable providers no longer glitch to zero**: flat/model cards now preserve the provider's unavailable state and description instead of falling back to synthetic `0% used` or `100% remaining` text.
+- **Unavailable cards no longer leak derived quota details**: custom card slots, dual-bar status rendering, and tooltips now suppress percent, pace, budget, and reset details when the provider is not actually available.
+- **Status-only providers keep descriptive status text**: status-only cards such as connection/auth status rows now preserve messages like `Connected` instead of falling through to quota percentage formatting.
+
 ## [2.3.4] - 2026-04-26
 
 ### Added
